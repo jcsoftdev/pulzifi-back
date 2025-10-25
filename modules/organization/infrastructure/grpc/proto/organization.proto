@@ -1,0 +1,55 @@
+syntax = "proto3";
+
+package organization;
+
+option go_package = "github.com/jcsoftdev/pulzifi-back/modules/organization/infrastructure/grpc/pb";
+
+// Organization message for gRPC
+message Organization {
+  string id = 1;
+  string name = 2;
+  string subdomain = 3;
+  string schema_name = 4;
+  string owner_user_id = 5;
+  string created_at = 6;
+  string updated_at = 7;
+}
+
+// CreateOrganizationRequest for gRPC
+message CreateOrganizationRequest {
+  string name = 1;
+  string subdomain = 2;
+  string owner_user_id = 3;
+}
+
+// CreateOrganizationReply for gRPC
+message CreateOrganizationReply {
+  Organization organization = 1;
+}
+
+// GetOrganizationRequest for gRPC
+message GetOrganizationRequest {
+  string id = 1;
+}
+
+// GetOrganizationReply for gRPC
+message GetOrganizationReply {
+  Organization organization = 1;
+}
+
+// GetOrganizationBySubdomainRequest for gRPC
+message GetOrganizationBySubdomainRequest {
+  string subdomain = 1;
+}
+
+// GetOrganizationBySubdomainReply for gRPC
+message GetOrganizationBySubdomainReply {
+  Organization organization = 1;
+}
+
+// OrganizationService defines gRPC endpoints for organization module
+service OrganizationService {
+  rpc CreateOrganization(CreateOrganizationRequest) returns (CreateOrganizationReply);
+  rpc GetOrganization(GetOrganizationRequest) returns (GetOrganizationReply);
+  rpc GetOrganizationBySubdomain(GetOrganizationBySubdomainRequest) returns (GetOrganizationBySubdomainReply);
+}

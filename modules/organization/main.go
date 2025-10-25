@@ -1,11 +1,20 @@
 package main
 
 import (
+	"context"
 	"net"
-	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jcsoftdev/pulzifi-back/modules/organization/application/create_organization"
+	"github.com/jcsoftdev/pulzifi-back/modules/organization/application/get_organization"
+	"github.com/jcsoftdev/pulzifi-back/modules/organization/domain/services"
+	grpcadapter "github.com/jcsoftdev/pulzifi-back/modules/organization/infrastructure/grpc"
+	pb "github.com/jcsoftdev/pulzifi-back/modules/organization/infrastructure/grpc/pb"
+	httpadapter "github.com/jcsoftdev/pulzifi-back/modules/organization/infrastructure/http"
+	"github.com/jcsoftdev/pulzifi-back/modules/organization/infrastructure/messaging"
+	"github.com/jcsoftdev/pulzifi-back/modules/organization/infrastructure/persistence"
 	"github.com/jcsoftdev/pulzifi-back/shared/config"
+	"github.com/jcsoftdev/pulzifi-back/shared/database"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
 	"go.uber.org/zap"
@@ -16,25 +25,59 @@ func main() {
 	cfg := config.Load()
 	logger.Info("Starting Organization Service", zap.String("config", cfg.String()))
 
+	// Connect to database
+	db, err := database.Connect(cfg)
+	if err != nil {
+		logger.Error("Failed to connect to database", zap.Error(err))
+		panic(err)
+	}
+	defer db.Close()
+	logger.Info("Connected to database")
+
+	// Initialize Kafka client
+	kafkaClient, err := messaging.NewKafkaClient(cfg)
+	if err != nil {
+		logger.Error("Failed to initialize Kafka client", zap.Error(err))
+		panic(err)
+	}
+	defer kafkaClient.Close()
+
+	// Initialize repositories
+	orgRepo := persistence.NewOrganizationPostgresRepository(db)
+
+	// Initialize domain services
+	orgService := services.NewOrganizationService()
+
+	// Initialize messaging (Kafka)
+	messagePublisher := messaging.NewPublisher(kafkaClient)
+	messageSubscriber := messaging.NewSubscriber(kafkaClient)
+
+	// Initialize application handlers
+	createOrgHandler := create_organization.NewCreateOrganizationHandler(orgRepo, orgService, db, messagePublisher)
+	getOrgHandler := get_organization.NewGetOrganizationHandler(orgRepo)
+
+	// Start Kafka subscriber in background
+	go func() {
+		messageSubscriber.ListenToEvents(context.Background())
+	}()
+
 	// Setup HTTP Router
 	router := gin.Default()
 	router.GET("/health", middleware.HealthCheck())
 
-	router.GET("/api/organizations", func(c *gin.Context) {
-		c.JSON(200, gin.H{"message": "list organizations"})
-	})
+	// Setup organization routes
+	httpRouter := httpadapter.NewRouter(createOrgHandler, getOrgHandler)
+	httpRouter.Setup(router)
 
-	router.POST("/api/organizations", func(c *gin.Context) {
-		c.JSON(201, gin.H{"message": "create organization"})
-	})
-
+	// Start HTTP server in a goroutine
 	go func() {
 		logger.Info("Starting HTTP server", zap.String("port", cfg.HTTPPort))
-		if err := router.Run(":" + cfg.HTTPPort); err != nil && err != http.ErrServerClosed {
+		if err := router.Run(":" + cfg.HTTPPort); err != nil {
 			logger.Error("HTTP server error", zap.Error(err))
 		}
 	}()
 
+	// Setup gRPC server
 	lis, err := net.Listen("tcp", ":"+cfg.GRPCPort)
 	if err != nil {
 		logger.Error("Failed to listen on gRPC port", zap.Error(err))
@@ -42,6 +85,11 @@ func main() {
 	}
 
 	grpcServer := grpc.NewServer()
+
+	// Register gRPC services
+	grpcService := grpcadapter.NewOrganizationServiceServer(createOrgHandler, getOrgHandler)
+	pb.RegisterOrganizationServiceServer(grpcServer, grpcService)
+
 	logger.Info("Starting gRPC server", zap.String("port", cfg.GRPCPort))
 
 	if err := grpcServer.Serve(lis); err != nil {
