@@ -1,0 +1,93 @@
+# ============================================================
+# Docker ignore file for Pulzifi Backend
+# Excludes unnecessary files from Docker build context
+# ============================================================
+
+# Git files
+.git
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+docs/
+README.md
+ARCHITECTURE_VALIDATION.md
+BACKEND_ANALYSIS.md
+DATABASE_DESIGN.md
+NETWORK_ARCHITECTURE.md
+
+# Environment files (will be copied selectively)
+.env
+.env.*
+!.env.example
+
+# Dependencies (will be downloaded in container)
+vendor/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# IDE files
+.vscode/
+.idea/
+*.sublime-*
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Test files and coverage
+*_test.go
+*.test
+*.out
+coverage.txt
+coverage.html
+
+# Build artifacts
+bin/
+build/
+dist/
+
+# Docker files (avoid recursion)
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Scripts (not needed in container)
+scripts/
+*.sh
+
+# SSL certificates (will be mounted)
+ssl/
+*.pem
+*.key
+*.crt
+
+# Database files
+*.sql
+!database_setup.sql
+
+# Node modules (if any)
+node_modules/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Backup files
+*.bak
+*.backup
