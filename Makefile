@@ -52,15 +52,16 @@ start: check-env ## Start all services in production mode
 	@docker-compose up -d
 	@echo "$(GREEN)Services started! Use 'make status' to check health$(NC)"
 
-# Start development environment
-dev: check-env ## Start development environment (infrastructure only)
-	@echo "$(GREEN)Starting development environment...$(NC)"
-	@docker-compose -f $(DOCKER_COMPOSE_DEV) up -d
-	@echo "$(GREEN)Development environment ready!$(NC)"
-	@echo "Infrastructure services available:"
-	@echo "  • PostgreSQL: localhost:5434"
-	@echo "  • Redis: localhost:6379"
-	@echo "  • Kafka: localhost:9092"
+# Start development environment with hot reload
+dev: check-env ## Start development environment (infrastructure + all services with hot reload)
+	@echo "$(GREEN)Starting development environment with hot reload...$(NC)"
+	@docker-compose -f $(DOCKER_COMPOSE_DEV) up
+	@echo "$(GREEN)Services stopped!$(NC)"
+
+# Start only services in development mode (requires infrastructure to be running)
+dev-services: check-env ## Start all services with hot reload (assumes infrastructure is running)
+	@echo "$(GREEN)Starting services with hot reload...$(NC)"
+	@docker-compose -f $(DOCKER_COMPOSE_DEV) up auth-service organization-service workspace-service page-service alert-service integration-service monitoring-service insight-service report-service usage-service
 
 # Start only infrastructure services
 infra: check-env ## Start only infrastructure services (PostgreSQL, Redis, Kafka)

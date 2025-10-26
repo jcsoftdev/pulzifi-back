@@ -1,8 +1,8 @@
 package messaging
 
 import (
-	kafkaclient "github.com/jcsoftdev/pulzifi-back/shared/kafka"
 	"github.com/jcsoftdev/pulzifi-back/shared/config"
+	kafkaclient "github.com/jcsoftdev/pulzifi-back/shared/kafka"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"go.uber.org/zap"
 )
@@ -28,7 +28,7 @@ func NewKafkaClient(cfg *config.Config) (*KafkaClient, error) {
 		"user.deleted",
 		"workspace.created",
 	}
-	
+
 	consumer, err := kafkaclient.NewConsumerClient(cfg, "organization-service", topics)
 	if err != nil {
 		logger.Error("Failed to create Kafka consumer", zap.Error(err))

@@ -43,7 +43,7 @@ func (s *Subscriber) ListenToEvents(ctx context.Context) {
 				continue
 			}
 
-			logger.Info("Received event from Kafka", 
+			logger.Info("Received event from Kafka",
 				zap.String("topic", topic),
 				zap.String("key", key),
 				zap.Int("payload_size", len(payload)),

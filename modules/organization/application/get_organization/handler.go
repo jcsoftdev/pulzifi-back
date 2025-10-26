@@ -45,12 +45,12 @@ func (h *GetOrganizationHandler) Handle(
 	}
 
 	return &Response{
-		ID:        org.ID,
-		Name:      org.Name,
-		Subdomain: org.Subdomain,
-		SchemaName: org.SchemaName,
+		ID:          org.ID,
+		Name:        org.Name,
+		Subdomain:   org.Subdomain,
+		SchemaName:  org.SchemaName,
 		OwnerUserID: org.OwnerUserID,
-		CreatedAt: org.CreatedAt.Format("2006-01-02T15:04:05Z"),
-		UpdatedAt: org.UpdatedAt.Format("2006-01-02T15:04:05Z"),
+		CreatedAt:   org.CreatedAt.Format("2006-01-02T15:04:05Z"),
+		UpdatedAt:   org.UpdatedAt.Format("2006-01-02T15:04:05Z"),
 	}, nil
 }

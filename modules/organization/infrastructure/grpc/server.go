@@ -89,13 +89,13 @@ func (s *OrganizationServiceServer) GetOrganization(
 	// Convert application response to gRPC response
 	pbReply := &pb.GetOrganizationReply{
 		Organization: &pb.Organization{
-			Id:         resp.ID.String(),
-			Name:       resp.Name,
-			Subdomain:  resp.Subdomain,
-			SchemaName: resp.SchemaName,
+			Id:          resp.ID.String(),
+			Name:        resp.Name,
+			Subdomain:   resp.Subdomain,
+			SchemaName:  resp.SchemaName,
 			OwnerUserId: resp.OwnerUserID.String(),
-			CreatedAt:  resp.CreatedAt,
-			UpdatedAt:  resp.UpdatedAt,
+			CreatedAt:   resp.CreatedAt,
+			UpdatedAt:   resp.UpdatedAt,
 		},
 	}
 

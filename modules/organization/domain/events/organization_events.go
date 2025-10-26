@@ -8,12 +8,12 @@ import (
 
 // OrganizationCreated is a domain event published when an organization is created
 type OrganizationCreated struct {
-	ID        uuid.UUID
-	Name      string
-	Subdomain string
-	SchemaName string
+	ID          uuid.UUID
+	Name        string
+	Subdomain   string
+	SchemaName  string
 	OwnerUserID uuid.UUID
-	CreatedAt time.Time
+	CreatedAt   time.Time
 }
 
 // EventType returns the event type identifier

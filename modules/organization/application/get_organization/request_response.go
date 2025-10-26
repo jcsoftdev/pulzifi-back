@@ -4,11 +4,11 @@ import "github.com/google/uuid"
 
 // GetOrganizationResponse represents the output of getting an organization
 type GetOrganizationResponse struct {
-	ID        uuid.UUID `json:"id"`
-	Name      string    `json:"name"`
-	Subdomain string    `json:"subdomain"`
-	SchemaName string   `json:"schema_name"`
+	ID          uuid.UUID `json:"id"`
+	Name        string    `json:"name"`
+	Subdomain   string    `json:"subdomain"`
+	SchemaName  string    `json:"schema_name"`
 	OwnerUserID uuid.UUID `json:"owner_user_id"`
-	CreatedAt string    `json:"created_at"`
-	UpdatedAt string    `json:"updated_at"`
+	CreatedAt   string    `json:"created_at"`
+	UpdatedAt   string    `json:"updated_at"`
 }

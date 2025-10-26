@@ -6,10 +6,13 @@
 # ============================================================
 # Stage 1: Build stage
 # ============================================================
-FROM golang:1.25-alpine AS builder
+FROM golang:1.25-bookworm AS builder
 
 # Install build dependencies
-RUN apk add --no-cache git ca-certificates tzdata
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates build-essential librdkafka-dev
+
+# Install air for live reloading
+RUN go install github.com/air-verse/air@latest
 
 # Set working directory
 WORKDIR /app
@@ -17,39 +20,40 @@ WORKDIR /app
 # Copy go mod files
 COPY go.mod go.sum ./
 
-# Download dependencies
-RUN go mod download && go mod verify
-
 # Copy source code
 COPY . .
+
+# Download dependencies
+RUN go mod download && go mod verify
 
 # Build arguments for module selection
 ARG MODULE_NAME
 ENV MODULE_NAME=${MODULE_NAME}
 
 # Build the specific module
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
-    -ldflags='-w -s -extldflags "-static"' \
-    -a -installsuffix cgo \
-    -o app ./modules/${MODULE_NAME}/main.go
+# We don't build the binary in dev, air will do it
 
 # ============================================================
 # Stage 2: Runtime stage
 # ============================================================
-FROM alpine:3.19
+FROM debian:bookworm-slim
 
 # Install runtime dependencies
-RUN apk --no-cache add ca-certificates tzdata curl
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
-RUN addgroup -g 1001 -S appgroup && \
-    adduser -u 1001 -S appuser -G appgroup
+RUN addgroup --system --gid 1001 appgroup && \
+    adduser --system --uid 1001 --ingroup appgroup appuser
 
 # Set working directory
 WORKDIR /app
 
-# Copy binary from builder stage
-COPY --from=builder /app/app .
+# Copy binary and air from builder stage
+COPY --from=builder /go/bin/air /usr/local/bin/
+COPY --from=builder /app/modules /app/modules
+COPY --from=builder /app/go.mod /app/go.mod
+COPY --from=builder /app/go.sum /app/
+COPY --from=builder /app/shared /app/shared
 
 # Copy any necessary config files
 COPY --from=builder /app/.env.example .env.example
@@ -68,4 +72,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 EXPOSE 8080 9000
 
 # Run the application
-CMD ["./app"]
+CMD ["air"]

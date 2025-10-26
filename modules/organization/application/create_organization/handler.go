@@ -104,12 +104,12 @@ func (h *CreateOrganizationHandler) Handle(
 
 	// Publish organization created event
 	createdEvent := &events.OrganizationCreated{
-		ID:        org.ID,
-		Name:      org.Name,
-		Subdomain: org.Subdomain,
-		SchemaName: org.SchemaName,
+		ID:          org.ID,
+		Name:        org.Name,
+		Subdomain:   org.Subdomain,
+		SchemaName:  org.SchemaName,
 		OwnerUserID: org.OwnerUserID,
-		CreatedAt: org.CreatedAt,
+		CreatedAt:   org.CreatedAt,
 	}
 
 	if err := h.publisher.PublishOrganizationCreated(ctx, createdEvent); err != nil {
@@ -118,10 +118,10 @@ func (h *CreateOrganizationHandler) Handle(
 	}
 
 	return &Response{
-		ID:        org.ID,
-		Name:      org.Name,
-		Subdomain: org.Subdomain,
+		ID:         org.ID,
+		Name:       org.Name,
+		Subdomain:  org.Subdomain,
 		SchemaName: org.SchemaName,
-		CreatedAt: org.CreatedAt.Format("2006-01-02T15:04:05Z"),
+		CreatedAt:  org.CreatedAt.Format("2006-01-02T15:04:05Z"),
 	}, nil
 }
