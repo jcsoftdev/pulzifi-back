@@ -14,7 +14,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends git ca-certific
 # Install air for live reloading
 RUN go install github.com/air-verse/air@latest
 
-# Set working directory
+# Set PATH to include go binaries
+ENV PATH=$PATH:/root/go/bin
 WORKDIR /app
 
 # Copy go mod files
@@ -36,10 +37,16 @@ ENV MODULE_NAME=${MODULE_NAME}
 # ============================================================
 # Stage 2: Runtime stage
 # ============================================================
-FROM debian:bookworm-slim
+FROM golang:1.25-bookworm
 
 # Install runtime dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl librdkafka-dev && rm -rf /var/lib/apt/lists/*
+
+# Install air for live reloading
+RUN go install github.com/air-verse/air@latest
+
+# Set PATH to include go binaries
+ENV PATH=$PATH:/root/go/bin
 
 # Create non-root user
 RUN addgroup --system --gid 1001 appgroup && \
@@ -49,7 +56,7 @@ RUN addgroup --system --gid 1001 appgroup && \
 WORKDIR /app
 
 # Copy binary and air from builder stage
-COPY --from=builder /go/bin/air /usr/local/bin/
+COPY --from=builder /go/bin/air /go/bin/air
 COPY --from=builder /app/modules /app/modules
 COPY --from=builder /app/go.mod /app/go.mod
 COPY --from=builder /app/go.sum /app/
@@ -58,11 +65,11 @@ COPY --from=builder /app/shared /app/shared
 # Copy any necessary config files
 COPY --from=builder /app/.env.example .env.example
 
-# Change ownership to non-root user
-RUN chown -R appuser:appgroup /app
+# Change ownership to root user (air needs to rebuild)
+RUN chown -R root:root /app
 
-# Switch to non-root user
-USER appuser
+# NOTE: Running as root for development with air hot-reload
+# In production, use a separate slim image
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
@@ -71,5 +78,5 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 # Expose ports (will be overridden by docker-compose)
 EXPOSE 8080 9000
 
-# Run the application
-CMD ["air"]
+# Run the application - air from the module directory if MODULE_NAME is set
+CMD sh -c 'if [ -n "$MODULE_NAME" ]; then cd modules/$MODULE_NAME && air; else air; fi'

@@ -25,6 +25,17 @@ func NewGetOrganizationHandler(handler *getorgapp.GetOrganizationHandler) *GetOr
 }
 
 // Handle processes the HTTP request
+// @Summary Get Organization
+// @Description Retrieve organization details by ID
+// @Tags organizations
+// @Accept json
+// @Produce json
+// @Param id path string true "Organization ID"
+// @Success 200 {object} getorgapp.Response
+// @Failure 400 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /api/organizations/{id} [get]
 func (h *GetOrganizationHandler) Handle(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)

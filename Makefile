@@ -3,7 +3,7 @@
 # Simplifies common Docker tasks
 # ============================================================
 
-.PHONY: help build start stop restart clean logs status health dev prod
+.PHONY: help build start stop restart clean logs status health dev prod swagger swagger-all
 
 # Default target
 .DEFAULT_GOAL := help
@@ -187,3 +187,22 @@ docker-info: ## Show Docker system information and resource usage
 	@echo ""
 	@echo "$(GREEN)Running Containers:$(NC)"
 	@docker stats --no-stream --format "table {{.Container}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}"
+
+# Swagger documentation generation
+swagger-all: ## Generate Swagger documentation for all modules
+	@echo "$(GREEN)Generating Swagger documentation for all modules...$(NC)"
+	@for module in auth organization workspace page alert integration monitoring insight report usage; do \
+		echo "$(YELLOW)Generating docs for $$module module...$(NC)"; \
+		cd modules/$$module && ~/go/bin/swag init -g main.go && cd ../.. && echo "$(GREEN)✓ $$module$(NC)" || echo "✗ $$module"; \
+	done
+	@echo "$(GREEN)Swagger generation completed!$(NC)"
+
+swagger: ## Generate Swagger documentation for a specific module (use 'make swagger module=MODULE_NAME')
+ifdef module
+	@echo "$(GREEN)Generating Swagger documentation for $(module) module...$(NC)"
+	@cd modules/$(module) && ~/go/bin/swag init -g main.go
+	@echo "$(GREEN)Swagger documentation generated at modules/$(module)/docs$(NC)"
+else
+	@echo "$(YELLOW)Usage: make swagger module=MODULE_NAME$(NC)"
+	@echo "$(YELLOW)Available modules: auth organization workspace page alert integration monitoring insight report usage$(NC)"
+endif

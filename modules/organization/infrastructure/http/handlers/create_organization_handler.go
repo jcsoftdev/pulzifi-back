@@ -25,6 +25,19 @@ func NewCreateOrganizationHandler(handler *createorgapp.CreateOrganizationHandle
 }
 
 // Handle processes the HTTP request
+// @Summary Create Organization
+// @Description Create a new organization with the provided name and subdomain
+// @Tags organizations
+// @Accept json
+// @Produce json
+// @Param request body createorgapp.CreateOrganizationRequest true "Create Organization Request"
+// @Success 201 {object} createorgapp.CreateOrganizationResponse
+// @Failure 400 {object} map[string]string
+// @Failure 401 {object} map[string]string
+// @Failure 409 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Security BearerAuth
+// @Router /api/organizations [post]
 func (h *CreateOrganizationHandler) Handle(c *gin.Context) {
 	var req createorgapp.Request
 

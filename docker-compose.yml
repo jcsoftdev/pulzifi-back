@@ -483,6 +483,45 @@ services:
       start_period: 40s
 
   # ============================================================
+  # API DOCUMENTATION SERVICE
+  # ============================================================
+
+  api-docs-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        MODULE_NAME: api-docs
+    container_name: pulzifi-api-docs
+    restart: unless-stopped
+    environment:
+      MODULE_NAME: api-docs
+      HTTP_PORT: 9000
+    env_file:
+      - .env
+    ports:
+      - "9000:9000"
+    depends_on:
+      - organization-service
+      - workspace-service
+      - page-service
+      - alert-service
+      - monitoring-service
+      - insight-service
+      - report-service
+      - integration-service
+      - usage-service
+      - auth-service
+    networks:
+      - pulzifi-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ============================================================
   # REVERSE PROXY / API GATEWAY
   # ============================================================
 
@@ -507,6 +546,7 @@ services:
       - report-service
       - integration-service
       - usage-service
+      - api-docs-service
     networks:
       - pulzifi-network
     healthcheck:

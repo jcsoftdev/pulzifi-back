@@ -19,8 +19,23 @@ import (
 	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+
+	_ "github.com/jcsoftdev/pulzifi-back/modules/organization/docs"
 )
 
+// @title Pulzifi Organization API
+// @version 1.0
+// @description Organization service API for the Pulzifi monitoring platform
+// @host localhost:8081
+// @basePath /
+// @schemes http https
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @securitySchemes.BearerAuth apiKey
+// @name Authorization
+// @in header
+// @description Type "Bearer" followed by a space and JWT token
 func main() {
 	cfg := config.Load()
 	logger.Info("Starting Organization Service", zap.String("config", cfg.String()))
