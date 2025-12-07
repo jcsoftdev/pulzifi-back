@@ -1,0 +1,88 @@
+# ============================================================
+# Docker Compose for Pulzifi Backend MONOLITH
+# Minimal setup: PostgreSQL 17, Redis 7
+# All services run in single Go process on port 8080
+# ============================================================
+
+networks:
+  pulzifi-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+
+services:
+  monolith:
+    build:
+      context: .
+      dockerfile: Dockerfile.monolith
+    container_name: pulzifi-monolith
+    restart: unless-stopped
+    environment:
+      DB_HOST: postgres
+      DB_USER: ${DB_USER:-pulzifi_user}
+      DB_PASSWORD: ${DB_PASSWORD:-pulzifi_password}
+      DB_NAME: ${DB_NAME:-pulzifi}
+      REDIS_HOST: redis
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_password}
+      HTTP_PORT: 8080
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+    env_file:
+      - .env
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - pulzifi-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  postgres:
+    image: postgres:17-alpine
+    container_name: pulzifi-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-pulzifi}
+      POSTGRES_USER: ${DB_USER:-pulzifi_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-pulzifi_password}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=en_US.UTF-8 --lc-ctype=en_US.UTF-8"
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - pulzifi-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-pulzifi_user} -d ${DB_NAME:-pulzifi}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  redis:
+    image: redis:7-alpine
+    container_name: pulzifi-redis
+    restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD:-redis_password} --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - pulzifi-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5

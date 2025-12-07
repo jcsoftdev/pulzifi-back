@@ -5,8 +5,8 @@ tmp_dir = "tmp"
 
 [build]
   args_bin = []
-  bin = ""
-  cmd = "go build -o ./tmp/main ."
+  bin = "bin/pulzifi-monolith"
+  cmd = "go build -o ./bin/pulzifi-monolith ./cmd/server/"
   delay = 1000
   exclude_dir = ["assets", "tmp", "vendor", "testdata"]
   exclude_file = []

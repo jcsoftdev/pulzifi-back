@@ -12,6 +12,20 @@ import (
 	"go.uber.org/zap"
 )
 
+// CreateOrganizationRequestDTO represents the request DTO for Swagger
+type CreateOrganizationRequestDTO struct {
+	Name      string `json:"name" example:"Acme Corp"`
+	Subdomain string `json:"subdomain" example:"acme"`
+}
+
+// CreateOrganizationResponseDTO represents the response DTO for Swagger
+type CreateOrganizationResponseDTO struct {
+	ID        string `json:"id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	Name      string `json:"name" example:"Acme Corp"`
+	Subdomain string `json:"subdomain" example:"acme"`
+	CreatedAt string `json:"created_at" example:"2025-11-11T12:58:42Z"`
+}
+
 // CreateOrganizationHandler handles POST /api/organizations
 type CreateOrganizationHandler struct {
 	handler *createorgapp.CreateOrganizationHandler
@@ -30,8 +44,8 @@ func NewCreateOrganizationHandler(handler *createorgapp.CreateOrganizationHandle
 // @Tags organizations
 // @Accept json
 // @Produce json
-// @Param request body createorgapp.CreateOrganizationRequest true "Create Organization Request"
-// @Success 201 {object} createorgapp.CreateOrganizationResponse
+// @Param request body map[string]string true "Create Organization Request"
+// @Success 201 {object} map[string]interface{}
 // @Failure 400 {object} map[string]string
 // @Failure 401 {object} map[string]string
 // @Failure 409 {object} map[string]string

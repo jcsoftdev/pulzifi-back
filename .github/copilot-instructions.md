@@ -1,6 +1,13 @@
 # .github/copilot-instructions.md
 
-# Don't create Readme files for the project.
+## Copilot Preferences
+
+- No summaries or documentation files
+- No comprehensive guides of the implementations
+- Focus only on code implementation
+- Direct fixes without explanations
+- Minimal console output
+- Run commands if you need it
 
 ## Project Architecture
 

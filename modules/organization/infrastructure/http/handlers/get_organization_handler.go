@@ -12,6 +12,14 @@ import (
 	"go.uber.org/zap"
 )
 
+// GetOrganizationResponseDTO represents the response DTO for Swagger
+type GetOrganizationResponseDTO struct {
+	ID        string `json:"id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	Name      string `json:"name" example:"Acme Corp"`
+	Subdomain string `json:"subdomain" example:"acme"`
+	CreatedAt string `json:"created_at" example:"2025-11-11T12:58:42Z"`
+}
+
 // GetOrganizationHandler handles GET /api/organizations/:id
 type GetOrganizationHandler struct {
 	handler *getorgapp.GetOrganizationHandler
@@ -31,7 +39,7 @@ func NewGetOrganizationHandler(handler *getorgapp.GetOrganizationHandler) *GetOr
 // @Accept json
 // @Produce json
 // @Param id path string true "Organization ID"
-// @Success 200 {object} getorgapp.Response
+// @Success 200 {object} handlers.GetOrganizationResponseDTO
 // @Failure 400 {object} map[string]string
 // @Failure 404 {object} map[string]string
 // @Failure 500 {object} map[string]string

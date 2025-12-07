@@ -234,6 +234,7 @@ BEGIN
             type VARCHAR(50) NOT NULL,
             title VARCHAR(255) NOT NULL,
             description TEXT,
+            metadata JSONB,
             read_at TIMESTAMP NULL,
             created_at TIMESTAMP NOT NULL DEFAULT NOW(),
             CONSTRAINT fk_workspace FOREIGN KEY (workspace_id) 

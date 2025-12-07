@@ -3,7 +3,7 @@
 # Simplifies common Docker tasks
 # ============================================================
 
-.PHONY: help build start stop restart clean logs status health dev prod swagger swagger-all
+.PHONY: help build start stop restart clean logs status health dev prod swagger swagger-all monolith-run monolith-build
 
 # Default target
 .DEFAULT_GOAL := help
@@ -189,20 +189,108 @@ docker-info: ## Show Docker system information and resource usage
 	@docker stats --no-stream --format "table {{.Container}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}"
 
 # Swagger documentation generation
+swagger-init: ## Initialize and generate Swagger documentation for monolith
+	@bash scripts/generate-swagger.sh
+
+swagger-watch: ## Watch Go files and auto-regenerate Swagger docs on changes
+	@echo "$(GREEN)Starting Swagger watch mode...$(NC)"
+	@echo "$(YELLOW)Requires: fswatch (brew install fswatch)$(NC)"
+	@bash scripts/watch-swagger.sh
+
 swagger-all: ## Generate Swagger documentation for all modules
 	@echo "$(GREEN)Generating Swagger documentation for all modules...$(NC)"
 	@for module in auth organization workspace page alert integration monitoring insight report usage; do \
 		echo "$(YELLOW)Generating docs for $$module module...$(NC)"; \
-		cd modules/$$module && ~/go/bin/swag init -g main.go && cd ../.. && echo "$(GREEN)✓ $$module$(NC)" || echo "✗ $$module"; \
+		cd modules/$$module && $$(go env GOPATH)/bin/swag init -g main.go && cd ../.. && echo "$(GREEN)✓ $$module$(NC)" || echo "✗ $$module"; \
 	done
 	@echo "$(GREEN)Swagger generation completed!$(NC)"
 
 swagger: ## Generate Swagger documentation for a specific module (use 'make swagger module=MODULE_NAME')
 ifdef module
 	@echo "$(GREEN)Generating Swagger documentation for $(module) module...$(NC)"
-	@cd modules/$(module) && ~/go/bin/swag init -g main.go
+	@cd modules/$(module) && $$(go env GOPATH)/bin/swag init -g main.go
 	@echo "$(GREEN)Swagger documentation generated at modules/$(module)/docs$(NC)"
 else
 	@echo "$(YELLOW)Usage: make swagger module=MODULE_NAME$(NC)"
 	@echo "$(YELLOW)Available modules: auth organization workspace page alert integration monitoring insight report usage$(NC)"
 endif
+
+# ============================================================
+# MONOLITH MODE - Unified Single Entry Point
+# ============================================================
+
+monolith-run: check-env swagger-init ## Run monolith in Docker with hot reload
+	@echo "$(GREEN)Starting Pulzifi Backend as unified monolith in Docker...$(NC)"
+	@echo "$(YELLOW)Note: All services run in a single process on port 8080$(NC)"
+	@echo "$(YELLOW)Building development image with hot reload...$(NC)"
+	@docker build -f Dockerfile.monolith.dev -t pulzifi-backend-monolith-dev:latest .
+	@docker run -it --rm \
+		--name pulzifi-monolith \
+		-p 8080:8080 \
+		-p 9091:9091 \
+		-v $(shell pwd):/workspace \
+		--env-file .env \
+		pulzifi-backend-monolith-dev:latest
+
+monolith-build: check-env swagger-init ## Build monolith binary
+	@echo "$(GREEN)Building monolith binary...$(NC)"
+	@mkdir -p ./bin
+	@go build -o ./bin/pulzifi-monolith ./cmd/server/main.go
+	@echo "$(GREEN)Binary built at ./bin/pulzifi-monolith$(NC)"
+	@echo "$(YELLOW)Run with: ./bin/pulzifi-monolith$(NC)"
+
+monolith-docker-build: check-env swagger-init ## Build Docker image for monolith
+	@echo "$(GREEN)Building monolith Docker image...$(NC)"
+	@docker build -f Dockerfile.monolith -t pulzifi-backend-monolith:latest .
+	@echo "$(GREEN)Docker image built: pulzifi-backend-monolith:latest$(NC)"
+
+monolith-docker-run: monolith-docker-build ## Run monolith in Docker
+	@echo "$(GREEN)Running monolith in Docker...$(NC)"
+	@docker run -it --rm \
+		--name pulzifi-monolith \
+		-p 8080:8080 \
+		-p 9090:9090 \
+		--env-file .env \
+		pulzifi-backend-monolith:latest
+	@echo "$(GREEN)Monolith stopped$(NC)"
+
+monolith-info: ## Display monolith architecture information
+	@echo "$(GREEN)Pulzifi Backend - Monolith Architecture$(NC)"
+	@echo "============================================================"
+	@echo "Description:"
+	@echo "  A unified single-entry-point deployment mode that runs all"
+	@echo "  modules in a single Go process, while maintaining module"
+	@echo "  independence for future microservice deployment."
+	@echo ""
+	@echo "Entry Point:"
+	@echo "  ./cmd/server/main.go"
+	@echo ""
+	@echo "API Structure:"
+	@echo "  /health                - Health check (all modules)"
+	@echo "  /api/v1/auth/*        - Auth module endpoints"
+	@echo "  /api/v1/orgs/*        - Organization module endpoints"
+	@echo "  /api/v1/workspaces/*  - Workspace module endpoints"
+	@echo "  /api/v1/pages/*       - Page module endpoints"
+	@echo "  /api/v1/alerts/*      - Alert module endpoints"
+	@echo "  /api/v1/monitoring/*  - Monitoring module endpoints"
+	@echo "  /api/v1/integrations/*- Integration module endpoints"
+	@echo "  /api/v1/insights/*    - Insight module endpoints"
+	@echo "  /api/v1/reports/*     - Report module endpoints"
+	@echo "  /api/v1/usage/*       - Usage module endpoints"
+	@echo ""
+	@echo "Swagger & Documentation:"
+	@echo "  - make swagger-init          Generate Swagger docs"
+	@echo "  - make swagger-watch         Watch files and auto-regenerate"
+	@echo ""
+	@echo "Deployment Options:"
+	@echo "  - make monolith-run          Run with 'go run' (auto-generates docs)"
+	@echo "  - make monolith-build        Build binary (auto-generates docs)"
+	@echo "  - make monolith-docker-run   Run in Docker (auto-generates docs)"
+	@echo ""
+	@echo "Module Implementation:"
+	@echo "  Each module must implement 'router.ModuleRegisterer' interface"
+	@echo "  See: shared/router/registry.go for interface definition"
+	@echo ""
+	@echo "Module File Location:"
+	@echo "  modules/<MODULE>/infrastructure/http/module.go"
+	@echo "============================================================"

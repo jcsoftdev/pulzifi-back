@@ -1,0 +1,27 @@
+# Dockerfile.monolith.dev - Development Monolith with Hot Reload
+# Uses air for hot reload during development
+
+FROM golang:1.25-alpine
+
+# Install dependencies
+RUN apk add --no-cache git gcc musl-dev bash
+
+# Install air for hot reload (correct package name)
+RUN go install github.com/air-verse/air@latest
+
+WORKDIR /workspace
+
+# Copy go mod files
+COPY go.mod go.sum ./
+
+# Download dependencies
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Expose ports
+EXPOSE 8080 9091
+
+# Run with air for hot reload
+CMD ["air", "-c", ".air.toml"]
