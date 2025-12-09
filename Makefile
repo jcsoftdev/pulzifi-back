@@ -3,294 +3,148 @@
 # Simplifies common Docker tasks
 # ============================================================
 
-.PHONY: help build start stop restart clean logs status health dev prod swagger swagger-all monolith-run monolith-build
+.PHONY: help microservices-dev microservices-prod monolith-dev \
+        microservices-down monolith-down \
+        microservices-logs monolith-logs \
+        clean build swagger
 
 # Default target
 .DEFAULT_GOAL := help
 
 # Variables
-DOCKER_COMPOSE_FILE := docker-compose.yml
-DOCKER_COMPOSE_DEV := docker-compose.dev.yml
 ENV_FILE := .env
 
 # Colors for output
 GREEN := \033[0;32m
 YELLOW := \033[1;33m
+RED := \033[0;31m
 NC := \033[0m
 
 # Help target
 help: ## Show this help message
 	@echo "============================================================"
-	@echo "🐳 Pulzifi Backend Docker Management"
-	@echo "Using Go 1.25 and PostgreSQL 17"
+	@echo "🐳 Pulzifi Backend - THREE DEPLOYMENT MODES"
 	@echo "============================================================"
-	@echo "Available commands:"
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(YELLOW)%-15s$(NC) %s\n", $$1, $$2}'
 	@echo ""
-	@echo "Examples:"
-	@echo "  make build          # Build all services"
-	@echo "  make dev            # Start development environment"
-	@echo "  make logs service=alert  # View specific service logs"
+	@echo "$(GREEN)DEVELOPMENT MODES:$(NC)"
+	@echo "  $(YELLOW)make microservices-dev$(NC)   - Microservices with hot reload"
+	@echo "  $(YELLOW)make monolith-dev$(NC)         - Monolith all-in-one with hot reload"
+	@echo ""
+	@echo "$(GREEN)PRODUCTION MODE:$(NC)"
+	@echo "  $(YELLOW)make microservices-prod$(NC)  - Microservices production build"
+	@echo ""
+	@echo "$(GREEN)COMMON COMMANDS:$(NC)"
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | grep -v "^help" | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(YELLOW)%-20s$(NC) %s\n", $$1, $$2}'
+	@echo ""
+	@echo "$(GREEN)EXAMPLES:$(NC)"
+	@echo "  make microservices-dev              # Start dev microservices with hot reload"
+	@echo "  make monolith-dev                   # Start monolith with hot reload"
+	@echo "  make microservices-logs             # View microservices logs"
+	@echo "  make clean                          # Stop and cleanup everything"
 
 # Check if required files exist
 check-env:
 	@if [ ! -f $(ENV_FILE) ]; then \
-		echo "$(YELLOW)Creating .env from .env.example...$(NC)"; \
-		cp .env.example $(ENV_FILE); \
-		echo "$(GREEN)Please review and update .env file$(NC)"; \
+		echo "$(YELLOW)⚠️  .env file not found$(NC)"; \
+		echo "$(YELLOW)Creating from .env.example...$(NC)"; \
+		cp .env.example $(ENV_FILE) 2>/dev/null || echo "{}"; \
+		echo "$(GREEN)✓ .env created (please review and update)$(NC)"; \
 	fi
 
-# Build all Docker images
-build: check-env ## Build all Docker images with latest dependencies
-	@echo "$(GREEN)Building all services with Go 1.25...$(NC)"
-	@docker-compose build --parallel --no-cache
-	@echo "$(GREEN)Build completed!$(NC)"
-
-# Start all services in production mode
-start: check-env ## Start all services in production mode
-	@echo "$(GREEN)Starting all services...$(NC)"
-	@docker-compose up -d
-	@echo "$(GREEN)Services started! Use 'make status' to check health$(NC)"
-
-# Start development environment with hot reload
-dev: check-env ## Start development environment (infrastructure + all services with hot reload)
-	@echo "$(GREEN)Starting development environment with hot reload...$(NC)"
-	@docker-compose -f $(DOCKER_COMPOSE_DEV) up
-	@echo "$(GREEN)Services stopped!$(NC)"
-
-# Start only services in development mode (requires infrastructure to be running)
-dev-services: check-env ## Start all services with hot reload (assumes infrastructure is running)
-	@echo "$(GREEN)Starting services with hot reload...$(NC)"
-	@docker-compose -f $(DOCKER_COMPOSE_DEV) up auth-service organization-service workspace-service page-service alert-service integration-service monitoring-service insight-service report-service usage-service
-
-# Start only infrastructure services
-infra: check-env ## Start only infrastructure services (PostgreSQL, Redis, Kafka)
-	@echo "$(GREEN)Starting infrastructure services...$(NC)"
-	@docker-compose up -d postgres redis zookeeper kafka
-	@echo "$(GREEN)Infrastructure services started!$(NC)"
-
-# Stop all services
-stop: ## Stop all services
-	@echo "$(YELLOW)Stopping all services...$(NC)"
-	@docker-compose down
-	@docker-compose -f $(DOCKER_COMPOSE_DEV) down 2>/dev/null || true
-	@echo "$(GREEN)All services stopped!$(NC)"
-
-# Restart all services
-restart: ## Restart all services
-	@echo "$(YELLOW)Restarting all services...$(NC)"
-	@docker-compose restart
-	@echo "$(GREEN)Services restarted!$(NC)"
-
-# Clean up Docker resources
-clean: ## Stop services and clean up Docker resources
-	@echo "$(YELLOW)Cleaning up Docker resources...$(NC)"
-	@docker-compose down -v --remove-orphans
-	@docker-compose -f $(DOCKER_COMPOSE_DEV) down -v --remove-orphans 2>/dev/null || true
-	@docker system prune -f
-	@echo "$(GREEN)Cleanup completed!$(NC)"
-
-# Show service status
-status: ## Show status of all services
-	@echo "$(GREEN)Service Status:$(NC)"
-	@docker-compose ps
-	@echo ""
-	@echo "$(GREEN)Container Health:$(NC)"
-	@docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep pulzifi || echo "No Pulzifi containers running"
-
-# Show logs for all services or specific service
-logs: ## Show logs (use 'make logs service=SERVICE_NAME' for specific service)
-ifdef service
-	@docker-compose logs -f $(service)
-else
-	@docker-compose logs --tail=50 -f
-endif
-
-# Run health check
-health: ## Run comprehensive health check on all services
-	@echo "$(GREEN)Running health check...$(NC)"
-	@./scripts/docker-health-check.sh
-
-# Update dependencies and rebuild
-update: ## Update Go dependencies and rebuild all services
-	@echo "$(GREEN)Updating Go dependencies...$(NC)"
-	@go mod tidy
-	@go mod download
-	@echo "$(GREEN)Rebuilding services with updated dependencies...$(NC)"
-	@make clean build start
-	@echo "$(GREEN)Update completed!$(NC)"
-
-# Database operations
-db-setup: ## Initialize database with setup script
-	@echo "$(GREEN)Setting up database...$(NC)"
-	@docker-compose exec postgres psql -U pulzifi_user -d pulzifi -f /docker-entrypoint-initdb.d/01-init.sql
-	@echo "$(GREEN)Database setup completed!$(NC)"
-
-db-shell: ## Open PostgreSQL shell
-	@docker-compose exec postgres psql -U pulzifi_user -d pulzifi
-
-db-backup: ## Backup database to sql file
-	@mkdir -p backups
-	@docker-compose exec postgres pg_dump -U pulzifi_user pulzifi > backups/pulzifi_backup_$(shell date +%Y%m%d_%H%M%S).sql
-	@echo "$(GREEN)Database backup created in backups/ directory$(NC)"
-
-# Redis operations
-redis-shell: ## Open Redis CLI
-	@docker-compose exec redis redis-cli -a $${REDIS_PASSWORD:-redis_password}
-
-# Kafka operations
-kafka-topics: ## List Kafka topics
-	@docker-compose exec kafka kafka-topics --bootstrap-server localhost:9092 --list
-
-kafka-shell: ## Open Kafka shell
-	@docker-compose exec kafka bash
-
-# View specific service logs
-logs-auth: ## View auth service logs
-	@make logs service=auth-service
-
-logs-alert: ## View alert service logs
-	@make logs service=alert-service
-
-logs-postgres: ## View PostgreSQL logs
-	@make logs service=postgres
-
-logs-nginx: ## View Nginx logs
-	@make logs service=nginx
-
-# Production deployment helpers
-prod-build: ## Build production images with optimizations
-	@echo "$(GREEN)Building production images...$(NC)"
-	@docker-compose -f $(DOCKER_COMPOSE_FILE) build --no-cache --compress
-	@echo "$(GREEN)Production build completed!$(NC)"
-
-prod-start: ## Start production environment with all optimizations
-	@echo "$(GREEN)Starting production environment...$(NC)"
-	@cp .env.docker .env
-	@docker-compose -f $(DOCKER_COMPOSE_FILE) up -d --scale auth-service=2 --scale alert-service=2
-	@echo "$(GREEN)Production environment started with load balancing!$(NC)"
-
-# Development helpers
-test-service: ## Build and test a specific service (use 'make test-service service=SERVICE_NAME')
-ifdef service
-	@echo "$(GREEN)Testing $(service) service...$(NC)"
-	@docker build --build-arg MODULE_NAME=$(service) -t pulzifi-$(service):test .
-	@docker run --rm -e MODULE_NAME=$(service) pulzifi-$(service):test go test ./modules/$(service)/...
-else
-	@echo "$(YELLOW)Usage: make test-service service=SERVICE_NAME$(NC)"
-endif
-
-# Show Docker system information
-docker-info: ## Show Docker system information and resource usage
-	@echo "$(GREEN)Docker System Information:$(NC)"
-	@docker system df
-	@echo ""
-	@echo "$(GREEN)Running Containers:$(NC)"
-	@docker stats --no-stream --format "table {{.Container}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}"
-
-# Swagger documentation generation
-swagger-init: ## Initialize and generate Swagger documentation for monolith
-	@bash scripts/generate-swagger.sh
-
-swagger-watch: ## Watch Go files and auto-regenerate Swagger docs on changes
-	@echo "$(GREEN)Starting Swagger watch mode...$(NC)"
-	@echo "$(YELLOW)Requires: fswatch (brew install fswatch)$(NC)"
-	@bash scripts/watch-swagger.sh
-
-swagger-all: ## Generate Swagger documentation for all modules
-	@echo "$(GREEN)Generating Swagger documentation for all modules...$(NC)"
-	@for module in auth organization workspace page alert integration monitoring insight report usage; do \
-		echo "$(YELLOW)Generating docs for $$module module...$(NC)"; \
-		cd modules/$$module && $$(go env GOPATH)/bin/swag init -g main.go && cd ../.. && echo "$(GREEN)✓ $$module$(NC)" || echo "✗ $$module"; \
-	done
-	@echo "$(GREEN)Swagger generation completed!$(NC)"
-
-swagger: ## Generate Swagger documentation for a specific module (use 'make swagger module=MODULE_NAME')
-ifdef module
-	@echo "$(GREEN)Generating Swagger documentation for $(module) module...$(NC)"
-	@cd modules/$(module) && $$(go env GOPATH)/bin/swag init -g main.go
-	@echo "$(GREEN)Swagger documentation generated at modules/$(module)/docs$(NC)"
-else
-	@echo "$(YELLOW)Usage: make swagger module=MODULE_NAME$(NC)"
-	@echo "$(YELLOW)Available modules: auth organization workspace page alert integration monitoring insight report usage$(NC)"
-endif
-
 # ============================================================
-# MONOLITH MODE - Unified Single Entry Point
+# MODE 1: MICROSERVICES DEVELOPMENT
+# Each module in separate container with hot reload
 # ============================================================
 
-monolith-run: check-env swagger-init ## Run monolith in Docker with hot reload
-	@echo "$(GREEN)Starting Pulzifi Backend as unified monolith in Docker...$(NC)"
-	@echo "$(YELLOW)Note: All services run in a single process on port 8080$(NC)"
-	@echo "$(YELLOW)Building development image with hot reload...$(NC)"
-	@docker build -f Dockerfile.monolith.dev -t pulzifi-backend-monolith-dev:latest .
-	@docker run -it --rm \
-		--name pulzifi-monolith \
-		-p 8080:8080 \
-		-p 9091:9091 \
-		-v $(shell pwd):/workspace \
-		--env-file .env \
-		pulzifi-backend-monolith-dev:latest
+microservices-dev: check-env ## Start all microservices with hot reload (docker-compose.dev.yml)
+	@echo "$(GREEN)🚀 Starting Microservices Development Environment$(NC)"
+	@echo "$(YELLOW)Each module runs in its own container with hot reload$(NC)"
+	@echo ""
+	@echo "$(GREEN)Services:$(NC)"
+	@echo "  - PostgreSQL 17 on port 5434"
+	@echo "  - Redis 7 on port 6379"
+	@echo "  - Kafka on port 9092"
+	@echo "  - Auth on port 8080"
+	@echo "  - Organization on port 8081"
+	@echo "  - Workspace on port 8082"
+	@echo "  - Page on port 8083"
+	@echo "  - Alert on port 8084"
+	@echo "  - Monitoring on port 8085"
+	@echo "  - And more..."
+	@echo ""
+	@docker-compose -f docker-compose.dev.yml up
 
-monolith-build: check-env swagger-init ## Build monolith binary
+microservices-down: ## Stop and remove microservices containers
+	@echo "$(YELLOW)Stopping microservices...$(NC)"
+	@docker-compose -f docker-compose.dev.yml down -v
+	@docker-compose -f docker-compose.yml down -v 2>/dev/null || true
+	@echo "$(GREEN)✓ Microservices stopped$(NC)"
+
+microservices-logs: ## View microservices logs (use 'make microservices-logs service=SERVICE_NAME')
+	@docker-compose -f docker-compose.dev.yml logs -f $(service)
+
+# ============================================================
+# MODE 2: MICROSERVICES PRODUCTION
+# Production build without hot reload
+# ============================================================
+
+microservices-prod: check-env ## Start microservices production build (docker-compose.yml)
+	@echo "$(GREEN)🚀 Starting Microservices Production$(NC)"
+	@echo "$(YELLOW)Production optimized containers$(NC)"
+	@docker-compose -f docker-compose.yml up -d
+	@echo "$(GREEN)✓ Microservices started in background$(NC)"
+
+# ============================================================
+# MODE 3: MONOLITH DEVELOPMENT
+# Monolith with hot reload connected to postgres + redis
+# ============================================================
+
+monolith-dev: check-env ## Start monolith with hot reload (postgres + redis + app with hot reload)
+	@echo "$(GREEN)🚀 Starting Monolith Development$(NC)"
+	@echo "$(YELLOW)Includes: PostgreSQL, Redis, Monolith with hot reload$(NC)"
+	@echo ""
+	@echo "$(GREEN)Services:$(NC)"
+	@echo "  - PostgreSQL on port 5432"
+	@echo "  - Redis on port 6379"
+	@echo "  - Monolith API on port 8080 (with hot reload)"
+	@echo ""
+	@docker-compose -f docker-compose.monolith.yml up
+
+monolith-down: ## Stop monolith and services
+	@echo "$(YELLOW)Stopping monolith...$(NC)"
+	@docker-compose -f docker-compose.monolith.yml down -v
+	@echo "$(GREEN)✓ Monolith stopped$(NC)"
+
+monolith-logs: ## View monolith logs
+	@docker-compose -f docker-compose.monolith.yml logs -f monolith
+
+# ============================================================
+# BUILD TARGETS
+# ============================================================
+
+build: check-env ## Build monolith binary locally
 	@echo "$(GREEN)Building monolith binary...$(NC)"
 	@mkdir -p ./bin
 	@go build -o ./bin/pulzifi-monolith ./cmd/server/main.go
-	@echo "$(GREEN)Binary built at ./bin/pulzifi-monolith$(NC)"
-	@echo "$(YELLOW)Run with: ./bin/pulzifi-monolith$(NC)"
+	@echo "$(GREEN)✓ Binary built at ./bin/pulzifi-monolith$(NC)"
 
-monolith-docker-build: check-env swagger-init ## Build Docker image for monolith
-	@echo "$(GREEN)Building monolith Docker image...$(NC)"
-	@docker build -f Dockerfile.monolith -t pulzifi-backend-monolith:latest .
-	@echo "$(GREEN)Docker image built: pulzifi-backend-monolith:latest$(NC)"
+swagger: ## Generate Swagger docs for monolith (run in cmd/server)
+	@echo "$(GREEN)Generating Swagger documentation...$(NC)"
+	@cd cmd/server && swag init -g main.go
+	@echo "$(GREEN)✓ Swagger docs generated$(NC)"
 
-monolith-docker-run: monolith-docker-build ## Run monolith in Docker
-	@echo "$(GREEN)Running monolith in Docker...$(NC)"
-	@docker run -it --rm \
-		--name pulzifi-monolith \
-		-p 8080:8080 \
-		-p 9090:9090 \
-		--env-file .env \
-		pulzifi-backend-monolith:latest
-	@echo "$(GREEN)Monolith stopped$(NC)"
+# ============================================================
+# CLEANUP
+# ============================================================
 
-monolith-info: ## Display monolith architecture information
-	@echo "$(GREEN)Pulzifi Backend - Monolith Architecture$(NC)"
-	@echo "============================================================"
-	@echo "Description:"
-	@echo "  A unified single-entry-point deployment mode that runs all"
-	@echo "  modules in a single Go process, while maintaining module"
-	@echo "  independence for future microservice deployment."
-	@echo ""
-	@echo "Entry Point:"
-	@echo "  ./cmd/server/main.go"
-	@echo ""
-	@echo "API Structure:"
-	@echo "  /health                - Health check (all modules)"
-	@echo "  /api/v1/auth/*        - Auth module endpoints"
-	@echo "  /api/v1/orgs/*        - Organization module endpoints"
-	@echo "  /api/v1/workspaces/*  - Workspace module endpoints"
-	@echo "  /api/v1/pages/*       - Page module endpoints"
-	@echo "  /api/v1/alerts/*      - Alert module endpoints"
-	@echo "  /api/v1/monitoring/*  - Monitoring module endpoints"
-	@echo "  /api/v1/integrations/*- Integration module endpoints"
-	@echo "  /api/v1/insights/*    - Insight module endpoints"
-	@echo "  /api/v1/reports/*     - Report module endpoints"
-	@echo "  /api/v1/usage/*       - Usage module endpoints"
-	@echo ""
-	@echo "Swagger & Documentation:"
-	@echo "  - make swagger-init          Generate Swagger docs"
-	@echo "  - make swagger-watch         Watch files and auto-regenerate"
-	@echo ""
-	@echo "Deployment Options:"
-	@echo "  - make monolith-run          Run with 'go run' (auto-generates docs)"
-	@echo "  - make monolith-build        Build binary (auto-generates docs)"
-	@echo "  - make monolith-docker-run   Run in Docker (auto-generates docs)"
-	@echo ""
-	@echo "Module Implementation:"
-	@echo "  Each module must implement 'router.ModuleRegisterer' interface"
-	@echo "  See: shared/router/registry.go for interface definition"
-	@echo ""
-	@echo "Module File Location:"
-	@echo "  modules/<MODULE>/infrastructure/http/module.go"
-	@echo "============================================================"
+clean: ## Stop all containers and cleanup Docker resources
+	@echo "$(YELLOW)⚠️  Cleaning up Docker resources...$(NC)"
+	@docker-compose -f docker-compose.dev.yml down -v 2>/dev/null || true
+	@docker-compose -f docker-compose.yml down -v 2>/dev/null || true
+	@docker stop pulzifi-monolith 2>/dev/null || true
+	@docker system prune -f --volumes 2>/dev/null || true
+	@echo "$(GREEN)✓ Cleanup completed$(NC)"
+
+# ============================================================
+# REFERENCE
+# ============================================================

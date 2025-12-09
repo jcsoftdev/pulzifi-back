@@ -1,0 +1,30 @@
+# Dockerfile.monolith.all-in-one - Monolith with hot reload
+# Connects to external PostgreSQL + Redis (from docker-compose)
+# Only builds the Go app with air for development
+
+FROM golang:1.25-bookworm
+
+# Install dependencies for building
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install air for hot reload
+ENV PATH=$PATH:/root/go/bin
+RUN go install github.com/air-verse/air@latest
+
+WORKDIR /workspace
+
+# Copy go mod files
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Expose only the app port
+EXPOSE 8080
+
+# Start with air for hot reload
+CMD ["air", "-c", ".air.toml"]

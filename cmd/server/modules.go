@@ -26,10 +26,10 @@ func registerAllModulesInternal(registry *router.Registry, db *sql.DB) {
 	}{
 		{"Auth", auth.NewModule()},
 		{"Organization", organization.NewModule()},
-		{"Workspace", workspace.NewModule()},
-		{"Page", page.NewModule()},
+		{"Workspace", workspace.NewModuleWithDB(db)},
+		{"Page", page.NewModuleWithDB(db)},
 		{"Alert", alert.NewModuleWithDB(db)},
-		{"Monitoring", monitoring.NewModule()},
+		{"Monitoring", monitoring.NewModuleWithDB(db)},
 		{"Integration", integration.NewModule()},
 		{"Insight", insight.NewModule()},
 		{"Report", report.NewModule()},

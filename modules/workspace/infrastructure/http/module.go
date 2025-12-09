@@ -1,19 +1,32 @@
 package http
 
 import (
+	"database/sql"
 	"encoding/json"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	createworkspace "github.com/jcsoftdev/pulzifi-back/modules/workspace/application/create_workspace"
+	"github.com/jcsoftdev/pulzifi-back/modules/workspace/infrastructure/persistence"
+	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
 	"github.com/jcsoftdev/pulzifi-back/shared/router"
 )
 
 // Module implements the router.ModuleRegisterer interface for the Workspace module
-type Module struct{}
+type Module struct {
+	db *sql.DB
+}
 
 // NewModule creates a new instance of the Workspace module
 func NewModule() router.ModuleRegisterer {
 	return &Module{}
+}
+
+// NewModuleWithDB creates a new instance with database connection
+func NewModuleWithDB(db *sql.DB) router.ModuleRegisterer {
+	return &Module{
+		db: db,
+	}
 }
 
 // ModuleName returns the name of the module
@@ -39,17 +52,30 @@ func (m *Module) RegisterHTTPRoutes(router chi.Router) {
 // @Security BearerAuth
 // @Accept json
 // @Produce json
-// @Param request body map[string]string true "Create Workspace Request"
-// @Success 201 {object} map[string]interface{}
-// @Failure 400 {object} map[string]string
+// @Param request body createworkspace.CreateWorkspaceRequest true "Create Workspace Request"
+// @Success 201 {object} createworkspace.CreateWorkspaceResponse
 // @Router /workspaces [post]
 func (m *Module) handleCreateWorkspace(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"id":      "550e8400-e29b-41d4-a716-446655440000",
-		"message": "create workspace",
-	})
+	// If db is not available, return mock response
+	if m.db == nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"id":      "550e8400-e29b-41d4-a716-446655440000",
+			"message": "create workspace (mock - db not initialized)",
+		})
+		return
+	}
+
+	// Get tenant from context
+	tenant := middleware.GetTenantFromContext(r.Context())
+
+	// Create repository with dynamic tenant
+	repo := persistence.NewWorkspacePostgresRepository(m.db, tenant)
+
+	// Use real handler
+	handler := createworkspace.NewCreateWorkspaceHandler(repo)
+	handler.HandleHTTP(w, r)
 }
 
 // handleListWorkspaces lists all workspaces

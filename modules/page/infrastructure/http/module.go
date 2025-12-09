@@ -1,19 +1,32 @@
 package http
 
 import (
+	"database/sql"
 	"encoding/json"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	createpage "github.com/jcsoftdev/pulzifi-back/modules/page/application/create_page"
+	"github.com/jcsoftdev/pulzifi-back/modules/page/infrastructure/persistence"
+	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
 	"github.com/jcsoftdev/pulzifi-back/shared/router"
 )
 
 // Module implements the router.ModuleRegisterer interface for the Page module
-type Module struct{}
+type Module struct {
+	db *sql.DB
+}
 
 // NewModule creates a new instance of the Page module
 func NewModule() router.ModuleRegisterer {
 	return &Module{}
+}
+
+// NewModuleWithDB creates a new instance with database connection
+func NewModuleWithDB(db *sql.DB) router.ModuleRegisterer {
+	return &Module{
+		db: db,
+	}
 }
 
 // ModuleName returns the name of the module
@@ -39,17 +52,30 @@ func (m *Module) RegisterHTTPRoutes(router chi.Router) {
 // @Security BearerAuth
 // @Accept json
 // @Produce json
-// @Param request body map[string]string true "Create Page Request"
-// @Success 201 {object} map[string]interface{}
-// @Failure 400 {object} map[string]string
+// @Param request body createpage.CreatePageRequest true "Create Page Request"
+// @Success 201 {object} createpage.CreatePageResponse
 // @Router /pages [post]
 func (m *Module) handleCreatePage(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"id":      "550e8400-e29b-41d4-a716-446655440000",
-		"message": "create page",
-	})
+	// If db is not available, return mock response
+	if m.db == nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"id":      "550e8400-e29b-41d4-a716-446655440000",
+			"message": "create page (mock - db not initialized)",
+		})
+		return
+	}
+
+	// Get tenant from context
+	tenant := middleware.GetTenantFromContext(r.Context())
+
+	// Create repository with dynamic tenant
+	repo := persistence.NewPagePostgresRepository(m.db, tenant)
+
+	// Use real handler
+	handler := createpage.NewCreatePageHandler(repo)
+	handler.HandleHTTP(w, r)
 }
 
 // handleListPages lists all pages

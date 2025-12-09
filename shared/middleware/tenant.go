@@ -30,12 +30,12 @@ func TenantMiddleware(next http.Handler) http.Handler {
 			}
 		}
 
-		// Default to "public" if not found
-		if tenant == "" {
-			tenant = "public"
-		}
+	// Default to "jcsoftdev_inc" if not found
+	if tenant == "" {
+		tenant = "jcsoftdev_inc"
+	}
 
-		logger.Debug("Tenant extracted", zap.String("tenant", tenant), zap.String("path", r.URL.Path))
+	logger.Debug("Tenant extracted", zap.String("tenant", tenant), zap.String("path", r.URL.Path))
 
 		// Store tenant in context
 		ctx := context.WithValue(r.Context(), TenantContextKey, tenant)
@@ -47,7 +47,7 @@ func TenantMiddleware(next http.Handler) http.Handler {
 func GetTenantFromContext(ctx context.Context) string {
 	tenant, ok := ctx.Value(TenantContextKey).(string)
 	if !ok || tenant == "" {
-		return "public"
+		return "jcsoftdev_inc"
 	}
 	return tenant
 }
