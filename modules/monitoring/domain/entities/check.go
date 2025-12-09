@@ -8,16 +8,16 @@ import (
 
 // Check represents a page monitoring check result
 type Check struct {
-	ID               uuid.UUID
-	PageID           uuid.UUID
-	Status           string // success, error
-	ScreenshotURL    string
-	HTMLSnapshotURL  string
-	ChangeDetected   bool
-	ChangeType       string
-	ErrorMessage     string
-	DurationMs       int
-	CheckedAt        time.Time
+	ID              uuid.UUID
+	PageID          uuid.UUID
+	Status          string // success, error
+	ScreenshotURL   string
+	HTMLSnapshotURL string
+	ChangeDetected  bool
+	ChangeType      string
+	ErrorMessage    string
+	DurationMs      int
+	CheckedAt       time.Time
 }
 
 // NewCheck creates a new check
