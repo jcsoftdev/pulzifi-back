@@ -11,13 +11,28 @@
 
 ## Project Architecture
 
-**Stack:** Go + Hexagonal + Vertical Slicing + Screaming Architecture + Multi-Tenant by subdomain
+**Backend:** Go + Hexagonal + Vertical Slicing + Screaming Architecture + Multi-Tenant by subdomain  
+**Frontend:** Next.js + Bun + Turbo + Atomic Design + DDD + Vertical Slicing
 
 **Principle:** Each module is independent and deployable. Modules communicate as external services.
 
 ---
 
-## Structure
+## Frontend Architecture
+
+**See detailed frontend guidelines:** [frontend-copilot-instructions.md](./frontend-copilot-instructions.md)
+
+**Quick Reference:**
+- Location: `frontend/`
+- Package Manager: Bun
+- Task Runner: Turbo
+- Linter/Formatter: Biome
+- UI Components: `packages/ui/` (Atomic Design)
+- App Features: `apps/web/src/features/` (DDD + Vertical Slicing)
+
+---
+
+## Backend Structure
 
 ```
 pulzifi-back/

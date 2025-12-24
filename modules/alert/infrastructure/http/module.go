@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	createalert "github.com/jcsoftdev/pulzifi-back/modules/alert/application/create_alert"
 	"github.com/jcsoftdev/pulzifi-back/modules/alert/infrastructure/persistence"
 	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
@@ -78,20 +79,67 @@ func (m *Module) handleCreateAlert(w http.ResponseWriter, r *http.Request) {
 	handler.HandleHTTP(w, r)
 }
 
-// handleListAlerts lists all alerts
+// handleListAlerts lists all alerts for the current workspace
 // @Summary List Alerts
-// @Description List all alerts
+// @Description List all alerts for the current workspace
 // @Tags alerts
 // @Security BearerAuth
 // @Produce json
+// @Param workspace_id query string false "Workspace ID (optional filter)"
 // @Success 200 {object} map[string]interface{}
 // @Router /alerts [get]
 func (m *Module) handleListAlerts(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+
+	// If db is not available, return mock response
+	if m.db == nil {
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"data":    []interface{}{},
+			"message": "list alerts (mock - db not initialized)",
+		})
+		return
+	}
+
+	// Get tenant from context
+	tenant := middleware.GetTenantFromContext(r.Context())
+
+	// Get workspace_id from query params
+	workspaceIDStr := r.URL.Query().Get("workspace_id")
+	if workspaceIDStr == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "workspace_id query parameter is required",
+		})
+		return
+	}
+
+	workspaceID, err := uuid.Parse(workspaceIDStr)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "invalid workspace_id format",
+		})
+		return
+	}
+
+	// Create repository with dynamic tenant
+	repo := persistence.NewAlertPostgresRepository(m.db, tenant)
+
+	// List alerts
+	alerts, err := repo.ListByWorkspace(r.Context(), workspaceID)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "failed to list alerts",
+		})
+		return
+	}
+
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"alerts":  []interface{}{},
-		"message": "list alerts",
+		"data":  alerts,
+		"count": len(alerts),
 	})
 }
 

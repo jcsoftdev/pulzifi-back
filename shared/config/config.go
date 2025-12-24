@@ -31,6 +31,10 @@ type Config struct {
 	LogLevel    string
 	JWTSecret   string
 
+	// Frontend
+	FrontendURL string
+	StaticDir   string
+
 	// Module
 	ModuleName string
 }
@@ -50,11 +54,13 @@ func Load() *Config {
 		RedisPort:        getEnv("REDIS_PORT", "6379"),
 		RedisPassword:    getEnv("REDIS_PASSWORD", ""),
 		KafkaBrokers:     getEnv("KAFKA_BROKERS", "localhost:9092"),
-		HTTPPort:         getEnv("HTTP_PORT", "8080"),
+		HTTPPort:         getEnv("HTTP_PORT", "9090"),
 		GRPCPort:         getEnv("GRPC_PORT", "9000"),
 		Environment:      getEnv("ENVIRONMENT", "development"),
 		LogLevel:         getEnv("LOG_LEVEL", "info"),
 		JWTSecret:        getEnv("JWT_SECRET", "secret"),
+		FrontendURL:      getEnv("FRONTEND_URL", ""),
+		StaticDir:        getEnv("STATIC_DIR", "./frontend/dist"),
 		ModuleName:       getEnv("MODULE_NAME", "unknown"),
 	}
 }

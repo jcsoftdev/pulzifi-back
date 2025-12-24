@@ -1,0 +1,27 @@
+{
+  "name": "frontend",
+  "version": "0.0.1",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "biome lint .",
+    "lint:fix": "biome lint --write .",
+    "format": "biome format --write .",
+    "type-check": "turbo type-check"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.2.0",
+    "@workspace/typescript-config": "workspace:*",
+    "turbo": "^2.6.3",
+    "typescript": "^5.9.3"
+  },
+  "packageManager": "bun@1.1.43",
+  "engines": {
+    "node": ">=20"
+  }
+}

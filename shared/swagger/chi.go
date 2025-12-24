@@ -15,14 +15,14 @@ import (
 func SetupSwaggerForChi(router chi.Router) {
 	// Register the swagger spec manually
 	swaggerHandler := httpSwagger.Handler(
-		httpSwagger.URL("/api/v1/docs/doc.json"),
+		httpSwagger.URL("/api/v1/swagger/doc.json"),
 		httpSwagger.DeepLinking(true),
 		httpSwagger.DocExpansion("none"),
 		httpSwagger.DomID("swagger-ui"),
 	)
 
 	// Route for doc.json - serve the swagger spec JSON
-	router.Get("/docs/doc.json", func(w http.ResponseWriter, r *http.Request) {
+	router.Get("/swagger/doc.json", func(w http.ResponseWriter, r *http.Request) {
 		// Read and serve the swagger.json file
 		data, err := ioutil.ReadFile("docs/swagger.json")
 		if err != nil {
@@ -37,16 +37,16 @@ func SetupSwaggerForChi(router chi.Router) {
 		w.Write(data)
 	})
 
-	// Redirect /docs to /api/v1/docs/index.html
-	router.Get("/docs", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "/api/v1/docs/index.html", http.StatusMovedPermanently)
+	// Redirect /swagger to /api/v1/swagger/index.html
+	router.Get("/swagger", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/api/v1/swagger/index.html", http.StatusMovedPermanently)
 	})
 
 	// Serve swagger UI and assets
-	router.Get("/docs/*", func(w http.ResponseWriter, r *http.Request) {
-		// Strip the /docs prefix
-		if strings.HasPrefix(r.URL.Path, "/docs") {
-			r.URL.Path = strings.TrimPrefix(r.URL.Path, "/docs")
+	router.Get("/swagger/*", func(w http.ResponseWriter, r *http.Request) {
+		// Strip the /swagger prefix
+		if strings.HasPrefix(r.URL.Path, "/swagger") {
+			r.URL.Path = strings.TrimPrefix(r.URL.Path, "/swagger")
 		}
 		if r.URL.Path == "" {
 			r.URL.Path = "/"

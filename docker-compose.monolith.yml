@@ -35,7 +35,7 @@ services:
     networks:
       - pulzifi-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-pulzifi_user}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-pulzifi_user} -d ${DB_NAME:-pulzifi}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -70,7 +70,7 @@ services:
       redis:
         condition: service_healthy
     environment:
-      HTTP_PORT: 8080
+      HTTP_PORT: 9090
       DB_HOST: postgres
       DB_USER: ${DB_USER:-pulzifi_user}
       DB_PASSWORD: ${DB_PASSWORD:-pulzifi_password}
@@ -81,13 +81,13 @@ services:
     env_file:
       - .env
     ports:
-      - "8080:8080"
+      - "9090:9090"
     volumes:
       - .:/workspace
     networks:
       - pulzifi-network
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/health"]
       interval: 30s
       timeout: 10s
       retries: 3

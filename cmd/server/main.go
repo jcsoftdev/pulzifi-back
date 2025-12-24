@@ -17,6 +17,7 @@ import (
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	middlewarex "github.com/jcsoftdev/pulzifi-back/shared/middleware"
 	"github.com/jcsoftdev/pulzifi-back/shared/router"
+	"github.com/jcsoftdev/pulzifi-back/shared/static"
 	"github.com/jcsoftdev/pulzifi-back/shared/swagger"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -85,6 +86,9 @@ func main() {
 	registry.RegisterAll(v1Router)
 	httpRouter.Mount("/api/v1", v1Router)
 
+	// Setup frontend (proxy o static)
+	static.Setup(httpRouter, cfg.FrontendURL, cfg.StaticDir, logger.Logger)
+
 	// Start HTTP server
 	wg.Add(1)
 	go func() {
@@ -101,7 +105,7 @@ func main() {
 
 	logger.Info("Pulzifi Backend monolith is running")
 	logger.Info("HTTP API available at", zap.String("url", "http://localhost:"+cfg.HTTPPort+"/api/v1"))
-	logger.Info("Swagger UI available at", zap.String("url", "http://localhost:"+cfg.HTTPPort+"/swagger/"))
+	logger.Info("Swagger UI available at", zap.String("url", "http://localhost:"+cfg.HTTPPort+"/api/v1/swagger/"))
 	logger.Info("gRPC server available at", zap.String("port", cfg.GRPCPort))
 	logger.Info("Modules loaded", zap.Int("count", registry.Count()))
 
