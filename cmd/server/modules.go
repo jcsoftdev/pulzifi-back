@@ -2,30 +2,59 @@ package main
 
 import (
 	"database/sql"
+	"time"
 
 	alert "github.com/jcsoftdev/pulzifi-back/modules/alert/infrastructure/http"
 	auth "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/http"
+	authpersistence "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/persistence"
+	authservices "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/services"
 	insight "github.com/jcsoftdev/pulzifi-back/modules/insight/infrastructure/http"
 	integration "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/http"
 	monitoring "github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/http"
 	organization "github.com/jcsoftdev/pulzifi-back/modules/organization/infrastructure/http"
+	orgpersistence "github.com/jcsoftdev/pulzifi-back/modules/organization/infrastructure/persistence"
 	page "github.com/jcsoftdev/pulzifi-back/modules/page/infrastructure/http"
 	report "github.com/jcsoftdev/pulzifi-back/modules/report/infrastructure/http"
 	usage "github.com/jcsoftdev/pulzifi-back/modules/usage/infrastructure/http"
 	workspace "github.com/jcsoftdev/pulzifi-back/modules/workspace/infrastructure/http"
+	"github.com/jcsoftdev/pulzifi-back/shared/config"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
+	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
 	"github.com/jcsoftdev/pulzifi-back/shared/router"
 	"go.uber.org/zap"
 )
 
-// registerAllModulesInternal registers all 10 modules for the monolith
 func registerAllModulesInternal(registry *router.Registry, db *sql.DB) {
+	cfg := config.Load()
+
+	userRepo := authpersistence.NewUserPostgresRepository(db)
+	roleRepo := authpersistence.NewRolePostgresRepository(db)
+	permRepo := authpersistence.NewPermissionPostgresRepository(db)
+	orgRepo := orgpersistence.NewOrganizationPostgresRepository(db)
+
+	authService := authservices.NewBcryptAuthService(userRepo, permRepo)
+	tokenService := authservices.NewJWTService(
+		cfg.JWTSecret,
+		15*time.Minute,
+		7*24*time.Hour,
+		roleRepo,
+		permRepo,
+	)
+
+	// Create auth module and set global middleware
+	authModule := auth.NewModule(userRepo, authService, tokenService)
+	authMiddleware := authModule.(*auth.Module).AuthMiddleware()
+
+	// Set global middleware for all modules
+	middleware.SetAuthMiddleware(authMiddleware)
+	middleware.SetOrganizationMiddleware(middleware.NewOrganizationMiddleware(db))
+
 	moduleInstances := []struct {
 		name   string
 		module router.ModuleRegisterer
 	}{
-		{"Auth", auth.NewModule()},
-		{"Organization", organization.NewModule()},
+		{"Auth", authModule},
+		{"Organization", organization.NewModule(orgRepo)},
 		{"Workspace", workspace.NewModuleWithDB(db)},
 		{"Page", page.NewModuleWithDB(db)},
 		{"Alert", alert.NewModuleWithDB(db)},

@@ -26,4 +26,7 @@ type UserRepository interface {
 
 	// ExistsByEmail checks if a user with the given email exists
 	ExistsByEmail(ctx context.Context, email string) (bool, error)
+
+	// GetUserFirstOrganization gets the first organization subdomain for a user
+	GetUserFirstOrganization(ctx context.Context, userID uuid.UUID) (*string, error)
 }

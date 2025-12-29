@@ -1,9 +1,12 @@
 import Link from 'next/link'
+import { Button } from '@workspace/ui/components/atoms/button'
 import { OrganizationSelector } from './ui/organization-selector'
 import { NavigationLink } from './ui/navigation-link'
 import { WorkspacesSection } from './ui/workspaces-section'
 import { ProfileFooter } from './ui/profile-footer'
+import { LogoutButton } from './ui/logout-button'
 import { getMainRoutes, getBottomRoutes } from './domain/routes'
+import { NavigationService } from './domain/navigation-service'
 import type { Organization, User, Workspace } from './domain/types'
 
 export interface SidebarFeatureProps {
@@ -14,25 +17,21 @@ export interface SidebarFeatureProps {
 
 /**
  * Server Component - Renders the sidebar structure with routes
+ * Fetches all data from backend (organization, user, workspaces)
  * Client components (NavigationLink, WorkspacesSection) handle hydration for interactivity
  */
-export function SidebarFeature({
-  organization = {
-    id: '1',
-    name: 'Dania Morales',
-    company: 'Volkswagen INC',
-  },
-  user = {
-    id: '1',
-    name: 'Dania Morales',
-    role: 'ADMIN',
-  },
-  workspaces = [
-    { id: '1', name: 'Toyota', type: 'Competitor' },
-    { id: '2', name: 'Jeep', type: 'Competitor' },
-    { id: '3', name: 'Nissan', type: 'Competitor' },
-  ],
+export async function SidebarFeature({
+  organization: providedOrganization,
+  user: providedUser,
+  workspaces: providedWorkspaces,
 }: Readonly<SidebarFeatureProps>) {
+  // Fetch all data from backend
+  const [organization, user, workspaces] = await Promise.all([
+    providedOrganization || NavigationService.fetchOrganization(),
+    providedUser || NavigationService.fetchUser(),
+    providedWorkspaces || NavigationService.fetchTopWorkspaces(5),
+  ])
+
   const mainRoutes = getMainRoutes()
   const bottomRoutes = getBottomRoutes()
 
@@ -41,24 +40,21 @@ export function SidebarFeature({
   const afterWorkspacesRoutes = mainRoutes.filter((r) => r.order > 2)
 
   return (
-    <aside className="w-[229px] h-screen bg-sidebar border-r border-border flex flex-col p-1">
+    <aside className="w-60 h-screen bg-sidebar border-r border-border flex flex-col p-1">
       {/* Logo */}
       <div className="py-2.5 px-3">
-        <Link
-          href="/"
-          className="flex items-center gap-2 px-1.5 py-1.5 hover:bg-muted rounded-lg transition-colors"
-        >
-          <span className="font-extrabold text-[22.5px] text-foreground tracking-[1%] leading-tight">
-            Pulzifi
-          </span>
-        </Link>
+        <Button asChild variant="ghost" className="px-1.5 py-1.5 h-auto font-extrabold">
+          <Link href="/">
+            <span className="text-2xl text-foreground tracking-tight leading-tight">Pulzifi</span>
+          </Link>
+        </Button>
       </div>
 
       {/* Organization Selector */}
       <OrganizationSelector organization={organization} />
 
       {/* Divider */}
-      <div className="h-[7px] border-t border-border mx-3" />
+      <div className="h-2 border-t border-border mx-3" />
 
       {/* Navigation */}
       <div className="flex-1 overflow-y-auto py-2 px-2">
@@ -68,7 +64,7 @@ export function SidebarFeature({
         ))}
 
         {/* Workspaces Section - Client Component for collapse state */}
-        <WorkspacesSection workspaces={workspaces} />
+        <WorkspacesSection workspaces={workspaces || []} />
 
         {/* Routes after Workspaces (Team) */}
         {afterWorkspacesRoutes.map((route) => (
@@ -77,18 +73,17 @@ export function SidebarFeature({
       </div>
 
       {/* Bottom Section */}
-      <div className="p-2">
+      <div className="p-2 space-y-1">
         {/* Bottom Routes (Resources, Settings) */}
         {bottomRoutes.map((route) => (
           <NavigationLink key={route.id} route={route} />
         ))}
 
-        {/* Profile Footer */}
-        <ProfileFooter
-          user={user}
-          onLogout={() => console.log('Logout')}
-          onSettings={() => console.log('Settings')}
-        />
+        {/* Logout Button */}
+        <LogoutButton />
+
+        {/* Profile Footer - only if user exists */}
+        {user && <ProfileFooter user={user} />}
       </div>
     </aside>
   )
@@ -97,4 +92,10 @@ export function SidebarFeature({
 // Re-export types for convenience
 export type { Organization, User, Workspace } from './domain/types'
 export { NavigationService } from './domain/navigation-service'
-export { getMainRoutes, getBottomRoutes, MAIN_ROUTES, BOTTOM_ROUTES, type RouteConfig } from './domain/routes'
+export {
+  getMainRoutes,
+  getBottomRoutes,
+  MAIN_ROUTES,
+  BOTTOM_ROUTES,
+  type RouteConfig,
+} from './domain/routes'

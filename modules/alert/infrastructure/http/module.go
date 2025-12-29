@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	createalert "github.com/jcsoftdev/pulzifi-back/modules/alert/application/create_alert"
 	"github.com/jcsoftdev/pulzifi-back/modules/alert/infrastructure/persistence"
+
 	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
 	"github.com/jcsoftdev/pulzifi-back/shared/router"
 )
@@ -38,6 +39,8 @@ func (m *Module) ModuleName() string {
 // RegisterHTTPRoutes registers all HTTP routes for the Alert module
 func (m *Module) RegisterHTTPRoutes(router chi.Router) {
 	router.Route("/alerts", func(r chi.Router) {
+		r.Use(middleware.AuthMiddleware.Authenticate)
+		r.Use(middleware.OrgMiddleware.RequireOrganizationMembership)
 		r.Post("/", m.handleCreateAlert)
 		r.Get("/", m.handleListAlerts)
 		r.Get("/{id}", m.handleGetAlert)

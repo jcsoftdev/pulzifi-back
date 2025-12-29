@@ -2,9 +2,11 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { cn } from '@workspace/ui'
+import { cn } from '@workspace/ui/lib/utils'
+import { Button } from '@workspace/ui/components/atoms/button'
+import { Badge } from '@workspace/ui/components/atoms/badge'
 import type { RouteConfig } from '../domain/routes'
-import { isRouteActive } from '../domain/routes'
+import { isRouteActive, ICON_MAP } from '../domain/routes'
 
 export interface NavigationLinkProps {
   route: RouteConfig
@@ -16,26 +18,28 @@ export interface NavigationLinkProps {
 export function NavigationLink({ route }: Readonly<NavigationLinkProps>) {
   const pathname = usePathname()
   const isActive = isRouteActive(route.href, pathname ?? '')
-  const Icon = route.icon
+  const Icon = ICON_MAP[route.icon]
 
   return (
-    <Link
-      href={route.href}
+    <Button
+      asChild
+      variant="ghost"
       className={cn(
-        'w-full px-4 h-[42px] flex items-center gap-2 mb-1 rounded-lg transition-colors',
+        'w-full h-10 px-4 justify-start gap-2 mb-1 rounded-lg font-normal',
         isActive
-          ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+          ? 'bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent'
           : 'text-foreground hover:bg-muted'
       )}
-      aria-current={isActive ? 'page' : undefined}
     >
-      <Icon size={14} className="flex-shrink-0" />
-      <span className="text-[14.6px] font-normal flex-1">{route.label}</span>
-      {route.badge && (
-        <span className="text-[12.5px] px-2 py-0.5 rounded bg-primary text-primary-foreground font-normal">
-          {route.badge}
-        </span>
-      )}
-    </Link>
+      <Link href={route.href} aria-current={isActive ? 'page' : undefined}>
+        <Icon size={14} className="flex-shrink-0" />
+        <span className="text-sm font-normal flex-1">{route.label}</span>
+        {route.badge && (
+          <Badge variant="default" className="text-xs">
+            {route.badge}
+          </Badge>
+        )}
+      </Link>
+    </Button>
   )
 }

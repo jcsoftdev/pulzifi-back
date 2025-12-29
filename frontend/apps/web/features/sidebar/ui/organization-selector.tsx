@@ -1,6 +1,8 @@
 'use client'
 
 import { ChevronDown } from 'lucide-react'
+import { Button } from '@workspace/ui/components/atoms/button'
+import { Avatar, AvatarFallback } from '@workspace/ui/components/atoms/avatar'
 import type { Organization } from '../domain/types'
 
 export interface OrganizationSelectorProps {
@@ -8,24 +10,34 @@ export interface OrganizationSelectorProps {
   onSelect?: () => void
 }
 
-export function OrganizationSelector({ organization, onSelect }: Readonly<OrganizationSelectorProps>) {
+export function OrganizationSelector({
+  organization,
+  onSelect,
+}: Readonly<OrganizationSelectorProps>) {
   return (
     <div className="px-3 py-1">
-      <button
+      <Button
+        variant="outline"
         onClick={onSelect}
-        className="w-full p-2 border border-border rounded-lg flex items-center gap-2 hover:bg-muted transition-colors bg-card"
+        className="w-full h-auto p-2 justify-start gap-2 bg-card font-normal"
       >
-        <div className="w-[33px] h-[33px] rounded-full border border-border bg-muted flex items-center justify-center text-muted-foreground font-normal text-xs flex-shrink-0 overflow-hidden">
-          {organization.name.charAt(0).toUpperCase()}
-        </div>
+        <Avatar className="w-8 h-8 rounded-full">
+          <AvatarFallback className="text-xs">
+            {organization.name.charAt(0).toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
         <div className="flex-1 text-left min-w-0">
-          <p className="text-[12.5px] font-normal text-foreground truncate leading-tight">{organization.name}</p>
+          <p className="text-xs font-normal text-foreground truncate leading-tight">
+            {organization.name}
+          </p>
           {organization.company && (
-            <p className="text-[14.6px] font-medium text-foreground truncate leading-tight">{organization.company}</p>
+            <p className="text-sm font-medium text-foreground truncate leading-tight">
+              {organization.company}
+            </p>
           )}
         </div>
-        <ChevronDown className="w-[12.5px] h-[12.5px] text-foreground flex-shrink-0" />
-      </button>
+        <ChevronDown className="w-3 h-3 text-foreground flex-shrink-0" />
+      </Button>
     </div>
   )
 }

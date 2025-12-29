@@ -1,4 +1,4 @@
-import { getHttpClient } from '@workspace/shared-http'
+import { WorkspaceApi, OrganizationApi, AuthApi } from '@workspace/services'
 import type { Workspace, Organization, User } from './types'
 import { MAIN_ROUTES, BOTTOM_ROUTES, type RouteConfig } from './routes'
 
@@ -6,8 +6,8 @@ export interface NavigationData {
   mainRoutes: RouteConfig[]
   bottomRoutes: RouteConfig[]
   workspaces: Workspace[]
-  organization: Organization | null
-  user: User | null
+  organization: Organization
+  user: User
 }
 
 export interface NavigationApiResponse {
@@ -21,62 +21,74 @@ export interface NavigationApiResponse {
  * Navigation Service - Handles fetching navigation data from backend
  * Can be extended to support dynamic routes from backend
  */
-export class NavigationService {
+export const NavigationService = {
   /**
-   * Fetch workspaces from backend
+   * Fetch top N workspaces from backend (uses workspace-api from packages/services)
    */
-  static async fetchWorkspaces(): Promise<Workspace[]> {
-    try {
-      const http = await getHttpClient()
-      const response = await http.get<{ data: Workspace[] }>('/api/workspaces')
-      return response.data ?? []
-    } catch {
-      return []
-    }
-  }
+  async fetchTopWorkspaces(limit: number = 5): Promise<Workspace[]> {
+    console.log('[NavigationService] Fetching workspaces with limit:', limit)
+    const response = await WorkspaceApi.listWorkspaces({
+      limit,
+    })
+    console.log('[NavigationService] Response:', response)
+
+    // Transform backend DTO to frontend domain type
+    return response.workspaces.map((dto) => ({
+      id: dto.id,
+      name: dto.name,
+      type: dto.type as Workspace['type'],
+    }))
+  },
+
+  /**
+   * Fetch all workspaces from backend
+   */
+  async fetchWorkspaces(): Promise<Workspace[]> {
+    const response = await WorkspaceApi.listWorkspaces()
+
+    // Transform backend DTO to frontend domain type
+    return response.workspaces.map((dto) => ({
+      id: dto.id,
+      name: dto.name,
+      type: dto.type as Workspace['type'],
+    }))
+  },
 
   /**
    * Fetch current organization
    */
-  static async fetchOrganization(): Promise<Organization | null> {
-    try {
-      const http = await getHttpClient()
-      return await http.get<Organization>('/api/organization/current')
-    } catch {
-      return null
-    }
-  }
+  async fetchOrganization(): Promise<Organization> {
+    return await OrganizationApi.getCurrentOrganization()
+  },
 
   /**
    * Fetch current user
    */
-  static async fetchUser(): Promise<User | null> {
-    try {
-      const http = await getHttpClient()
-      return await http.get<User>('/api/auth/me')
-    } catch {
-      return null
-    }
-  }
+  async fetchUser(): Promise<User> {
+    return await AuthApi.getCurrentUser()
+  },
 
   /**
    * Get static routes - no async needed, can be called anywhere
    */
-  static getRoutes(): { mainRoutes: RouteConfig[]; bottomRoutes: RouteConfig[] } {
+  getRoutes(): {
+    mainRoutes: RouteConfig[]
+    bottomRoutes: RouteConfig[]
+  } {
     return {
       mainRoutes: MAIN_ROUTES,
       bottomRoutes: BOTTOM_ROUTES,
     }
-  }
+  },
 
   /**
    * Get complete navigation data - combines static routes with dynamic data
    */
-  static async getNavigationData(): Promise<NavigationData> {
+  async getNavigationData(): Promise<NavigationData> {
     const [workspaces, organization, user] = await Promise.all([
-      this.fetchWorkspaces(),
-      this.fetchOrganization(),
-      this.fetchUser(),
+      NavigationService.fetchTopWorkspaces(5),
+      NavigationService.fetchOrganization(),
+      NavigationService.fetchUser(),
     ])
 
     return {
@@ -86,5 +98,5 @@ export class NavigationService {
       organization,
       user,
     }
-  }
+  },
 }

@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useCallback, useEffect, memo } from 'react'
+import { useState, useCallback, useEffect, memo, useId } from 'react'
 import { usePathname } from 'next/navigation'
-import { cn } from '@workspace/ui'
+import { cn } from '@workspace/ui/lib/utils'
+import { Button } from '@workspace/ui/components/atoms/button'
 import Link from 'next/link'
-import { PlusIcon } from './icons/PlusIcon'
-import { MinusIcon } from './icons/MinusIcon'
-import { isWorkspaceActive, WORKSPACES_ROUTE } from '../domain/routes'
+import { SquarePlus, ChevronDown } from 'lucide-react'
+import { isWorkspaceActive, WORKSPACES_ROUTE, ICON_MAP } from '../domain/routes'
 import type { Workspace } from '../domain/types'
 
 export interface WorkspacesSectionClientProps {
@@ -21,86 +21,118 @@ const WorkspaceItem = memo(function WorkspaceItem({
   isActive: boolean
 }) {
   return (
-    <Link
-      href={`/workspaces/${workspace.id}`}
+    <Button
+      asChild
+      variant="ghost"
       className={cn(
-        'block px-6 py-2.5 rounded-lg text-[14.6px] transition-colors',
+        'w-full h-auto px-6 py-2.5 rounded-lg text-sm justify-start font-normal',
         isActive
-          ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium'
+          ? 'bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent font-medium'
           : 'text-foreground hover:bg-muted'
       )}
-      aria-current={isActive ? 'page' : undefined}
     >
-      {workspace.name}
-    </Link>
+      <Link href={`/workspaces/${workspace.id}`} aria-current={isActive ? 'page' : undefined}>
+        {workspace.name}
+      </Link>
+    </Button>
   )
 })
 
 export function WorkspacesSection({ workspaces }: Readonly<WorkspacesSectionClientProps>) {
   const pathname = usePathname()
-  const Icon = WORKSPACES_ROUTE.icon
+  const Icon = ICON_MAP[WORKSPACES_ROUTE.icon]
 
   const isOnWorkspacePath = pathname?.startsWith('/workspaces')
   const [isOpen, setIsOpen] = useState<boolean>(isOnWorkspacePath ?? false)
+
+  const listId = useId()
 
   useEffect(() => {
     if (isOnWorkspacePath) {
       setIsOpen(true)
     }
-  }, [isOnWorkspacePath])
+  }, [
+    isOnWorkspacePath,
+  ])
 
-  const toggle = useCallback(() => {
+  const toggle = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
     setIsOpen((prev) => !prev)
+  }, [])
+
+  const handleCreateWorkspace = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    console.log('Create workspace clicked')
   }, [])
 
   return (
     <div className="mt-2">
-      <button
-        onClick={toggle}
-        className="w-full px-4 py-2.5 rounded-lg flex items-center justify-between text-foreground hover:bg-muted transition-colors"
-        aria-expanded={isOpen}
-        aria-controls="workspaces-list"
+      <div
+        className={cn(
+          'w-full px-4 py-2.5 rounded-lg flex items-center justify-between transition-colors',
+          isOnWorkspacePath
+            ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+            : 'text-foreground hover:bg-muted'
+        )}
       >
-        <div className="flex items-center gap-2">
-          <Icon size={14} className="text-foreground" />
-          <span className="text-[14.6px] font-normal">{WORKSPACES_ROUTE.label}</span>
-        </div>
+        <Link href="/workspaces" className="flex items-center gap-2 flex-1">
+          <Icon
+            size={14}
+            className={isOnWorkspacePath ? 'text-sidebar-accent-foreground' : 'text-foreground'}
+          />
+          <span className={cn('text-sm', isOnWorkspacePath ? 'font-semibold' : 'font-normal')}>
+            {WORKSPACES_ROUTE.label}
+          </span>
+        </Link>
 
-        <span className="inline-flex items-center justify-center w-6 h-6 relative">
-          <MinusIcon
-            className={cn(
-              'absolute inset-0 m-auto text-primary transition-opacity duration-200',
-              isOpen ? 'opacity-100' : 'opacity-0'
-            )}
-          />
-          <PlusIcon
-            className={cn(
-              'absolute inset-0 m-auto text-primary transition-opacity duration-200',
-              isOpen ? 'opacity-0' : 'opacity-100'
-            )}
-          />
-        </span>
-      </button>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={handleCreateWorkspace}
+            className="h-6 w-6 hover:bg-sidebar-primary/10"
+            aria-label="Create workspace"
+          >
+            <SquarePlus
+              size={16}
+              className={
+                isOnWorkspacePath ? 'text-sidebar-accent-foreground' : 'text-sidebar-primary'
+              }
+            />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={toggle}
+            className="h-6 w-6 hover:bg-sidebar-primary/10"
+            aria-expanded={isOpen}
+            aria-controls={listId}
+            aria-label={isOpen ? 'Collapse workspaces' : 'Expand workspaces'}
+          >
+            <ChevronDown
+              size={16}
+              className={cn(
+                'transition-transform duration-200',
+                isOpen ? 'rotate-180 text-sidebar-accent-foreground' : 'text-foreground'
+              )}
+            />
+          </Button>
+        </div>
+      </div>
 
       <div
-        id="workspaces-list"
+        id={listId}
         className={cn(
           'overflow-hidden mt-1 bg-muted/50 rounded-lg space-y-1',
           'transition-[max-height,opacity,padding] duration-300 ease-in-out',
-          isOpen
-            ? 'max-h-96 opacity-100 py-1 px-6'
-            : 'max-h-0 opacity-0 py-0 px-6'
+          isOpen ? 'max-h-96 opacity-100 py-1 px-6' : 'max-h-0 opacity-0 py-0 px-6'
         )}
       >
         {workspaces.map((workspace) => {
           const isActive = isWorkspaceActive(workspace.id, pathname ?? '')
-          return (
-            <WorkspaceItem
-              key={workspace.id}
-              workspace={workspace}
-              isActive={isActive}
-            />
-          )
+          return <WorkspaceItem key={workspace.id} workspace={workspace} isActive={isActive} />
         })}
       </div>
     </div>

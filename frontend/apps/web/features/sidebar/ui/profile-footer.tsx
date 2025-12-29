@@ -1,35 +1,48 @@
 'use client'
 
+import { LogOut } from 'lucide-react'
+import { signOut } from 'next-auth/react'
+import { Button } from '@workspace/ui/components/atoms/button'
+import { Avatar, AvatarImage, AvatarFallback } from '@workspace/ui/components/atoms/avatar'
 import type { User } from '../domain/types'
 
 export interface ProfileFooterProps {
   user: User
-  onLogout?: () => void
-  onSettings?: () => void
 }
 
-export function ProfileFooter({ user, onLogout, onSettings }: Readonly<ProfileFooterProps>) {
+export function ProfileFooter({ user }: Readonly<ProfileFooterProps>) {
+  const handleLogout = async () => {
+    await signOut({
+      callbackUrl: '/login',
+    })
+  }
+
   return (
     <div className="p-2">
       <div className="flex items-center gap-2 p-2 border border-border rounded-lg bg-card">
-        <div className="w-[33px] h-[33px] rounded-lg border border-border bg-muted flex items-center justify-center flex-shrink-0 overflow-hidden">
-          {user.avatar ? (
-            <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
-          ) : (
-            <span className="text-xs font-normal text-muted-foreground">{user.name.charAt(0).toUpperCase()}</span>
-          )}
-        </div>
+        <Avatar className="w-8 h-8 rounded-lg">
+          {user.avatar && <AvatarImage src={user.avatar} alt={user.name} />}
+          <AvatarFallback className="text-xs rounded-lg">
+            {user.name.charAt(0).toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
         <div className="flex-1 min-w-0">
-          <p className="text-[14.6px] font-semibold text-foreground truncate leading-tight">{user.name}</p>
-          <p className="text-[12px] font-normal text-muted-foreground truncate leading-tight">{user.role}</p>
+          <p className="text-sm font-semibold text-foreground truncate leading-tight">
+            {user.name}
+          </p>
+          <p className="text-xs font-normal text-muted-foreground truncate leading-tight">
+            {user.role}
+          </p>
         </div>
-        <button className="w-4 h-4 text-foreground flex-shrink-0">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <circle cx="8" cy="2.5" r="1" fill="currentColor" />
-            <circle cx="8" cy="8" r="1" fill="currentColor" />
-            <circle cx="8" cy="13.5" r="1" fill="currentColor" />
-          </svg>
-        </button>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="h-4 w-4 flex-shrink-0"
+          aria-label="Logout"
+          onClick={handleLogout}
+        >
+          <LogOut className="h-4 w-4" />
+        </Button>
       </div>
     </div>
   )

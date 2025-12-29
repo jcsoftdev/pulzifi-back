@@ -1,7 +1,5 @@
 {
-  "organizeImports": {
-    "enabled": true
-  },
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
   "linter": {
     "enabled": true,
     "rules": {
@@ -10,31 +8,45 @@
         "noImplicitAnyLet": "warn"
       },
       "style": {
-        "noVar": "warn"
+        "useConst": "warn"
       }
     }
   },
   "formatter": {
     "enabled": true,
     "indentStyle": "space",
-    "indentSize": 2,
-    "lineWidth": 100,
-    "trailingComma": "es5"
+    "indentWidth": 2,
+    "lineWidth": 100
   },
   "javascript": {
     "formatter": {
       "jsxQuoteStyle": "double",
       "quoteProperties": "asNeeded",
       "semicolons": "asNeeded",
-      "trailingCommas": "es5"
+      "arrowParentheses": "always",
+      "trailingCommas": "es5",
+      "quoteStyle": "single",
+      "expand": "always"
     }
   },
-  "ignore": [
-    ".next",
-    "dist",
-    "node_modules",
-    "build",
-    "coverage",
-    ".turbo"
-  ]
+  "json": {
+    "formatter": {
+      "trailingCommas": "none"
+    }
+  },
+  "files": {
+    "ignoreUnknown": true,
+    "includes": [
+      "**/*.js",
+      "**/*.jsx",
+      "**/*.ts",
+      "**/*.tsx",
+      "**/*.json",
+      "!**/.next",
+      "!**/dist",
+      "!**/build",
+      "!**/.turbo",
+      "!**/node_modules"
+    ]
+  }
 }

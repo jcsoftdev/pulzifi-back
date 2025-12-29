@@ -7,8 +7,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	authmw "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/middleware"
 	"github.com/jcsoftdev/pulzifi-back/modules/page/domain/entities"
 	"github.com/jcsoftdev/pulzifi-back/modules/page/domain/repositories"
+	"github.com/jcsoftdev/pulzifi-back/shared/logger"
+	"go.uber.org/zap"
 )
 
 type CreatePageHandler struct {
@@ -64,8 +67,20 @@ func (h *CreatePageHandler) HandleHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// For now, use a placeholder user ID
-	createdBy := uuid.MustParse("00000000-0000-0000-0000-000000000001")
+	// Get user ID from context (set by auth middleware)
+	userIDStr, ok := r.Context().Value(authmw.UserIDKey).(string)
+	if !ok {
+		logger.Error("User ID not found in context")
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	createdBy, err := uuid.Parse(userIDStr)
+	if err != nil {
+		logger.Error("Invalid user ID", zap.Error(err))
+		http.Error(w, "invalid user ID", http.StatusBadRequest)
+		return
+	}
 
 	// Execute use case
 	resp, err := h.Handle(r.Context(), &req, createdBy)

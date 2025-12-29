@@ -6,11 +6,13 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/cors"
 	"github.com/jcsoftdev/pulzifi-back/docs"
 	"github.com/jcsoftdev/pulzifi-back/shared/config"
 	"github.com/jcsoftdev/pulzifi-back/shared/database"
@@ -60,6 +62,30 @@ func main() {
 
 	// Setup shared HTTP router using Chi
 	httpRouter := chi.NewRouter()
+
+	// Configure CORS middleware
+	corsHandler := cors.Handler(cors.Options{
+		AllowOriginFunc: func(r *http.Request, origin string) bool {
+			// Allow all localhost subdomains in development
+			if strings.Contains(origin, "localhost") || strings.Contains(origin, "127.0.0.1") {
+				return true
+			}
+			// Check configured origins
+			allowedOrigins := strings.Split(cfg.CORSAllowedOrigins, ",")
+			for _, allowed := range allowedOrigins {
+				if strings.TrimSpace(allowed) == origin {
+					return true
+				}
+			}
+			return false
+		},
+		AllowedMethods:   strings.Split(cfg.CORSAllowedMethods, ","),
+		AllowedHeaders:   strings.Split(cfg.CORSAllowedHeaders, ","),
+		ExposedHeaders:   []string{"X-Request-ID", "Content-Length"},
+		AllowCredentials: true,
+		MaxAge:           300, // 5 minutes
+	})
+	httpRouter.Use(corsHandler)
 
 	// Health endpoint
 	httpRouter.Get("/health", func(w http.ResponseWriter, r *http.Request) {

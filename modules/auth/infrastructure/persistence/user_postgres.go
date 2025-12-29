@@ -212,3 +212,27 @@ func (r *UserPostgresRepository) ExistsByEmail(ctx context.Context, email string
 
 	return count > 0, nil
 }
+
+// GetUserFirstOrganization gets the first organization subdomain for a user
+func (r *UserPostgresRepository) GetUserFirstOrganization(ctx context.Context, userID uuid.UUID) (*string, error) {
+	query := `
+		SELECT o.subdomain
+		FROM public.organization_members om
+		INNER JOIN public.organizations o ON om.organization_id = o.id
+		WHERE om.user_id = $1 AND o.deleted_at IS NULL
+		ORDER BY om.joined_at ASC
+		LIMIT 1
+	`
+
+	var subdomain string
+	err := r.db.QueryRowContext(ctx, query, userID).Scan(&subdomain)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil // User has no organizations
+		}
+		logger.Error("Failed to get user first organization", zap.Error(err))
+		return nil, err
+	}
+
+	return &subdomain, nil
+}

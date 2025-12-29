@@ -1,17 +1,8 @@
-export interface Organization {
-  id: string
-  name: string
-  company?: string
-  avatar?: string
-}
+import type { Organization as OrganizationService, User as UserService } from '@workspace/services'
 
-export interface User {
-  id: string
-  name: string
-  role: string
-  email?: string
-  avatar?: string
-}
+// Re-export from services (already in camelCase)
+export type Organization = OrganizationService
+export type User = UserService
 
 export interface Workspace {
   id: string
@@ -28,4 +19,3 @@ export interface NavigationItem {
   active: boolean
   badge?: string | number
 }
-

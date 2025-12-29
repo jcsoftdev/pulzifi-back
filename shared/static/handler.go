@@ -40,6 +40,22 @@ func setupProxyNotFound(router chi.Router, frontendURL string, logger *zap.Logge
 		originalDirector(req)
 		req.Header.Set("X-Forwarded-For", req.RemoteAddr)
 		req.Header.Set("X-Forwarded-Proto", "http")
+
+		// Extract subdomain and add as X-Tenant header
+		host := req.Host
+		if strings.Contains(host, ".localhost") {
+			// Extract subdomain from host like "tenant.localhost:9090"
+			parts := strings.Split(host, ".")
+			if len(parts) >= 2 {
+				tenant := parts[0]
+				// Remove port if present
+				tenant = strings.Split(tenant, ":")[0]
+				if tenant != "" && tenant != "localhost" {
+					req.Header.Set("X-Tenant", tenant)
+					logger.Debug("Extracted tenant from subdomain", zap.String("tenant", tenant), zap.String("host", host))
+				}
+			}
+		}
 	}
 
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
@@ -52,8 +68,13 @@ func setupProxyNotFound(router chi.Router, frontendURL string, logger *zap.Logge
 
 	// Usar NotFound para solo proxear rutas no encontradas
 	router.NotFound(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// No proxear rutas de API o Swagger
-		if strings.HasPrefix(r.URL.Path, "/api/") || strings.HasPrefix(r.URL.Path, "/swagger") {
+		// No proxear rutas de API (excepto /api/auth que es NextAuth)
+		if strings.HasPrefix(r.URL.Path, "/api/") && !strings.HasPrefix(r.URL.Path, "/api/auth") {
+			http.NotFound(w, r)
+			return
+		}
+		// No proxear Swagger
+		if strings.HasPrefix(r.URL.Path, "/swagger") {
 			http.NotFound(w, r)
 			return
 		}

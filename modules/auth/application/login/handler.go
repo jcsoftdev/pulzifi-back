@@ -3,55 +3,59 @@ package login
 import (
 	"context"
 
-	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/errors"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/repositories"
+	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/services"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"go.uber.org/zap"
-	"golang.org/x/crypto/bcrypt"
 )
 
-// Handler handles user login
 type Handler struct {
-	repo repositories.UserRepository
+	authService  services.AuthService
+	tokenService services.TokenService
+	userRepo     repositories.UserRepository
 }
 
-// NewHandler creates a new handler instance
-func NewHandler(repo repositories.UserRepository) *Handler {
+func NewHandler(authService services.AuthService, tokenService services.TokenService, userRepo repositories.UserRepository) *Handler {
 	return &Handler{
-		repo: repo,
+		authService:  authService,
+		tokenService: tokenService,
+		userRepo:     userRepo,
 	}
 }
 
-// Handle executes the login use case
 func (h *Handler) Handle(ctx context.Context, req *Request) (*Response, error) {
-	// Get user by email
-	user, err := h.repo.GetByEmail(ctx, req.Email)
+	user, err := h.authService.Authenticate(ctx, req.Email, req.Password)
 	if err != nil {
-		logger.Error("Failed to get user by email", zap.Error(err))
+		logger.Warn("Authentication failed", zap.String("email", req.Email), zap.Error(err))
 		return nil, err
 	}
 
-	if user == nil {
-		logger.Warn("User not found", zap.String("email", req.Email))
-		return nil, errors.NewUserError("USER_NOT_FOUND", "user not found")
-	}
-
-	// Verify password
-	err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password))
+	accessToken, err := h.tokenService.GenerateAccessToken(ctx, user.ID, user.Email)
 	if err != nil {
-		logger.Warn("Invalid password", zap.String("email", req.Email))
-		return nil, errors.NewUserError("INVALID_PASSWORD", "invalid password")
+		logger.Error("Failed to generate access token", zap.Error(err))
+		return nil, err
 	}
 
-	// TODO: Generate JWT tokens
+	refreshToken, err := h.tokenService.GenerateRefreshToken(ctx, user.ID)
+	if err != nil {
+		logger.Error("Failed to generate refresh token", zap.Error(err))
+		return nil, err
+	}
+
 	logger.Info("User logged in successfully", zap.String("email", user.Email), zap.String("id", user.ID.String()))
 
+	// Get user's first organization
+	tenant, err := h.userRepo.GetUserFirstOrganization(ctx, user.ID)
+	if err != nil {
+		logger.Error("Failed to get user first organization", zap.Error(err))
+		// Don't fail login if we can't get organization, just log the error
+	}
+
 	return &Response{
-		UserID:       user.ID,
-		Email:        user.Email,
-		FirstName:    user.FirstName,
-		LastName:     user.LastName,
-		AccessToken:  "placeholder_access_token",
-		RefreshToken: "placeholder_refresh_token",
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		TokenType:    "Bearer",
+		ExpiresIn:    int64(h.tokenService.GetTokenExpiration().Seconds()),
+		Tenant:       tenant,
 	}, nil
 }

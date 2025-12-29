@@ -20,8 +20,8 @@ export interface Notification {
   createdAt: string
 }
 
-export class NotificationApi {
-  static async getNotificationsData(): Promise<NotificationsData> {
+export const NotificationApi = {
+  async getNotificationsData(): Promise<NotificationsData> {
     // Mocked for development: backend not ready / or prefer mocked data for now.
     // TODO: replace with real API call when backend endpoint is available.
     return {
@@ -31,20 +31,20 @@ export class NotificationApi {
     // Uncomment to call real backend:
     // const http = await getHttpClient()
     // return http.get<NotificationsData>('/api/notifications/count')
-  }
+  },
 
-  static async getNotifications(): Promise<Notification[]> {
+  async getNotifications(): Promise<Notification[]> {
     const http = await getHttpClient()
     return http.get<Notification[]>('/api/notifications')
-  }
+  },
 
-  static async markAsRead(notificationId: string): Promise<void> {
+  async markAsRead(notificationId: string): Promise<void> {
     const http = await getHttpClient()
     await http.put(`/api/notifications/${notificationId}/read`)
-  }
+  },
 
-  static async markAllAsRead(): Promise<void> {
+  async markAllAsRead(): Promise<void> {
     const http = await getHttpClient()
     await http.put('/api/notifications/read-all')
-  }
+  },
 }

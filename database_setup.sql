@@ -13,6 +13,10 @@ DROP FUNCTION IF EXISTS trigger_create_tenant_schema() CASCADE;
 DROP FUNCTION IF EXISTS create_tenant_schema(TEXT) CASCADE;
 DROP TABLE IF EXISTS public.password_resets CASCADE;
 DROP TABLE IF EXISTS public.refresh_tokens CASCADE;
+DROP TABLE IF EXISTS public.user_roles CASCADE;
+DROP TABLE IF EXISTS public.role_permissions CASCADE;
+DROP TABLE IF EXISTS public.permissions CASCADE;
+DROP TABLE IF EXISTS public.roles CASCADE;
 DROP TABLE IF EXISTS public.organization_members CASCADE;
 DROP TABLE IF EXISTS public.organizations CASCADE;
 DROP TABLE IF EXISTS public.users CASCADE;
@@ -67,12 +71,14 @@ CREATE TABLE public.organization_members (
     role VARCHAR(50) NOT NULL DEFAULT 'MEMBER',
     invited_by UUID REFERENCES public.users(id),
     joined_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    deleted_at TIMESTAMP NULL,
     UNIQUE(organization_id, user_id)
 );
 
 CREATE INDEX idx_organization_members_org_id ON public.organization_members(organization_id);
 CREATE INDEX idx_organization_members_user_id ON public.organization_members(user_id);
 CREATE INDEX idx_organization_members_user_org ON public.organization_members(user_id, organization_id);
+CREATE INDEX idx_organization_members_active ON public.organization_members(organization_id, user_id) WHERE deleted_at IS NULL;
 
 -- ============================================================
 -- TABLE: refresh_tokens
@@ -102,6 +108,66 @@ CREATE TABLE public.password_resets (
 );
 
 CREATE INDEX idx_password_resets_token ON public.password_resets(token);
+
+-- ============================================================
+-- TABLE: roles
+-- ============================================================
+CREATE TABLE public.roles (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(50) UNIQUE NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    deleted_at TIMESTAMP NULL
+);
+
+CREATE INDEX idx_roles_name ON public.roles(name);
+CREATE INDEX idx_roles_active ON public.roles(name) WHERE deleted_at IS NULL;
+
+-- ============================================================
+-- TABLE: permissions
+-- ============================================================
+CREATE TABLE public.permissions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(100) UNIQUE NOT NULL,
+    resource VARCHAR(50) NOT NULL,
+    action VARCHAR(50) NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    deleted_at TIMESTAMP NULL,
+    UNIQUE(resource, action)
+);
+
+CREATE INDEX idx_permissions_resource_action ON public.permissions(resource, action);
+CREATE INDEX idx_permissions_name ON public.permissions(name);
+CREATE INDEX idx_permissions_active ON public.permissions(name) WHERE deleted_at IS NULL;
+
+-- ============================================================
+-- TABLE: role_permissions
+-- ============================================================
+CREATE TABLE public.role_permissions (
+    role_id UUID NOT NULL REFERENCES public.roles(id) ON DELETE CASCADE,
+    permission_id UUID NOT NULL REFERENCES public.permissions(id) ON DELETE CASCADE,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (role_id, permission_id)
+);
+
+CREATE INDEX idx_role_permissions_role_id ON public.role_permissions(role_id);
+CREATE INDEX idx_role_permissions_permission_id ON public.role_permissions(permission_id);
+
+-- ============================================================
+-- TABLE: user_roles
+-- ============================================================
+CREATE TABLE public.user_roles (
+    user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    role_id UUID NOT NULL REFERENCES public.roles(id) ON DELETE CASCADE,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (user_id, role_id)
+);
+
+CREATE INDEX idx_user_roles_user_id ON public.user_roles(user_id);
+CREATE INDEX idx_user_roles_role_id ON public.user_roles(role_id);
 
 -- ============================================================
 -- PHASE 2: TENANT SCHEMA TEMPLATE FUNCTION
@@ -136,6 +202,26 @@ BEGIN
     EXECUTE format('CREATE INDEX idx_workspaces_created_by ON %I.workspaces(created_by)', schema_name);
     EXECUTE format('CREATE INDEX idx_workspaces_deleted_at ON %I.workspaces(deleted_at)', schema_name);
     EXECUTE format('CREATE INDEX idx_workspaces_active ON %I.workspaces(deleted_at) WHERE deleted_at IS NULL', schema_name);
+    
+    -- ========================================
+    -- TABLE 1b: workspace_members
+    -- ========================================
+    EXECUTE format('
+        CREATE TABLE %I.workspace_members (
+            workspace_id UUID NOT NULL,
+            user_id UUID NOT NULL,
+            role VARCHAR(20) NOT NULL CHECK (role IN (''owner'', ''editor'', ''viewer'')),
+            invited_by UUID,
+            invited_at TIMESTAMP NOT NULL DEFAULT NOW(),
+            removed_at TIMESTAMP NULL,
+            PRIMARY KEY (workspace_id, user_id),
+            CONSTRAINT fk_workspace FOREIGN KEY (workspace_id) 
+                REFERENCES %I.workspaces(id) ON DELETE CASCADE
+        )', schema_name, schema_name);
+    
+    EXECUTE format('CREATE INDEX idx_workspace_members_user_id ON %I.workspace_members(user_id)', schema_name);
+    EXECUTE format('CREATE INDEX idx_workspace_members_role ON %I.workspace_members(workspace_id, role)', schema_name);
+    EXECUTE format('CREATE INDEX idx_workspace_members_active ON %I.workspace_members(workspace_id, user_id) WHERE removed_at IS NULL', schema_name);
     
     -- ========================================
     -- TABLE 2: pages
@@ -193,11 +279,13 @@ BEGIN
             block_ads_cookies BOOLEAN DEFAULT TRUE,
             created_at TIMESTAMP NOT NULL DEFAULT NOW(),
             updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+            deleted_at TIMESTAMP NULL,
             CONSTRAINT fk_page FOREIGN KEY (page_id) 
                 REFERENCES %I.pages(id) ON DELETE CASCADE
         )', schema_name, schema_name);
     
     EXECUTE format('CREATE INDEX idx_monitoring_configs_page_id ON %I.monitoring_configs(page_id)', schema_name);
+    EXECUTE format('CREATE INDEX idx_monitoring_configs_active ON %I.monitoring_configs(page_id) WHERE deleted_at IS NULL', schema_name);
     
     -- ========================================
     -- TABLE 5: checks
@@ -314,6 +402,7 @@ BEGIN
             content TEXT NOT NULL,
             metadata JSONB,
             created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+            deleted_at TIMESTAMP NULL,
             CONSTRAINT fk_page FOREIGN KEY (page_id) 
                 REFERENCES %I.pages(id) ON DELETE CASCADE,
             CONSTRAINT fk_check FOREIGN KEY (check_id) 
@@ -324,6 +413,7 @@ BEGIN
     EXECUTE format('CREATE INDEX idx_insights_check_id ON %I.insights(check_id)', schema_name);
     EXECUTE format('CREATE INDEX idx_insights_insight_type ON %I.insights(insight_type)', schema_name);
     EXECUTE format('CREATE INDEX idx_insights_created_at ON %I.insights(created_at)', schema_name);
+    EXECUTE format('CREATE INDEX idx_insights_active ON %I.insights(page_id) WHERE deleted_at IS NULL', schema_name);
     
     -- ========================================
     -- TABLE 10: insight_rules
@@ -338,6 +428,7 @@ BEGIN
             created_by UUID NOT NULL,
             created_at TIMESTAMP NOT NULL DEFAULT NOW(),
             updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+            deleted_at TIMESTAMP NULL,
             CONSTRAINT fk_page FOREIGN KEY (page_id) 
                 REFERENCES %I.pages(id) ON DELETE CASCADE
         )', schema_name, schema_name);
@@ -345,6 +436,7 @@ BEGIN
     EXECUTE format('CREATE INDEX idx_insight_rules_page_id ON %I.insight_rules(page_id)', schema_name);
     EXECUTE format('CREATE INDEX idx_insight_rules_rule_type ON %I.insight_rules(rule_type)', schema_name);
     EXECUTE format('CREATE INDEX idx_insight_rules_enabled ON %I.insight_rules(enabled) WHERE enabled = TRUE', schema_name);
+    EXECUTE format('CREATE INDEX idx_insight_rules_active ON %I.insight_rules(page_id) WHERE deleted_at IS NULL', schema_name);
     
     -- ========================================
     -- TABLE 11: reports
@@ -359,6 +451,7 @@ BEGIN
             pdf_url TEXT,
             created_by UUID NOT NULL,
             created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+            deleted_at TIMESTAMP NULL,
             CONSTRAINT fk_page FOREIGN KEY (page_id) 
                 REFERENCES %I.pages(id) ON DELETE CASCADE
         )', schema_name, schema_name);
@@ -366,6 +459,7 @@ BEGIN
     EXECUTE format('CREATE INDEX idx_reports_page_id ON %I.reports(page_id)', schema_name);
     EXECUTE format('CREATE INDEX idx_reports_report_date ON %I.reports(report_date)', schema_name);
     EXECUTE format('CREATE INDEX idx_reports_created_at ON %I.reports(created_at)', schema_name);
+    EXECUTE format('CREATE INDEX idx_reports_active ON %I.reports(page_id) WHERE deleted_at IS NULL', schema_name);
     
     -- ========================================
     -- TABLE 12: integrations
@@ -378,11 +472,13 @@ BEGIN
             enabled BOOLEAN DEFAULT TRUE,
             created_by UUID NOT NULL,
             created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-            updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+            updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+            deleted_at TIMESTAMP NULL
         )', schema_name);
     
     EXECUTE format('CREATE INDEX idx_integrations_service_type ON %I.integrations(service_type)', schema_name);
     EXECUTE format('CREATE INDEX idx_integrations_enabled ON %I.integrations(enabled) WHERE enabled = TRUE', schema_name);
+    EXECUTE format('CREATE INDEX idx_integrations_active ON %I.integrations(id) WHERE deleted_at IS NULL', schema_name);
     
     -- ========================================
     -- TABLE 13: usage_tracking
@@ -475,6 +571,70 @@ FROM public.organizations o
 JOIN public.users u ON u.email = 'admin@pulzifi.com'
 WHERE o.subdomain = 'jcsoftdev-inc'
 ON CONFLICT (organization_id, user_id) DO NOTHING;
+
+-- ============================================================
+-- PHASE 4.1: DEFAULT ROLES
+-- ============================================================
+
+-- Insert default roles
+INSERT INTO public.roles (id, name, description) VALUES
+    ('00000000-0000-0000-0000-000000000001', 'ADMIN', 'Administrator with full access'),
+    ('00000000-0000-0000-0000-000000000002', 'USER', 'Standard user with limited access'),
+    ('00000000-0000-0000-0000-000000000003', 'VIEWER', 'Read-only access')
+ON CONFLICT (name) DO NOTHING;
+
+-- ============================================================
+-- PHASE 4.2: DEFAULT PERMISSIONS
+-- ============================================================
+
+-- Insert default permissions
+INSERT INTO public.permissions (id, name, resource, action, description) VALUES
+    ('10000000-0000-0000-0000-000000000001', 'workspaces:read', 'workspaces', 'read', 'Read workspaces'),
+    ('10000000-0000-0000-0000-000000000002', 'workspaces:write', 'workspaces', 'write', 'Create and update workspaces'),
+    ('10000000-0000-0000-0000-000000000003', 'workspaces:delete', 'workspaces', 'delete', 'Delete workspaces'),
+    ('10000000-0000-0000-0000-000000000004', 'pages:read', 'pages', 'read', 'Read pages'),
+    ('10000000-0000-0000-0000-000000000005', 'pages:write', 'pages', 'write', 'Create and update pages'),
+    ('10000000-0000-0000-0000-000000000006', 'pages:delete', 'pages', 'delete', 'Delete pages'),
+    ('10000000-0000-0000-0000-000000000007', 'monitoring:read', 'monitoring', 'read', 'Read monitoring data'),
+    ('10000000-0000-0000-0000-000000000008', 'monitoring:write', 'monitoring', 'write', 'Configure monitoring'),
+    ('10000000-0000-0000-0000-000000000009', 'alerts:read', 'alerts', 'read', 'Read alerts'),
+    ('10000000-0000-0000-0000-000000000010', 'alerts:write', 'alerts', 'write', 'Create and update alerts'),
+    ('10000000-0000-0000-0000-000000000011', 'reports:read', 'reports', 'read', 'Read reports'),
+    ('10000000-0000-0000-0000-000000000012', 'reports:write', 'reports', 'write', 'Generate reports'),
+    ('10000000-0000-0000-0000-000000000013', 'users:read', 'users', 'read', 'Read users'),
+    ('10000000-0000-0000-0000-000000000014', 'users:write', 'users', 'write', 'Create and update users'),
+    ('10000000-0000-0000-0000-000000000015', 'users:delete', 'users', 'delete', 'Delete users'),
+    ('10000000-0000-0000-0000-000000000016', 'organizations:read', 'organizations', 'read', 'Read organizations'),
+    ('10000000-0000-0000-0000-000000000017', 'organizations:write', 'organizations', 'write', 'Manage organizations')
+ON CONFLICT (name) DO NOTHING;
+
+-- ============================================================
+-- PHASE 4.3: ROLE-PERMISSION ASSIGNMENTS
+-- ============================================================
+
+-- Assign all permissions to ADMIN role
+INSERT INTO public.role_permissions (role_id, permission_id)
+SELECT '00000000-0000-0000-0000-000000000001', id FROM public.permissions
+ON CONFLICT DO NOTHING;
+
+-- Assign read permissions to USER role
+INSERT INTO public.role_permissions (role_id, permission_id)
+SELECT '00000000-0000-0000-0000-000000000002', id FROM public.permissions 
+WHERE action = 'read' OR name IN ('workspaces:write', 'pages:write', 'alerts:write')
+ON CONFLICT DO NOTHING;
+
+-- Assign only read permissions to VIEWER role
+INSERT INTO public.role_permissions (role_id, permission_id)
+SELECT '00000000-0000-0000-0000-000000000003', id FROM public.permissions 
+WHERE action = 'read'
+ON CONFLICT DO NOTHING;
+
+-- Assign ADMIN role to default admin user
+INSERT INTO public.user_roles (user_id, role_id)
+SELECT u.id, '00000000-0000-0000-0000-000000000001'
+FROM public.users u
+WHERE u.email = 'admin@pulzifi.com'
+ON CONFLICT DO NOTHING;
 
 -- ============================================================
 -- PHASE 5: VERIFICATION QUERIES

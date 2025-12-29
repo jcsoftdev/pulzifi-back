@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
 	"github.com/jcsoftdev/pulzifi-back/shared/router"
 )
 
@@ -24,6 +25,8 @@ func (m *Module) ModuleName() string {
 // RegisterHTTPRoutes registers all HTTP routes for the Integration module
 func (m *Module) RegisterHTTPRoutes(router chi.Router) {
 	router.Route("/integrations", func(r chi.Router) {
+		r.Use(middleware.AuthMiddleware.Authenticate)
+		r.Use(middleware.OrgMiddleware.RequireOrganizationMembership)
 		r.Route("/webhooks", func(wr chi.Router) {
 			wr.Post("/", m.handleCreateWebhook)
 			wr.Get("/", m.handleListWebhooks)

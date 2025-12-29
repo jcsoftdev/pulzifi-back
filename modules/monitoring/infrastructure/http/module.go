@@ -39,6 +39,8 @@ func (m *Module) ModuleName() string {
 // RegisterHTTPRoutes registers all HTTP routes for the Monitoring module
 func (m *Module) RegisterHTTPRoutes(router chi.Router) {
 	router.Route("/monitoring", func(r chi.Router) {
+		r.Use(middleware.AuthMiddleware.Authenticate)
+		r.Use(middleware.OrgMiddleware.RequireOrganizationMembership)
 		r.Route("/checks", func(cr chi.Router) {
 			cr.Post("/", m.handleCreateCheck)
 			cr.Get("/", m.handleListChecks)

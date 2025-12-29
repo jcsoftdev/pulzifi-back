@@ -1,12 +1,29 @@
-
 import { getHttpClient } from '@workspace/shared-http'
 
+// Internal: Backend response types (snake_case from Go)
+interface WorkspaceBackendDto {
+  id: string
+  name: string
+  type: string
+  created_by: string
+  created_at: string
+}
+
+interface ListWorkspacesBackendResponse {
+  workspaces: WorkspaceBackendDto[]
+}
+
+// Exported: Frontend types (camelCase)
 export interface Workspace {
   id: string
   name: string
-  type: 'Personal' | 'Team' | 'Competitor'
+  type: string
+  createdBy: string
   createdAt: string
-  updatedAt: string
+}
+
+export interface ListWorkspacesResponse {
+  workspaces: Workspace[]
 }
 
 export interface CreateWorkspaceDto {
@@ -14,29 +31,53 @@ export interface CreateWorkspaceDto {
   type: 'Personal' | 'Team' | 'Competitor'
 }
 
-export class WorkspaceApi {
-  static async getWorkspaces(): Promise<Workspace[]> {
-    const http = await getHttpClient()
-    return http.get<Workspace[]>('/api/workspaces')
-  }
+export interface ListWorkspacesParams {
+  limit?: number
+}
 
-  static async getWorkspace(id: string): Promise<Workspace> {
-    const http = await getHttpClient()
-    return http.get<Workspace>(`/api/workspaces/${id}`)
+// Helper: Transform backend to frontend format
+function transformWorkspace(backend: WorkspaceBackendDto): Workspace {
+  return {
+    id: backend.id,
+    name: backend.name,
+    type: backend.type,
+    createdBy: backend.created_by,
+    createdAt: backend.created_at,
   }
+}
 
-  static async createWorkspace(data: CreateWorkspaceDto): Promise<Workspace> {
+export const WorkspaceApi = {
+  async listWorkspaces(params?: ListWorkspacesParams): Promise<ListWorkspacesResponse> {
     const http = await getHttpClient()
-    return http.post<Workspace>('/api/workspaces', data)
-  }
+    const queryParams = params?.limit ? `?limit=${params.limit}` : ''
+    const response = await http.get<ListWorkspacesBackendResponse>(
+      `/api/v1/workspaces${queryParams}`
+    )
+    return {
+      workspaces: response.workspaces.map(transformWorkspace),
+    }
+  },
 
-  static async updateWorkspace(id: string, data: Partial<CreateWorkspaceDto>): Promise<Workspace> {
+  async getWorkspace(id: string): Promise<Workspace> {
     const http = await getHttpClient()
-    return http.put<Workspace>(`/api/workspaces/${id}`, data)
-  }
+    const response = await http.get<WorkspaceBackendDto>(`/api/v1/workspaces/${id}`)
+    return transformWorkspace(response)
+  },
 
-  static async deleteWorkspace(id: string): Promise<void> {
+  async createWorkspace(data: CreateWorkspaceDto): Promise<Workspace> {
     const http = await getHttpClient()
-    await http.delete(`/api/workspaces/${id}`)
-  }
+    const response = await http.post<WorkspaceBackendDto>('/api/v1/workspaces', data)
+    return transformWorkspace(response)
+  },
+
+  async updateWorkspace(id: string, data: Partial<CreateWorkspaceDto>): Promise<Workspace> {
+    const http = await getHttpClient()
+    const response = await http.put<WorkspaceBackendDto>(`/api/v1/workspaces/${id}`, data)
+    return transformWorkspace(response)
+  },
+
+  async deleteWorkspace(id: string): Promise<void> {
+    const http = await getHttpClient()
+    await http.delete(`/api/v1/workspaces/${id}`)
+  },
 }

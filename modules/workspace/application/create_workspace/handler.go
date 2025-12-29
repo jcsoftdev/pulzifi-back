@@ -7,8 +7,12 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	authmw "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/middleware"
 	"github.com/jcsoftdev/pulzifi-back/modules/workspace/domain/entities"
 	"github.com/jcsoftdev/pulzifi-back/modules/workspace/domain/repositories"
+	"github.com/jcsoftdev/pulzifi-back/modules/workspace/domain/value_objects"
+	"github.com/jcsoftdev/pulzifi-back/shared/logger"
+	"go.uber.org/zap"
 )
 
 type CreateWorkspaceHandler struct {
@@ -32,6 +36,20 @@ func (h *CreateWorkspaceHandler) Handle(ctx context.Context, req *CreateWorkspac
 
 	// Save to database
 	if err := h.repo.Create(ctx, workspace); err != nil {
+		return nil, err
+	}
+
+	// Add creator as owner to workspace_members
+	member := entities.NewWorkspaceMember(
+		workspace.ID,
+		createdBy,
+		value_objects.RoleOwner,
+		nil, // No inviter for the creator
+	)
+
+	if err := h.repo.AddMember(ctx, member); err != nil {
+		logger.Error("Failed to add creator as owner", zap.Error(err))
+		// Note: Workspace is created but member not added - should handle this in production
 		return nil, err
 	}
 
@@ -61,8 +79,20 @@ func (h *CreateWorkspaceHandler) HandleHTTP(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// For now, use a placeholder user ID (from JWT/auth in real scenario)
-	createdBy := uuid.MustParse("00000000-0000-0000-0000-000000000001")
+	// Get user ID from context (set by auth middleware)
+	userIDStr, ok := r.Context().Value(authmw.UserIDKey).(string)
+	if !ok {
+		logger.Error("User ID not found in context")
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	createdBy, err := uuid.Parse(userIDStr)
+	if err != nil {
+		logger.Error("Invalid user ID", zap.Error(err))
+		http.Error(w, "invalid user ID", http.StatusBadRequest)
+		return
+	}
 
 	// Execute use case
 	resp, err := h.Handle(r.Context(), &req, createdBy)

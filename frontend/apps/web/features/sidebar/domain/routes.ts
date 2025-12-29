@@ -1,11 +1,13 @@
 import { House, Workflow, Users, Shapes, Settings } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
+export type IconName = 'House' | 'Workflow' | 'Users' | 'Shapes' | 'Settings'
+
 export interface RouteConfig {
   id: string
   label: string
   href: string
-  icon: LucideIcon
+  icon: IconName
   badge?: string | number
   position: 'main' | 'bottom'
   order: number
@@ -14,11 +16,20 @@ export interface RouteConfig {
 export interface WorkspaceRouteConfig {
   id: string
   baseHref: string
-  icon: LucideIcon
+  icon: IconName
   label: string
   position: 'main'
   order: number
   expandable: true
+}
+
+// Icon mapping for client components
+export const ICON_MAP: Record<IconName, LucideIcon> = {
+  House,
+  Workflow,
+  Users,
+  Shapes,
+  Settings,
 }
 
 /**
@@ -29,7 +40,7 @@ export const MAIN_ROUTES: RouteConfig[] = [
     id: 'home',
     label: 'Home',
     href: '/',
-    icon: House,
+    icon: 'House',
     position: 'main',
     order: 1,
   },
@@ -37,7 +48,7 @@ export const MAIN_ROUTES: RouteConfig[] = [
     id: 'team',
     label: 'Team',
     href: '/team',
-    icon: Users,
+    icon: 'Users',
     position: 'main',
     order: 3,
   },
@@ -47,7 +58,7 @@ export const WORKSPACES_ROUTE: WorkspaceRouteConfig = {
   id: 'workspaces',
   label: 'Workspaces',
   baseHref: '/workspaces',
-  icon: Workflow,
+  icon: 'Workflow',
   position: 'main',
   order: 2,
   expandable: true,
@@ -58,7 +69,7 @@ export const BOTTOM_ROUTES: RouteConfig[] = [
     id: 'resources',
     label: 'Resources',
     href: '/resources',
-    icon: Shapes,
+    icon: 'Shapes',
     position: 'bottom',
     order: 1,
   },
@@ -66,7 +77,7 @@ export const BOTTOM_ROUTES: RouteConfig[] = [
     id: 'settings',
     label: 'Settings',
     href: '/settings',
-    icon: Settings,
+    icon: 'Settings',
     position: 'bottom',
     order: 2,
   },
@@ -76,11 +87,15 @@ export const BOTTOM_ROUTES: RouteConfig[] = [
  * Get all routes sorted by order
  */
 export function getMainRoutes(): RouteConfig[] {
-  return [...MAIN_ROUTES].sort((a, b) => a.order - b.order)
+  return [
+    ...MAIN_ROUTES,
+  ].sort((a, b) => a.order - b.order)
 }
 
 export function getBottomRoutes(): RouteConfig[] {
-  return [...BOTTOM_ROUTES].sort((a, b) => a.order - b.order)
+  return [
+    ...BOTTOM_ROUTES,
+  ].sort((a, b) => a.order - b.order)
 }
 
 /**

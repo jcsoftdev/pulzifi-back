@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
 	"github.com/jcsoftdev/pulzifi-back/shared/router"
 )
 
@@ -24,6 +25,8 @@ func (m *Module) ModuleName() string {
 // RegisterHTTPRoutes registers all HTTP routes for the Report module
 func (m *Module) RegisterHTTPRoutes(router chi.Router) {
 	router.Route("/reports", func(r chi.Router) {
+		r.Use(middleware.AuthMiddleware.Authenticate)
+		r.Use(middleware.OrgMiddleware.RequireOrganizationMembership)
 		r.Post("/", m.handleCreateReport)
 		r.Get("/", m.handleListReports)
 		r.Get("/{id}", m.handleGetReport)

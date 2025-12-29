@@ -1,7 +1,7 @@
 'use client'
 
-import { Button } from "@workspace/ui/index"
-import * as React from "react"
+import { Button } from '@workspace/ui/index'
+import type * as React from 'react'
 
 export interface EmptyStateCardProps {
   title: string
@@ -23,7 +23,7 @@ export function EmptyStateCard({
       {icon && <div className="mb-4 flex justify-center">{icon}</div>}
       <h3 className="text-lg font-semibold text-foreground mb-2">{title}</h3>
       <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">{description}</p>
-      <Button onClick={onButtonClick} variant={"default"}>
+      <Button onClick={onButtonClick} variant={'default'}>
         {buttonText}
       </Button>
     </div>

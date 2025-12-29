@@ -1,19 +1,29 @@
 package http
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jcsoftdev/pulzifi-back/modules/organization/application/get_current_organization"
+	"github.com/jcsoftdev/pulzifi-back/modules/organization/domain/repositories"
+	"github.com/jcsoftdev/pulzifi-back/shared/logger"
+	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
 	"github.com/jcsoftdev/pulzifi-back/shared/router"
+	"go.uber.org/zap"
 )
 
 // Module implements the router.ModuleRegisterer interface for the Organization module
-type Module struct{}
+type Module struct {
+	getCurrentOrgHandler *get_current_organization.Handler
+}
 
 // NewModule creates a new instance of the Organization module
-func NewModule() router.ModuleRegisterer {
-	return &Module{}
+func NewModule(orgRepo repositories.OrganizationRepository) router.ModuleRegisterer {
+	return &Module{
+		getCurrentOrgHandler: get_current_organization.NewHandler(orgRepo),
+	}
 }
 
 // ModuleName returns the name of the module
@@ -24,11 +34,19 @@ func (m *Module) ModuleName() string {
 // RegisterHTTPRoutes registers all HTTP routes for the Organization module
 func (m *Module) RegisterHTTPRoutes(router chi.Router) {
 	router.Route("/organizations", func(r chi.Router) {
+		r.Use(middleware.AuthMiddleware.Authenticate)
+		r.Use(middleware.OrgMiddleware.RequireOrganizationMembership)
 		r.Post("/", m.handleCreateOrganization)
 		r.Get("/", m.handleListOrganizations)
 		r.Get("/{id}", m.handleGetOrganization)
 		r.Put("/{id}", m.handleUpdateOrganization)
 		r.Delete("/{id}", m.handleDeleteOrganization)
+	})
+
+	router.Route("/organization", func(r chi.Router) {
+		r.Use(middleware.AuthMiddleware.Authenticate)
+		r.Use(middleware.OrgMiddleware.RequireOrganizationMembership)
+		r.Get("/current", m.handleGetCurrentOrganization)
 	})
 }
 
@@ -124,4 +142,47 @@ func (m *Module) handleUpdateOrganization(w http.ResponseWriter, r *http.Request
 func (m *Module) handleDeleteOrganization(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleGetCurrentOrganization gets the current organization based on tenant
+// @Summary Get Current Organization
+// @Description Get the current organization based on the tenant from subdomain
+// @Tags organizations
+// @Security BearerAuth
+// @Produce json
+// @Success 200 {object} map[string]interface{}
+// @Failure 401 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Router /organization/current [get]
+func (m *Module) handleGetCurrentOrganization(w http.ResponseWriter, r *http.Request) {
+	// Extract tenant from context (set by middleware from subdomain or header)
+	tenant := r.Header.Get("X-Tenant")
+	if tenant == "" {
+		// Development fallback
+		tenant = "volkswagen"
+	}
+
+	response, err := m.getCurrentOrgHandler.Handle(context.Background(), tenant)
+	if err != nil {
+		logger.Error("Failed to get current organization", zap.Error(err))
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Failed to get organization",
+		})
+		return
+	}
+
+	if response == nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Organization not found",
+		})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(response)
 }

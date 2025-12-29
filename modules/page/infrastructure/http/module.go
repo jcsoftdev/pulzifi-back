@@ -37,6 +37,8 @@ func (m *Module) ModuleName() string {
 // RegisterHTTPRoutes registers all HTTP routes for the Page module
 func (m *Module) RegisterHTTPRoutes(router chi.Router) {
 	router.Route("/pages", func(r chi.Router) {
+		r.Use(middleware.AuthMiddleware.Authenticate)
+		r.Use(middleware.OrgMiddleware.RequireOrganizationMembership)
 		r.Post("/", m.handleCreatePage)
 		r.Get("/", m.handleListPages)
 		r.Get("/{id}", m.handleGetPage)

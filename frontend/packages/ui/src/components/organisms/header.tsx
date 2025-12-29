@@ -1,9 +1,9 @@
 'use client'
 
-import * as React from "react"
-import { ChecksTag } from "../molecules/checks-tag"
-import { NotificationButton } from "../molecules/notification-button"
-import { cn } from "../../lib/utils"
+import * as React from 'react'
+import { ChecksTag } from '../molecules/checks-tag'
+import { NotificationButton } from '../molecules/notification-button'
+import { cn } from '../../lib/utils'
 
 export interface HeaderProps extends React.HTMLAttributes<HTMLElement> {
   checks?: {
@@ -17,20 +17,19 @@ export interface HeaderProps extends React.HTMLAttributes<HTMLElement> {
 }
 
 const Header = React.forwardRef<HTMLElement, HeaderProps>(
-  ({ checks, onNotificationClick, hasNotifications, notificationCount, className, ...props }, ref) => {
+  (
+    { checks, onNotificationClick, hasNotifications, notificationCount, className, ...props },
+    ref
+  ) => {
     return (
       <header
         ref={ref}
-        className={cn("w-full border-b border-border bg-background", className)}
+        className={cn('w-full border-b border-border bg-background', className)}
         {...props}
       >
         <div className="flex items-center justify-end px-24 py-4 gap-4">
           {checks && (
-            <ChecksTag
-              current={checks.current}
-              max={checks.max}
-              refillDate={checks.refillDate}
-            />
+            <ChecksTag current={checks.current} max={checks.max} refillDate={checks.refillDate} />
           )}
           <NotificationButton
             onClick={onNotificationClick}
@@ -42,6 +41,6 @@ const Header = React.forwardRef<HTMLElement, HeaderProps>(
     )
   }
 )
-Header.displayName = "Header"
+Header.displayName = 'Header'
 
 export { Header }
