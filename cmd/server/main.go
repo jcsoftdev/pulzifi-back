@@ -103,8 +103,8 @@ func main() {
 	// Register routes from all modules under /api/v1
 	v1Router := chi.NewRouter()
 
-	// Add tenant middleware to extract tenant from request
-	v1Router.Use(middlewarex.TenantMiddleware)
+	// Add tenant middleware to extract subdomain and resolve to schema
+	v1Router.Use(middlewarex.TenantMiddleware(db))
 
 	// Setup Swagger UI on v1 router
 	swagger.SetupSwaggerForChi(v1Router)

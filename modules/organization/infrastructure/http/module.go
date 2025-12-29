@@ -14,6 +14,10 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	contentTypeJSON = "application/json"
+)
+
 // Module implements the router.ModuleRegisterer interface for the Organization module
 type Module struct {
 	getCurrentOrgHandler *get_current_organization.Handler
@@ -63,7 +67,7 @@ func (m *Module) RegisterHTTPRoutes(router chi.Router) {
 // @Failure 409 {object} map[string]string
 // @Router /organizations [post]
 func (m *Module) handleCreateOrganization(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", contentTypeJSON)
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"id":      "550e8400-e29b-41d4-a716-446655440000",
@@ -81,7 +85,7 @@ func (m *Module) handleCreateOrganization(w http.ResponseWriter, r *http.Request
 // @Failure 401 {object} map[string]string
 // @Router /organizations [get]
 func (m *Module) handleListOrganizations(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", contentTypeJSON)
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"organizations": []interface{}{},
@@ -100,7 +104,7 @@ func (m *Module) handleListOrganizations(w http.ResponseWriter, r *http.Request)
 // @Failure 404 {object} map[string]string
 // @Router /organizations/{id} [get]
 func (m *Module) handleGetOrganization(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", contentTypeJSON)
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{
 		"id":      chi.URLParam(r, "id"),
@@ -121,7 +125,7 @@ func (m *Module) handleGetOrganization(w http.ResponseWriter, r *http.Request) {
 // @Failure 404 {object} map[string]string
 // @Router /organizations/{id} [put]
 func (m *Module) handleUpdateOrganization(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", contentTypeJSON)
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{
 		"id":      chi.URLParam(r, "id"),
@@ -140,7 +144,7 @@ func (m *Module) handleUpdateOrganization(w http.ResponseWriter, r *http.Request
 // @Failure 404 {object} map[string]string
 // @Router /organizations/{id} [delete]
 func (m *Module) handleDeleteOrganization(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", contentTypeJSON)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -155,17 +159,22 @@ func (m *Module) handleDeleteOrganization(w http.ResponseWriter, r *http.Request
 // @Failure 404 {object} map[string]string
 // @Router /organization/current [get]
 func (m *Module) handleGetCurrentOrganization(w http.ResponseWriter, r *http.Request) {
-	// Extract tenant from context (set by middleware from subdomain or header)
-	tenant := r.Header.Get("X-Tenant")
-	if tenant == "" {
-		// Development fallback
-		tenant = "volkswagen"
+	// Extract subdomain from context (set by TenantMiddleware)
+	subdomain := middleware.GetSubdomainFromContext(r.Context())
+	if subdomain == "" {
+		w.Header().Set("Content-Type", contentTypeJSON)
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Subdomain is required",
+		})
+		return
 	}
+	tenant := subdomain
 
 	response, err := m.getCurrentOrgHandler.Handle(context.Background(), tenant)
 	if err != nil {
 		logger.Error("Failed to get current organization", zap.Error(err))
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Content-Type", contentTypeJSON)
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "Failed to get organization",
@@ -174,7 +183,7 @@ func (m *Module) handleGetCurrentOrganization(w http.ResponseWriter, r *http.Req
 	}
 
 	if response == nil {
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Content-Type", contentTypeJSON)
 		w.WriteHeader(http.StatusNotFound)
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "Organization not found",
@@ -182,7 +191,7 @@ func (m *Module) handleGetCurrentOrganization(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", contentTypeJSON)
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(response)
 }

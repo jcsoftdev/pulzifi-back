@@ -12,6 +12,7 @@ import (
 	authmw "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/middleware"
 	"github.com/jcsoftdev/pulzifi-back/modules/workspace/domain/value_objects"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
+	sharedmw "github.com/jcsoftdev/pulzifi-back/shared/middleware"
 	"go.uber.org/zap"
 )
 
@@ -100,7 +101,8 @@ func (m *WorkspaceAuthorizationMiddleware) extractRequestParams(w http.ResponseW
 		return uuid.Nil, uuid.Nil, "", err
 	}
 
-	tenant := r.Header.Get("X-Tenant")
+	// Get tenant schema from context (set by TenantMiddleware)
+	tenant := sharedmw.GetTenantFromContext(r.Context())
 	if tenant == "" {
 		m.badRequest(w, errTenantNotFound)
 		return uuid.Nil, uuid.Nil, "", errors.New("tenant not found")

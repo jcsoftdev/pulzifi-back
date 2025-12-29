@@ -30,20 +30,20 @@ func (m *OrganizationMiddleware) RequireOrganizationMembership(next http.Handler
 			return
 		}
 
-		// Get tenant/subdomain from header (set by TenantMiddleware)
-		tenant := r.Header.Get("X-Tenant")
-		if tenant == "" {
-			logger.Warn("Tenant not found in request")
+		// Get subdomain from context (set by TenantMiddleware)
+		subdomain := GetSubdomainFromContext(r.Context())
+		if subdomain == "" {
+			logger.Warn("Subdomain not found in context")
 			m.forbidden(w, "tenant required")
 			return
 		}
 
 		// Check if user belongs to organization
-		isMember, err := m.checkMembership(r.Context(), userIDStr, tenant)
+		isMember, err := m.checkMembership(r.Context(), userIDStr, subdomain)
 		if err != nil {
 			logger.Error("Failed to check organization membership",
 				zap.String("user_id", userIDStr),
-				zap.String("tenant", tenant),
+				zap.String("subdomain", subdomain),
 				zap.Error(err))
 			m.internalError(w, "failed to verify membership")
 			return
@@ -52,7 +52,7 @@ func (m *OrganizationMiddleware) RequireOrganizationMembership(next http.Handler
 		if !isMember {
 			logger.Warn("User does not belong to organization",
 				zap.String("user_id", userIDStr),
-				zap.String("tenant", tenant))
+				zap.String("subdomain", subdomain))
 			m.forbidden(w, "access denied")
 			return
 		}
