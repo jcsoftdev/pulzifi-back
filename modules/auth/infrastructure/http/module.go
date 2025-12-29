@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/application/get_current_user"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/application/login"
+	"github.com/jcsoftdev/pulzifi-back/modules/auth/application/refresh_token"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/application/register"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/repositories"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/services"
@@ -21,18 +22,21 @@ import (
 type Module struct {
 	registerHandler       *register.Handler
 	loginHandler          *login.Handler
+	refreshTokenHandler   *refresh_token.Handler
 	getCurrentUserHandler *get_current_user.Handler
 	authMiddleware        *authmw.AuthMiddleware
 }
 
 func NewModule(
 	userRepo repositories.UserRepository,
+	refreshTokenRepo repositories.RefreshTokenRepository,
 	authService services.AuthService,
 	tokenService services.TokenService,
 ) router.ModuleRegisterer {
 	return &Module{
 		registerHandler:       register.NewHandler(userRepo),
-		loginHandler:          login.NewHandler(authService, tokenService, userRepo),
+		loginHandler:          login.NewHandler(authService, tokenService, userRepo, refreshTokenRepo),
+		refreshTokenHandler:   refresh_token.NewHandler(refreshTokenRepo, userRepo, tokenService),
 		getCurrentUserHandler: get_current_user.NewHandler(userRepo),
 		authMiddleware:        authmw.NewAuthMiddleware(tokenService),
 	}
@@ -131,17 +135,33 @@ func (m *Module) handleLogin(w http.ResponseWriter, r *http.Request) {
 // @Tags auth
 // @Accept json
 // @Produce json
-// @Param request body map[string]interface{} true "Refresh Request"
-// @Success 200 {object} map[string]interface{}
+// @Param request body refresh_token.Request true "Refresh Request"
+// @Success 200 {object} refresh_token.Response
+// @Failure 400 {object} map[string]string
 // @Failure 401 {object} map[string]string
 // @Router /auth/refresh [post]
 func (m *Module) handleRefresh(w http.ResponseWriter, r *http.Request) {
+	var req refresh_token.Request
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		logger.Error("Failed to decode request", zap.Error(err))
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "invalid request body"})
+		return
+	}
+
+	response, err := m.refreshTokenHandler.Handle(r.Context(), &req)
+	if err != nil {
+		logger.Error("Failed to refresh token", zap.Error(err))
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-		"message":      "refresh endpoint",
-	})
+	json.NewEncoder(w).Encode(response)
 }
 
 // handleLogout logs out a user

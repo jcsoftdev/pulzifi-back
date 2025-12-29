@@ -3,6 +3,7 @@ package login
 import (
 	"context"
 
+	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/entities"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/repositories"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/services"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
@@ -10,16 +11,23 @@ import (
 )
 
 type Handler struct {
-	authService  services.AuthService
-	tokenService services.TokenService
-	userRepo     repositories.UserRepository
+	authService      services.AuthService
+	tokenService     services.TokenService
+	userRepo         repositories.UserRepository
+	refreshTokenRepo repositories.RefreshTokenRepository
 }
 
-func NewHandler(authService services.AuthService, tokenService services.TokenService, userRepo repositories.UserRepository) *Handler {
+func NewHandler(
+	authService services.AuthService,
+	tokenService services.TokenService,
+	userRepo repositories.UserRepository,
+	refreshTokenRepo repositories.RefreshTokenRepository,
+) *Handler {
 	return &Handler{
-		authService:  authService,
-		tokenService: tokenService,
-		userRepo:     userRepo,
+		authService:      authService,
+		tokenService:     tokenService,
+		userRepo:         userRepo,
+		refreshTokenRepo: refreshTokenRepo,
 	}
 }
 
@@ -40,6 +48,18 @@ func (h *Handler) Handle(ctx context.Context, req *Request) (*Response, error) {
 	if err != nil {
 		logger.Error("Failed to generate refresh token", zap.Error(err))
 		return nil, err
+	}
+
+	// Store refresh token in database
+	refreshTokenEntity := entities.NewRefreshToken(
+		user.ID,
+		refreshToken,
+		h.tokenService.GetRefreshTokenExpiration(),
+	)
+
+	if err := h.refreshTokenRepo.Create(ctx, refreshTokenEntity); err != nil {
+		logger.Error("Failed to store refresh token", zap.Error(err))
+		// Continue anyway, user can still use access token
 	}
 
 	logger.Info("User logged in successfully", zap.String("email", user.Email), zap.String("id", user.ID.String()))

@@ -120,4 +120,17 @@ export const AuthApi = {
     const http = await getHttpClient()
     await http.post('/api/v1/auth/logout', {})
   },
+
+  async refreshToken(refreshToken: string): Promise<LoginResponse> {
+    const http = await getHttpClient()
+    const response = await http.post<LoginBackendResponse>('/api/v1/auth/refresh', {
+      refresh_token: refreshToken,
+    })
+    return {
+      accessToken: response.access_token,
+      refreshToken: response.refresh_token,
+      tokenType: response.token_type,
+      expiresIn: response.expires_in,
+    }
+  },
 }

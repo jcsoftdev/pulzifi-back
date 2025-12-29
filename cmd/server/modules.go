@@ -30,6 +30,7 @@ func registerAllModulesInternal(registry *router.Registry, db *sql.DB) {
 	userRepo := authpersistence.NewUserPostgresRepository(db)
 	roleRepo := authpersistence.NewRolePostgresRepository(db)
 	permRepo := authpersistence.NewPermissionPostgresRepository(db)
+	refreshTokenRepo := authpersistence.NewRefreshTokenPostgresRepository(db)
 	orgRepo := orgpersistence.NewOrganizationPostgresRepository(db)
 
 	authService := authservices.NewBcryptAuthService(userRepo, permRepo)
@@ -42,7 +43,7 @@ func registerAllModulesInternal(registry *router.Registry, db *sql.DB) {
 	)
 
 	// Create auth module and set global middleware
-	authModule := auth.NewModule(userRepo, authService, tokenService)
+	authModule := auth.NewModule(userRepo, refreshTokenRepo, authService, tokenService)
 	authMiddleware := authModule.(*auth.Module).AuthMiddleware()
 
 	// Set global middleware for all modules

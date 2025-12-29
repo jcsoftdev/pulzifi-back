@@ -132,3 +132,7 @@ func (s *JWTService) ValidateToken(ctx context.Context, tokenString string) (*se
 func (s *JWTService) GetTokenExpiration() time.Duration {
 	return s.accessTokenExpiry
 }
+
+func (s *JWTService) GetRefreshTokenExpiration() time.Time {
+	return time.Now().Add(s.refreshTokenExpiry)
+}

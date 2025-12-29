@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useRef } from 'react'
 import type { Session } from 'next-auth'
 import { useSession } from 'next-auth/react'
-import { updateClientToken } from './token-manager'
+import { updateClientToken } from './use-auth-token'
 
 interface SessionWithToken extends Session {
   accessToken?: string
