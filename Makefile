@@ -64,7 +64,7 @@ microservices-dev: check-env ## Start all microservices with hot reload (docker-
 	@echo "  - PostgreSQL 17 on port 5434"
 	@echo "  - Redis 7 on port 6379"
 	@echo "  - Kafka on port 9092"
-	@echo "  - Auth on port 8080"
+	@echo "  - Auth on port 9090"
 	@echo "  - Organization on port 8081"
 	@echo "  - Workspace on port 8082"
 	@echo "  - Page on port 8083"
@@ -106,7 +106,7 @@ monolith-dev: check-env ## Start monolith with hot reload (postgres + redis + ap
 	@echo "$(GREEN)Services:$(NC)"
 	@echo "  - PostgreSQL on port 5432"
 	@echo "  - Redis on port 6379"
-	@echo "  - Monolith API on port 8080 (with hot reload)"
+	@echo "  - Monolith API on port 9090 (with hot reload)"
 	@echo ""
 	@docker-compose -f docker-compose.monolith.yml up
 

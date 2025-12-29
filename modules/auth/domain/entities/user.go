@@ -13,7 +13,7 @@ type User struct {
 	PasswordHash              string
 	FirstName                 string
 	LastName                  string
-	AvatarURL                 string
+	AvatarURL                 *string
 	EmailVerified             bool
 	EmailNotificationsEnabled bool
 	NotificationFrequency     string // 'immediate', 'daily_digest', 'weekly_digest'

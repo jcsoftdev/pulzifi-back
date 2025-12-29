@@ -24,7 +24,7 @@ RUN go mod download
 COPY . .
 
 # Expose only the app port
-EXPOSE 8080
+EXPOSE 9090
 
 # Start with air for hot reload
 CMD ["air", "-c", ".air.toml"]

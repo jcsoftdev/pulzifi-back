@@ -35,7 +35,7 @@ var _ = docs.SwaggerInfo // Ensure docs is imported
 // @license.name MIT
 // @basePath /api/v1
 // @schemes http https
-// @host localhost:8080
+// @host localhost:9090
 func main() {
 	// Load configuration
 	cfg := config.Load()

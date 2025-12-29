@@ -73,10 +73,10 @@ RUN chown -R root:root /app
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:${HTTP_PORT:-8080}/health || exit 1
+    CMD curl -f http://localhost:${HTTP_PORT:-9090}/health || exit 1
 
 # Expose ports (will be overridden by docker-compose)
-EXPOSE 8080 9000
+EXPOSE 9090 9000
 
 # Run the application - air from the module directory if MODULE_NAME is set
 CMD sh -c 'if [ -n "$MODULE_NAME" ]; then cd modules/$MODULE_NAME && air; else air; fi'

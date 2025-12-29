@@ -86,14 +86,17 @@ CREATE INDEX idx_organization_members_active ON public.organization_members(orga
 CREATE TABLE public.refresh_tokens (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-    token VARCHAR(500) UNIQUE NOT NULL,
-    expires_at TIMESTAMP NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    revoked_at TIMESTAMP NULL
+    token TEXT UNIQUE NOT NULL,
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    is_revoked BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_refresh_tokens_user_id ON public.refresh_tokens(user_id);
 CREATE INDEX idx_refresh_tokens_token ON public.refresh_tokens(token);
+CREATE INDEX idx_refresh_tokens_expires_at ON public.refresh_tokens(expires_at);
+CREATE INDEX idx_refresh_tokens_user_not_revoked ON public.refresh_tokens(user_id, is_revoked) WHERE is_revoked = false;
 
 -- ============================================================
 -- TABLE: password_resets
@@ -546,10 +549,10 @@ EXECUTE FUNCTION trigger_create_tenant_schema();
 -- Insert sample user
 INSERT INTO public.users (email, password_hash, first_name, last_name, email_verified)
 VALUES (
-    'admin@pulzifi.com',
-    'bcrypt_hash_placeholder',
+    'ajcarlos032@gmail.com',
+    '$2a$10$ph4OLEIfgKDX8K9CNYbws.oZgvtXlRcb9za2k3OZG13MHfY5kEzNK',
+    'Carlos',
     'Admin',
-    'User',
     TRUE
 ) ON CONFLICT (email) DO NOTHING;
 
@@ -561,14 +564,14 @@ SELECT
     'jcsoftdev_inc',
     id
 FROM public.users
-WHERE email = 'admin@pulzifi.com'
+WHERE email = 'ajcarlos032@gmail.com'
 ON CONFLICT (subdomain) DO NOTHING;
 
 -- Add user to organization
 INSERT INTO public.organization_members (organization_id, user_id, role)
 SELECT o.id, u.id, 'ADMIN'
 FROM public.organizations o
-JOIN public.users u ON u.email = 'admin@pulzifi.com'
+JOIN public.users u ON u.email = 'ajcarlos032@gmail.com'
 WHERE o.subdomain = 'jcsoftdev-inc'
 ON CONFLICT (organization_id, user_id) DO NOTHING;
 
@@ -633,7 +636,7 @@ ON CONFLICT DO NOTHING;
 INSERT INTO public.user_roles (user_id, role_id)
 SELECT u.id, '00000000-0000-0000-0000-000000000001'
 FROM public.users u
-WHERE u.email = 'admin@pulzifi.com'
+WHERE u.email = 'ajcarlos032@gmail.com'
 ON CONFLICT DO NOTHING;
 
 -- ============================================================

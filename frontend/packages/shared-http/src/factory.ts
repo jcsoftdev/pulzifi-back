@@ -43,20 +43,20 @@ async function extractTenantFromServer(): Promise<string | null> {
     // Extract subdomain from host header
     const subdomain = host.split('.')[0]
 
+    // Skip localhost and ports - no tenant available
     if (!subdomain || subdomain === 'localhost' || subdomain.includes(':')) {
-      // For localhost:3000, use default tenant or from environment
-      return process.env.NEXT_PUBLIC_DEFAULT_TENANT || 'demo'
+      return null
     }
 
+    // Skip numeric subdomains (like IP addresses)
     const isNumericSubdomain = /^\d+$/.exec(subdomain)
-    if (!isNumericSubdomain) {
-      return subdomain
+    if (isNumericSubdomain) {
+      return null
     }
 
-    return null
+    return subdomain
   } catch {
-    // If headers() fails, return default
-    return process.env.NEXT_PUBLIC_DEFAULT_TENANT || 'demo'
+    return null
   }
 }
 
@@ -86,8 +86,10 @@ export async function createClientHttpClient(): Promise<IHttpClient> {
   const provider = getTokenProvider()
   const headers: Record<string, string> = {}
 
-  const tenant = extractTenantFromHostname() || process.env.NEXT_PUBLIC_DEFAULT_TENANT || 'demo'
-  headers['X-Tenant'] = tenant
+  const tenant = extractTenantFromHostname()
+  if (tenant) {
+    headers['X-Tenant'] = tenant
+  }
 
   // Use same host as current page to prevent cross-site issues
   const apiUrl = getClientApiUrl()

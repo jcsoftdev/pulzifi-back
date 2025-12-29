@@ -23,7 +23,7 @@ cd "$PROJECT_DIR"
 # Check if docs were generated
 if [ -f "$DOCS_OUTPUT_DIR/docs.go" ]; then
     echo "✅ Swagger docs generated successfully at $DOCS_OUTPUT_DIR"
-    echo "📄 Swagger UI available at: http://localhost:8080/swagger/index.html"
+    echo "📄 Swagger UI available at: http://localhost:9090/swagger/index.html"
 else
     echo "⚠️  Warning: Swagger docs may not have been generated properly"
     exit 1
