@@ -79,3 +79,5 @@ tmp
 .env.docker
 
 docs/
+
+/.trae

@@ -34,6 +34,7 @@ type Config struct {
 	JWTSecret            string
 	JWTExpiration        time.Duration
 	JWTRefreshExpiration time.Duration
+	CookieDomain         string
 
 	// Frontend
 	FrontendURL string
@@ -70,6 +71,7 @@ func Load() *Config {
 		JWTSecret:            getEnv("JWT_SECRET", "secret"),
 		JWTExpiration:        getEnvDurationSeconds("JWT_EXPIRATION", 900),            // Default 15 minutes
 		JWTRefreshExpiration: getEnvDurationSeconds("JWT_REFRESH_EXPIRATION", 604800), // Default 7 days
+		CookieDomain:         getEnv("COOKIE_DOMAIN", ""),
 		FrontendURL:          getEnv("FRONTEND_URL", ""),
 		StaticDir:            getEnv("STATIC_DIR", "./frontend/dist"),
 		CORSAllowedOrigins:   getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:9090,http://*.localhost:9090"),

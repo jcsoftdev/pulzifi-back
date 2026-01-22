@@ -14,12 +14,13 @@ const (
 )
 
 // SetAuthCookies sets the access and refresh tokens as HttpOnly cookies
-func SetAuthCookies(w http.ResponseWriter, accessToken string, accessExpiresIn int64, refreshToken string) {
+func SetAuthCookies(w http.ResponseWriter, accessToken string, accessExpiresIn int64, refreshToken string, domain string) {
 	// Access Token Cookie
 	http.SetCookie(w, &http.Cookie{
 		Name:     AccessTokenCookie,
 		Value:    accessToken,
 		Path:     "/",
+		Domain:   domain,
 		Expires:  time.Now().Add(time.Duration(accessExpiresIn) * time.Second),
 		MaxAge:   int(accessExpiresIn),
 		HttpOnly: true,
@@ -32,6 +33,7 @@ func SetAuthCookies(w http.ResponseWriter, accessToken string, accessExpiresIn i
 		Name:     RefreshTokenCookie,
 		Value:    refreshToken,
 		Path:     "/", // Could be restricted to /auth/refresh if desired, but "/" is more flexible for client-side checks
+		Domain:   domain,
 		Expires:  time.Now().Add(RefreshTokenDuration),
 		MaxAge:   int(RefreshTokenDuration.Seconds()),
 		HttpOnly: true,
@@ -41,11 +43,12 @@ func SetAuthCookies(w http.ResponseWriter, accessToken string, accessExpiresIn i
 }
 
 // ClearAuthCookies removes the authentication cookies
-func ClearAuthCookies(w http.ResponseWriter) {
+func ClearAuthCookies(w http.ResponseWriter, domain string) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     AccessTokenCookie,
 		Value:    "",
 		Path:     "/",
+		Domain:   domain,
 		Expires:  time.Unix(0, 0),
 		MaxAge:   -1,
 		HttpOnly: true,
@@ -57,6 +60,7 @@ func ClearAuthCookies(w http.ResponseWriter) {
 		Name:     RefreshTokenCookie,
 		Value:    "",
 		Path:     "/",
+		Domain:   domain,
 		Expires:  time.Unix(0, 0),
 		MaxAge:   -1,
 		HttpOnly: true,

@@ -1,39 +1,40 @@
 #!/bin/bash
 
-# Script para configurar subdominios locales para desarrollo multi-tenant
-# Este script agrega entradas al archivo /etc/hosts para que los subdominios
-# funcionen en localhost
+# Script para configurar dominios locales para desarrollo multi-tenant
+# Este script agrega entradas al archivo /etc/hosts para que los dominios
+# funcionen en tu máquina local.
 
-echo "Configurando subdominios locales para desarrollo..."
+DOMAIN="pulzifi.local"
+
+echo "Configurando dominios locales para desarrollo ($DOMAIN)..."
 echo ""
 echo "Este script agregará las siguientes entradas a /etc/hosts:"
-echo "  127.0.0.1  volkswagen.localhost"
-echo "  127.0.0.1  otraempresa.localhost"
+echo "  127.0.0.1  $DOMAIN"
+echo "  127.0.0.1  jcsoftdev-inc.$DOMAIN"
+echo "  127.0.0.1  volkswagen.$DOMAIN"
 echo ""
 echo "Necesitas permisos de administrador (se te pedirá tu contraseña)"
 echo ""
 
-# Verificar si ya existen las entradas
-if grep -q "volkswagen.localhost" /etc/hosts; then
-    echo "✓ volkswagen.localhost ya está configurado"
-else
-    echo "127.0.0.1  volkswagen.localhost" | sudo tee -a /etc/hosts > /dev/null
-    echo "✓ Agregado volkswagen.localhost"
-fi
+# Función para agregar dominio si no existe
+add_domain() {
+    local domain=$1
+    if grep -q "$domain" /etc/hosts; then
+        echo "✓ $domain ya está configurado"
+    else
+        echo "127.0.0.1  $domain" | sudo tee -a /etc/hosts > /dev/null
+        echo "✓ Agregado $domain"
+    fi
+}
 
-if grep -q "otraempresa.localhost" /etc/hosts; then
-    echo "✓ otraempresa.localhost ya está configurado"
-else
-    echo "127.0.0.1  otraempresa.localhost" | sudo tee -a /etc/hosts > /dev/null
-    echo "✓ Agregado otraempresa.localhost"
-fi
+add_domain "$DOMAIN"
+add_domain "jcsoftdev-inc.$DOMAIN"
+add_domain "volkswagen.$DOMAIN"
 
 echo ""
 echo "✅ Configuración completada"
 echo ""
-echo "Ahora puedes acceder a:"
-echo "  - http://volkswagen.localhost:3000"
-echo "  - http://otraempresa.localhost:3000"
+echo "Pasos siguientes:"
+echo "1. Reinicia tus servidores (backend y frontend)"
+echo "2. Accede a: http://$DOMAIN:3000"
 echo ""
-echo "Nota: Si necesitas agregar más tenants, edita /etc/hosts manualmente"
-echo "      o ejecuta: echo '127.0.0.1  [tenant].localhost' | sudo tee -a /etc/hosts"

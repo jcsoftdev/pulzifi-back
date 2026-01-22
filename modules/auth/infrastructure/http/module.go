@@ -26,6 +26,7 @@ type Module struct {
 	refreshTokenHandler   *refresh_token.Handler
 	getCurrentUserHandler *get_current_user.Handler
 	authMiddleware        *authmw.AuthMiddleware
+	cookieDomain          string
 }
 
 func NewModule(
@@ -33,6 +34,7 @@ func NewModule(
 	refreshTokenRepo repositories.RefreshTokenRepository,
 	authService services.AuthService,
 	tokenService services.TokenService,
+	cookieDomain string,
 ) router.ModuleRegisterer {
 	return &Module{
 		registerHandler:       register.NewHandler(userRepo),
@@ -40,6 +42,7 @@ func NewModule(
 		refreshTokenHandler:   refresh_token.NewHandler(refreshTokenRepo, userRepo, tokenService),
 		getCurrentUserHandler: get_current_user.NewHandler(userRepo),
 		authMiddleware:        authmw.NewAuthMiddleware(tokenService),
+		cookieDomain:          cookieDomain,
 	}
 }
 
@@ -125,7 +128,7 @@ func (m *Module) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cookies.SetAuthCookies(w, response.AccessToken, response.ExpiresIn, response.RefreshToken)
+	cookies.SetAuthCookies(w, response.AccessToken, response.ExpiresIn, response.RefreshToken, m.cookieDomain)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -180,7 +183,7 @@ func (m *Module) handleRefresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cookies.SetAuthCookies(w, response.AccessToken, response.ExpiresIn, response.RefreshToken)
+	cookies.SetAuthCookies(w, response.AccessToken, response.ExpiresIn, response.RefreshToken, m.cookieDomain)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -197,7 +200,7 @@ func (m *Module) handleRefresh(w http.ResponseWriter, r *http.Request) {
 // @Failure 401 {object} map[string]string
 // @Router /auth/logout [post]
 func (m *Module) handleLogout(w http.ResponseWriter, r *http.Request) {
-	cookies.ClearAuthCookies(w)
+	cookies.ClearAuthCookies(w, m.cookieDomain)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]interface{}{

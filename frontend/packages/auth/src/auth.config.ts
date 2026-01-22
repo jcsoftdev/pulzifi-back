@@ -69,9 +69,11 @@ async function refreshAccessToken(token: ExtendedJWT): Promise<JWT> {
 
 const cookieDomain = process.env.NODE_ENV === 'production' 
   ? '.pulzifi.com' 
-  : process.env.NEXT_PUBLIC_APP_DOMAIN 
-    ? `.${process.env.NEXT_PUBLIC_APP_DOMAIN}` 
-    : undefined
+  : process.env.NEXT_PUBLIC_APP_DOMAIN === 'localhost'
+    ? 'localhost'
+    : process.env.NEXT_PUBLIC_APP_DOMAIN 
+      ? `.${process.env.NEXT_PUBLIC_APP_DOMAIN}` 
+      : undefined
 
 const authConfig = {
   secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
@@ -210,7 +212,6 @@ const authConfig = {
       options: {
         sameSite: 'lax' as const,
         path: '/',
-        domain: cookieDomain,
       },
     },
     csrfToken: {
@@ -219,7 +220,6 @@ const authConfig = {
         httpOnly: true,
         sameSite: 'lax' as const,
         path: '/',
-        domain: cookieDomain,
       },
     },
     pkceCodeVerifier: {
@@ -228,7 +228,6 @@ const authConfig = {
         httpOnly: true,
         sameSite: 'lax' as const,
         path: '/',
-        domain: cookieDomain,
       },
     },
   },

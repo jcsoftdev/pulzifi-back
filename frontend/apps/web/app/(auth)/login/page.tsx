@@ -80,43 +80,37 @@ export default function LoginPage() {
       // Redirigir al tenant correcto
       const protocol = window.location.protocol
       const port = window.location.port
-
-      // Extraer el hostname sin puerto
       const hostname = window.location.hostname
+      
+      const appDomain = process.env.NEXT_PUBLIC_APP_DOMAIN
+      let baseDomain = appDomain
 
-      // Determinar si es localhost o dominio real
-      const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1'
-
-      if (isLocalhost) {
-        // En localhost, usar subdominio.localhost:puerto
-        // Ejemplo: volkswagen.localhost:3000
-        const tenantUrl = `${protocol}//${tenant}.localhost${port ? `:${port}` : ''}`
-
-        // Si ya estamos en el tenant correcto, solo redirigir a home
-        if (hostname === `${tenant}.localhost`) {
-          console.log('Already on correct tenant, redirecting to /')
-          router.push('/')
-          router.refresh()
+      // Si no hay variable de entorno, intentar inferir (fallback)
+      if (!baseDomain) {
+        if (hostname === 'localhost' || hostname === '127.0.0.1') {
+          baseDomain = 'localhost'
         } else {
-          console.log('Redirecting to:', tenantUrl)
-          window.location.href = tenantUrl
+          const parts = hostname.split('.')
+          baseDomain = parts.slice(-2).join('.')
         }
+      }
+
+      // Construir el host destino: tenant.dominioBase
+      const targetHost = `${tenant}.${baseDomain}`
+      const currentHost = hostname
+
+      // Verificar si ya estamos en el subdominio correcto
+      if (currentHost === targetHost) {
+        console.log('Already on correct tenant, redirecting to /')
+        router.push('/')
+        router.refresh()
       } else {
-        // En producción, extraer el dominio base
-        const parts = hostname.split('.')
-        const baseDomain = parts.slice(-2).join('.') // Obtiene 'app.com' de 'volkswagen.app.com'
-
-        // Si ya estamos en el tenant correcto, solo redirigir a home
-        if (hostname === `${tenant}.${baseDomain}` || hostname.startsWith(`${tenant}.`)) {
-          console.log('Already on correct tenant, redirecting to /')
-          router.push('/')
-          router.refresh()
-        } else {
-          // Redirigir al subdominio del tenant
-          const tenantUrl = `${protocol}//${tenant}.${baseDomain}`
-          console.log('Redirecting to:', tenantUrl)
-          window.location.href = tenantUrl
-        }
+        // Construir URL completa
+        const portSuffix = port ? `:${port}` : ''
+        const tenantUrl = `${protocol}//${targetHost}${portSuffix}`
+        
+        console.log('Redirecting to:', tenantUrl)
+        window.location.href = tenantUrl
       }
     } catch (err) {
       console.error('Login error:', err)

@@ -42,7 +42,7 @@ func registerAllModulesInternal(registry *router.Registry, db *sql.DB) {
 	)
 
 	// Create auth module and set global middleware
-	authModule := auth.NewModule(userRepo, refreshTokenRepo, authService, tokenService)
+	authModule := auth.NewModule(userRepo, refreshTokenRepo, authService, tokenService, cfg.CookieDomain)
 	authMiddleware := authModule.(*auth.Module).AuthMiddleware()
 
 	// Set global middleware for all modules
