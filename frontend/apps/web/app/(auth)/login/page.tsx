@@ -1,9 +1,10 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { signIn } from 'next-auth/react'
+import { useState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { signIn, getSession } from 'next-auth/react'
 import { LoginForm } from '@/features/auth/ui/login-form'
+import type { ExtendedSession } from '@workspace/auth'
 import {
   Card,
   CardContent,
@@ -15,8 +16,17 @@ import Link from 'next/link'
 
 export default function LoginPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string>()
+
+  // Check for session expired error
+  useEffect(() => {
+    const errorParam = searchParams.get('error')
+    if (errorParam === 'SessionExpired') {
+      setError('Your session has expired. Please sign in again.')
+    }
+  }, [searchParams])
 
   const handleLogin = async (credentials: { email: string; password: string }) => {
     setIsLoading(true)
@@ -46,9 +56,13 @@ export default function LoginPage() {
         return
       }
 
-      // Obtener la sesión para extraer el tenant
-      const sessionResponse = await fetch('/api/auth/session')
-      const session = await sessionResponse.json()
+      console.log('Client: Login successful, waiting for session...')
+
+      // Esperar un momento para que NextAuth actualice la sesión
+      await new Promise(resolve => setTimeout(resolve, 500))
+
+      // Usar getSession de NextAuth que garantiza obtener la sesión actualizada
+      const session = await getSession() as ExtendedSession | null
 
       console.log('Client: Session data:', session)
 

@@ -13,6 +13,7 @@ import (
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/application/register"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/repositories"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/services"
+	"github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/cookies"
 	authmw "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/middleware"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"github.com/jcsoftdev/pulzifi-back/shared/router"
@@ -124,6 +125,8 @@ func (m *Module) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	cookies.SetAuthCookies(w, response.AccessToken, response.ExpiresIn, response.RefreshToken)
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(response)
@@ -142,22 +145,42 @@ func (m *Module) handleLogin(w http.ResponseWriter, r *http.Request) {
 // @Router /auth/refresh [post]
 func (m *Module) handleRefresh(w http.ResponseWriter, r *http.Request) {
 	var req refresh_token.Request
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		logger.Error("Failed to decode request", zap.Error(err))
+
+	// Try to decode body if present
+	if r.ContentLength > 0 {
+		_ = json.NewDecoder(r.Body).Decode(&req)
+	}
+
+	// If no token in body, try cookie
+	if req.RefreshToken == "" {
+		if token, err := cookies.GetRefreshTokenFromCookie(r); err == nil {
+			req.RefreshToken = token
+		}
+	}
+
+	if req.RefreshToken == "" {
+		logger.ErrorWithContext(r.Context(), "Refresh token missing",
+			zap.String("endpoint", "/auth/refresh"),
+		)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "invalid request body"})
+		json.NewEncoder(w).Encode(map[string]string{"error": "refresh token required"})
 		return
 	}
 
 	response, err := m.refreshTokenHandler.Handle(r.Context(), &req)
 	if err != nil {
-		logger.Error("Failed to refresh token", zap.Error(err))
+		logger.ErrorWithContext(r.Context(), "Token refresh failed",
+			zap.Error(err),
+			zap.String("error_type", err.Error()),
+		)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusUnauthorized)
 		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
 		return
 	}
+
+	cookies.SetAuthCookies(w, response.AccessToken, response.ExpiresIn, response.RefreshToken)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -174,10 +197,11 @@ func (m *Module) handleRefresh(w http.ResponseWriter, r *http.Request) {
 // @Failure 401 {object} map[string]string
 // @Router /auth/logout [post]
 func (m *Module) handleLogout(w http.ResponseWriter, r *http.Request) {
+	cookies.ClearAuthCookies(w)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"message": "logout endpoint",
+		"message": "logged out successfully",
 	})
 }
 

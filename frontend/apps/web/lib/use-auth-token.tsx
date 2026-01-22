@@ -8,28 +8,16 @@ interface SessionWithToken extends Session {
   accessToken?: string
 }
 
-// Global variable to store the current token (updated by the hook)
-let currentToken: string | null = null
-
-export function getStoredToken(): string | null {
-  return currentToken
-}
-
-export function setStoredToken(token: string | null): void {
-  currentToken = token
-}
-
 /**
  * Hook to sync token from NextAuth session to global variable
- * This avoids calling getSession() which makes HTTP requests
+ * This token is read by NextAuthTokenProvider in @workspace/auth
  */
 export function useAuthTokenSync() {
   const { data: session } = useSession()
 
   useEffect(() => {
     const token = (session as SessionWithToken)?.accessToken ?? null
-    setStoredToken(token)
-  }, [
-    session,
-  ])
+    // Sync to global variable used by NextAuthTokenProvider
+    ;(globalThis as any).__authToken__ = token
+  }, [session])
 }

@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jcsoftdev/pulzifi-back/modules/alert/domain/entities"
+	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
 )
 
 type AlertPostgresRepository struct {
@@ -20,7 +21,7 @@ func NewAlertPostgresRepository(db *sql.DB, tenant string) *AlertPostgresReposit
 }
 
 func (r *AlertPostgresRepository) Create(ctx context.Context, alert *entities.Alert) error {
-	if _, err := r.db.ExecContext(ctx, "SET search_path TO "+r.tenant); err != nil {
+	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
 		return err
 	}
 	q := `INSERT INTO alerts (id, workspace_id, page_id, check_id, type, title, description, metadata, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
@@ -29,7 +30,7 @@ func (r *AlertPostgresRepository) Create(ctx context.Context, alert *entities.Al
 }
 
 func (r *AlertPostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (*entities.Alert, error) {
-	if _, err := r.db.ExecContext(ctx, "SET search_path TO "+r.tenant); err != nil {
+	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
 		return nil, err
 	}
 	var a entities.Alert
@@ -49,7 +50,7 @@ func (r *AlertPostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (*e
 }
 
 func (r *AlertPostgresRepository) ListByWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]*entities.Alert, error) {
-	if _, err := r.db.ExecContext(ctx, "SET search_path TO "+r.tenant); err != nil {
+	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
 		return nil, err
 	}
 	q := `SELECT id, workspace_id, page_id, check_id, type, title, description, metadata, read_at, created_at FROM alerts WHERE workspace_id = $1 ORDER BY created_at DESC`
@@ -74,7 +75,7 @@ func (r *AlertPostgresRepository) ListByWorkspace(ctx context.Context, workspace
 }
 
 func (r *AlertPostgresRepository) MarkAsRead(ctx context.Context, id uuid.UUID) error {
-	if _, err := r.db.ExecContext(ctx, "SET search_path TO "+r.tenant); err != nil {
+	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
 		return err
 	}
 	q := `UPDATE alerts SET read_at = $1 WHERE id = $2`

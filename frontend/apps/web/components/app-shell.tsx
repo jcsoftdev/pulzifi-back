@@ -1,6 +1,8 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { Header } from '@workspace/ui/components/organisms'
+import type { BreadcrumbItem } from '@workspace/ui/components/molecules'
 import type { ReactNode } from 'react'
 
 export interface AppShellProps {
@@ -13,6 +15,7 @@ export interface AppShellProps {
   }
   hasNotifications?: boolean
   notificationCount?: number
+  breadcrumbs?: BreadcrumbItem[]
 }
 
 export function AppShell({
@@ -21,7 +24,22 @@ export function AppShell({
   checksData,
   hasNotifications = false,
   notificationCount = 0,
+  breadcrumbs: initialBreadcrumbs,
 }: Readonly<AppShellProps>) {
+  const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbItem[] | undefined>(initialBreadcrumbs)
+
+  useEffect(() => {
+    const handleBreadcrumbUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent<{ breadcrumbs: BreadcrumbItem[] }>
+      setBreadcrumbs(customEvent.detail.breadcrumbs.length > 0 ? customEvent.detail.breadcrumbs : undefined)
+    }
+
+    window.addEventListener('updateBreadcrumbs', handleBreadcrumbUpdate)
+    return () => {
+      window.removeEventListener('updateBreadcrumbs', handleBreadcrumbUpdate)
+    }
+  }, [])
+
   return (
     <div className="flex min-h-screen bg-sidebar">
       <div className="sticky top-0 h-screen">{sidebar}</div>
@@ -32,6 +50,7 @@ export function AppShell({
             hasNotifications={hasNotifications}
             notificationCount={notificationCount}
             onNotificationClick={() => console.log('Notifications clicked')}
+            breadcrumbs={breadcrumbs}
           />
         </div>
         {children}

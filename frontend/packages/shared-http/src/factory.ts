@@ -2,59 +2,40 @@ import type { IHttpClient } from './types'
 import { AxiosHttpClient } from './axios-client'
 import { FetchHttpClient } from './fetch-client'
 import { getTokenProvider } from './token-provider'
-// import { headers } from 'next/headers'
+import { extractTenantFromHostname, getTenantFromWindow } from './tenant-utils'
 
-// Client-side: Use relative URL or same host to avoid CORS issues with subdomains
+// Client-side: Use base domain to go through Nginx reverse proxy
 const getClientApiUrl = (): string => {
   if (typeof window === 'undefined') return ''
-  // Use same host as current page to avoid cross-site issues
-  // If on volkswagen.localhost:9090, API will be http://volkswagen.localhost:9090
-  return `${window.location.protocol}//${window.location.host}`
-}
-
-// Server-side: Use configured backend URL
-const SERVER_API_URL =
-  process.env.NEXT_SERVER_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9090'
-
-function extractTenantFromHostname(): string | null {
-  if (globalThis.window === undefined) return null
-
-  const hostname = globalThis.location.hostname
-  const subdomain = hostname.split('.')[0]
-
-  if (!subdomain || subdomain === 'localhost') return null
-
-  const isNumericSubdomain = /^\d+$/.exec(subdomain)
-  if (!isNumericSubdomain) {
-    return subdomain
+  
+  const hostname = window.location.hostname
+  const protocol = window.location.protocol
+  
+  if (hostname.includes('.app.local')) {
+    return `${protocol}//app.local`
   }
-
-  return null
+  
+  return `${protocol}//${hostname}`
 }
 
 /**
- * Extract tenant from server-side request headers or hostname
+ * Build server API URL - simplified without dynamic imports
  */
-async function extractTenantFromServer(): Promise<string | null> {
+function getServerApiUrl(): string {
+  // Always use localhost in development to reach Docker services
+  return 'http://localhost'
+}
+
+/**
+ * Get tenant from auth session - static import to avoid memory leaks
+ */
+async function getTenantFromAuth(): Promise<string | null> {
   try {
-    const headersList = await (await import('next/headers')).headers()
-    const host = headersList.get('host') || ''
-
-    // Extract subdomain from host header
-    const subdomain = host.split('.')[0]
-
-    // Skip localhost and ports - no tenant available
-    if (!subdomain || subdomain === 'localhost' || subdomain.includes(':')) {
-      return null
-    }
-
-    // Skip numeric subdomains (like IP addresses)
-    const isNumericSubdomain = /^\d+$/.exec(subdomain)
-    if (isNumericSubdomain) {
-      return null
-    }
-
-    return subdomain
+    // Static import - tree-shaken if not used
+    const { auth } = await import('@workspace/auth')
+    const { isExtendedSession } = await import('@workspace/auth')
+    const session = await auth()
+    return isExtendedSession(session) ? session.tenant ?? null : null
   } catch {
     return null
   }
@@ -62,31 +43,32 @@ async function extractTenantFromServer(): Promise<string | null> {
 
 /**
  * Create HTTP client for server-side usage (SSR, Server Actions, API Routes)
- * Uses configured token provider for dynamic token fetching
+ * Gets tenant from auth session
  */
 export async function createServerHttpClient(): Promise<IHttpClient> {
   const provider = getTokenProvider()
   const headers: Record<string, string> = {}
 
-  const tenant = await extractTenantFromServer()
+  // Get tenant from auth session
+  const tenant = await getTenantFromAuth()
   if (tenant) {
     headers['X-Tenant'] = tenant
   }
 
-  return new FetchHttpClient(SERVER_API_URL, headers, provider || undefined)
+  const apiUrl = getServerApiUrl()
+  return new FetchHttpClient(apiUrl, headers, provider || undefined)
 }
 
 /**
- * Create HTTP client for client-side usage (Browser)
- * Uses configured token provider for dynamic token fetching
- * Extracts tenant from subdomain automatically
- * Uses same host as current page to avoid CORS issues
+ * Create HTTP client for browser usage (Client Components, useEffect, event handlers)
+ * Uses AxiosHttpClient with automatic tenant extraction from subdomain
+ * Communicates with backend through Nginx reverse proxy
  */
-export async function createClientHttpClient(): Promise<IHttpClient> {
+export async function createBrowserHttpClient(): Promise<IHttpClient> {
   const provider = getTokenProvider()
   const headers: Record<string, string> = {}
 
-  const tenant = extractTenantFromHostname()
+  const tenant = getTenantFromWindow()
   if (tenant) {
     headers['X-Tenant'] = tenant
   }
@@ -97,11 +79,13 @@ export async function createClientHttpClient(): Promise<IHttpClient> {
 }
 
 /**
- * Get appropriate HTTP client based on environment (SSR vs Browser)
+ * Get HTTP client based on environment
+ * - Server-side (SSR, Server Actions, API Routes): Returns FetchHttpClient
+ * - Client-side (Browser, useEffect): Returns AxiosHttpClient
  */
 export async function getHttpClient(): Promise<IHttpClient> {
   if (globalThis.window === undefined) {
     return await createServerHttpClient()
   }
-  return await createClientHttpClient()
+  return await createBrowserHttpClient()
 }

@@ -37,9 +37,9 @@ func SetupSwaggerForChi(router chi.Router) {
 		w.Write(data)
 	})
 
-	// Redirect /swagger to /api/v1/swagger/index.html
+	// Redirect /swagger to /swagger/index.html
 	router.Get("/swagger", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "/api/v1/swagger/index.html", http.StatusMovedPermanently)
+		http.Redirect(w, r, "/swagger/index.html", http.StatusMovedPermanently)
 	})
 
 	// Serve swagger UI and assets

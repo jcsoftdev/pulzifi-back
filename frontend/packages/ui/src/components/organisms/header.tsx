@@ -3,6 +3,8 @@
 import * as React from 'react'
 import { ChecksTag } from '../molecules/checks-tag'
 import { NotificationButton } from '../molecules/notification-button'
+import { Breadcrumb } from '../molecules/breadcrumb'
+import type { BreadcrumbItem } from '../molecules/breadcrumb'
 import { cn } from '../../lib/utils'
 
 export interface HeaderProps extends React.HTMLAttributes<HTMLElement> {
@@ -14,11 +16,20 @@ export interface HeaderProps extends React.HTMLAttributes<HTMLElement> {
   onNotificationClick?: () => void
   hasNotifications?: boolean
   notificationCount?: number
+  breadcrumbs?: BreadcrumbItem[]
 }
 
 const Header = React.forwardRef<HTMLElement, HeaderProps>(
   (
-    { checks, onNotificationClick, hasNotifications, notificationCount, className, ...props },
+    {
+      checks,
+      onNotificationClick,
+      hasNotifications,
+      notificationCount,
+      breadcrumbs,
+      className,
+      ...props
+    },
     ref
   ) => {
     return (
@@ -27,15 +38,26 @@ const Header = React.forwardRef<HTMLElement, HeaderProps>(
         className={cn('w-full border-b border-border bg-background', className)}
         {...props}
       >
-        <div className="flex items-center justify-end px-24 py-4 gap-4">
-          {checks && (
-            <ChecksTag current={checks.current} max={checks.max} refillDate={checks.refillDate} />
+        <div className="flex items-center justify-between px-24 py-4 gap-4">
+          {breadcrumbs && breadcrumbs.length > 0 ? (
+            <Breadcrumb items={breadcrumbs} />
+          ) : (
+            <div />
           )}
-          <NotificationButton
-            onClick={onNotificationClick}
-            hasNotifications={hasNotifications}
-            notificationCount={notificationCount}
-          />
+          <div className="flex items-center gap-4">
+            {checks && (
+              <ChecksTag
+                current={checks.current}
+                max={checks.max}
+                refillDate={checks.refillDate}
+              />
+            )}
+            <NotificationButton
+              onClick={onNotificationClick}
+              hasNotifications={hasNotifications}
+              notificationCount={notificationCount}
+            />
+          </div>
         </div>
       </header>
     )

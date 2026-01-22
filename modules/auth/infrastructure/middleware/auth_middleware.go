@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/services"
+	"github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/cookies"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"go.uber.org/zap"
 )
@@ -32,21 +33,26 @@ func NewAuthMiddleware(tokenService services.TokenService) *AuthMiddleware {
 
 func (m *AuthMiddleware) Authenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		token := ""
 		authHeader := r.Header.Get("Authorization")
-		if authHeader == "" {
-			logger.Warn("Missing authorization header")
-			m.unauthorized(w, "missing authorization header")
-			return
+		if authHeader != "" {
+			parts := strings.SplitN(authHeader, " ", 2)
+			if len(parts) == 2 && parts[0] == "Bearer" {
+				token = parts[1]
+			}
 		}
 
-		parts := strings.SplitN(authHeader, " ", 2)
-		if len(parts) != 2 || parts[0] != "Bearer" {
-			logger.Warn("Invalid authorization header format", zap.String("header", authHeader[:20]))
-			m.unauthorized(w, "invalid authorization header format")
-			return
+		if token == "" {
+			if cookieToken, err := cookies.GetAccessTokenFromCookie(r); err == nil {
+				token = cookieToken
+			}
 		}
 
-		token := parts[1]
+		if token == "" {
+			logger.Warn("Missing authorization token (header or cookie)")
+			m.unauthorized(w, "missing authorization token")
+			return
+		}
 		logger.Info("Attempting token validation", zap.String("token_preview", token[:30]))
 
 		claims, err := m.tokenService.ValidateToken(r.Context(), token)

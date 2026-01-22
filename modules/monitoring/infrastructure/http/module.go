@@ -9,6 +9,7 @@ import (
 	createcheck "github.com/jcsoftdev/pulzifi-back/modules/monitoring/application/create_check"
 	createmonitoringconfig "github.com/jcsoftdev/pulzifi-back/modules/monitoring/application/create_monitoring_config"
 	createnotificationpreference "github.com/jcsoftdev/pulzifi-back/modules/monitoring/application/create_notification_preference"
+	updatemonitoringconfig "github.com/jcsoftdev/pulzifi-back/modules/monitoring/application/update_monitoring_config"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/persistence"
 	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
 	"github.com/jcsoftdev/pulzifi-back/shared/router"
@@ -49,6 +50,7 @@ func (m *Module) RegisterHTTPRoutes(router chi.Router) {
 		r.Route("/configs", func(cr chi.Router) {
 			cr.Post("/", m.handleCreateMonitoringConfig)
 			cr.Get("/{pageId}", m.handleGetMonitoringConfig)
+			cr.Put("/{pageId}", m.handleUpdateMonitoringConfig)
 		})
 		r.Route("/notification-preferences", func(cr chi.Router) {
 			cr.Post("/", m.handleCreateNotificationPreference)
@@ -174,6 +176,40 @@ func (m *Module) handleGetMonitoringConfig(w http.ResponseWriter, r *http.Reques
 		"page_id": chi.URLParam(r, "pageId"),
 		"message": "get monitoring config",
 	})
+}
+
+// handleUpdateMonitoringConfig updates or creates a monitoring config by page ID
+// @Summary Update or Create Monitoring Config (Upsert)
+// @Description Update an existing monitoring config or create a new one if it doesn't exist
+// @Tags monitoring
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param pageId path string true "Page ID"
+// @Param request body updatemonitoringconfig.UpdateMonitoringConfigRequest true "Update Config Request"
+// @Success 200 {object} updatemonitoringconfig.UpdateMonitoringConfigResponse
+// @Router /monitoring/configs/{pageId} [put]
+func (m *Module) handleUpdateMonitoringConfig(w http.ResponseWriter, r *http.Request) {
+	// If db is not available, return mock response
+	if m.db == nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"id":      "550e8400-e29b-41d4-a716-446655440000",
+			"message": "update monitoring config (mock - db not initialized)",
+		})
+		return
+	}
+
+	// Get tenant from context
+	tenant := middleware.GetTenantFromContext(r.Context())
+
+	// Create repository with dynamic tenant
+	repo := persistence.NewMonitoringConfigPostgresRepository(m.db, tenant)
+
+	// Use real handler
+	handler := updatemonitoringconfig.NewUpdateMonitoringConfigHandler(repo)
+	handler.HandleHTTP(w, r)
 }
 
 // handleCreateNotificationPreference creates a new notification preference

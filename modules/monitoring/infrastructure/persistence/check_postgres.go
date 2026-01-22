@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/domain/entities"
+	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
 )
 
 // CheckPostgresRepository implements CheckRepository using PostgreSQL
@@ -25,7 +26,7 @@ func NewCheckPostgresRepository(db *sql.DB, tenant string) *CheckPostgresReposit
 
 // Create stores a new check
 func (r *CheckPostgresRepository) Create(ctx context.Context, check *entities.Check) error {
-	if _, err := r.db.ExecContext(ctx, "SET search_path TO "+r.tenant); err != nil {
+	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
 		return err
 	}
 
@@ -49,7 +50,7 @@ func (r *CheckPostgresRepository) Create(ctx context.Context, check *entities.Ch
 
 // GetByID retrieves a check by ID
 func (r *CheckPostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (*entities.Check, error) {
-	if _, err := r.db.ExecContext(ctx, "SET search_path TO "+r.tenant); err != nil {
+	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
 		return nil, err
 	}
 
@@ -82,7 +83,7 @@ func (r *CheckPostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (*e
 
 // ListByPage retrieves all checks for a page
 func (r *CheckPostgresRepository) ListByPage(ctx context.Context, pageID uuid.UUID) ([]*entities.Check, error) {
-	if _, err := r.db.ExecContext(ctx, "SET search_path TO "+r.tenant); err != nil {
+	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
 		return nil, err
 	}
 

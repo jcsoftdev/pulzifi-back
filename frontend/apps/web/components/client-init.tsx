@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 import { setTokenProvider } from '@workspace/shared-http'
-import { tokenProvider } from '@/lib/token-manager'
+import { tokenProvider } from '@workspace/auth'
 import { useAuthTokenSync } from '@/lib/use-auth-token'
 
 /**

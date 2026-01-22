@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/domain/entities"
+	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
 )
 
 type MonitoringConfigPostgresRepository struct {
@@ -20,7 +21,7 @@ func NewMonitoringConfigPostgresRepository(db *sql.DB, tenant string) *Monitorin
 }
 
 func (r *MonitoringConfigPostgresRepository) Create(ctx context.Context, config *entities.MonitoringConfig) error {
-	if _, err := r.db.ExecContext(ctx, "SET search_path TO "+r.tenant); err != nil {
+	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
 		return err
 	}
 	q := `INSERT INTO monitoring_configs (id, page_id, check_frequency, schedule_type, timezone, block_ads_cookies, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
@@ -29,7 +30,7 @@ func (r *MonitoringConfigPostgresRepository) Create(ctx context.Context, config 
 }
 
 func (r *MonitoringConfigPostgresRepository) GetByPageID(ctx context.Context, pageID uuid.UUID) (*entities.MonitoringConfig, error) {
-	if _, err := r.db.ExecContext(ctx, "SET search_path TO "+r.tenant); err != nil {
+	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
 		return nil, err
 	}
 	var c entities.MonitoringConfig
@@ -45,7 +46,7 @@ func (r *MonitoringConfigPostgresRepository) GetByPageID(ctx context.Context, pa
 }
 
 func (r *MonitoringConfigPostgresRepository) Update(ctx context.Context, config *entities.MonitoringConfig) error {
-	if _, err := r.db.ExecContext(ctx, "SET search_path TO "+r.tenant); err != nil {
+	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
 		return err
 	}
 	config.UpdatedAt = time.Now()

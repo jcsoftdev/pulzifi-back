@@ -10,6 +10,7 @@ import (
 	"github.com/jcsoftdev/pulzifi-back/modules/workspace/domain/entities"
 	"github.com/jcsoftdev/pulzifi-back/modules/workspace/domain/value_objects"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
+	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
 	"go.uber.org/zap"
 )
 
@@ -35,7 +36,7 @@ func (r *WorkspacePostgresRepository) Create(ctx context.Context, workspace *ent
 	`
 
 	// Set search path to tenant schema
-	if _, err := r.db.ExecContext(ctx, "SET search_path TO "+r.tenant); err != nil {
+	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
 		logger.Error("Failed to set search path", zap.Error(err))
 		return err
 	}
@@ -66,7 +67,7 @@ func (r *WorkspacePostgresRepository) GetByID(ctx context.Context, id uuid.UUID)
 	`
 
 	// Set search path to tenant schema
-	if _, err := r.db.ExecContext(ctx, "SET search_path TO "+r.tenant); err != nil {
+	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
 		logger.Error("Failed to set search path", zap.Error(err))
 		return nil, err
 	}
@@ -109,7 +110,7 @@ func (r *WorkspacePostgresRepository) List(ctx context.Context) ([]*entities.Wor
 	`
 
 	// Set search path to tenant schema
-	if _, err := r.db.ExecContext(ctx, "SET search_path TO "+r.tenant); err != nil {
+	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
 		logger.Error("Failed to set search path", zap.Error(err))
 		return nil, err
 	}
@@ -159,7 +160,7 @@ func (r *WorkspacePostgresRepository) ListByCreator(ctx context.Context, created
 	`
 
 	// Set search path to tenant schema
-	if _, err := r.db.ExecContext(ctx, "SET search_path TO "+r.tenant); err != nil {
+	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
 		logger.Error("Failed to set search path", zap.Error(err))
 		return nil, err
 	}
@@ -208,7 +209,7 @@ func (r *WorkspacePostgresRepository) Update(ctx context.Context, workspace *ent
 	`
 
 	// Set search path to tenant schema
-	if _, err := r.db.ExecContext(ctx, "SET search_path TO "+r.tenant); err != nil {
+	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
 		logger.Error("Failed to set search path", zap.Error(err))
 		return err
 	}
@@ -239,7 +240,7 @@ func (r *WorkspacePostgresRepository) Delete(ctx context.Context, id uuid.UUID) 
 	`
 
 	// Set search path to tenant schema
-	if _, err := r.db.ExecContext(ctx, "SET search_path TO "+r.tenant); err != nil {
+	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
 		logger.Error("Failed to set search path", zap.Error(err))
 		return err
 	}
@@ -272,7 +273,7 @@ func (r *WorkspacePostgresRepository) AddMember(ctx context.Context, member *ent
 	`
 
 	// Set search path to tenant schema
-	if _, err := r.db.ExecContext(ctx, "SET search_path TO "+r.tenant); err != nil {
+	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
 		logger.Error("Failed to set search path", zap.Error(err))
 		return err
 	}
@@ -302,7 +303,7 @@ func (r *WorkspacePostgresRepository) GetMember(ctx context.Context, workspaceID
 	`
 
 	// Set search path to tenant schema
-	if _, err := r.db.ExecContext(ctx, "SET search_path TO "+r.tenant); err != nil {
+	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
 		logger.Error("Failed to set search path", zap.Error(err))
 		return nil, err
 	}
@@ -354,7 +355,7 @@ func (r *WorkspacePostgresRepository) ListMembers(ctx context.Context, workspace
 	`
 
 	// Set search path to tenant schema
-	if _, err := r.db.ExecContext(ctx, "SET search_path TO "+r.tenant); err != nil {
+	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
 		logger.Error("Failed to set search path", zap.Error(err))
 		return nil, err
 	}
@@ -414,7 +415,7 @@ func (r *WorkspacePostgresRepository) ListByMember(ctx context.Context, userID u
 	`
 
 	// Set search path to tenant schema
-	if _, err := r.db.ExecContext(ctx, "SET search_path TO "+r.tenant); err != nil {
+	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
 		logger.Error("Failed to set search path", zap.Error(err))
 		return nil, err
 	}
@@ -463,7 +464,7 @@ func (r *WorkspacePostgresRepository) UpdateMemberRole(ctx context.Context, work
 	`
 
 	// Set search path to tenant schema
-	if _, err := r.db.ExecContext(ctx, "SET search_path TO "+r.tenant); err != nil {
+	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
 		logger.Error("Failed to set search path", zap.Error(err))
 		return err
 	}
@@ -499,7 +500,7 @@ func (r *WorkspacePostgresRepository) RemoveMember(ctx context.Context, workspac
 	`
 
 	// Set search path to tenant schema
-	if _, err := r.db.ExecContext(ctx, "SET search_path TO "+r.tenant); err != nil {
+	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
 		logger.Error("Failed to set search path", zap.Error(err))
 		return err
 	}

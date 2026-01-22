@@ -1,12 +1,8 @@
 import type { IHttpClient, RequestConfig } from './types'
 import type { ITokenProvider } from './token-provider'
+import { UnauthorizedError, HttpError } from './types'
 
-export class UnauthorizedError extends Error {
-  constructor() {
-    super('Unauthorized')
-    this.name = 'UnauthorizedError'
-  }
-}
+export { UnauthorizedError, HttpError }
 
 export class FetchHttpClient implements IHttpClient {
   constructor(
@@ -14,6 +10,20 @@ export class FetchHttpClient implements IHttpClient {
     private readonly defaultHeaders?: Record<string, string>,
     private readonly tokenProvider?: ITokenProvider
   ) {}
+
+  private debug(message: string, data?: unknown): void {
+    // Disabled in favor of console performance - use browser DevTools Network tab instead
+    // if (process.env.NODE_ENV === 'development') {
+    //   console.debug(`[FetchHttpClient] ${message}`, data)
+    // }
+  }
+
+  private debugError(message: string, error: unknown): void {
+    // Only log actual errors, not debug info
+    if (process.env.NODE_ENV === 'development') {
+      console.error(`[FetchHttpClient] ${message}`, error)
+    }
+  }
 
   private buildUrl(url: string, params?: Record<string, string>): string {
     const fullUrl = new URL(url, this.baseURL)
@@ -27,6 +37,7 @@ export class FetchHttpClient implements IHttpClient {
 
   private async request<T>(url: string, config: RequestInit & RequestConfig = {}): Promise<T> {
     const { params, headers, ...fetchConfig } = config
+    const fullUrl = this.buildUrl(url, params)
 
     const dynamicHeaders: Record<string, string> = {}
     if (this.tokenProvider) {
@@ -43,7 +54,7 @@ export class FetchHttpClient implements IHttpClient {
       ...headers,
     }
 
-    const response = await fetch(this.buildUrl(url, params), {
+    const response = await fetch(fullUrl, {
       ...fetchConfig,
       headers: finalHeaders,
     })
@@ -55,25 +66,45 @@ export class FetchHttpClient implements IHttpClient {
     if (!response.ok) {
       const contentType = response.headers.get('content-type')
       let errorMessage = `HTTP Error: ${response.status} ${response.statusText}`
+      let errorDetails: unknown = null
 
       if (contentType?.includes('application/json')) {
         try {
-          const errorData = await response.json()
-          errorMessage = errorData.error || errorData.message || errorMessage
+          errorDetails = await response.json()
+          errorMessage = (errorDetails as any).error || (errorDetails as any).message || errorMessage
         } catch {
           // Ignore JSON parse errors
         }
+      } else if (contentType?.includes('text/plain')) {
+        try {
+          errorMessage = await response.text()
+        } catch {
+          // Ignore text parsing errors
+        }
       }
 
-      throw new Error(errorMessage)
+      // Trim error message to remove trailing newlines and whitespace
+      errorMessage = errorMessage.trim()
+
+      this.debugError(`Request failed: ${url}`, {
+        status: response.status,
+        statusText: response.statusText,
+        message: errorMessage,
+        details: errorDetails,
+      })
+
+      throw new HttpError(response.status, response.statusText, url, errorMessage)
     }
 
     const contentType = response.headers.get('content-type')
     if (!contentType?.includes('application/json')) {
-      throw new Error(`Expected JSON response but got ${contentType}`)
+      const message = `Expected JSON response but got ${contentType}`
+      this.debugError(`Content-Type mismatch: ${url}`, { contentType, expected: 'application/json' })
+      throw new Error(message)
     }
 
-    return response.json()
+    const data = await response.json()
+    return data
   }
 
   async get<T>(url: string, config?: RequestConfig): Promise<T> {

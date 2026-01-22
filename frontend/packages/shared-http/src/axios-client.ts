@@ -1,6 +1,7 @@
-import axios, { type AxiosInstance, type AxiosRequestConfig } from 'axios'
+import axios, { type AxiosInstance, type AxiosRequestConfig, type AxiosError } from 'axios'
 import type { IHttpClient, RequestConfig } from './types'
 import type { ITokenProvider } from './token-provider'
+import { getTenantFromWindow } from './tenant-utils'
 
 export class AxiosHttpClient implements IHttpClient {
   private readonly client: AxiosInstance
@@ -21,43 +22,47 @@ export class AxiosHttpClient implements IHttpClient {
       withCredentials: true,
     })
 
-    // Interceptor para agregar tenant desde subdominio y token si está disponible
+    // Request interceptor: Add tenant from subdomain and auth token
     this.client.interceptors.request.use(
       async (config) => {
         // Extract tenant from subdomain (client-side only)
-        if (typeof window !== 'undefined') {
-          const hostname = window.location.hostname
-          const parts = hostname.split('.')
-          // If hostname is like: tenant.localhost or tenant.app.com
-          if (parts.length >= 2 && parts[0] !== 'www') {
-            const tenant = parts[0]
-            if (config.headers && tenant) {
-              config.headers['X-Tenant'] = tenant
-            }
+        if (globalThis.window !== undefined) {
+          const tenant = getTenantFromWindow()
+          if (tenant && config.headers) {
+            config.headers['X-Tenant'] = tenant
           }
         }
 
-        // Try to add token from provider (fallback if not using cookies)
+        // Add auth token from provider (fallback if not using cookies)
         if (this.tokenProvider) {
           const token = await this.tokenProvider.getClientToken()
           if (token && config.headers) {
             config.headers.Authorization = `Bearer ${token}`
           }
         }
+
         return config
       },
-      (error) => Promise.reject(error)
+      (error) => {
+        this.debugError('Request interceptor error', error)
+        return Promise.reject(error)
+      }
     )
 
     this.client.interceptors.response.use(
       (response) => response,
-      (error) => {
-        if (error.response?.status === 401 && typeof window !== 'undefined') {
-          window.location.href = '/login'
-        }
+      (error: AxiosError) => {
+        // 401 is handled by AuthGuard wrapper at layout level
         return Promise.reject(error)
       }
     )
+  }
+
+  private debugError(message: string, error: unknown): void {
+    // Only log actual errors
+    if (process.env.NODE_ENV === 'development') {
+      console.error(`[AxiosHttpClient] ${message}`, error)
+    }
   }
 
   private convertConfig(config?: RequestConfig): AxiosRequestConfig {

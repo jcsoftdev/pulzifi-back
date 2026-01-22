@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jcsoftdev/pulzifi-back/shared/cache"
 	"github.com/jcsoftdev/pulzifi-back/shared/config"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"go.uber.org/zap"
@@ -14,6 +15,14 @@ import (
 func main() {
 	cfg := config.Load()
 	logger.Info("Starting Auth Service", zap.String("config", cfg.String()))
+
+	// Initialize Redis
+	if err := cache.InitRedis(cfg); err != nil {
+		logger.Error("Failed to initialize Redis", zap.Error(err))
+		panic(err)
+	}
+	defer cache.CloseRedis()
+	logger.Info("Redis initialized successfully")
 
 	router := gin.Default()
 

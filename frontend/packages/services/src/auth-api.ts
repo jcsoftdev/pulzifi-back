@@ -1,4 +1,4 @@
-import { getHttpClient } from '@workspace/shared-http'
+import { getHttpClient, FetchHttpClient } from '@workspace/shared-http'
 
 // Internal: Backend response types (snake_case from Go)
 interface UserBackendDto {
@@ -87,8 +87,11 @@ export const AuthApi = {
   },
 
   async login(credentials: LoginDto): Promise<LoginResponse> {
-    const http = await getHttpClient()
-    const response = await http.post<LoginBackendResponse>('/api/v1/auth/login', credentials)
+    // Use unauthenticated client for login
+    const http = new FetchHttpClient('http://localhost', {})
+    const response = await http.post<LoginBackendResponse>('/api/v1/auth/login', credentials, {
+      credentials: 'include',
+    })
     return {
       accessToken: response.access_token,
       refreshToken: response.refresh_token,
@@ -118,19 +121,29 @@ export const AuthApi = {
 
   async logout(): Promise<void> {
     const http = await getHttpClient()
-    await http.post('/api/v1/auth/logout', {})
+    await http.post('/api/v1/auth/logout', {}, {
+      credentials: 'include',
+    })
   },
 
-  async refreshToken(refreshToken: string): Promise<LoginResponse> {
-    const http = await getHttpClient()
+  async refreshToken(refreshToken: string, tenant?: string): Promise<LoginResponse> {
+    // Use unauthenticated client for refresh with optional tenant
+    const headers: Record<string, string> = {}
+    if (tenant) {
+      headers['X-Tenant'] = tenant
+    }
+    const http = new FetchHttpClient('http://localhost', headers)
     const response = await http.post<LoginBackendResponse>('/api/v1/auth/refresh', {
       refresh_token: refreshToken,
+    }, {
+      credentials: 'include',
     })
     return {
       accessToken: response.access_token,
       refreshToken: response.refresh_token,
       tokenType: response.token_type,
       expiresIn: response.expires_in,
+      tenant: tenant, // Preserve the tenant that was passed in
     }
   },
 }

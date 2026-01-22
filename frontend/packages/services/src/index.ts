@@ -12,3 +12,8 @@ export type { Organization } from './organization-api'
 
 export { AuthApi } from './auth-api'
 export type { User, LoginDto, LoginResponse } from './auth-api'
+
+export { PageApi } from './page-api'
+export type { Page, CreatePageDto, ListPagesParams } from './page-api'
+
+export type { HttpError } from '@workspace/shared-http'

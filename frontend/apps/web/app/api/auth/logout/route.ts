@@ -1,4 +1,4 @@
-import { signOut } from '@/lib/auth'
+import { signOut } from '@workspace/auth'
 import { NextResponse } from 'next/server'
 
 export async function POST() {

@@ -1,6 +1,6 @@
 import { Geist, Geist_Mono } from 'next/font/google'
 import { setTokenProvider } from '@workspace/shared-http'
-import { tokenProvider } from '@/lib/token-manager'
+import { tokenProvider } from '@workspace/auth'
 import { ClientInit } from '@/components/client-init'
 
 import '@workspace/ui/globals.css'

@@ -25,29 +25,44 @@ func NewCreatePageHandler(repo repositories.PageRepository) *CreatePageHandler {
 func (h *CreatePageHandler) Handle(ctx context.Context, req *CreatePageRequest, createdBy uuid.UUID) (*CreatePageResponse, error) {
 	// Create page entity
 	page := &entities.Page{
-		ID:          uuid.New(),
-		WorkspaceID: req.WorkspaceID,
-		Name:        req.Name,
-		URL:         req.URL,
-		CheckCount:  0,
-		CreatedBy:   createdBy,
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
+		ID:              uuid.New(),
+		WorkspaceID:     req.WorkspaceID,
+		Name:            req.Name,
+		URL:             req.URL,
+		CheckCount:      0,
+		Tags:            []string{},
+		CheckFrequency:  "Every day",
+		DetectedChanges: 0,
+		CreatedBy:       createdBy,
+		CreatedAt:       time.Now(),
+		UpdatedAt:       time.Now(),
 	}
 
 	// Save to database
 	if err := h.repo.Create(ctx, page); err != nil {
 		return nil, err
 	}
+	
+	// Create default monitoring config
+	// Note: This should ideally be done in a transaction or a separate service
+	// For now we'll just return the page with default values
 
-	// Return response
+	// Return response with all fields
 	return &CreatePageResponse{
-		ID:          page.ID,
-		WorkspaceID: page.WorkspaceID,
-		Name:        page.Name,
-		URL:         page.URL,
-		CreatedBy:   page.CreatedBy,
-		CreatedAt:   page.CreatedAt,
+		ID:                   page.ID,
+		WorkspaceID:          page.WorkspaceID,
+		Name:                 page.Name,
+		URL:                  page.URL,
+		ThumbnailURL:         page.ThumbnailURL,
+		LastCheckedAt:        page.LastCheckedAt,
+		LastChangeDetectedAt: page.LastChangeDetectedAt,
+		CheckCount:           page.CheckCount,
+		Tags:                 page.Tags,
+		CheckFrequency:       page.CheckFrequency,
+		DetectedChanges:      page.DetectedChanges,
+		CreatedBy:            page.CreatedBy,
+		CreatedAt:            page.CreatedAt,
+		UpdatedAt:            page.UpdatedAt,
 	}, nil
 }
 

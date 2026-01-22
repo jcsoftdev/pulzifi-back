@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	createpage "github.com/jcsoftdev/pulzifi-back/modules/page/application/create_page"
+	listpages "github.com/jcsoftdev/pulzifi-back/modules/page/application/list_pages"
 	"github.com/jcsoftdev/pulzifi-back/modules/page/infrastructure/persistence"
 	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
 	"github.com/jcsoftdev/pulzifi-back/shared/router"
@@ -39,6 +40,7 @@ func (m *Module) RegisterHTTPRoutes(router chi.Router) {
 	router.Route("/pages", func(r chi.Router) {
 		r.Use(middleware.AuthMiddleware.Authenticate)
 		r.Use(middleware.OrgMiddleware.RequireOrganizationMembership)
+		r.Use(middleware.RequireTenant)
 		r.Post("/", m.handleCreatePage)
 		r.Get("/", m.handleListPages)
 		r.Get("/{id}", m.handleGetPage)
@@ -82,19 +84,34 @@ func (m *Module) handleCreatePage(w http.ResponseWriter, r *http.Request) {
 
 // handleListPages lists all pages
 // @Summary List Pages
-// @Description List all pages
+// @Description List all pages for a workspace
 // @Tags pages
 // @Security BearerAuth
 // @Produce json
-// @Success 200 {object} map[string]interface{}
+// @Param workspace_id query string true "Workspace ID"
+// @Success 200 {object} listpages.ListPagesResponse
 // @Router /pages [get]
 func (m *Module) handleListPages(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"pages":   []interface{}{},
-		"message": "list pages",
-	})
+	// If db is not available, return mock response
+	if m.db == nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"pages":   []interface{}{},
+			"message": "list pages (mock - db not initialized)",
+		})
+		return
+	}
+
+	// Get tenant from context
+	tenant := middleware.GetTenantFromContext(r.Context())
+
+	// Create repository with dynamic tenant
+	repo := persistence.NewPagePostgresRepository(m.db, tenant)
+
+	// Use real handler
+	handler := listpages.NewListPagesHandler(repo)
+	handler.HandleHTTP(w, r)
 }
 
 // handleGetPage gets a page by ID

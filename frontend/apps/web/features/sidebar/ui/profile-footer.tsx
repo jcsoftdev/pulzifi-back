@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { LogOut } from 'lucide-react'
 import { signOut } from 'next-auth/react'
 import { Button } from '@workspace/ui/components/atoms/button'
@@ -11,10 +12,33 @@ export interface ProfileFooterProps {
 }
 
 export function ProfileFooter({ user }: Readonly<ProfileFooterProps>) {
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
+
   const handleLogout = async () => {
+    setIsLoggingOut(true)
     await signOut({
-      callbackUrl: '/login',
+      redirect: false,
     })
+
+    // Redirect to login without subdomain
+    const protocol = globalThis.window?.location.protocol || 'http:'
+    const hostname = globalThis.window?.location.hostname || 'localhost'
+    const port = globalThis.window?.location.port
+    const portStr = port ? `:${port}` : ''
+
+    const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1'
+
+    if (isLocalhost) {
+      // localhost:port -> localhost:port/login
+      const loginUrl = `${protocol}//localhost${portStr}/login`
+      globalThis.window?.location.replace(loginUrl)
+    } else {
+      // jcsoftdev-inc.app.local -> app.local/login
+      const parts = hostname.split('.')
+      const baseDomain = parts.slice(-2).join('.')
+      const loginUrl = `${protocol}//${baseDomain}/login`
+      globalThis.window?.location.replace(loginUrl)
+    }
   }
 
   return (
@@ -40,8 +64,9 @@ export function ProfileFooter({ user }: Readonly<ProfileFooterProps>) {
           className="h-4 w-4 flex-shrink-0"
           aria-label="Logout"
           onClick={handleLogout}
+          disabled={isLoggingOut}
         >
-          <LogOut className="h-4 w-4" />
+          <LogOut className={`h-4 w-4 ${isLoggingOut ? 'animate-spin' : ''}`} />
         </Button>
       </div>
     </div>

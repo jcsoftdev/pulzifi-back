@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/domain/entities"
+	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
 	"github.com/lib/pq"
 )
 
@@ -21,7 +22,7 @@ func NewNotificationPreferencePostgresRepository(db *sql.DB, tenant string) *Not
 }
 
 func (r *NotificationPreferencePostgresRepository) Create(ctx context.Context, pref *entities.NotificationPreference) error {
-	if _, err := r.db.ExecContext(ctx, "SET search_path TO "+r.tenant); err != nil {
+	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
 		return err
 	}
 
@@ -32,7 +33,7 @@ func (r *NotificationPreferencePostgresRepository) Create(ctx context.Context, p
 }
 
 func (r *NotificationPreferencePostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (*entities.NotificationPreference, error) {
-	if _, err := r.db.ExecContext(ctx, "SET search_path TO "+r.tenant); err != nil {
+	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
 		return nil, err
 	}
 
@@ -52,7 +53,7 @@ func (r *NotificationPreferencePostgresRepository) GetByID(ctx context.Context, 
 }
 
 func (r *NotificationPreferencePostgresRepository) GetByUserAndWorkspace(ctx context.Context, userID, workspaceID uuid.UUID) (*entities.NotificationPreference, error) {
-	if _, err := r.db.ExecContext(ctx, "SET search_path TO "+r.tenant); err != nil {
+	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
 		return nil, err
 	}
 
@@ -72,7 +73,7 @@ func (r *NotificationPreferencePostgresRepository) GetByUserAndWorkspace(ctx con
 }
 
 func (r *NotificationPreferencePostgresRepository) GetByUserAndPage(ctx context.Context, userID, pageID uuid.UUID) (*entities.NotificationPreference, error) {
-	if _, err := r.db.ExecContext(ctx, "SET search_path TO "+r.tenant); err != nil {
+	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
 		return nil, err
 	}
 
@@ -92,7 +93,7 @@ func (r *NotificationPreferencePostgresRepository) GetByUserAndPage(ctx context.
 }
 
 func (r *NotificationPreferencePostgresRepository) Update(ctx context.Context, pref *entities.NotificationPreference) error {
-	if _, err := r.db.ExecContext(ctx, "SET search_path TO "+r.tenant); err != nil {
+	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
 		return err
 	}
 
@@ -103,7 +104,7 @@ func (r *NotificationPreferencePostgresRepository) Update(ctx context.Context, p
 }
 
 func (r *NotificationPreferencePostgresRepository) DeleteByID(ctx context.Context, id uuid.UUID) error {
-	if _, err := r.db.ExecContext(ctx, "SET search_path TO "+r.tenant); err != nil {
+	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
 		return err
 	}
 

@@ -14,12 +14,12 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
 	"github.com/jcsoftdev/pulzifi-back/docs"
+	"github.com/jcsoftdev/pulzifi-back/shared/cache"
 	"github.com/jcsoftdev/pulzifi-back/shared/config"
 	"github.com/jcsoftdev/pulzifi-back/shared/database"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	middlewarex "github.com/jcsoftdev/pulzifi-back/shared/middleware"
 	"github.com/jcsoftdev/pulzifi-back/shared/router"
-	"github.com/jcsoftdev/pulzifi-back/shared/static"
 	"github.com/jcsoftdev/pulzifi-back/shared/swagger"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -48,6 +48,14 @@ func main() {
 		os.Exit(1)
 	}
 	defer db.Close()
+
+	// Initialize Redis for caching
+	if err := cache.InitRedis(cfg); err != nil {
+		logger.Error("Failed to initialize Redis", zap.Error(err))
+		os.Exit(1)
+	}
+	defer cache.CloseRedis()
+	logger.Info("Redis initialized successfully")
 
 	// Create a context that can be cancelled
 	ctx, cancel := context.WithCancel(context.Background())
@@ -103,17 +111,25 @@ func main() {
 	// Register routes from all modules under /api/v1
 	v1Router := chi.NewRouter()
 
-	// Add tenant middleware to extract subdomain and resolve to schema
+	// Add tenant middleware FIRST to extract subdomain and resolve to schema
+	// This must come before LoggingMiddleware so tenant is in context for logging
 	v1Router.Use(middlewarex.TenantMiddleware(db))
 
-	// Setup Swagger UI on v1 router
+	// Add response logging middleware to capture request/response details
+	v1Router.Use(middlewarex.ResponseLoggerMiddleware)
+
+	// Add logging middleware AFTER tenant middleware to capture tenant in logs
+	v1Router.Use(middlewarex.LoggingMiddleware)
+
+	// Setup Swagger UI on v1 router (bypassed by isPublicPath)
 	swagger.SetupSwaggerForChi(v1Router)
 
 	registry.RegisterAll(v1Router)
 	httpRouter.Mount("/api/v1", v1Router)
 
-	// Setup frontend (proxy o static)
-	static.Setup(httpRouter, cfg.FrontendURL, cfg.StaticDir, logger.Logger)
+	// Frontend proxy disabled - Frontend runs independently on localhost:3000
+	// Nginx handles routing and CORS
+	// static.Setup(httpRouter, cfg.FrontendURL, cfg.StaticDir, logger.Logger)
 
 	// Start HTTP server
 	wg.Add(1)

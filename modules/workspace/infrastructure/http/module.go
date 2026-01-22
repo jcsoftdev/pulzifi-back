@@ -15,6 +15,7 @@ import (
 	list_workspace_members "github.com/jcsoftdev/pulzifi-back/modules/workspace/application/list_workspace_members"
 	listworkspaces "github.com/jcsoftdev/pulzifi-back/modules/workspace/application/list_workspaces"
 	remove_workspace_member "github.com/jcsoftdev/pulzifi-back/modules/workspace/application/remove_workspace_member"
+	updateworkspace "github.com/jcsoftdev/pulzifi-back/modules/workspace/application/update_workspace"
 	"github.com/jcsoftdev/pulzifi-back/modules/workspace/domain/value_objects"
 	workspacemw "github.com/jcsoftdev/pulzifi-back/modules/workspace/infrastructure/middleware"
 	"github.com/jcsoftdev/pulzifi-back/modules/workspace/infrastructure/persistence"
@@ -73,6 +74,7 @@ func (m *Module) RegisterHTTPRoutes(router chi.Router) {
 		// ========================================
 		r.Use(middleware.AuthMiddleware.Authenticate)
 		r.Use(middleware.OrgMiddleware.RequireOrganizationMembership)
+		r.Use(middleware.RequireTenant)
 
 		// Public workspace endpoints (require global permission only)
 		r.Group(func(r chi.Router) {
@@ -253,12 +255,26 @@ func (m *Module) handleGetWorkspace(w http.ResponseWriter, r *http.Request) {
 // @Failure 404 {object} map[string]string
 // @Router /workspaces/{id} [put]
 func (m *Module) handleUpdateWorkspace(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set(contentTypeHeader, applicationJSON)
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{
-		"id":      chi.URLParam(r, "id"),
-		"message": "update workspace",
-	})
+	// If db is not available, return mock response
+	if m.db == nil {
+		w.Header().Set(contentTypeHeader, applicationJSON)
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{
+			"id":      chi.URLParam(r, "id"),
+			"message": "update workspace",
+		})
+		return
+	}
+
+	// Get tenant from context
+	tenant := middleware.GetTenantFromContext(r.Context())
+
+	// Create repository with dynamic tenant
+	repo := persistence.NewWorkspacePostgresRepository(m.db, tenant)
+
+	// Use real handler
+	handler := updateworkspace.NewUpdateWorkspaceHandler(repo)
+	handler.HandleHTTP(w, r)
 }
 
 // handleDeleteWorkspace deletes a workspace
