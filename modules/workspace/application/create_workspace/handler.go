@@ -29,6 +29,7 @@ func (h *CreateWorkspaceHandler) Handle(ctx context.Context, req *CreateWorkspac
 		ID:        uuid.New(),
 		Name:      req.Name,
 		Type:      req.Type,
+		Tags:      req.Tags,
 		CreatedBy: createdBy,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
@@ -58,6 +59,7 @@ func (h *CreateWorkspaceHandler) Handle(ctx context.Context, req *CreateWorkspac
 		ID:        workspace.ID,
 		Name:      workspace.Name,
 		Type:      workspace.Type,
+		Tags:      workspace.Tags,
 		CreatedBy: workspace.CreatedBy,
 		CreatedAt: workspace.CreatedAt,
 	}, nil

@@ -31,6 +31,7 @@ func (h *ListWorkspacesHandler) Handle(ctx context.Context) (*ListWorkspacesResp
 			ID:        ws.ID,
 			Name:      ws.Name,
 			Type:      ws.Type,
+			Tags:      ws.Tags,
 			CreatedBy: ws.CreatedBy,
 			CreatedAt: ws.CreatedAt,
 		}

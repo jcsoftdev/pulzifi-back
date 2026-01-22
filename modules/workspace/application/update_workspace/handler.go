@@ -35,6 +35,9 @@ func (h *UpdateWorkspaceHandler) Handle(ctx context.Context, id uuid.UUID, req *
 	if req.Type != nil {
 		workspace.Type = *req.Type
 	}
+	if req.Tags != nil {
+		workspace.Tags = *req.Tags
+	}
 
 	// Update timestamp
 	workspace.UpdatedAt = time.Now()
@@ -49,6 +52,7 @@ func (h *UpdateWorkspaceHandler) Handle(ctx context.Context, id uuid.UUID, req *
 		ID:        workspace.ID,
 		Name:      workspace.Name,
 		Type:      workspace.Type,
+		Tags:      workspace.Tags,
 		CreatedBy: workspace.CreatedBy,
 		CreatedAt: workspace.CreatedAt,
 		UpdatedAt: workspace.UpdatedAt,

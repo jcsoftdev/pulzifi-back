@@ -1,4 +1,4 @@
-package listworkspaces
+package getworkspace
 
 import (
 	"time"
@@ -6,15 +6,11 @@ import (
 	"github.com/google/uuid"
 )
 
-type Workspace struct {
+type GetWorkspaceResponse struct {
 	ID        uuid.UUID `json:"id"`
 	Name      string    `json:"name"`
 	Type      string    `json:"type"`
 	Tags      []string  `json:"tags"`
 	CreatedBy uuid.UUID `json:"created_by"`
 	CreatedAt time.Time `json:"created_at"`
-}
-
-type ListWorkspacesResponse struct {
-	Workspaces []Workspace `json:"workspaces"`
 }

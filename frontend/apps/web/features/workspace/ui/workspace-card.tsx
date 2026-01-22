@@ -101,16 +101,23 @@ export function WorkspaceCard({
           <div className="flex justify-start items-center gap-1">
             <h3 className="text-xl font-semibold text-foreground">{workspace.name}</h3>
           </div>
-          <Badge
-            variant="outline"
-            className={cn(
-              'w-fit px-2 py-1 rounded text-xs font-normal border',
-              styles.bg,
-              styles.text
-            )}
-          >
-            {workspace.type}
-          </Badge>
+          <div className="flex flex-wrap gap-1">
+            <Badge
+              variant="outline"
+              className={cn(
+                'w-fit px-2 py-1 rounded text-xs font-normal border',
+                styles.bg,
+                styles.text
+              )}
+            >
+              {workspace.type}
+            </Badge>
+            {workspace.tags && workspace.tags.map(tag => (
+              <Badge key={tag} variant="secondary" className="text-xs font-normal">
+                {tag}
+              </Badge>
+            ))}
+          </div>
         </div>
       </div>
 

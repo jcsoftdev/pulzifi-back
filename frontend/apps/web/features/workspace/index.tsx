@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import { SquarePlus } from 'lucide-react'
 import { Button } from '@workspace/ui/components/atoms/button'
 import { WorkspaceCard } from './ui/workspace-card'
@@ -21,6 +22,7 @@ export function WorkspaceFeature({
   initialWorkspaces = [],
   lastCheckTime = '10 min ago',
 }: Readonly<WorkspaceFeatureProps>) {
+  const router = useRouter()
   const { isLoading, error, deleteWorkspace, createWorkspace, updateWorkspace } = useWorkspaces()
 
   const [searchQuery, setSearchQuery] = useState('')
@@ -43,8 +45,7 @@ export function WorkspaceFeature({
 
   // biome-ignore lint/correctness/noUnusedVariables: Will be used for navigation
   const handleSelectWorkspace = (id: string) => {
-    console.log('Selected workspace:', id)
-    // Navigation will be implemented when workspace detail page is created
+    router.push(`/workspaces/${id}`)
   }
 
   const handleCreateWorkspace = () => {
@@ -67,6 +68,7 @@ export function WorkspaceFeature({
         if (result) {
           setWorkspaces((prev) => prev.map((ws) => (ws.id === editingWorkspace.id ? result : ws)))
           setIsCreateDialogOpen(false)
+          router.refresh()
         }
       } catch (err) {
         console.error('Failed to update workspace:', err)
@@ -80,6 +82,7 @@ export function WorkspaceFeature({
             ...prev,
           ])
           setIsCreateDialogOpen(false)
+          router.refresh()
         }
       } catch (err) {
         console.error('Failed to create workspace:', err)
@@ -189,11 +192,11 @@ export function WorkspaceFeature({
                   pageCount: 0,
                   status: 'Active',
                 }}
-                onSelect={() => console.log('View:', workspace.id)}
-                onOpen={() => console.log('Open:', workspace.id)}
+                onSelect={handleSelectWorkspace}
+                onOpen={() => handleSelectWorkspace(workspace.id)}
                 onRename={() => handleEditWorkspace(workspace)}
-                onEditTag={() => console.log('Edit tag:', workspace.id)}
-                onDelete={handleDeleteWorkspace}
+                onEditTag={() => handleEditWorkspace(workspace)}
+                onDelete={() => handleDeleteWorkspace(workspace.id)}
               />
             ))}
           </div>

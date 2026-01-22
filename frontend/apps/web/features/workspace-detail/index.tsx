@@ -1,29 +1,39 @@
 'use client'
 
 import { useState } from 'react'
-import { SquarePlus } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { SquarePlus, Settings, Trash2 } from 'lucide-react'
 import { Button } from '@workspace/ui/components/atoms/button'
 import { Input } from '@workspace/ui/components/atoms/input'
+import { Badge } from '@workspace/ui/components/atoms/badge'
 import { PagesTable } from '@/features/page/ui/pages-table'
 import { AddPageDialog } from '@/features/page/ui/add-page-dialog'
 import { createPageServer } from '@/features/page/application/services/server'
 import { PageApi } from '@workspace/services/page-api'
+import { EditWorkspaceDialog } from '@/features/workspace/ui/edit-workspace-dialog'
+import { DeleteWorkspaceDialog } from '@/features/workspace/ui/delete-workspace-dialog'
+import { useWorkspaces } from '@/features/workspace/application/hooks/use-workspaces'
 import type { Page, CreatePageDto } from '@/features/page/domain/types'
+import type { Workspace, WorkspaceType } from '@/features/workspace/domain/types'
 
 export interface WorkspaceDetailFeatureProps {
-  workspaceId: string
-  workspaceName: string
+  workspace: Workspace
   initialPages?: Page[]
 }
 
 export function WorkspaceDetailFeature({
-  workspaceId,
-  workspaceName,
+  workspace: initialWorkspace,
   initialPages = [],
 }: Readonly<WorkspaceDetailFeatureProps>) {
+  const router = useRouter()
+  const { updateWorkspace, deleteWorkspace, isLoading: isWorkspaceLoading } = useWorkspaces()
+  
+  const [workspace, setWorkspace] = useState<Workspace>(initialWorkspace)
   const [pages, setPages] = useState<Page[]>(initialPages)
   const [searchQuery, setSearchQuery] = useState('')
   const [isAddPageOpen, setIsAddPageOpen] = useState(false)
+  const [isEditWorkspaceOpen, setIsEditWorkspaceOpen] = useState(false)
+  const [isDeleteWorkspaceOpen, setIsDeleteWorkspaceOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<Error | null>(null)
 
@@ -39,6 +49,28 @@ export function WorkspaceDetailFeature({
       setError(err instanceof Error ? err : new Error('Failed to add page'))
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const handleUpdateWorkspace = async (id: string, data: { name: string; type: WorkspaceType; tags: string[] }) => {
+    try {
+      const updated = await updateWorkspace(id, data)
+      if (updated) {
+        setWorkspace(updated)
+        setIsEditWorkspaceOpen(false)
+        router.refresh()
+      }
+    } catch (err) {
+      console.error('Failed to update workspace:', err)
+    }
+  }
+
+  const handleDeleteWorkspace = async () => {
+    try {
+      await deleteWorkspace(workspace.id)
+      router.push('/workspaces')
+    } catch (err) {
+      console.error('Failed to delete workspace:', err)
     }
   }
 
@@ -78,12 +110,40 @@ export function WorkspaceDetailFeature({
       {/* Welcome Container */}
       <div className="flex justify-between items-start gap-2 px-24 py-6">
         <div className="flex flex-col gap-2">
-          <h1 className="text-2xl font-semibold text-foreground">
-            Added pages for {workspaceName}
-          </h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-semibold text-foreground">
+              Added pages for {workspace.name}
+            </h1>
+            <div className="flex gap-1">
+              {workspace.tags && workspace.tags.map(tag => (
+                <Badge key={tag} variant="secondary">
+                  {tag}
+                </Badge>
+              ))}
+            </div>
+          </div>
           <p className="text-base font-normal text-muted-foreground">
             Here are all the pages you've added to this workspace.
           </p>
+        </div>
+        
+        <div className="flex items-center gap-2">
+           <Button
+            variant="outline"
+            onClick={() => setIsEditWorkspaceOpen(true)}
+            className="gap-2"
+          >
+            <Settings className="w-4 h-4" />
+            Edit Workspace
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={() => setIsDeleteWorkspaceOpen(true)}
+            size="icon"
+            className="h-10 w-10"
+          >
+            <Trash2 className="w-4 h-4" />
+          </Button>
         </div>
       </div>
 
@@ -103,6 +163,7 @@ export function WorkspaceDetailFeature({
               strokeWidth="1.5"
               strokeLinecap="round"
               strokeLinejoin="round"
+              strokeLinejoin="round"
             />
             <path
               d="M14.5833 14.75L11.7292 11.8958"
@@ -114,7 +175,7 @@ export function WorkspaceDetailFeature({
           </svg>
           <Input
             type="search"
-            placeholder="Search workspaces"
+            placeholder="Search pages"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10"
@@ -148,9 +209,28 @@ export function WorkspaceDetailFeature({
         open={isAddPageOpen}
         onOpenChange={setIsAddPageOpen}
         onSubmit={handleAddPage}
-        workspaceId={workspaceId}
+        workspaceId={workspace.id}
         isLoading={isLoading}
         error={error}
+      />
+
+      {/* Edit Workspace Dialog */}
+      <EditWorkspaceDialog
+        open={isEditWorkspaceOpen}
+        onOpenChange={setIsEditWorkspaceOpen}
+        onSubmit={handleUpdateWorkspace}
+        isLoading={isWorkspaceLoading}
+        error={null}
+        workspace={workspace}
+      />
+
+      {/* Delete Workspace Dialog */}
+      <DeleteWorkspaceDialog
+        open={isDeleteWorkspaceOpen}
+        onOpenChange={setIsDeleteWorkspaceOpen}
+        onConfirm={handleDeleteWorkspace}
+        workspaceName={workspace.name}
+        isLoading={isWorkspaceLoading}
       />
     </div>
   )

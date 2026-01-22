@@ -11,6 +11,7 @@ import (
 	"github.com/jcsoftdev/pulzifi-back/modules/workspace/domain/value_objects"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
+	"github.com/lib/pq"
 	"go.uber.org/zap"
 )
 
@@ -31,8 +32,8 @@ func NewWorkspacePostgresRepository(db *sql.DB, tenant string) *WorkspacePostgre
 // Create stores a new workspace in tenant schema
 func (r *WorkspacePostgresRepository) Create(ctx context.Context, workspace *entities.Workspace) error {
 	query := `
-		INSERT INTO workspaces (id, name, type, created_by, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO workspaces (id, name, type, tags, created_by, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`
 
 	// Set search path to tenant schema
@@ -45,6 +46,7 @@ func (r *WorkspacePostgresRepository) Create(ctx context.Context, workspace *ent
 		workspace.ID,
 		workspace.Name,
 		workspace.Type,
+		pq.Array(workspace.Tags),
 		workspace.CreatedBy,
 		workspace.CreatedAt,
 		workspace.UpdatedAt,
@@ -61,7 +63,7 @@ func (r *WorkspacePostgresRepository) Create(ctx context.Context, workspace *ent
 // GetByID retrieves a workspace from tenant schema
 func (r *WorkspacePostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (*entities.Workspace, error) {
 	query := `
-		SELECT id, name, type, created_by, created_at, updated_at, deleted_at
+		SELECT id, name, type, tags, created_by, created_at, updated_at, deleted_at
 		FROM workspaces
 		WHERE id = $1 AND deleted_at IS NULL
 	`
@@ -79,6 +81,7 @@ func (r *WorkspacePostgresRepository) GetByID(ctx context.Context, id uuid.UUID)
 		&workspace.ID,
 		&workspace.Name,
 		&workspace.Type,
+		pq.Array(&workspace.Tags),
 		&workspace.CreatedBy,
 		&workspace.CreatedAt,
 		&workspace.UpdatedAt,
@@ -103,7 +106,7 @@ func (r *WorkspacePostgresRepository) GetByID(ctx context.Context, id uuid.UUID)
 // List retrieves all workspaces in tenant schema
 func (r *WorkspacePostgresRepository) List(ctx context.Context) ([]*entities.Workspace, error) {
 	query := `
-		SELECT id, name, type, created_by, created_at, updated_at, deleted_at
+		SELECT id, name, type, tags, created_by, created_at, updated_at, deleted_at
 		FROM workspaces
 		WHERE deleted_at IS NULL
 		ORDER BY created_at DESC
@@ -131,6 +134,7 @@ func (r *WorkspacePostgresRepository) List(ctx context.Context) ([]*entities.Wor
 			&workspace.ID,
 			&workspace.Name,
 			&workspace.Type,
+			pq.Array(&workspace.Tags),
 			&workspace.CreatedBy,
 			&workspace.CreatedAt,
 			&workspace.UpdatedAt,
@@ -153,7 +157,7 @@ func (r *WorkspacePostgresRepository) List(ctx context.Context) ([]*entities.Wor
 // ListByCreator retrieves all workspaces created by a user
 func (r *WorkspacePostgresRepository) ListByCreator(ctx context.Context, createdBy uuid.UUID) ([]*entities.Workspace, error) {
 	query := `
-		SELECT id, name, type, created_by, created_at, updated_at, deleted_at
+		SELECT id, name, type, tags, created_by, created_at, updated_at, deleted_at
 		FROM workspaces
 		WHERE created_by = $1 AND deleted_at IS NULL
 		ORDER BY created_at DESC
@@ -181,6 +185,7 @@ func (r *WorkspacePostgresRepository) ListByCreator(ctx context.Context, created
 			&workspace.ID,
 			&workspace.Name,
 			&workspace.Type,
+			pq.Array(&workspace.Tags),
 			&workspace.CreatedBy,
 			&workspace.CreatedAt,
 			&workspace.UpdatedAt,
@@ -204,8 +209,8 @@ func (r *WorkspacePostgresRepository) ListByCreator(ctx context.Context, created
 func (r *WorkspacePostgresRepository) Update(ctx context.Context, workspace *entities.Workspace) error {
 	query := `
 		UPDATE workspaces
-		SET name = $1, type = $2, updated_at = $3
-		WHERE id = $4
+		SET name = $1, type = $2, tags = $3, updated_at = $4
+		WHERE id = $5
 	`
 
 	// Set search path to tenant schema
@@ -219,6 +224,7 @@ func (r *WorkspacePostgresRepository) Update(ctx context.Context, workspace *ent
 	_, err := r.db.ExecContext(ctx, query,
 		workspace.Name,
 		workspace.Type,
+		pq.Array(workspace.Tags),
 		workspace.UpdatedAt,
 		workspace.ID,
 	)
@@ -407,7 +413,7 @@ func (r *WorkspacePostgresRepository) ListMembers(ctx context.Context, workspace
 // ListByMember retrieves all workspaces where user is a member
 func (r *WorkspacePostgresRepository) ListByMember(ctx context.Context, userID uuid.UUID) ([]*entities.Workspace, error) {
 	query := `
-		SELECT w.id, w.name, w.type, w.created_by, w.created_at, w.updated_at, w.deleted_at
+		SELECT w.id, w.name, w.type, w.tags, w.created_by, w.created_at, w.updated_at, w.deleted_at
 		FROM workspaces w
 		INNER JOIN workspace_members wm ON w.id = wm.workspace_id
 		WHERE wm.user_id = $1 AND w.deleted_at IS NULL AND wm.removed_at IS NULL
@@ -436,6 +442,7 @@ func (r *WorkspacePostgresRepository) ListByMember(ctx context.Context, userID u
 			&workspace.ID,
 			&workspace.Name,
 			&workspace.Type,
+			pq.Array(&workspace.Tags),
 			&workspace.CreatedBy,
 			&workspace.CreatedAt,
 			&workspace.UpdatedAt,

@@ -12,6 +12,7 @@ import (
 	add_workspace_member "github.com/jcsoftdev/pulzifi-back/modules/workspace/application/add_workspace_member"
 	createworkspace "github.com/jcsoftdev/pulzifi-back/modules/workspace/application/create_workspace"
 	delete_workspace "github.com/jcsoftdev/pulzifi-back/modules/workspace/application/delete_workspace"
+	getworkspace "github.com/jcsoftdev/pulzifi-back/modules/workspace/application/get_workspace"
 	list_workspace_members "github.com/jcsoftdev/pulzifi-back/modules/workspace/application/list_workspace_members"
 	listworkspaces "github.com/jcsoftdev/pulzifi-back/modules/workspace/application/list_workspaces"
 	remove_workspace_member "github.com/jcsoftdev/pulzifi-back/modules/workspace/application/remove_workspace_member"
@@ -230,16 +231,64 @@ func (m *Module) handleListWorkspaces(w http.ResponseWriter, r *http.Request) {
 // @Security BearerAuth
 // @Produce json
 // @Param id path string true "Workspace ID"
-// @Success 200 {object} map[string]interface{}
+// @Success 200 {object} getworkspace.GetWorkspaceResponse
 // @Failure 404 {object} map[string]string
 // @Router /workspaces/{id} [get]
 func (m *Module) handleGetWorkspace(w http.ResponseWriter, r *http.Request) {
+	// If db is not available, return mock response
+	if m.db == nil {
+		w.Header().Set(contentTypeHeader, applicationJSON)
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{
+			"id":      chi.URLParam(r, "id"),
+			"message": "get workspace (mock - db not initialized)",
+		})
+		return
+	}
+
+	// Get workspace ID from URL
+	workspaceIDStr := chi.URLParam(r, "id")
+	workspaceID, err := uuid.Parse(workspaceIDStr)
+	if err != nil {
+		w.Header().Set(contentTypeHeader, applicationJSON)
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": errInvalidWorkspaceID,
+		})
+		return
+	}
+
+	// Get tenant from context
+	tenant := middleware.GetTenantFromContext(r.Context())
+
+	// Create repository with dynamic tenant
+	repo := persistence.NewWorkspacePostgresRepository(m.db, tenant)
+
+	// Use real handler
+	handler := getworkspace.NewGetWorkspaceHandler(repo)
+	response, err := handler.Handle(r.Context(), workspaceID)
+	if err != nil {
+		if err == getworkspace.ErrWorkspaceNotFound {
+			w.Header().Set(contentTypeHeader, applicationJSON)
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": errWorkspaceNotFound,
+			})
+			return
+		}
+
+		logger.Error("Failed to get workspace", zap.Error(err))
+		w.Header().Set(contentTypeHeader, applicationJSON)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": errInternalServerError,
+		})
+		return
+	}
+
 	w.Header().Set(contentTypeHeader, applicationJSON)
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{
-		"id":      chi.URLParam(r, "id"),
-		"message": "get workspace",
-	})
+	json.NewEncoder(w).Encode(response)
 }
 
 // handleUpdateWorkspace updates a workspace

@@ -5,6 +5,7 @@ interface WorkspaceBackendDto {
   id: string
   name: string
   type: string
+  tags: string[]
   created_by: string
   created_at: string
 }
@@ -18,6 +19,7 @@ export interface Workspace {
   id: string
   name: string
   type: string
+  tags: string[]
   createdBy: string
   createdAt: string
 }
@@ -29,6 +31,7 @@ export interface ListWorkspacesResponse {
 export interface CreateWorkspaceDto {
   name: string
   type: 'Personal' | 'Team' | 'Competitor'
+  tags?: string[]
 }
 
 export interface ListWorkspacesParams {
@@ -41,6 +44,7 @@ function transformWorkspace(backend: WorkspaceBackendDto): Workspace {
     id: backend.id,
     name: backend.name,
     type: backend.type,
+    tags: backend.tags || [],
     createdBy: backend.created_by,
     createdAt: backend.created_at,
   }

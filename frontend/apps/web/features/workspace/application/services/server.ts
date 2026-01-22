@@ -22,6 +22,7 @@ export async function updateWorkspaceServer(
   data: Partial<{
     name: string
     type: 'Personal' | 'Team' | 'Competitor'
+    tags: string[]
   }>
 ): Promise<Workspace> {
   return await WorkspaceApi.updateWorkspace(id, data)

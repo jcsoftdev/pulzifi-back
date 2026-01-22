@@ -36,7 +36,17 @@ class TokenProviderRegistry {
 }
 
 // Singleton instance
-const registry = new TokenProviderRegistry()
+const REGISTRY_KEY = Symbol.for('@workspace/shared-http/token-provider-registry')
+
+const globalRegistry = globalThis as unknown as {
+  [REGISTRY_KEY]: TokenProviderRegistry
+}
+
+if (!globalRegistry[REGISTRY_KEY]) {
+  globalRegistry[REGISTRY_KEY] = new TokenProviderRegistry()
+}
+
+const registry = globalRegistry[REGISTRY_KEY]
 
 /**
  * Configure the global token provider

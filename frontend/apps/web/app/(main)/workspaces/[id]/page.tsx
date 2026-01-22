@@ -32,8 +32,7 @@ export default async function WorkspaceDetailPage({ params }: WorkspaceDetailPag
     <>
       <WorkspaceBreadcrumbs breadcrumbs={breadcrumbs} />
       <WorkspaceDetailFeature
-        workspaceId={id}
-        workspaceName={workspace.name}
+        workspace={workspace}
         initialPages={pages}
       />
     </>
