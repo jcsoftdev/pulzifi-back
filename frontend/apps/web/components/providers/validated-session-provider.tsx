@@ -1,10 +1,10 @@
 'use client'
 
-import { SessionProvider as NextAuthSessionProvider } from 'next-auth/react'
+import { SessionProvider as NextAuthSessionProvider, SessionProviderProps as NextAuthSessionProviderProps } from 'next-auth/react'
 import { useSessionValidator } from '@/hooks/use-session-validator'
 import type { ReactNode } from 'react'
 
-interface SessionProviderProps {
+interface SessionProviderProps extends Omit<NextAuthSessionProviderProps, 'children'> {
   children: ReactNode
 }
 
@@ -30,9 +30,9 @@ function SessionValidator({ children }: Readonly<{ children: ReactNode }>) {
  * </ValidatedSessionProvider>
  * ```
  */
-export function ValidatedSessionProvider({ children }: Readonly<SessionProviderProps>) {
+export function ValidatedSessionProvider({ children, ...props }: Readonly<SessionProviderProps>) {
   return (
-    <NextAuthSessionProvider>
+    <NextAuthSessionProvider {...props}>
       <SessionValidator>{children}</SessionValidator>
     </NextAuthSessionProvider>
   )

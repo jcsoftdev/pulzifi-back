@@ -2,7 +2,7 @@
 
 import type * as React from 'react'
 import { ThemeProvider as NextThemesProvider } from 'next-themes'
-import { SessionProvider } from 'next-auth/react'
+import { ValidatedSessionProvider } from '@/components/providers/validated-session-provider'
 
 export function Providers({
   children,
@@ -10,7 +10,7 @@ export function Providers({
   children: React.ReactNode
 }>) {
   return (
-    <SessionProvider refetchInterval={0} refetchOnWindowFocus={false}>
+    <ValidatedSessionProvider refetchInterval={0} refetchOnWindowFocus={false}>
       <NextThemesProvider
         attribute="class"
         defaultTheme="system"
@@ -20,6 +20,6 @@ export function Providers({
       >
         {children}
       </NextThemesProvider>
-    </SessionProvider>
+    </ValidatedSessionProvider>
   )
 }

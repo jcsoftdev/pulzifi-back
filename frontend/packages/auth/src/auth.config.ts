@@ -8,6 +8,9 @@ import type { ExtendedJWT, ExtendedUser, ExtendedSession } from './extended-type
  * Refreshes the access token using the refresh token
  */
 let refreshCount = 0
+// Map to store pending refresh promises to avoid race conditions
+const pendingRefreshes = new Map<string, Promise<JWT>>()
+
 async function refreshAccessToken(token: ExtendedJWT): Promise<JWT> {
   try {
     refreshCount++
@@ -20,22 +23,39 @@ async function refreshAccessToken(token: ExtendedJWT): Promise<JWT> {
     const refreshToken = token.refreshToken
     const refreshTokenStr = String(refreshToken)
     const tokenPreview = `${refreshTokenStr.substring(0, 10)}...${refreshTokenStr.substring(refreshTokenStr.length - 10)}`
+    
+    // If a refresh is already in progress for this token, return the existing promise
+    if (pendingRefreshes.has(refreshTokenStr)) {
+      console.log(`[Refresh #${currentRefreshId}] Reusing pending refresh for token: ${tokenPreview}`)
+      return pendingRefreshes.get(refreshTokenStr)!
+    }
+
     console.log(`[Refresh #${currentRefreshId}] Starting token refresh with token: ${tokenPreview}`)
 
-    const response = await AuthApi.refreshToken(
-      refreshToken,
-      token.tenant
-    )
-    
-    const newTokenPreview = `${response.refreshToken.substring(0, 10)}...${response.refreshToken.substring(response.refreshToken.length - 10)}`
-    console.log(`[Refresh #${currentRefreshId}] Token refresh successful, new token: ${newTokenPreview}`)
-    return {
-      ...token,
-      accessToken: response.accessToken,
-      refreshToken: response.refreshToken,
-      accessTokenExpires: Date.now() + response.expiresIn * 1000,
-      tenant: response.tenant || token.tenant, // Preserve tenant from response or original token
-    } as JWT
+    const refreshPromise = (async () => {
+      const response = await AuthApi.refreshToken(
+        refreshToken,
+        token.tenant
+      )
+      
+      const newTokenPreview = `${response.refreshToken.substring(0, 10)}...${response.refreshToken.substring(response.refreshToken.length - 10)}`
+      console.log(`[Refresh #${currentRefreshId}] Token refresh successful, new token: ${newTokenPreview}`)
+      return {
+        ...token,
+        accessToken: response.accessToken,
+        refreshToken: response.refreshToken,
+        accessTokenExpires: Date.now() + response.expiresIn * 1000,
+        tenant: response.tenant || token.tenant, // Preserve tenant from response or original token
+      } as JWT
+    })()
+
+    pendingRefreshes.set(refreshTokenStr, refreshPromise)
+
+    try {
+      return await refreshPromise
+    } finally {
+      pendingRefreshes.delete(refreshTokenStr)
+    }
   } catch (error) {
     console.error(`[Refresh #${refreshCount}] Token refresh FAILED:`, error)
 
@@ -47,7 +67,11 @@ async function refreshAccessToken(token: ExtendedJWT): Promise<JWT> {
   }
 }
 
-const cookieDomain = process.env.NODE_ENV === 'production' ? '.pulzifi.com' : undefined
+const cookieDomain = process.env.NODE_ENV === 'production' 
+  ? '.pulzifi.com' 
+  : process.env.NEXT_PUBLIC_APP_DOMAIN 
+    ? `.${process.env.NEXT_PUBLIC_APP_DOMAIN}` 
+    : undefined
 
 const authConfig = {
   secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
@@ -90,6 +114,7 @@ const authConfig = {
             accessToken: response.accessToken,
             refreshToken: response.refreshToken,
             tenant: response.tenant,
+            expiresIn: response.expiresIn,
           } as User
 
           return user
@@ -112,7 +137,7 @@ const authConfig = {
           ...token,
           accessToken: extendedUser.accessToken,
           refreshToken: extendedUser.refreshToken,
-          accessTokenExpires: Date.now() + 5 * 1000, // 5 seconds for testing
+          accessTokenExpires: Date.now() + extendedUser.expiresIn * 1000,
           id: extendedUser.id,
           email: extendedUser.email,
           name: extendedUser.name,
@@ -126,12 +151,12 @@ const authConfig = {
       }
 
       // Return previous token if the access token has not expired yet
-      if (Date.now() < (token.accessTokenExpires as number)) {
+      if (Date.now() < (token.accessTokenExpires as number) - 2000) { // Refresh 2s before expiry
         return token
       }
 
       // Access token has expired, try to refresh it
-      return refreshAccessToken(token as ExtendedJWT)
+      return await refreshAccessToken(token as ExtendedJWT)
     },
     async session({ session, token }: { session: Session; token: JWT }): Promise<Session> {
       const extSession = session as ExtendedSession

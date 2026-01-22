@@ -2,7 +2,6 @@ package main
 
 import (
 	"database/sql"
-	"time"
 
 	alert "github.com/jcsoftdev/pulzifi-back/modules/alert/infrastructure/http"
 	auth "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/http"
@@ -36,8 +35,8 @@ func registerAllModulesInternal(registry *router.Registry, db *sql.DB) {
 	authService := authservices.NewBcryptAuthService(userRepo, permRepo)
 	tokenService := authservices.NewJWTService(
 		cfg.JWTSecret,
-		15*time.Minute,
-		7*24*time.Hour,
+		cfg.JWTExpiration,
+		cfg.JWTRefreshExpiration,
 		roleRepo,
 		permRepo,
 	)

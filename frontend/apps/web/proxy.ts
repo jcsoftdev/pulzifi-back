@@ -33,6 +33,8 @@ export async function proxy(request: NextRequest) {
     if (!session) {
       console.warn(`[Proxy-${requestId}] No session found, redirecting to login`)
       const loginUrl = new URL('/login', request.url)
+      // If we are on a subdomain (e.g. jcsoftdev-inc.localhost), we want to stay there
+      // instead of redirecting to the base domain
       loginUrl.searchParams.set('callbackUrl', request.nextUrl.pathname)
       return NextResponse.redirect(loginUrl)
     }

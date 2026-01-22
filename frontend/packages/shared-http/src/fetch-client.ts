@@ -41,7 +41,11 @@ export class FetchHttpClient implements IHttpClient {
 
     const dynamicHeaders: Record<string, string> = {}
     if (this.tokenProvider) {
-      const token = await this.tokenProvider.getServerToken()
+      const isServer = typeof window === 'undefined'
+      const token = isServer 
+        ? await this.tokenProvider.getServerToken()
+        : await this.tokenProvider.getClientToken()
+
       if (token) {
         dynamicHeaders.Authorization = `Bearer ${token}`
       }

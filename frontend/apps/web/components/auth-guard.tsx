@@ -18,13 +18,16 @@ export async function AuthGuard({ children }: AuthGuardProps) {
 
   // If no session or refresh token error, redirect to login
   if (!session || session.error === 'RefreshAccessTokenError') {
-    // Redirect to base domain login (NextAuth will clear the cookie automatically)
-    const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http'
-    const hostname = process.env.NEXT_PUBLIC_APP_DOMAIN || 'app.local'
-    const port = process.env.PORT ? `:${process.env.PORT}` : ''
-
-    const loginUrl = `${protocol}://${hostname}${port}/login`
-    redirect(loginUrl)
+    // Redirect to login (AuthGuard runs on server, so we can't easily get current host without headers)
+    // But for subdomains, we want to redirect to the login page of the CURRENT domain if possible,
+    // or fallback to the base domain.
+    // Since this is a server component, we rely on the hardcoded base domain for safety.
+    // If you want to support subdomain login redirects, you'd need to pass headers() here.
+    
+    // For now, let's just redirect to /login relative to the current root, 
+    // but redirect() requires an absolute URL or path. 
+    // Using a relative path '/login' will keep the current domain!
+    redirect('/login')
   }
 
   return children

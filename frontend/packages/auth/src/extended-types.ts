@@ -17,6 +17,7 @@ export interface ExtendedUser extends User {
   accessToken: string
   refreshToken: string
   tenant: string
+  expiresIn: number
 }
 
 /**
