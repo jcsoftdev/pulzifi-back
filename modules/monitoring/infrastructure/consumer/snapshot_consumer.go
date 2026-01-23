@@ -8,6 +8,8 @@ import (
 
 	ckafka "github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/google/uuid"
+	insightEntities "github.com/jcsoftdev/pulzifi-back/modules/insight/domain/entities"
+	insightPersistence "github.com/jcsoftdev/pulzifi-back/modules/insight/infrastructure/persistence"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/domain/entities"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/persistence"
 	"github.com/jcsoftdev/pulzifi-back/shared/config"
@@ -35,7 +37,7 @@ func (c *SnapshotConsumer) Start(ctx context.Context) {
 	if c.consumer == nil {
 		return
 	}
-	
+
 	go func() {
 		defer c.consumer.Close()
 		for {
@@ -65,6 +67,8 @@ func (c *SnapshotConsumer) processMessage(ctx context.Context, value []byte, top
 		URL          string    `json:"url"`
 		SchemaName   string    `json:"schema_name"`
 		ImageURL     string    `json:"image_url"`
+		HTMLURL      string    `json:"html_url"`
+		ContentHash  string    `json:"content_hash"`
 		Status       string    `json:"status"`
 		ErrorMessage string    `json:"error_message,omitempty"`
 		CreatedAt    time.Time `json:"created_at"`
@@ -75,7 +79,7 @@ func (c *SnapshotConsumer) processMessage(ctx context.Context, value []byte, top
 		logger.Error("Failed to unmarshal snapshot result", zap.Error(err))
 		return
 	}
-	
+
 	logger.Info("Processing snapshot result", zap.String("page_id", result.PageID), zap.String("status", result.Status))
 
 	if result.SchemaName == "" {
@@ -91,15 +95,37 @@ func (c *SnapshotConsumer) processMessage(ctx context.Context, value []byte, top
 
 	// Create Check record
 	checkRepo := persistence.NewCheckPostgresRepository(c.db, result.SchemaName)
-	
+
+	var changeDetected bool
+	var changeType string
+
+	if result.Status == "success" {
+		latestCheck, err := checkRepo.GetLatestByPage(ctx, pageID)
+		if err != nil {
+			logger.Error("Failed to get latest check", zap.Error(err))
+		}
+
+		if latestCheck != nil && latestCheck.Status == "success" {
+			// Basic change detection using ContentHash
+			if result.ContentHash != "" && latestCheck.ContentHash != "" {
+				if result.ContentHash != latestCheck.ContentHash {
+					changeDetected = true
+					changeType = "content"
+				}
+			}
+		}
+	}
+
 	check := &entities.Check{
-		ID:            uuid.New(),
-		PageID:        pageID,
-		Status:        result.Status,
-		ScreenshotURL: result.ImageURL,
-		CheckedAt:     result.CreatedAt,
-		// Change detection logic would go here. For now default to false.
-		ChangeDetected: false, 
+		ID:              uuid.New(),
+		PageID:          pageID,
+		Status:          result.Status,
+		ScreenshotURL:   result.ImageURL,
+		HTMLSnapshotURL: result.HTMLURL,
+		ContentHash:     result.ContentHash,
+		CheckedAt:       result.CreatedAt,
+		ChangeDetected:  changeDetected,
+		ChangeType:      changeType,
 	}
 	if result.Status == "failed" {
 		check.ErrorMessage = result.ErrorMessage
@@ -114,5 +140,20 @@ func (c *SnapshotConsumer) processMessage(ctx context.Context, value []byte, top
 
 	if err := checkRepo.Create(ctx, check); err != nil {
 		logger.Error("Failed to create check record", zap.Error(err))
+	} else if changeDetected {
+		// Generate Insight
+		insightRepo := insightPersistence.NewInsightPostgresRepository(c.db, result.SchemaName)
+		insight := &insightEntities.Insight{
+			ID:          uuid.New(),
+			PageID:      pageID,
+			CheckID:     check.ID,
+			InsightType: "change_summary",
+			Title:       "Content Change Detected",
+			Content:     "The page content has changed significantly since the last check.",
+			CreatedAt:   time.Now(),
+		}
+		if err := insightRepo.Create(ctx, insight); err != nil {
+			logger.Error("Failed to create insight", zap.Error(err))
+		}
 	}
 }

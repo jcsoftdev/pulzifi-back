@@ -57,7 +57,9 @@ export interface Check {
   pageId: string
   status: string
   screenshotUrl: string
+  htmlSnapshotUrl: string
   changeDetected: boolean
+  changeType: string
   errorMessage?: string
   checkedAt: string
 }
@@ -263,7 +265,9 @@ export const PageApi = {
       pageId: c.page_id,
       status: c.status,
       screenshotUrl: c.screenshot_url,
+      htmlSnapshotUrl: c.html_snapshot_url,
       changeDetected: c.change_detected,
+      changeType: c.change_type,
       errorMessage: c.error_message,
       checkedAt: c.checked_at,
     }))

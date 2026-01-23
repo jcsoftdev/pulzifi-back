@@ -30,8 +30,8 @@ func (r *CheckPostgresRepository) Create(ctx context.Context, check *entities.Ch
 		return err
 	}
 
-	q := `INSERT INTO checks (id, page_id, status, screenshot_url, html_snapshot_url, change_detected, change_type, error_message, duration_ms, checked_at) 
-	      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`
+	q := `INSERT INTO checks (id, page_id, status, screenshot_url, html_snapshot_url, content_hash, change_detected, change_type, error_message, duration_ms, checked_at) 
+	      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`
 
 	_, err := r.db.ExecContext(ctx, q,
 		check.ID,
@@ -39,6 +39,7 @@ func (r *CheckPostgresRepository) Create(ctx context.Context, check *entities.Ch
 		check.Status,
 		check.ScreenshotURL,
 		check.HTMLSnapshotURL,
+		check.ContentHash,
 		check.ChangeDetected,
 		check.ChangeType,
 		check.ErrorMessage,
@@ -55,7 +56,7 @@ func (r *CheckPostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (*e
 	}
 
 	var check entities.Check
-	q := `SELECT id, page_id, status, screenshot_url, html_snapshot_url, change_detected, change_type, error_message, duration_ms, checked_at 
+	q := `SELECT id, page_id, status, COALESCE(screenshot_url, ''), COALESCE(html_snapshot_url, ''), COALESCE(content_hash, ''), COALESCE(change_detected, false), COALESCE(change_type, ''), COALESCE(error_message, ''), COALESCE(duration_ms, 0), checked_at 
 	      FROM checks WHERE id = $1`
 
 	err := r.db.QueryRowContext(ctx, q, id).Scan(
@@ -64,6 +65,7 @@ func (r *CheckPostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (*e
 		&check.Status,
 		&check.ScreenshotURL,
 		&check.HTMLSnapshotURL,
+		&check.ContentHash,
 		&check.ChangeDetected,
 		&check.ChangeType,
 		&check.ErrorMessage,
@@ -87,7 +89,7 @@ func (r *CheckPostgresRepository) ListByPage(ctx context.Context, pageID uuid.UU
 		return nil, err
 	}
 
-	q := `SELECT id, page_id, status, screenshot_url, html_snapshot_url, change_detected, change_type, error_message, duration_ms, checked_at 
+	q := `SELECT id, page_id, status, COALESCE(screenshot_url, ''), COALESCE(html_snapshot_url, ''), COALESCE(content_hash, ''), COALESCE(change_detected, false), COALESCE(change_type, ''), COALESCE(error_message, ''), COALESCE(duration_ms, 0), checked_at 
 	      FROM checks WHERE page_id = $1 ORDER BY checked_at DESC`
 
 	rows, err := r.db.QueryContext(ctx, q, pageID)
@@ -105,6 +107,7 @@ func (r *CheckPostgresRepository) ListByPage(ctx context.Context, pageID uuid.UU
 			&check.Status,
 			&check.ScreenshotURL,
 			&check.HTMLSnapshotURL,
+			&check.ContentHash,
 			&check.ChangeDetected,
 			&check.ChangeType,
 			&check.ErrorMessage,
@@ -117,4 +120,38 @@ func (r *CheckPostgresRepository) ListByPage(ctx context.Context, pageID uuid.UU
 	}
 
 	return checks, nil
+}
+
+// GetLatestByPage retrieves the latest check for a page
+func (r *CheckPostgresRepository) GetLatestByPage(ctx context.Context, pageID uuid.UUID) (*entities.Check, error) {
+	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
+		return nil, err
+	}
+
+	var check entities.Check
+	q := `SELECT id, page_id, status, COALESCE(screenshot_url, ''), COALESCE(html_snapshot_url, ''), COALESCE(content_hash, ''), COALESCE(change_detected, false), COALESCE(change_type, ''), COALESCE(error_message, ''), COALESCE(duration_ms, 0), checked_at 
+	      FROM checks WHERE page_id = $1 ORDER BY checked_at DESC LIMIT 1`
+
+	err := r.db.QueryRowContext(ctx, q, pageID).Scan(
+		&check.ID,
+		&check.PageID,
+		&check.Status,
+		&check.ScreenshotURL,
+		&check.HTMLSnapshotURL,
+		&check.ContentHash,
+		&check.ChangeDetected,
+		&check.ChangeType,
+		&check.ErrorMessage,
+		&check.DurationMs,
+		&check.CheckedAt,
+	)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	return &check, nil
 }

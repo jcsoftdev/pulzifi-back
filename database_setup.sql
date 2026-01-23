@@ -21,6 +21,8 @@ DROP TABLE IF EXISTS public.organization_members CASCADE;
 DROP TABLE IF EXISTS public.organizations CASCADE;
 DROP TABLE IF EXISTS public.users CASCADE;
 
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 -- ============================================================
 -- TABLE: users
 -- ============================================================
@@ -301,6 +303,7 @@ BEGIN
             status VARCHAR(50) NOT NULL,
             screenshot_url TEXT,
             html_snapshot_url TEXT,
+            content_hash VARCHAR(64),
             change_detected BOOLEAN DEFAULT FALSE,
             change_type VARCHAR(50),
             error_message TEXT,
@@ -313,6 +316,7 @@ BEGIN
     EXECUTE format('CREATE INDEX idx_checks_page_id ON %I.checks(page_id)', schema_name);
     EXECUTE format('CREATE INDEX idx_checks_checked_at ON %I.checks(checked_at)', schema_name);
     EXECUTE format('CREATE INDEX idx_checks_change_detected ON %I.checks(change_detected)', schema_name);
+    EXECUTE format('CREATE INDEX idx_checks_page_checked_at ON %I.checks(page_id, checked_at)', schema_name);
     
     -- ========================================
     -- TABLE 6: alerts

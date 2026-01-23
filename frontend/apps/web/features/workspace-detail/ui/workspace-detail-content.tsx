@@ -135,8 +135,8 @@
    }
  
    const handleViewChanges = (pageId: string) => {
-     router.push(`/workspaces/${workspace.id}/pages/${pageId}`)
-   }
+    router.push(`/workspaces/${workspace.id}/pages/${pageId}/changes`)
+  }
  
    const handlePageClick = (pageId: string) => {
      router.push(`/workspaces/${workspace.id}/pages/${pageId}`)

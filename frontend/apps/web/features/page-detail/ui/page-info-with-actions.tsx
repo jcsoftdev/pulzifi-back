@@ -54,10 +54,7 @@ export function PageInfoWithActions({
   }
 
   const handleViewChanges = () => {
-    const el = document.getElementById('checks-history')
-    el?.scrollIntoView({
-      behavior: 'smooth',
-    })
+    router.push(`/workspaces/${workspaceId}/pages/${page.id}/changes`)
   }
 
   return (

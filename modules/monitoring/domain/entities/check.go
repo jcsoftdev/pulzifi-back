@@ -13,6 +13,7 @@ type Check struct {
 	Status          string // success, error
 	ScreenshotURL   string
 	HTMLSnapshotURL string
+	ContentHash     string
 	ChangeDetected  bool
 	ChangeType      string
 	ErrorMessage    string

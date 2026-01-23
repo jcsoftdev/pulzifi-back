@@ -1,7 +1,6 @@
 import { Geist, Geist_Mono } from 'next/font/google'
 import { setTokenProvider } from '@workspace/shared-http'
 import { tokenProvider } from '@workspace/auth'
-import { ClientInit } from '@/components/client-init'
 
 import '@workspace/ui/globals.css'
 import { Providers } from '@/components/providers'
@@ -32,7 +31,6 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`${fontSans.variable} ${fontMono.variable} font-sans antialiased`}>
         <Providers>
-          <ClientInit />
           {children}
         </Providers>
       </body>

@@ -33,12 +33,14 @@ func (h *ListChecksHandler) Handle(ctx context.Context, pageID uuid.UUID) (*List
 	for i, check := range checks {
 		response.Checks[i] = &CheckResponse{
 			ID:             check.ID,
-			PageID:         check.PageID,
-			Status:         check.Status,
-			ScreenshotURL:  check.ScreenshotURL,
-			ChangeDetected: check.ChangeDetected,
-			ErrorMessage:   check.ErrorMessage,
-			CheckedAt:      check.CheckedAt,
+			PageID:          check.PageID,
+			Status:          check.Status,
+			ScreenshotURL:   check.ScreenshotURL,
+			HTMLSnapshotURL: check.HTMLSnapshotURL,
+			ChangeDetected:  check.ChangeDetected,
+			ChangeType:      check.ChangeType,
+			ErrorMessage:    check.ErrorMessage,
+			CheckedAt:       check.CheckedAt,
 		}
 	}
 

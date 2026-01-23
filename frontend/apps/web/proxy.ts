@@ -25,6 +25,7 @@ export async function proxy(request: NextRequest) {
     '/register',
     '/forgot-password',
     '/reset-password',
+    '/lecture-ai',
   ]
   const isPublicPath = publicPaths.some((p) => path.startsWith(p))
 
@@ -100,6 +101,6 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!api|_next/static|_next/image|favicon.ico|login|register|forgot-password|reset-password).*)',
+    '/((?!api|_next/static|_next/image|favicon.ico|login|register|forgot-password|reset-password|lecture-ai).*)',
   ],
 }

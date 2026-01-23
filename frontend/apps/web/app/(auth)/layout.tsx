@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { auth } from '@workspace/auth'
+import { AuthProvider } from '@/components/providers/auth-provider'
 
 export default async function AuthLayout({ children }: { children: React.ReactNode }) {
   const session = await auth()
@@ -9,5 +10,9 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
     redirect('/')
   }
 
-  return children
+  return (
+    <AuthProvider>
+      {children}
+    </AuthProvider>
+  )
 }

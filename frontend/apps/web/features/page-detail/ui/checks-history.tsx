@@ -2,13 +2,16 @@
 
 import { formatRelativeTime, formatDateTime } from '@workspace/ui'
 import { useId } from 'react'
+import Link from 'next/link'
 import type { Check } from '@workspace/services/page-api'
 
 interface ChecksHistoryProps {
   checks: Check[]
+  workspaceId: string
+  pageId: string
 }
 
-export function ChecksHistory({ checks }: Readonly<ChecksHistoryProps>) {
+export function ChecksHistory({ checks, workspaceId, pageId }: Readonly<ChecksHistoryProps>) {
   const sectionId = useId()
   return (
     <div id={sectionId} className="flex flex-col gap-6 bg-card border border-border rounded-xl p-6 h-full">
@@ -25,7 +28,7 @@ export function ChecksHistory({ checks }: Readonly<ChecksHistoryProps>) {
 
         <div className="relative border-l border-border ml-2 space-y-8">
           {checks.map((check) => (
-            <div key={check.id} className="relative pl-6">
+            <div key={check.id} className="relative pl-6 group">
               {/* Dot */}
               <div
                 className={`absolute -left-1.5 top-1.5 h-3 w-3 rounded-full border-2 border-background ${
@@ -33,7 +36,10 @@ export function ChecksHistory({ checks }: Readonly<ChecksHistoryProps>) {
                 }`}
               />
 
-              <div className="flex flex-col gap-1">
+              <Link 
+                href={`/workspaces/${workspaceId}/pages/${pageId}/changes?checkId=${check.id}`}
+                className="flex flex-col gap-1 hover:bg-muted/50 p-2 -ml-2 rounded-md transition-colors"
+              >
                 <span className="text-sm font-medium text-muted-foreground">
                   {formatRelativeTime(check.checkedAt)}
                 </span>
@@ -56,7 +62,7 @@ export function ChecksHistory({ checks }: Readonly<ChecksHistoryProps>) {
                     <div className="w-2 h-2 rounded-full bg-destructive" />
                   </div>
                 )}
-              </div>
+              </Link>
             </div>
           ))}
           {checks.length === 0 && (

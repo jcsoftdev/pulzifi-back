@@ -3,6 +3,7 @@ import { AuthGuard } from '@/components/auth-guard'
 import { SidebarFeature } from '@/features/sidebar'
 import { UsageService } from '@/features/usage/domain/services/usage-service'
 import { NotificationService } from '@/features/notifications/domain/services/notification-service'
+import { AuthProvider } from '@/components/providers/auth-provider'
 
 export default async function MainLayout({
   children,
@@ -15,15 +16,17 @@ export default async function MainLayout({
   const notificationsData = await NotificationService.getNotificationsData()
 
   return (
-    <AuthGuard>
-      <AppShell
-        sidebar={<SidebarFeature />}
-        checksData={checksData}
-        hasNotifications={notificationsData.hasNotifications}
-        notificationCount={notificationsData.notificationCount}
-      >
-        {children}
-      </AppShell>
-    </AuthGuard>
+    <AuthProvider>
+      <AuthGuard>
+        <AppShell
+          sidebar={<SidebarFeature />}
+          checksData={checksData}
+          hasNotifications={notificationsData.hasNotifications}
+          notificationCount={notificationsData.notificationCount}
+        >
+          {children}
+        </AppShell>
+      </AuthGuard>
+    </AuthProvider>
   )
 }
