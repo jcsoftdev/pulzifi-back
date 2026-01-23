@@ -12,7 +12,7 @@ interface WorkspaceDetailPageProps {
 
 export default async function WorkspaceDetailPage({ params }: WorkspaceDetailPageProps) {
   const { id } = await params
-  
+
   // Fetch workspace and pages from backend
   const workspace = await getWorkspaceServer(id)
   const pages = await getPagesServer(id)
@@ -31,10 +31,7 @@ export default async function WorkspaceDetailPage({ params }: WorkspaceDetailPag
   return (
     <>
       <WorkspaceBreadcrumbs breadcrumbs={breadcrumbs} />
-      <WorkspaceDetailFeature
-        workspace={workspace}
-        initialPages={pages}
-      />
+      <WorkspaceDetailFeature workspace={workspace} initialPages={pages} />
     </>
   )
 }

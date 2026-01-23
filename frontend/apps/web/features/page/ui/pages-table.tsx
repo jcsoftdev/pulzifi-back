@@ -12,10 +12,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@workspace/ui/components/atoms/select'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@workspace/ui/components/molecules/dropdown-menu'
 import { cn } from '@workspace/ui/lib/utils'
 import type { Page } from '../domain/types'
 
 const CHECK_FREQUENCIES = [
+  'Off',
   'Every 1 hour',
   'Every 2 hours',
   'Every 8 hours',
@@ -28,13 +35,17 @@ export interface PagesTableProps {
   onViewChanges?: (pageId: string) => void
   onPageClick?: (pageId: string) => void
   onCheckFrequencyChange?: (pageId: string, frequency: string) => void
+  onEdit?: (page: Page) => void
+  onDelete?: (page: Page) => void
 }
 
-export function PagesTable({ 
-  pages, 
-  onViewChanges, 
+export function PagesTable({
+  pages,
+  onViewChanges,
   onPageClick,
-  onCheckFrequencyChange 
+  onCheckFrequencyChange,
+  onEdit,
+  onDelete,
 }: Readonly<PagesTableProps>) {
   const [selectedPages, setSelectedPages] = useState<Set<string>>(new Set())
 
@@ -56,18 +67,29 @@ export function PagesTable({
     setSelectedPages(newSelected)
   }
 
-  const formatLastChange = (lastChangeDetectedAt?: string): { text: string; variant: 'default' | 'success' } => {
+  const formatLastChange = (
+    lastChangeDetectedAt?: string
+  ): {
+    text: string
+    variant: 'default' | 'success'
+  } => {
     if (!lastChangeDetectedAt) {
-      return { text: 'No changes detected', variant: 'default' }
+      return {
+        text: 'No changes detected',
+        variant: 'default',
+      }
     }
-    
+
     const date = new Date(lastChangeDetectedAt)
-    const formatted = date.toLocaleDateString('en-US', { 
-      month: 'short', 
-      day: 'numeric', 
-      year: 'numeric' 
+    const formatted = date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
     })
-    return { text: formatted, variant: 'success' }
+    return {
+      text: formatted,
+      variant: 'success',
+    }
   }
 
   return (
@@ -149,14 +171,13 @@ export function PagesTable({
         ) : (
           pages.map((page) => {
             const isSelected = selectedPages.has(page.id)
-            const { text: lastChangeText, variant: lastChangeVariant } = formatLastChange(page.lastChangeDetectedAt)
+            const { text: lastChangeText, variant: lastChangeVariant } = formatLastChange(
+              page.lastChangeDetectedAt
+            )
             const firstTag = page.tags && page.tags.length > 0 ? page.tags[0] : undefined
 
             return (
-              <div
-                key={page.id}
-                className="flex items-center hover:bg-muted/50 transition-colors"
-              >
+              <div key={page.id} className="flex items-center hover:bg-muted/50 transition-colors">
                 {/* Checkbox */}
                 <div className="flex items-center px-2 py-2 w-8">
                   <button
@@ -278,35 +299,48 @@ export function PagesTable({
 
                 {/* Actions */}
                 <div className="flex items-center justify-center px-2 py-2 flex-[0_0_60px]">
-                  <button
-                    type="button"
-                    className="p-1 hover:bg-muted rounded transition-colors"
-                    aria-label="More actions"
-                  >
-                    <svg width="21" height="21" viewBox="0 0 21 21" fill="none">
-                      <path
-                        d="M10.5 11.375C10.9832 11.375 11.375 10.9832 11.375 10.5C11.375 10.0168 10.9832 9.625 10.5 9.625C10.0168 9.625 9.625 10.0168 9.625 10.5C9.625 10.9832 10.0168 11.375 10.5 11.375Z"
-                        stroke="currentColor"
-                        strokeWidth="1.75"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                      <path
-                        d="M10.5 5.25C10.9832 5.25 11.375 4.85825 11.375 4.375C11.375 3.89175 10.9832 3.5 10.5 3.5C10.0168 3.5 9.625 3.89175 9.625 4.375C9.625 4.85825 10.0168 5.25 10.5 5.25Z"
-                        stroke="currentColor"
-                        strokeWidth="1.75"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                      <path
-                        d="M10.5 17.5C10.9832 17.5 11.375 17.1082 11.375 16.625C11.375 16.1418 10.9832 15.75 10.5 15.75C10.0168 15.75 9.625 16.1418 9.625 16.625C9.625 17.1082 10.0168 17.5 10.5 17.5Z"
-                        stroke="currentColor"
-                        strokeWidth="1.75"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        className="p-1 hover:bg-muted rounded transition-colors"
+                        aria-label="More actions"
+                      >
+                        <svg width="21" height="21" viewBox="0 0 21 21" fill="none">
+                          <path
+                            d="M10.5 11.375C10.9832 11.375 11.375 10.9832 11.375 10.5C11.375 10.0168 10.9832 9.625 10.5 9.625C10.0168 9.625 9.625 10.0168 9.625 10.5C9.625 10.9832 10.0168 11.375 10.5 11.375Z"
+                            stroke="currentColor"
+                            strokeWidth="1.75"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                          <path
+                            d="M10.5 5.25C10.9832 5.25 11.375 4.85825 11.375 4.375C11.375 3.89175 10.9832 3.5 10.5 3.5C10.0168 3.5 9.625 3.89175 9.625 4.375C9.625 4.85825 10.0168 5.25 10.5 5.25Z"
+                            stroke="currentColor"
+                            strokeWidth="1.75"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                          <path
+                            d="M10.5 17.5C10.9832 17.5 11.375 17.1082 11.375 16.625C11.375 16.1418 10.9832 15.75 10.5 15.75C10.0168 15.75 9.625 16.1418 9.625 16.625C9.625 17.1082 10.0168 17.5 10.5 17.5Z"
+                            stroke="currentColor"
+                            strokeWidth="1.75"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => onEdit?.(page)}>Edit Page</DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => onDelete?.(page)}
+                        className="text-destructive focus:text-destructive"
+                      >
+                        Delete Page
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </div>
             )

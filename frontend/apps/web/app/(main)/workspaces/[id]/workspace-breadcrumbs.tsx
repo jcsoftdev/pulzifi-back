@@ -11,18 +11,24 @@ export function WorkspaceBreadcrumbs({ breadcrumbs }: Readonly<WorkspaceBreadcru
   useEffect(() => {
     // Update breadcrumbs in the app shell
     const event = new CustomEvent('updateBreadcrumbs', {
-      detail: { breadcrumbs },
+      detail: {
+        breadcrumbs,
+      },
     })
     window.dispatchEvent(event)
 
     // Cleanup: reset breadcrumbs when unmounting
     return () => {
       const resetEvent = new CustomEvent('updateBreadcrumbs', {
-        detail: { breadcrumbs: [] },
+        detail: {
+          breadcrumbs: [],
+        },
       })
       window.dispatchEvent(resetEvent)
     }
-  }, [breadcrumbs])
+  }, [
+    breadcrumbs,
+  ])
 
   return null
 }

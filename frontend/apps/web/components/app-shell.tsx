@@ -30,8 +30,12 @@ export function AppShell({
 
   useEffect(() => {
     const handleBreadcrumbUpdate = (event: Event) => {
-      const customEvent = event as CustomEvent<{ breadcrumbs: BreadcrumbItem[] }>
-      setBreadcrumbs(customEvent.detail.breadcrumbs.length > 0 ? customEvent.detail.breadcrumbs : undefined)
+      const customEvent = event as CustomEvent<{
+        breadcrumbs: BreadcrumbItem[]
+      }>
+      setBreadcrumbs(
+        customEvent.detail.breadcrumbs.length > 0 ? customEvent.detail.breadcrumbs : undefined
+      )
     }
 
     window.addEventListener('updateBreadcrumbs', handleBreadcrumbUpdate)

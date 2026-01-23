@@ -3,7 +3,9 @@ import type { Page, CreatePageDto } from '../../domain/types'
 
 export async function getPagesServer(workspaceId: string): Promise<Page[]> {
   try {
-    return await PageApi.listPages({ workspaceId })
+    return await PageApi.listPages({
+      workspaceId,
+    })
   } catch (error) {
     const err = error as any
     console.error('[PageService] Failed to list pages', {
@@ -23,10 +25,7 @@ export async function createPageServer(data: CreatePageDto): Promise<Page> {
   return await PageApi.createPage(data)
 }
 
-export async function updatePageServer(
-  id: string,
-  data: Partial<CreatePageDto>
-): Promise<Page> {
+export async function updatePageServer(id: string, data: Partial<CreatePageDto>): Promise<Page> {
   return await PageApi.updatePage(id, data)
 }
 

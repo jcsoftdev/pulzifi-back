@@ -35,8 +35,9 @@ export {
   SelectValue,
   SelectTrigger,
   SelectContent,
-  SelectItem,
-  SelectSeparator,
   SelectScrollUpButton,
   SelectScrollDownButton,
+  SelectItem,
+  SelectSeparator,
 } from './select'
+export { Skeleton } from './skeleton'

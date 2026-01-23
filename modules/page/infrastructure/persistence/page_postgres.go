@@ -25,9 +25,27 @@ func (r *PagePostgresRepository) table(name string) string {
 }
 
 func (r *PagePostgresRepository) Create(ctx context.Context, page *entities.Page) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
 	q := `INSERT INTO ` + r.table("pages") + ` (id, workspace_id, name, url, check_count, created_by, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
-	_, err := r.db.ExecContext(ctx, q, page.ID, page.WorkspaceID, page.Name, page.URL, page.CheckCount, page.CreatedBy, page.CreatedAt, page.UpdatedAt)
-	return err
+	if _, err := tx.ExecContext(ctx, q, page.ID, page.WorkspaceID, page.Name, page.URL, page.CheckCount, page.CreatedBy, page.CreatedAt, page.UpdatedAt); err != nil {
+		return err
+	}
+
+	if len(page.Tags) > 0 {
+		insQ := `INSERT INTO ` + r.table("page_tags") + ` (page_id, tag) VALUES ($1, $2)`
+		for _, tag := range page.Tags {
+			if _, err := tx.ExecContext(ctx, insQ, page.ID, tag); err != nil {
+				return err
+			}
+		}
+	}
+
+	return tx.Commit()
 }
 
 func (r *PagePostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (*entities.Page, error) {
@@ -181,10 +199,35 @@ func (r *PagePostgresRepository) ListByWorkspace(ctx context.Context, workspaceI
 }
 
 func (r *PagePostgresRepository) Update(ctx context.Context, page *entities.Page) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
 	page.UpdatedAt = time.Now()
 	q := `UPDATE ` + r.table("pages") + ` SET name = $1, url = $2, check_count = $3, updated_at = $4 WHERE id = $5`
-	_, err := r.db.ExecContext(ctx, q, page.Name, page.URL, page.CheckCount, page.UpdatedAt, page.ID)
-	return err
+	if _, err := tx.ExecContext(ctx, q, page.Name, page.URL, page.CheckCount, page.UpdatedAt, page.ID); err != nil {
+		return err
+	}
+
+	// Delete existing tags
+	delQ := `DELETE FROM ` + r.table("page_tags") + ` WHERE page_id = $1`
+	if _, err := tx.ExecContext(ctx, delQ, page.ID); err != nil {
+		return err
+	}
+
+	// Insert new tags
+	if len(page.Tags) > 0 {
+		insQ := `INSERT INTO ` + r.table("page_tags") + ` (page_id, tag) VALUES ($1, $2)`
+		for _, tag := range page.Tags {
+			if _, err := tx.ExecContext(ctx, insQ, page.ID, tag); err != nil {
+				return err
+			}
+		}
+	}
+
+	return tx.Commit()
 }
 
 func (r *PagePostgresRepository) Delete(ctx context.Context, id uuid.UUID) error {

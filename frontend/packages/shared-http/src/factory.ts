@@ -7,14 +7,14 @@ import { extractTenantFromHostname, getTenantFromWindow } from './tenant-utils'
 // Client-side: Use base domain to go through Nginx reverse proxy
 const getClientApiUrl = (): string => {
   if (typeof window === 'undefined') return ''
-  
+
   const hostname = window.location.hostname
   const protocol = window.location.protocol
-  
+
   if (hostname.includes('.app.local')) {
     return `${protocol}//app.local`
   }
-  
+
   return `${protocol}//${hostname}`
 }
 
@@ -35,7 +35,7 @@ async function getTenantFromAuth(): Promise<string | null> {
     const { auth } = await import('@workspace/auth')
     const { isExtendedSession } = await import('@workspace/auth')
     const session = await auth()
-    return isExtendedSession(session) ? session.tenant ?? null : null
+    return isExtendedSession(session) ? (session.tenant ?? null) : null
   } catch {
     return null
   }

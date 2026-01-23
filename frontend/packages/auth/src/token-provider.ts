@@ -11,13 +11,13 @@ import { ExtendedSession } from './extended-types'
 class NextAuthTokenProvider implements ITokenProvider {
   async getServerToken(): Promise<string | null> {
     try {
-      const session = await auth() as ExtendedSession | null
-      
+      const session = (await auth()) as ExtendedSession | null
+
       // If session has error, it means refresh failed
       if (session?.error === 'RefreshAccessTokenError') {
         return null
       }
-      
+
       return session?.accessToken ?? null
     } catch (error) {
       console.error('[NextAuthTokenProvider] Session error:', error)

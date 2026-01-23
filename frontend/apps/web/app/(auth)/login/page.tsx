@@ -26,7 +26,9 @@ export default function LoginPage() {
     if (errorParam === 'SessionExpired') {
       setError('Your session has expired. Please sign in again.')
     }
-  }, [searchParams])
+  }, [
+    searchParams,
+  ])
 
   const handleLogin = async (credentials: { email: string; password: string }) => {
     setIsLoading(true)
@@ -59,10 +61,10 @@ export default function LoginPage() {
       console.log('Client: Login successful, waiting for session...')
 
       // Esperar un momento para que NextAuth actualice la sesión
-      await new Promise(resolve => setTimeout(resolve, 500))
+      await new Promise((resolve) => setTimeout(resolve, 500))
 
       // Usar getSession de NextAuth que garantiza obtener la sesión actualizada
-      const session = await getSession() as ExtendedSession | null
+      const session = (await getSession()) as ExtendedSession | null
 
       console.log('Client: Session data:', session)
 
@@ -81,7 +83,7 @@ export default function LoginPage() {
       const protocol = window.location.protocol
       const port = window.location.port
       const hostname = window.location.hostname
-      
+
       const appDomain = process.env.NEXT_PUBLIC_APP_DOMAIN
       let baseDomain = appDomain
 
@@ -108,7 +110,7 @@ export default function LoginPage() {
         // Construir URL completa
         const portSuffix = port ? `:${port}` : ''
         const tenantUrl = `${protocol}//${targetHost}${portSuffix}`
-        
+
         console.log('Redirecting to:', tenantUrl)
         window.location.href = tenantUrl
       }

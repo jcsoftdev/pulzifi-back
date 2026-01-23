@@ -15,7 +15,7 @@ async function refreshAccessToken(token: ExtendedJWT): Promise<JWT> {
   try {
     refreshCount++
     const currentRefreshId = refreshCount
-    
+
     if (!token.refreshToken) {
       throw new Error('No refresh token available')
     }
@@ -23,23 +23,24 @@ async function refreshAccessToken(token: ExtendedJWT): Promise<JWT> {
     const refreshToken = token.refreshToken
     const refreshTokenStr = String(refreshToken)
     const tokenPreview = `${refreshTokenStr.substring(0, 10)}...${refreshTokenStr.substring(refreshTokenStr.length - 10)}`
-    
+
     // If a refresh is already in progress for this token, return the existing promise
     if (pendingRefreshes.has(refreshTokenStr)) {
-      console.log(`[Refresh #${currentRefreshId}] Reusing pending refresh for token: ${tokenPreview}`)
+      console.log(
+        `[Refresh #${currentRefreshId}] Reusing pending refresh for token: ${tokenPreview}`
+      )
       return pendingRefreshes.get(refreshTokenStr)!
     }
 
     console.log(`[Refresh #${currentRefreshId}] Starting token refresh with token: ${tokenPreview}`)
 
     const refreshPromise = (async () => {
-      const response = await AuthApi.refreshToken(
-        refreshToken,
-        token.tenant
-      )
-      
+      const response = await AuthApi.refreshToken(refreshToken, token.tenant)
+
       const newTokenPreview = `${response.refreshToken.substring(0, 10)}...${response.refreshToken.substring(response.refreshToken.length - 10)}`
-      console.log(`[Refresh #${currentRefreshId}] Token refresh successful, new token: ${newTokenPreview}`)
+      console.log(
+        `[Refresh #${currentRefreshId}] Token refresh successful, new token: ${newTokenPreview}`
+      )
       return {
         ...token,
         accessToken: response.accessToken,
@@ -67,18 +68,19 @@ async function refreshAccessToken(token: ExtendedJWT): Promise<JWT> {
   }
 }
 
-const cookieDomain = process.env.NODE_ENV === 'production' 
-  ? '.pulzifi.com' 
-  : process.env.NEXT_PUBLIC_APP_DOMAIN === 'localhost'
-    ? 'localhost'
-    : process.env.NEXT_PUBLIC_APP_DOMAIN 
-      ? `.${process.env.NEXT_PUBLIC_APP_DOMAIN}` 
-      : undefined
+const cookieDomain =
+  process.env.NODE_ENV === 'production'
+    ? '.pulzifi.com'
+    : process.env.NEXT_PUBLIC_APP_DOMAIN === 'localhost'
+      ? 'localhost'
+      : process.env.NEXT_PUBLIC_APP_DOMAIN
+        ? `.${process.env.NEXT_PUBLIC_APP_DOMAIN}`
+        : undefined
 
 const authConfig = {
   secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
   trustHost: true,
-  
+
   providers: [
     Credentials({
       credentials: {
@@ -153,7 +155,8 @@ const authConfig = {
       }
 
       // Return previous token if the access token has not expired yet
-      if (Date.now() < (token.accessTokenExpires as number) - 2000) { // Refresh 2s before expiry
+      if (Date.now() < (token.accessTokenExpires as number) - 2000) {
+        // Refresh 2s before expiry
         return token
       }
 
@@ -163,19 +166,19 @@ const authConfig = {
     async session({ session, token }: { session: Session; token: JWT }): Promise<Session> {
       const extSession = session as ExtendedSession
       const extToken = token as ExtendedJWT
-      
+
       // Ensure user object exists
       extSession.user ??= {
         id: extToken.id as string,
         email: extToken.email as string,
         name: extToken.name as string,
       }
-      
+
       // Always preserve tenant, even if token is expired/errored
       if (extToken.tenant) {
         extSession.tenant = extToken.tenant
       }
-      
+
       if (extToken.accessToken) {
         extSession.user.id = extToken.id as string
         extSession.accessToken = extToken.accessToken

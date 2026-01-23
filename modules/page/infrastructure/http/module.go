@@ -7,7 +7,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	createpage "github.com/jcsoftdev/pulzifi-back/modules/page/application/create_page"
+	deletepage "github.com/jcsoftdev/pulzifi-back/modules/page/application/delete_page"
+	getpage "github.com/jcsoftdev/pulzifi-back/modules/page/application/get_page"
 	listpages "github.com/jcsoftdev/pulzifi-back/modules/page/application/list_pages"
+	updatepage "github.com/jcsoftdev/pulzifi-back/modules/page/application/update_page"
 	"github.com/jcsoftdev/pulzifi-back/modules/page/infrastructure/persistence"
 	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
 	"github.com/jcsoftdev/pulzifi-back/shared/router"
@@ -121,15 +124,18 @@ func (m *Module) handleListPages(w http.ResponseWriter, r *http.Request) {
 // @Security BearerAuth
 // @Produce json
 // @Param id path string true "Page ID"
-// @Success 200 {object} map[string]interface{}
+// @Success 200 {object} getpage.GetPageResponse
 // @Router /pages/{id} [get]
 func (m *Module) handleGetPage(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{
-		"id":      chi.URLParam(r, "id"),
-		"message": "get page",
-	})
+	if m.db == nil {
+		http.Error(w, "Database not initialized", http.StatusInternalServerError)
+		return
+	}
+
+	tenant := middleware.GetTenantFromContext(r.Context())
+	repo := persistence.NewPagePostgresRepository(m.db, tenant)
+	handler := getpage.NewGetPageHandler(repo)
+	handler.HandleHTTP(w, r)
 }
 
 // handleUpdatePage updates a page
@@ -140,16 +146,19 @@ func (m *Module) handleGetPage(w http.ResponseWriter, r *http.Request) {
 // @Accept json
 // @Produce json
 // @Param id path string true "Page ID"
-// @Param request body map[string]string true "Update Page Request"
-// @Success 200 {object} map[string]interface{}
+// @Param request body updatepage.UpdatePageRequest true "Update Page Request"
+// @Success 200 {object} updatepage.UpdatePageResponse
 // @Router /pages/{id} [put]
 func (m *Module) handleUpdatePage(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{
-		"id":      chi.URLParam(r, "id"),
-		"message": "update page",
-	})
+	if m.db == nil {
+		http.Error(w, "Database not initialized", http.StatusInternalServerError)
+		return
+	}
+
+	tenant := middleware.GetTenantFromContext(r.Context())
+	repo := persistence.NewPagePostgresRepository(m.db, tenant)
+	handler := updatepage.NewUpdatePageHandler(repo)
+	handler.HandleHTTP(w, r)
 }
 
 // handleDeletePage deletes a page
@@ -160,6 +169,13 @@ func (m *Module) handleUpdatePage(w http.ResponseWriter, r *http.Request) {
 // @Success 204
 // @Router /pages/{id} [delete]
 func (m *Module) handleDeletePage(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusNoContent)
+	if m.db == nil {
+		http.Error(w, "Database not initialized", http.StatusInternalServerError)
+		return
+	}
+
+	tenant := middleware.GetTenantFromContext(r.Context())
+	repo := persistence.NewPagePostgresRepository(m.db, tenant)
+	handler := deletepage.NewDeletePageHandler(repo)
+	handler.HandleHTTP(w, r)
 }

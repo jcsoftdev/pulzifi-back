@@ -12,4 +12,7 @@ type MonitoringConfigRepository interface {
 	Create(ctx context.Context, config *entities.MonitoringConfig) error
 	GetByPageID(ctx context.Context, pageID uuid.UUID) (*entities.MonitoringConfig, error)
 	Update(ctx context.Context, config *entities.MonitoringConfig) error
+	GetDueSnapshotTasks(ctx context.Context) ([]entities.SnapshotTask, error)
+	GetPageURL(ctx context.Context, pageID uuid.UUID) (string, error)
+	UpdateLastCheckedAt(ctx context.Context, pageID uuid.UUID) error
 }

@@ -22,7 +22,10 @@ export function LoginForm({ onSubmit, isLoading = false, error }: Readonly<Login
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log('[LoginForm] Form submitted with:', { email, password: '***' })
+    console.log('[LoginForm] Form submitted with:', {
+      email,
+      password: '***',
+    })
     try {
       await onSubmit({
         email,

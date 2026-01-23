@@ -54,3 +54,66 @@ func (r *MonitoringConfigPostgresRepository) Update(ctx context.Context, config 
 	_, err := r.db.ExecContext(ctx, q, config.CheckFrequency, config.ScheduleType, config.Timezone, config.BlockAdsCookies, config.UpdatedAt, config.ID)
 	return err
 }
+
+func (r *MonitoringConfigPostgresRepository) GetDueSnapshotTasks(ctx context.Context) ([]entities.SnapshotTask, error) {
+	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
+		return nil, err
+	}
+
+	q := `
+		SELECT p.id, p.url
+		FROM pages p
+		JOIN monitoring_configs mc ON p.id = mc.page_id
+		WHERE p.deleted_at IS NULL AND mc.deleted_at IS NULL
+		AND mc.check_frequency != 'Off'
+		AND (
+			(mc.check_frequency = '30m' AND (p.last_checked_at IS NULL OR p.last_checked_at < NOW() - INTERVAL '30 minutes')) OR
+			(mc.check_frequency = 'Every 30 minutes' AND (p.last_checked_at IS NULL OR p.last_checked_at < NOW() - INTERVAL '30 minutes')) OR
+			(mc.check_frequency = 'Every 1 hour' AND (p.last_checked_at IS NULL OR p.last_checked_at < NOW() - INTERVAL '1 hour')) OR
+			(mc.check_frequency = 'Every 2 hours' AND (p.last_checked_at IS NULL OR p.last_checked_at < NOW() - INTERVAL '2 hours')) OR
+			(mc.check_frequency = 'Every 8 hours' AND (p.last_checked_at IS NULL OR p.last_checked_at < NOW() - INTERVAL '8 hours')) OR
+			(mc.check_frequency = 'Every day' AND (p.last_checked_at IS NULL OR p.last_checked_at < NOW() - INTERVAL '1 day')) OR
+			(mc.check_frequency = 'Every 48 hours' AND (p.last_checked_at IS NULL OR p.last_checked_at < NOW() - INTERVAL '48 hours'))
+		)
+		LIMIT 50
+	`
+
+	rows, err := r.db.QueryContext(ctx, q)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var tasks []entities.SnapshotTask
+	for rows.Next() {
+		var t entities.SnapshotTask
+		if err := rows.Scan(&t.PageID, &t.URL); err != nil {
+			return nil, err
+		}
+		tasks = append(tasks, t)
+	}
+
+	return tasks, nil
+}
+
+func (r *MonitoringConfigPostgresRepository) GetPageURL(ctx context.Context, pageID uuid.UUID) (string, error) {
+	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
+		return "", err
+	}
+	var url string
+	q := `SELECT url FROM pages WHERE id = $1 AND deleted_at IS NULL`
+	err := r.db.QueryRowContext(ctx, q, pageID).Scan(&url)
+	if err != nil {
+		return "", err
+	}
+	return url, nil
+}
+
+func (r *MonitoringConfigPostgresRepository) UpdateLastCheckedAt(ctx context.Context, pageID uuid.UUID) error {
+	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
+		return err
+	}
+	q := `UPDATE pages SET last_checked_at = NOW() WHERE id = $1 AND deleted_at IS NULL`
+	_, err := r.db.ExecContext(ctx, q, pageID)
+	return err
+}

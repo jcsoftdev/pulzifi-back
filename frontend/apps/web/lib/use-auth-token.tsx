@@ -19,5 +19,7 @@ export function useAuthTokenSync() {
     const token = (session as SessionWithToken)?.accessToken ?? null
     // Sync to global variable used by NextAuthTokenProvider
     ;(globalThis as any).__authToken__ = token
-  }, [session])
+  }, [
+    session,
+  ])
 }

@@ -1,8 +1,8 @@
 package entities
 
 import (
-"time"
-"github.com/google/uuid"
+	"time"
+	"github.com/google/uuid"
 )
 
 type MonitoringConfig struct {
@@ -27,4 +27,9 @@ func NewMonitoringConfig(pageID uuid.UUID, frequency, scheduleType, timezone str
 		CreatedAt:      time.Now(),
 		UpdatedAt:      time.Now(),
 	}
+}
+
+type SnapshotTask struct {
+	PageID uuid.UUID
+	URL    string
 }

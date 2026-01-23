@@ -1,20 +1,32 @@
 package http
 
 import (
+	"database/sql"
 	"encoding/json"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	listinsights "github.com/jcsoftdev/pulzifi-back/modules/insight/application/list_insights"
+	"github.com/jcsoftdev/pulzifi-back/modules/insight/infrastructure/persistence"
 	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
 	"github.com/jcsoftdev/pulzifi-back/shared/router"
 )
 
 // Module implements the router.ModuleRegisterer interface for the Insight module
-type Module struct{}
+type Module struct {
+	db *sql.DB
+}
 
 // NewModule creates a new instance of the Insight module
 func NewModule() router.ModuleRegisterer {
 	return &Module{}
+}
+
+// NewModuleWithDB creates a new instance with database connection
+func NewModuleWithDB(db *sql.DB) router.ModuleRegisterer {
+	return &Module{
+		db: db,
+	}
 }
 
 // ModuleName returns the name of the module
@@ -61,12 +73,20 @@ func (m *Module) handleGenerateInsight(w http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} map[string]interface{}
 // @Router /insights [get]
 func (m *Module) handleListInsights(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"insights": []interface{}{},
-		"message":  "list insights",
-	})
+	if m.db == nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"insights": []interface{}{},
+			"message":  "list insights (mock - db not initialized)",
+		})
+		return
+	}
+
+	tenant := middleware.GetTenantFromContext(r.Context())
+	repo := persistence.NewInsightPostgresRepository(m.db, tenant)
+	handler := listinsights.NewListInsightsHandler(repo)
+	handler.HandleHTTP(w, r)
 }
 
 // handleGetInsight gets an insight by ID

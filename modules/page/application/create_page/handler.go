@@ -24,13 +24,18 @@ func NewCreatePageHandler(repo repositories.PageRepository) *CreatePageHandler {
 
 func (h *CreatePageHandler) Handle(ctx context.Context, req *CreatePageRequest, createdBy uuid.UUID) (*CreatePageResponse, error) {
 	// Create page entity
+	tags := req.Tags
+	if tags == nil {
+		tags = []string{}
+	}
+
 	page := &entities.Page{
 		ID:              uuid.New(),
 		WorkspaceID:     req.WorkspaceID,
 		Name:            req.Name,
 		URL:             req.URL,
 		CheckCount:      0,
-		Tags:            []string{},
+		Tags:            tags,
 		CheckFrequency:  "Every day",
 		DetectedChanges: 0,
 		CreatedBy:       createdBy,

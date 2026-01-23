@@ -22,6 +22,8 @@ volumes:
     driver: local
   zookeeper-data:
     driver: local
+  minio-data:
+    driver: local
 
 # ============================================================
 # SERVICES
@@ -72,6 +74,27 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
+
+  minio:
+    image: minio/minio
+    container_name: pulzifi-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
+    ports:
+      - "9000:9000"
+      - "9002:9001"
+    volumes:
+      - minio-data:/data
+    networks:
+      - pulzifi-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
 
   # ============================================================
   # MESSAGE QUEUE SERVICES
@@ -481,6 +504,33 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+
+  snapshot-service:
+    build:
+      context: .
+      dockerfile: modules/snapshot/Dockerfile
+      args:
+        MODULE_NAME: snapshot
+    container_name: pulzifi-snapshot
+    restart: unless-stopped
+    shm_size: '1gb'
+    environment:
+      MODULE_NAME: snapshot
+      KAFKA_BROKERS: kafka:29092
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+      MINIO_BUCKET: ${MINIO_BUCKET:-pulzifi-snapshots}
+      MINIO_USE_SSL: ${MINIO_USE_SSL:-false}
+    env_file:
+      - .env
+    depends_on:
+      kafka:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - pulzifi-network
 
   # ============================================================
   # API DOCUMENTATION SERVICE

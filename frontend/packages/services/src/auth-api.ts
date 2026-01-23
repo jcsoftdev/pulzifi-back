@@ -121,9 +121,13 @@ export const AuthApi = {
 
   async logout(): Promise<void> {
     const http = await getHttpClient()
-    await http.post('/api/v1/auth/logout', {}, {
-      credentials: 'include',
-    })
+    await http.post(
+      '/api/v1/auth/logout',
+      {},
+      {
+        credentials: 'include',
+      }
+    )
   },
 
   async refreshToken(refreshToken: string, tenant?: string): Promise<LoginResponse> {
@@ -133,11 +137,15 @@ export const AuthApi = {
       headers['X-Tenant'] = tenant
     }
     const http = new FetchHttpClient('http://localhost', headers)
-    const response = await http.post<LoginBackendResponse>('/api/v1/auth/refresh', {
-      refresh_token: refreshToken,
-    }, {
-      credentials: 'include',
-    })
+    const response = await http.post<LoginBackendResponse>(
+      '/api/v1/auth/refresh',
+      {
+        refresh_token: refreshToken,
+      },
+      {
+        credentials: 'include',
+      }
+    )
     return {
       accessToken: response.access_token,
       refreshToken: response.refresh_token,

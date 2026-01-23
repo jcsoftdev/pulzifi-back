@@ -23,7 +23,14 @@ import type { Workspace, WorkspaceType } from '@/features/workspace/domain/types
 export interface EditWorkspaceDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onSubmit: (id: string, data: { name: string; type: WorkspaceType; tags: string[] }) => Promise<void>
+  onSubmit: (
+    id: string,
+    data: {
+      name: string
+      type: WorkspaceType
+      tags: string[]
+    }
+  ) => Promise<void>
   isLoading: boolean
   error: Error | null
   workspace: Workspace
@@ -51,7 +58,10 @@ export function EditWorkspaceDialog({
       setType((workspace.type as WorkspaceType) || 'Personal')
       setTags(workspace.tags || [])
     }
-  }, [open, workspace])
+  }, [
+    open,
+    workspace,
+  ])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -111,14 +121,8 @@ export function EditWorkspaceDialog({
               </Select>
             </div>
             <div className="grid gap-2">
-              <label className="text-sm font-medium">
-                Tags
-              </label>
-              <TagInput
-                tags={tags}
-                onChange={setTags}
-                disabled={isSubmitting || isLoading}
-              />
+              <label className="text-sm font-medium">Tags</label>
+              <TagInput tags={tags} onChange={setTags} disabled={isSubmitting || isLoading} />
             </div>
             {error && (
               <div className="rounded-md bg-red-50 p-2 text-sm text-red-700">

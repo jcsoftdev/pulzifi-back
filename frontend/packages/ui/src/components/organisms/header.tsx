@@ -39,18 +39,10 @@ const Header = React.forwardRef<HTMLElement, HeaderProps>(
         {...props}
       >
         <div className="flex items-center justify-between px-24 py-4 gap-4">
-          {breadcrumbs && breadcrumbs.length > 0 ? (
-            <Breadcrumb items={breadcrumbs} />
-          ) : (
-            <div />
-          )}
+          {breadcrumbs && breadcrumbs.length > 0 ? <Breadcrumb items={breadcrumbs} /> : <div />}
           <div className="flex items-center gap-4">
             {checks && (
-              <ChecksTag
-                current={checks.current}
-                max={checks.max}
-                refillDate={checks.refillDate}
-              />
+              <ChecksTag current={checks.current} max={checks.max} refillDate={checks.refillDate} />
             )}
             <NotificationButton
               onClick={onNotificationClick}

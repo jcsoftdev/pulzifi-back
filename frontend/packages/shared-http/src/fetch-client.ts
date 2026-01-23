@@ -42,7 +42,7 @@ export class FetchHttpClient implements IHttpClient {
     const dynamicHeaders: Record<string, string> = {}
     if (this.tokenProvider) {
       const isServer = typeof window === 'undefined'
-      const token = isServer 
+      const token = isServer
         ? await this.tokenProvider.getServerToken()
         : await this.tokenProvider.getClientToken()
 
@@ -75,7 +75,8 @@ export class FetchHttpClient implements IHttpClient {
       if (contentType?.includes('application/json')) {
         try {
           errorDetails = await response.json()
-          errorMessage = (errorDetails as any).error || (errorDetails as any).message || errorMessage
+          errorMessage =
+            (errorDetails as any).error || (errorDetails as any).message || errorMessage
         } catch {
           // Ignore JSON parse errors
         }
@@ -103,7 +104,10 @@ export class FetchHttpClient implements IHttpClient {
     const contentType = response.headers.get('content-type')
     if (!contentType?.includes('application/json')) {
       const message = `Expected JSON response but got ${contentType}`
-      this.debugError(`Content-Type mismatch: ${url}`, { contentType, expected: 'application/json' })
+      this.debugError(`Content-Type mismatch: ${url}`, {
+        contentType,
+        expected: 'application/json',
+      })
       throw new Error(message)
     }
 

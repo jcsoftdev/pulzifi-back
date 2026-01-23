@@ -6,7 +6,7 @@ import { useEffect, useRef } from 'react'
 
 /**
  * Hook to validate session on client side and redirect to login if there's a refresh error
- * 
+ *
  * This hook should be used in client components that require authentication.
  * It will automatically redirect to the login page if the session has a refresh error.
  */
@@ -25,13 +25,17 @@ export function useSessionValidator() {
         error: session.error,
         sessionStatus: status,
       })
-      
+
       hasRedirectedRef.current = true
-      
+
       // Clear the session and redirect to login
       router.push('/login?error=SessionExpired')
     }
-  }, [session, status, router])
+  }, [
+    session,
+    status,
+    router,
+  ])
 
   useEffect(() => {
     // Poll session every 30 seconds to check for errors
@@ -43,7 +47,10 @@ export function useSessionValidator() {
     }, 30000) // 30 seconds
 
     return () => clearInterval(interval)
-  }, [status, update])
+  }, [
+    status,
+    update,
+  ])
 
   return {
     session,

@@ -18,7 +18,10 @@ export function TagInput({ tags, onChange, disabled }: TagInputProps) {
   const handleAddTag = () => {
     const trimmed = inputValue.trim()
     if (trimmed && !tags.includes(trimmed)) {
-      onChange([...tags, trimmed])
+      onChange([
+        ...tags,
+        trimmed,
+      ])
       setInputValue('')
     }
   }

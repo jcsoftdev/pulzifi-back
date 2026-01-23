@@ -10,6 +10,12 @@ volumes:
     driver: local
   redis-data:
     driver: local
+  kafka-data:
+    driver: local
+  zookeeper-data:
+    driver: local
+  minio-data:
+    driver: local
 
 services:
 
@@ -57,6 +63,74 @@ services:
       retries: 5
 
   # ============================================================
+  # INFRASTRUCTURE SERVICES
+  # ============================================================
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.1
+    container_name: pulzifi-zookeeper
+    restart: unless-stopped
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    volumes:
+      - zookeeper-data:/var/lib/zookeeper/data
+    networks:
+      - pulzifi-network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.1
+    container_name: pulzifi-kafka
+    restart: unless-stopped
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: true
+      KAFKA_LOG4J_LOGGERS: "kafka.controller=INFO,kafka.producer.async.DefaultEventHandler=INFO,state.change.logger=INFO"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    networks:
+      - pulzifi-network
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  minio:
+    image: minio/minio
+    container_name: pulzifi-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
+    ports:
+      - "9000:9000"
+      - "9002:9001"
+    volumes:
+      - minio-data:/data
+    networks:
+      - pulzifi-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # ============================================================
   # MONOLITH APPLICATION
   # ============================================================
 
@@ -69,6 +143,10 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      kafka:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
     environment:
       HTTP_PORT: 9090
       DB_HOST: postgres
@@ -77,6 +155,12 @@ services:
       DB_NAME: ${DB_NAME:-pulzifi}
       REDIS_HOST: redis
       REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_password}
+      KAFKA_BROKERS: kafka:29092
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+      MINIO_BUCKET: ${MINIO_BUCKET:-pulzifi-snapshots}
+      MINIO_USE_SSL: ${MINIO_USE_SSL:-false}
       ENVIRONMENT: development
     env_file:
       - .env
@@ -116,3 +200,30 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+
+  snapshot-service:
+    build:
+      context: .
+      dockerfile: modules/snapshot/Dockerfile
+      args:
+        MODULE_NAME: snapshot
+    container_name: pulzifi-snapshot
+    restart: unless-stopped
+    shm_size: '1gb'
+    environment:
+      MODULE_NAME: snapshot
+      KAFKA_BROKERS: kafka:29092
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+      MINIO_BUCKET: ${MINIO_BUCKET:-pulzifi-snapshots}
+      MINIO_USE_SSL: ${MINIO_USE_SSL:-false}
+    env_file:
+      - .env
+    depends_on:
+      kafka:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - pulzifi-network

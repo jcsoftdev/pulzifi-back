@@ -17,6 +17,7 @@ import (
 	"github.com/jcsoftdev/pulzifi-back/shared/cache"
 	"github.com/jcsoftdev/pulzifi-back/shared/config"
 	"github.com/jcsoftdev/pulzifi-back/shared/database"
+	"github.com/jcsoftdev/pulzifi-back/shared/kafka"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	middlewarex "github.com/jcsoftdev/pulzifi-back/shared/middleware"
 	"github.com/jcsoftdev/pulzifi-back/shared/router"
@@ -56,6 +57,15 @@ func main() {
 	}
 	defer cache.CloseRedis()
 	logger.Info("Redis initialized successfully")
+
+	// Initialize Kafka Producer
+	kafkaProducer, err := kafka.NewProducerClient(cfg)
+	if err != nil {
+		logger.Error("Failed to initialize Kafka producer", zap.Error(err))
+		os.Exit(1)
+	}
+	defer kafkaProducer.Close()
+	logger.Info("Kafka producer initialized successfully")
 
 	// Create a context that can be cancelled
 	ctx, cancel := context.WithCancel(context.Background())
@@ -106,7 +116,7 @@ func main() {
 	// Create module registry and register all modules
 	logger.Info("Registering module routes...")
 	registry := router.NewRegistry(logger.Logger)
-	registerAllModulesInternal(registry, db)
+	registerAllModulesInternal(registry, db, kafkaProducer)
 
 	// Register routes from all modules under /api/v1
 	v1Router := chi.NewRouter()

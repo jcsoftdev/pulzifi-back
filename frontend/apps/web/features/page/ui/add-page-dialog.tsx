@@ -39,7 +39,9 @@ export function AddPageDialog({
       setName('')
       setUrl('')
     }
-  }, [open])
+  }, [
+    open,
+  ])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -94,9 +96,7 @@ export function AddPageDialog({
               />
             </div>
 
-            {error && (
-              <div className="text-sm text-destructive">{error.message}</div>
-            )}
+            {error && <div className="text-sm text-destructive">{error.message}</div>}
           </div>
           <DialogFooter>
             <Button

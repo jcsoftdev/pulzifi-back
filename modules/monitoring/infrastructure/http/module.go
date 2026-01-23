@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"net/http"
@@ -9,15 +10,21 @@ import (
 	createcheck "github.com/jcsoftdev/pulzifi-back/modules/monitoring/application/create_check"
 	createmonitoringconfig "github.com/jcsoftdev/pulzifi-back/modules/monitoring/application/create_monitoring_config"
 	createnotificationpreference "github.com/jcsoftdev/pulzifi-back/modules/monitoring/application/create_notification_preference"
+	getmonitoringconfig "github.com/jcsoftdev/pulzifi-back/modules/monitoring/application/get_monitoring_config"
+	listchecks "github.com/jcsoftdev/pulzifi-back/modules/monitoring/application/list_checks"
 	updatemonitoringconfig "github.com/jcsoftdev/pulzifi-back/modules/monitoring/application/update_monitoring_config"
+	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/consumer"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/persistence"
+	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/scheduler"
+	"github.com/jcsoftdev/pulzifi-back/shared/kafka"
 	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
 	"github.com/jcsoftdev/pulzifi-back/shared/router"
 )
 
 // Module implements the router.ModuleRegisterer interface for the Monitoring module
 type Module struct {
-	db *sql.DB
+	db            *sql.DB
+	kafkaProducer *kafka.ProducerClient
 }
 
 // NewModule creates a new instance of the Monitoring module
@@ -26,10 +33,25 @@ func NewModule() router.ModuleRegisterer {
 }
 
 // NewModuleWithDB creates a new instance with database connection
-func NewModuleWithDB(db *sql.DB) router.ModuleRegisterer {
-	return &Module{
-		db: db,
+func NewModuleWithDB(db *sql.DB, producer *kafka.ProducerClient) router.ModuleRegisterer {
+	m := &Module{
+		db:            db,
+		kafkaProducer: producer,
 	}
+
+	// Start scheduler if producer is available
+	if producer != nil {
+		sched := scheduler.NewScheduler(db, producer)
+		sched.Start(context.Background())
+
+		// Start consumer
+		cons := consumer.NewSnapshotConsumer(db)
+		if cons != nil {
+			cons.Start(context.Background())
+		}
+	}
+
+	return m
 }
 
 // ModuleName returns the name of the module
@@ -46,6 +68,7 @@ func (m *Module) RegisterHTTPRoutes(router chi.Router) {
 			cr.Post("/", m.handleCreateCheck)
 			cr.Get("/", m.handleListChecks)
 			cr.Get("/{id}", m.handleGetCheck)
+			cr.Get("/page/{pageId}", m.handleListChecksByPage)
 		})
 		r.Route("/configs", func(cr chi.Router) {
 			cr.Post("/", m.handleCreateMonitoringConfig)
@@ -109,6 +132,27 @@ func (m *Module) handleListChecks(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleListChecksByPage lists monitoring checks for a specific page
+// @Summary List Monitoring Checks By Page
+// @Description List monitoring checks for a specific page
+// @Tags monitoring
+// @Security BearerAuth
+// @Produce json
+// @Param pageId path string true "Page ID"
+// @Success 200 {object} listchecks.ListChecksResponse
+// @Router /monitoring/checks/page/{pageId} [get]
+func (m *Module) handleListChecksByPage(w http.ResponseWriter, r *http.Request) {
+	if m.db == nil {
+		http.Error(w, "Database not initialized", http.StatusInternalServerError)
+		return
+	}
+
+	tenant := middleware.GetTenantFromContext(r.Context())
+	repo := persistence.NewCheckPostgresRepository(m.db, tenant)
+	handler := listchecks.NewListChecksHandler(repo)
+	handler.HandleHTTP(w, r)
+}
+
 // handleGetCheck gets a monitoring check by ID
 // @Summary Get Monitoring Check
 // @Description Get a monitoring check by ID
@@ -170,12 +214,20 @@ func (m *Module) handleCreateMonitoringConfig(w http.ResponseWriter, r *http.Req
 // @Success 200 {object} map[string]interface{}
 // @Router /monitoring/configs/{pageId} [get]
 func (m *Module) handleGetMonitoringConfig(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{
-		"page_id": chi.URLParam(r, "pageId"),
-		"message": "get monitoring config",
-	})
+	if m.db == nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{
+			"page_id": chi.URLParam(r, "pageId"),
+			"message": "get monitoring config (mock - db not initialized)",
+		})
+		return
+	}
+
+	tenant := middleware.GetTenantFromContext(r.Context())
+	repo := persistence.NewMonitoringConfigPostgresRepository(m.db, tenant)
+	handler := getmonitoringconfig.NewGetMonitoringConfigHandler(repo)
+	handler.HandleHTTP(w, r)
 }
 
 // handleUpdateMonitoringConfig updates or creates a monitoring config by page ID
@@ -208,7 +260,7 @@ func (m *Module) handleUpdateMonitoringConfig(w http.ResponseWriter, r *http.Req
 	repo := persistence.NewMonitoringConfigPostgresRepository(m.db, tenant)
 
 	// Use real handler
-	handler := updatemonitoringconfig.NewUpdateMonitoringConfigHandler(repo)
+	handler := updatemonitoringconfig.NewUpdateMonitoringConfigHandler(repo, m.kafkaProducer, tenant)
 	handler.HandleHTTP(w, r)
 }
 

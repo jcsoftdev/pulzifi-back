@@ -23,9 +23,9 @@ export async function AuthGuard({ children }: AuthGuardProps) {
     // or fallback to the base domain.
     // Since this is a server component, we rely on the hardcoded base domain for safety.
     // If you want to support subdomain login redirects, you'd need to pass headers() here.
-    
-    // For now, let's just redirect to /login relative to the current root, 
-    // but redirect() requires an absolute URL or path. 
+
+    // For now, let's just redirect to /login relative to the current root,
+    // but redirect() requires an absolute URL or path.
     // Using a relative path '/login' will keep the current domain!
     redirect('/login')
   }

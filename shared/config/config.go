@@ -47,6 +47,14 @@ type Config struct {
 
 	// Module
 	ModuleName string
+
+	// MinIO / S3
+	MinIOEndpoint  string
+	MinIOAccessKey string
+	MinIOSecretKey string
+	MinIOBucket    string
+	MinIOUseSSL    bool
+	MinIOPublicURL string
 }
 
 func Load() *Config {
@@ -78,6 +86,12 @@ func Load() *Config {
 		CORSAllowedMethods:   getEnv("CORS_ALLOWED_METHODS", "GET,POST,PUT,DELETE,OPTIONS,PATCH"),
 		CORSAllowedHeaders:   getEnv("CORS_ALLOWED_HEADERS", "Content-Type,Authorization,X-Tenant"),
 		ModuleName:           getEnv("MODULE_NAME", "unknown"),
+		MinIOEndpoint:        getEnv("MINIO_ENDPOINT", "localhost:9000"),
+		MinIOAccessKey:       getEnv("MINIO_ACCESS_KEY", "minioadmin"),
+		MinIOSecretKey:       getEnv("MINIO_SECRET_KEY", "minioadmin"),
+		MinIOBucket:          getEnv("MINIO_BUCKET", "pulzifi-snapshots"),
+		MinIOUseSSL:          getEnvBool("MINIO_USE_SSL", false),
+		MinIOPublicURL:       getEnv("MINIO_PUBLIC_URL", "http://localhost:9000"),
 	}
 }
 
@@ -95,6 +109,15 @@ func getEnvDurationSeconds(key string, defaultSeconds int) time.Duration {
 		}
 	}
 	return time.Duration(defaultSeconds) * time.Second
+}
+
+func getEnvBool(key string, defaultValue bool) bool {
+	if value, exists := os.LookupEnv(key); exists {
+		if b, err := strconv.ParseBool(value); err == nil {
+			return b
+		}
+	}
+	return defaultValue
 }
 
 func (c *Config) String() string {

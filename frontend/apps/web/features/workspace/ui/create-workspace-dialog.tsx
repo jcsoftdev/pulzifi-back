@@ -128,14 +128,8 @@ export function CreateWorkspaceDialog({
               </Select>
             </div>
             <div className="grid gap-2">
-              <label className="text-sm font-medium">
-                Tags
-              </label>
-              <TagInput
-                tags={tags}
-                onChange={setTags}
-                disabled={isSubmitting || isLoading}
-              />
+              <label className="text-sm font-medium">Tags</label>
+              <TagInput tags={tags} onChange={setTags} disabled={isSubmitting || isLoading} />
             </div>
             {error && (
               <div className="rounded-md bg-red-50 p-2 text-sm text-red-700">
