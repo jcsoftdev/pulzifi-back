@@ -1,6 +1,7 @@
 'use client'
 
 import { formatRelativeTime, formatDateTime } from '@workspace/ui'
+import { useId } from 'react'
 import type { Check } from '@workspace/services/page-api'
 
 interface ChecksHistoryProps {
@@ -8,8 +9,9 @@ interface ChecksHistoryProps {
 }
 
 export function ChecksHistory({ checks }: Readonly<ChecksHistoryProps>) {
+  const sectionId = useId()
   return (
-    <div id="checks-history" className="flex flex-col gap-6 bg-card border border-border rounded-xl p-6 h-full">
+    <div id={sectionId} className="flex flex-col gap-6 bg-card border border-border rounded-xl p-6 h-full">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold text-foreground">Checks history</h2>
       </div>

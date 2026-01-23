@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useId } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -32,6 +32,8 @@ export function AddPageDialog({
 }: Readonly<AddPageDialogProps>) {
   const [name, setName] = useState('')
   const [url, setUrl] = useState('')
+  const nameId = useId()
+  const urlId = useId()
 
   useEffect(() => {
     if (!open) {
@@ -71,9 +73,9 @@ export function AddPageDialog({
           <div className="space-y-4 py-4">
             {/* Page Name */}
             <div className="space-y-2">
-              <Label htmlFor="page-name">Page Name *</Label>
+              <Label htmlFor={nameId}>Page Name *</Label>
               <Input
-                id="page-name"
+                id={nameId}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g., Home page"
@@ -84,9 +86,9 @@ export function AddPageDialog({
 
             {/* Page URL */}
             <div className="space-y-2">
-              <Label htmlFor="page-url">Page URL *</Label>
+              <Label htmlFor={urlId}>Page URL *</Label>
               <Input
-                id="page-url"
+                id={urlId}
                 type="url"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}

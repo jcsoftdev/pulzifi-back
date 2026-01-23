@@ -40,6 +40,7 @@ export function AdvancedSettingsCard({
         {/* Schedule Type Selection */}
         <div className="flex items-center gap-3 flex-wrap">
           <button
+            type="button"
             onClick={() =>
               handleUpdate({
                 scheduleType: 'work_days',
@@ -59,6 +60,7 @@ export function AdvancedSettingsCard({
           </button>
 
           <button
+            type="button"
             onClick={() =>
               handleUpdate({
                 scheduleType: 'work_hours',
@@ -78,6 +80,7 @@ export function AdvancedSettingsCard({
           </button>
 
           <button
+            type="button"
             onClick={() =>
               handleUpdate({
                 scheduleType: 'all_time',

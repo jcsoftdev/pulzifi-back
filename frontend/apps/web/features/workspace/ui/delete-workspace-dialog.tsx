@@ -7,8 +7,10 @@ import {
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogHeader,
+  AlertDialogFooter,
   AlertDialogTitle,
 } from '@workspace/ui/components/atoms/alert-dialog'
+import { AlertCircle } from 'lucide-react'
 
 export interface DeleteWorkspaceDialogProps {
   open: boolean
@@ -34,21 +36,26 @@ export function DeleteWorkspaceDialog({
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Delete Workspace</AlertDialogTitle>
+          <div className="flex items-center gap-2 text-destructive">
+            <AlertCircle className="h-5 w-5" />
+            <AlertDialogTitle>Delete Workspace</AlertDialogTitle>
+          </div>
           <AlertDialogDescription>
-            Are you sure you want to delete "{workspaceName}"? This action cannot be undone.
+            Are you sure you want to delete{' '}
+            <span className="font-medium text-foreground">{workspaceName}</span>? This action cannot
+            be undone and will remove all associated monitoring data.
           </AlertDialogDescription>
         </AlertDialogHeader>
-        <div className="flex gap-3 justify-end">
+        <AlertDialogFooter>
           <AlertDialogCancel disabled={isLoading}>Cancel</AlertDialogCancel>
           <AlertDialogAction
             onClick={handleConfirm}
             disabled={isLoading}
-            className="bg-red-600 hover:bg-red-700"
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
           >
-            {isLoading ? 'Deleting...' : 'Delete'}
+            {isLoading ? 'Deleting...' : 'Delete Workspace'}
           </AlertDialogAction>
-        </div>
+        </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
   )

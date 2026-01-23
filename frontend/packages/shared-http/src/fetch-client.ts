@@ -75,8 +75,13 @@ export class FetchHttpClient implements IHttpClient {
       if (contentType?.includes('application/json')) {
         try {
           errorDetails = await response.json()
-          errorMessage =
-            (errorDetails as any).error || (errorDetails as any).message || errorMessage
+          if (typeof errorDetails === 'object' && errorDetails !== null) {
+            const maybeError = (errorDetails as { error?: unknown }).error
+            const maybeMessage = (errorDetails as { message?: unknown }).message
+            const parsedError = typeof maybeError === 'string' ? maybeError : undefined
+            const parsedMessage = typeof maybeMessage === 'string' ? maybeMessage : undefined
+            errorMessage = parsedError ?? parsedMessage ?? errorMessage
+          }
         } catch {
           // Ignore JSON parse errors
         }

@@ -110,6 +110,7 @@ export function PagesTable({
           >
             {selectedPages.size === pages.length && (
               <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                <title>Selected</title>
                 <path
                   d="M1 4L3.5 6.5L9 1"
                   stroke="white"
@@ -192,6 +193,7 @@ export function PagesTable({
                   >
                     {isSelected && (
                       <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                        <title>Selected</title>
                         <path
                           d="M1 4L3.5 6.5L9 1"
                           stroke="white"
@@ -307,6 +309,7 @@ export function PagesTable({
                         aria-label="More actions"
                       >
                         <svg width="21" height="21" viewBox="0 0 21 21" fill="none">
+                          <title>More actions</title>
                           <path
                             d="M10.5 11.375C10.9832 11.375 11.375 10.9832 11.375 10.5C11.375 10.0168 10.9832 9.625 10.5 9.625C10.0168 9.625 9.625 10.0168 9.625 10.5C9.625 10.9832 10.0168 11.375 10.5 11.375Z"
                             stroke="currentColor"
@@ -371,6 +374,7 @@ export function PagesTable({
           <div className="flex items-center gap-2">
             <Button variant="outline" size="icon-sm" disabled className="h-8 w-8">
               <svg width="17" height="17" viewBox="0 0 17 17" fill="none">
+                <title>Previous page</title>
                 <path
                   d="M10.625 12.75L6.375 8.5L10.625 4.25"
                   stroke="currentColor"
@@ -382,6 +386,7 @@ export function PagesTable({
             </Button>
             <Button variant="outline" size="icon-sm" disabled className="h-8 w-8">
               <svg width="17" height="17" viewBox="0 0 17 17" fill="none">
+                <title>Next page</title>
                 <path
                   d="M6.375 4.25L10.625 8.5L6.375 12.75"
                   stroke="currentColor"

@@ -27,6 +27,10 @@ export function DeletePageDialog({
   pageName,
   isLoading = false,
 }: Readonly<DeletePageDialogProps>) {
+  const handleConfirm = async () => {
+    await onConfirm()
+    onOpenChange(false)
+  }
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
@@ -44,10 +48,7 @@ export function DeletePageDialog({
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isLoading}>Cancel</AlertDialogCancel>
           <AlertDialogAction
-            onClick={(e) => {
-              e.preventDefault()
-              onConfirm()
-            }}
+            onClick={handleConfirm}
             disabled={isLoading}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
           >

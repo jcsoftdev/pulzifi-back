@@ -214,6 +214,7 @@
              fill="none"
              className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
            >
+             <title>Search</title>
              <path
                d="M7.79167 13.4583C10.8292 13.4583 13.2917 10.9958 13.2917 7.95833C13.2917 4.92084 10.8292 2.45833 7.79167 2.45833C4.75418 2.45833 2.29167 4.92084 2.29167 7.95833C2.29167 10.9958 4.75418 13.4583 7.79167 13.4583Z"
                stroke="currentColor"

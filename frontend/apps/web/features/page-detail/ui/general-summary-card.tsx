@@ -3,7 +3,10 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { PageApi, type Page, type MonitoringConfig } from '@workspace/services/page-api'
-import { ChevronDown, Check, Pencil, Loader2, X } from 'lucide-react'
+import { Check, Pencil, Loader2, X } from 'lucide-react'
+import { Button } from '@workspace/ui/components/atoms/button'
+import { Badge } from '@workspace/ui/components/atoms/badge'
+import { Input } from '@workspace/ui/components/atoms/input'
 import {
   Select,
   SelectContent,
@@ -92,46 +95,57 @@ export function GeneralSummaryCard({ page, config }: Readonly<GeneralSummaryCard
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium text-muted-foreground">Tag</span>
-            <button
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
               onClick={() => setIsEditingTags(!isEditingTags)}
-              className="p-1 text-muted-foreground hover:text-foreground transition-colors"
+              aria-label="Edit tags"
+              className="text-muted-foreground hover:text-foreground"
             >
               <Pencil className="w-4 h-4" />
-            </button>
+            </Button>
           </div>
 
           <div className="flex flex-wrap gap-2">
-            {page.tags &&
-              page.tags.map((tag) => (
-                <div
-                  key={tag}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-destructive bg-destructive/10"
-                >
-                  <span className="text-sm text-foreground">{tag}</span>
-                  {isEditingTags && (
-                    <button
-                      onClick={() => handleRemoveTag(tag)}
-                      className="hover:text-destructive transition-colors"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  )}
-                </div>
-              ))}
+            {page.tags?.map((tag) => (
+              <div key={tag} className="flex items-center gap-1">
+                <Badge variant="outline" className="px-2 py-0.5 text-xs">{tag}</Badge>
+                {isEditingTags && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => handleRemoveTag(tag)}
+                    aria-label={`Remove ${tag}`}
+                    className="hover:text-destructive"
+                  >
+                    <X className="w-3 h-3" />
+                  </Button>
+                )}
+              </div>
+            ))}
 
             {isEditingTags && (
               <div className="flex items-center gap-2">
-                <input
+                <Input
                   type="text"
                   value={newTag}
                   onChange={(e) => setNewTag(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleAddTag()}
                   placeholder="Add tag..."
-                  className="px-2 py-1 text-sm bg-transparent border border-border rounded-md focus:outline-none focus:border-primary w-24"
+                  className="h-7 px-2 text-xs w-28"
                 />
-                <button onClick={handleAddTag} className="p-1 hover:text-primary transition-colors">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={handleAddTag}
+                  aria-label="Add tag"
+                  className="hover:text-primary"
+                >
                   <Check className="w-4 h-4" />
-                </button>
+                </Button>
               </div>
             )}
 
@@ -168,6 +182,7 @@ export function GeneralSummaryCard({ page, config }: Readonly<GeneralSummaryCard
         {/* Options List */}
         <div className="flex flex-col gap-3 mt-2">
           <button
+            type="button"
             className="flex items-center gap-2 cursor-pointer group"
             onClick={() =>
               handleUpdateConfig({

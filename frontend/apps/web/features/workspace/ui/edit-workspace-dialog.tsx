@@ -10,6 +10,7 @@ import {
 } from '@workspace/ui/components/atoms/dialog'
 import { Button } from '@workspace/ui/components/atoms/button'
 import { Input } from '@workspace/ui/components/atoms/input'
+import { Label } from '@workspace/ui/components/atoms/label'
 import {
   Select,
   SelectContent,
@@ -89,9 +90,7 @@ export function EditWorkspaceDialog({
         <form onSubmit={handleSubmit}>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <label htmlFor={nameId} className="text-sm font-medium">
-                Workspace Name
-              </label>
+              <Label htmlFor={nameId}>Workspace Name</Label>
               <Input
                 id={nameId}
                 placeholder="e.g., My Monitoring"
@@ -102,9 +101,7 @@ export function EditWorkspaceDialog({
               />
             </div>
             <div className="grid gap-2">
-              <label htmlFor={typeId} className="text-sm font-medium">
-                Type
-              </label>
+              <Label htmlFor={typeId}>Type</Label>
               <Select
                 value={type}
                 onValueChange={(value) => setType(value as WorkspaceType)}
@@ -121,11 +118,11 @@ export function EditWorkspaceDialog({
               </Select>
             </div>
             <div className="grid gap-2">
-              <label className="text-sm font-medium">Tags</label>
+              <Label>Tags</Label>
               <TagInput tags={tags} onChange={setTags} disabled={isSubmitting || isLoading} />
             </div>
             {error && (
-              <div className="rounded-md bg-red-50 p-2 text-sm text-red-700">
+              <div className="text-sm text-destructive">
                 {error.message || 'Something went wrong'}
               </div>
             )}

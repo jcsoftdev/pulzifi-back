@@ -1,8 +1,7 @@
 'use client'
 
-import { Pencil, Trash2, ArrowUpRight } from 'lucide-react'
+import { Pencil, Trash2 } from 'lucide-react'
 import { Button } from '@workspace/ui/components/atoms/button'
-import { Badge } from '@workspace/ui/components/atoms/badge'
 import type { Page } from '@workspace/services/page-api'
 
 interface PageInfoCardProps {
@@ -25,12 +24,16 @@ export function PageInfoCard({
           <div className="flex flex-col gap-2">
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-semibold text-foreground">{page.name}</h1>
-              <button
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
                 onClick={onEdit}
-                className="p-1 text-muted-foreground hover:text-foreground transition-colors"
+                aria-label="Edit page"
+                className="text-muted-foreground hover:text-foreground"
               >
                 <Pencil className="h-4 w-4" />
-              </button>
+              </Button>
             </div>
 
             <a
@@ -53,14 +56,16 @@ export function PageInfoCard({
             <Trash2 className="h-4 w-4" />
             Delete
           </Button>
-          <button
+          <Button
+            type="button"
+            variant="outline"
             onClick={onViewChanges}
-            className="flex items-center gap-2 px-3 py-2 rounded-md border border-border hover:bg-muted transition-colors"
+            className="px-3 py-2 h-auto gap-2"
             aria-label="View changes"
           >
-            <span className="text-sm text-foreground">View Changes</span>
-            <div className="w-2 h-2 rounded-full bg-foreground" />
-          </button>
+            <span className="text-sm">View Changes</span>
+            <span className="w-2 h-2 rounded-full bg-foreground" />
+          </Button>
         </div>
       </div>
     </div>
