@@ -1,0 +1,14 @@
+{
+  "name": "pulzifi-extractor",
+  "version": "1.0.0",
+  "description": "Headless browser extractor service",
+  "main": "index.js",
+  "scripts": {
+    "start": "bun run index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "playwright": "^1.41.2",
+    "body-parser": "^1.20.2"
+  }
+}

@@ -23,10 +23,10 @@ export function DashboardFeature() {
         onCreateWorkspace={() => console.log('Create workspace')}
       />
 
-      <div className="px-24 py-8 bg-background">
-        <div className="grid grid-cols-3 gap-6">
+      <div className="px-4 md:px-8 lg:px-24 py-8 bg-background">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Found Changes Chart */}
-          <div className="col-span-2 bg-card border border-border rounded-lg p-6">
+          <div className="col-span-1 lg:col-span-2 bg-card border border-border rounded-lg p-6">
             <div className="space-y-4">
               <div>
                 <h3 className="text-xl font-semibold text-foreground mb-1">Found Changes</h3>

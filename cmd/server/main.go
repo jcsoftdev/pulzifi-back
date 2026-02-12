@@ -17,7 +17,7 @@ import (
 	"github.com/jcsoftdev/pulzifi-back/shared/cache"
 	"github.com/jcsoftdev/pulzifi-back/shared/config"
 	"github.com/jcsoftdev/pulzifi-back/shared/database"
-	"github.com/jcsoftdev/pulzifi-back/shared/kafka"
+	"github.com/jcsoftdev/pulzifi-back/shared/eventbus"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	middlewarex "github.com/jcsoftdev/pulzifi-back/shared/middleware"
 	"github.com/jcsoftdev/pulzifi-back/shared/router"
@@ -50,22 +50,39 @@ func main() {
 	}
 	defer db.Close()
 
-	// Initialize Redis for caching
+	// Initialize Redis for caching (Optional for MVP)
 	if err := cache.InitRedis(cfg); err != nil {
-		logger.Error("Failed to initialize Redis", zap.Error(err))
-		os.Exit(1)
+		logger.Warn("Failed to initialize Redis - Caching disabled", zap.Error(err))
+	} else {
+		defer cache.CloseRedis()
+		logger.Info("Redis initialized successfully")
 	}
-	defer cache.CloseRedis()
-	logger.Info("Redis initialized successfully")
 
-	// Initialize Kafka Producer
-	kafkaProducer, err := kafka.NewProducerClient(cfg)
-	if err != nil {
-		logger.Error("Failed to initialize Kafka producer", zap.Error(err))
-		os.Exit(1)
+	// Initialize Event Bus (for MVP)
+	eventBus := eventbus.GetInstance()
+	logger.Info("Event Bus initialized")
+
+	// Check if we should run in "All-in-One" mode or just "API" mode
+	// Default to true for backward compatibility unless explicitly disabled
+	enableWorkers := os.Getenv("ENABLE_WORKERS") != "false"
+
+	if enableWorkers {
+		logger.Info("Running in Monolith All-in-One mode (API + Workers)")
+	} else {
+		logger.Info("Running in API-only mode (Workers disabled)")
 	}
-	defer kafkaProducer.Close()
-	logger.Info("Kafka producer initialized successfully")
+
+	// Create and Start Server
+	// Pass enableWorkers flag to registerAllModulesInternal
+	// The srv variable was unused and registerAllModulesInternal signature was mismatching in the commented out block above
+	// which I replaced. But registerAllModulesInternal returns void in line 128.
+	// The logic should be:
+	// 1. Setup registry
+	// 2. Call registerAllModulesInternal with enableWorkers
+	// 3. Mount routes
+
+	// I will remove the redundant call I added earlier at line 77-79 because it is called later at line 128
+	// and registerAllModulesInternal expects *router.Registry as first arg, not *config.Config.
 
 	// Create a context that can be cancelled
 	ctx, cancel := context.WithCancel(context.Background())
@@ -116,7 +133,7 @@ func main() {
 	// Create module registry and register all modules
 	logger.Info("Registering module routes...")
 	registry := router.NewRegistry(logger.Logger)
-	registerAllModulesInternal(registry, db, kafkaProducer)
+	registerAllModulesInternal(registry, db, eventBus, enableWorkers)
 
 	// Register routes from all modules under /api/v1
 	v1Router := chi.NewRouter()

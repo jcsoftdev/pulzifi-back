@@ -23,7 +23,7 @@ type RefreshTokenCache struct {
 // GetRefreshTokenCache retrieves cached refresh token response
 func GetRefreshTokenCache(ctx context.Context, oldRefreshToken string) (*RefreshTokenCache, error) {
 	if redisClient == nil {
-		return nil, fmt.Errorf("redis client not initialized")
+		return nil, nil // Redis disabled, cache miss
 	}
 
 	key := fmt.Sprintf("refresh_token_cache:%s", oldRefreshToken)
@@ -43,7 +43,7 @@ func GetRefreshTokenCache(ctx context.Context, oldRefreshToken string) (*Refresh
 // SetRefreshTokenCache stores refresh token response in cache
 func SetRefreshTokenCache(ctx context.Context, oldRefreshToken string, cache *RefreshTokenCache) error {
 	if redisClient == nil {
-		return fmt.Errorf("redis client not initialized")
+		return nil // Redis disabled, silently ignore
 	}
 
 	key := fmt.Sprintf("refresh_token_cache:%s", oldRefreshToken)
@@ -58,7 +58,7 @@ func SetRefreshTokenCache(ctx context.Context, oldRefreshToken string, cache *Re
 // DeleteRefreshTokenCache removes cached refresh token response
 func DeleteRefreshTokenCache(ctx context.Context, oldRefreshToken string) error {
 	if redisClient == nil {
-		return fmt.Errorf("redis client not initialized")
+		return nil // Redis disabled, silently ignore
 	}
 
 	key := fmt.Sprintf("refresh_token_cache:%s", oldRefreshToken)

@@ -46,17 +46,17 @@ export function ChangesViewLayout({
   }
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-6 md:gap-8 px-4 md:px-0">
       {/* Header */}
-      <div className="flex items-end justify-between">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div className="flex flex-col gap-1">
           <span className="text-sm text-muted-foreground">Change detected on:</span>
-          <h1 className="text-3xl font-bold text-foreground">
+          <h1 className="text-2xl md:text-3xl font-bold text-foreground">
              {activeCheck ? formatDateTime(activeCheck.checkedAt) : 'No check selected'}
           </h1>
         </div>
 
-        <div className="w-64">
+        <div className="w-full md:w-64">
            <Select value={activeCheckId} onValueChange={handleCheckChange}>
             <SelectTrigger className="w-full bg-background">
               <SelectValue placeholder="Select a check" />
@@ -73,8 +73,8 @@ export function ChangesViewLayout({
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-border">
-        <div className="flex gap-8">
+      <div className="border-b border-border overflow-x-auto">
+        <div className="flex gap-6 md:gap-8 min-w-max">
           <button
             onClick={() => handleTabChange('visual')}
             className={cn(

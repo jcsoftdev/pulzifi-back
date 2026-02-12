@@ -25,7 +25,7 @@ export function NavigationLink({ route }: Readonly<NavigationLinkProps>) {
       asChild
       variant="ghost"
       className={cn(
-        'w-full h-10 px-4 justify-start gap-2 mb-1 rounded-lg font-normal',
+        'w-full h-9 px-4 justify-start gap-2 mb-1 rounded-lg font-normal',
         isActive
           ? 'bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent'
           : 'text-foreground hover:bg-muted'

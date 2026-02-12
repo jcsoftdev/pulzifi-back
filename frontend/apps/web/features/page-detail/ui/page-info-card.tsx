@@ -50,7 +50,7 @@ export function PageInfoCard({
         <div className="flex items-center gap-3">
           <Button
             variant="outline"
-            className="h-10 px-4 gap-2 bg-transparent border-border text-foreground hover:bg-muted hover:text-foreground"
+            className="h-9 px-4 gap-2 bg-transparent border-border text-foreground hover:bg-muted hover:text-foreground"
             onClick={onDelete}
           >
             <Trash2 className="h-4 w-4" />

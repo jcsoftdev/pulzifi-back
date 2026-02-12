@@ -170,88 +170,88 @@
  
    return (
      <div className="flex-1 flex flex-col bg-background">
-       <div className="flex justify-between items-start gap-2 px-24 py-6">
-         <div className="flex flex-col gap-2">
-           <div className="flex items-center gap-3">
-             <h1 className="text-2xl font-semibold text-foreground">
-               Added pages for {workspace.name}
-             </h1>
-             <div className="flex gap-1">
-               {workspace.tags?.map((tag) => (
-                   <Badge key={tag} variant="secondary">
-                     {tag}
-                   </Badge>
-                 ))}
-             </div>
-           </div>
-           <p className="text-base font-normal text-muted-foreground">
-             Here are all the pages you've added to this workspace.
-           </p>
-         </div>
- 
-         <div className="flex items-center gap-2">
-           <Button variant="outline" onClick={() => setIsEditWorkspaceOpen(true)} className="gap-2">
-             <Settings className="w-4 h-4" />
-             Edit Workspace
-           </Button>
-           <Button
-             variant="destructive"
-             onClick={() => setIsDeleteWorkspaceOpen(true)}
-             size="icon"
-             className="h-10 w-10"
-           >
-             <Trash2 className="w-4 h-4" />
-           </Button>
-         </div>
-       </div>
- 
-       <div className="flex justify-between items-center px-24 py-2 gap-4">
-         <div className="relative flex-1 max-w-sm">
-           <svg
-             width="17"
-             height="17"
-             viewBox="0 0 17 17"
-             fill="none"
-             className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-           >
-             <title>Search</title>
-             <path
-               d="M7.79167 13.4583C10.8292 13.4583 13.2917 10.9958 13.2917 7.95833C13.2917 4.92084 10.8292 2.45833 7.79167 2.45833C4.75418 2.45833 2.29167 4.92084 2.29167 7.95833C2.29167 10.9958 4.75418 13.4583 7.79167 13.4583Z"
-               stroke="currentColor"
-               strokeWidth="1.5"
-               strokeLinecap="round"
-               strokeLinejoin="round"
-             />
-             <path
-               d="M14.5833 14.75L11.7292 11.8958"
-               stroke="currentColor"
-               strokeWidth="1.5"
-               strokeLinecap="round"
-               strokeLinejoin="round"
-             />
-           </svg>
-           <Input
-             type="search"
-             placeholder="Search pages"
-             value={searchQuery}
-             onChange={(e) => setSearchQuery(e.target.value)}
-             className="pl-10"
-           />
-         </div>
- 
-         <div className="flex items-center gap-4">
-           <Button
-             variant="default"
-             onClick={() => setIsAddPageOpen(true)}
-             className="h-10 px-4 gap-2 bg-primary"
-           >
-             <SquarePlus className="w-4 h-4" />
-             Add page
-           </Button>
-         </div>
-       </div>
- 
-       <div className="px-24 py-2 pb-6">
+      <div className="flex flex-col md:flex-row justify-between items-start gap-4 px-4 md:px-8 lg:px-24 py-6">
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl font-semibold text-foreground">
+              Added pages for {workspace.name}
+            </h1>
+            <div className="flex gap-1">
+              {workspace.tags?.map((tag) => (
+                  <Badge key={tag} variant="secondary">
+                    {tag}
+                  </Badge>
+                ))}
+            </div>
+          </div>
+          <p className="text-base font-normal text-muted-foreground">
+            Here are all the pages you've added to this workspace.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2 w-full md:w-auto">
+          <Button variant="outline" onClick={() => setIsEditWorkspaceOpen(true)} className="gap-2 flex-1 md:flex-none">
+            <Settings className="w-4 h-4" />
+            Edit Workspace
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={() => setIsDeleteWorkspaceOpen(true)}
+            size="icon"
+            className="h-9 w-9 shrink-0"
+          >
+            <Trash2 className="w-4 h-4" />
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center px-4 md:px-8 lg:px-24 py-2 gap-4">
+        <div className="relative flex-1 w-full md:max-w-sm">
+          <svg
+            width="17"
+            height="17"
+            viewBox="0 0 17 17"
+            fill="none"
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+          >
+            <title>Search</title>
+            <path
+              d="M7.79167 13.4583C10.8292 13.4583 13.2917 10.9958 13.2917 7.95833C13.2917 4.92084 10.8292 2.45833 7.79167 2.45833C4.75418 2.45833 2.29167 4.92084 2.29167 7.95833C2.29167 10.9958 4.75418 13.4583 7.79167 13.4583Z"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <path
+              d="M14.5833 14.75L11.7292 11.8958"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          <Input
+            type="search"
+            placeholder="Search pages"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+
+        <div className="flex items-center gap-4">
+          <Button
+            variant="default"
+            onClick={() => setIsAddPageOpen(true)}
+            className="h-9 px-4 gap-2 bg-primary w-full md:w-auto"
+          >
+            <SquarePlus className="w-4 h-4" />
+            Add page
+          </Button>
+        </div>
+      </div>
+
+      <div className="px-4 md:px-8 lg:px-24 py-2 pb-6">
          <PagesTable
            pages={filteredPages}
            onViewChanges={handleViewChanges}

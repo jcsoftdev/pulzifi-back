@@ -7,14 +7,19 @@ import (
 
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/domain/entities"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/domain/repositories"
+	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/scheduler"
 )
 
 type CreateMonitoringConfigHandler struct {
-	repo repositories.MonitoringConfigRepository
+	repo      repositories.MonitoringConfigRepository
+	scheduler *scheduler.Scheduler
 }
 
-func NewCreateMonitoringConfigHandler(repo repositories.MonitoringConfigRepository) *CreateMonitoringConfigHandler {
-	return &CreateMonitoringConfigHandler{repo: repo}
+func NewCreateMonitoringConfigHandler(repo repositories.MonitoringConfigRepository, scheduler *scheduler.Scheduler) *CreateMonitoringConfigHandler {
+	return &CreateMonitoringConfigHandler{
+		repo:      repo,
+		scheduler: scheduler,
+	}
 }
 
 func (h *CreateMonitoringConfigHandler) Handle(ctx context.Context, req *CreateMonitoringConfigRequest) (*CreateMonitoringConfigResponse, error) {
@@ -23,6 +28,10 @@ func (h *CreateMonitoringConfigHandler) Handle(ctx context.Context, req *CreateM
 
 	if err := h.repo.Create(ctx, config); err != nil {
 		return nil, err
+	}
+
+	if config.CheckFrequency != "Off" && h.scheduler != nil {
+		h.scheduler.WakeUp()
 	}
 
 	return &CreateMonitoringConfigResponse{

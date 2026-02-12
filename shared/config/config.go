@@ -55,6 +55,9 @@ type Config struct {
 	MinIOBucket    string
 	MinIOUseSSL    bool
 	MinIOPublicURL string
+
+	// Extractor
+	ExtractorURL string
 }
 
 func Load() *Config {
@@ -92,6 +95,7 @@ func Load() *Config {
 		MinIOBucket:          getEnv("MINIO_BUCKET", "pulzifi-snapshots"),
 		MinIOUseSSL:          getEnvBool("MINIO_USE_SSL", false),
 		MinIOPublicURL:       getEnv("MINIO_PUBLIC_URL", "http://localhost:9000"),
+		ExtractorURL:         getEnv("EXTRACTOR_URL", "http://localhost:3000"),
 	}
 }
 

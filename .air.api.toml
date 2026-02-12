@@ -1,0 +1,46 @@
+# Air configuration for hot reload development (API Only)
+root = "."
+testdata_dir = "testdata"
+tmp_dir = "tmp"
+
+[build]
+  args_bin = []
+  bin = "bin/pulzifi-monolith"
+  cmd = "go build -o ./bin/pulzifi-monolith ./cmd/server/"
+  delay = 1000
+  exclude_dir = ["assets", "tmp", "vendor", "testdata"]
+  exclude_file = []
+  exclude_pattern = ["*.so", "*.sqlc.go"]
+  exclude_regex = ["_test\\.go"]
+  exclude_unchanged = false
+  full_bin = "ENABLE_WORKERS=false ./bin/pulzifi-monolith"
+  include_dir = []
+  include_ext = ["go", "tpl", "tmpl", "html"]
+  include_file = []
+  include_regex = []
+  kill_delay = "0s"
+  log = "build-errors.log"
+  poll = false
+  poll_interval = 0
+  rerun = false
+  rerun_delay = 500
+  send_interrupt = false
+  stop_on_error = false
+
+[color]
+  app = ""
+  build = "yellow"
+  main = "magenta"
+  runner = "green"
+  watcher = "cyan"
+
+[log]
+  main_only = false
+  time = false
+
+[misc]
+  clean_on_exit = false
+
+[screen]
+  clear_on_rebuild = false
+  keep_scroll = true

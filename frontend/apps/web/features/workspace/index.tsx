@@ -140,13 +140,13 @@ export function WorkspaceFeature({
       <WelcomeContainer onSettings={handleSettings} />
 
       {/* Search and Create */}
-      <div className="flex justify-between items-center self-stretch gap-1 px-24 py-8">
+      <div className="flex flex-col md:flex-row justify-between items-center self-stretch gap-4 px-4 md:px-8 lg:px-24 py-8">
         <SearchBar value={searchQuery} onChange={setSearchQuery} />
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 w-full md:w-auto">
           <Button
             variant="default"
             onClick={handleCreateWorkspace}
-            className="h-10 px-4 gap-2 bg-primary"
+            className="h-9 px-4 gap-2 bg-primary w-full md:w-auto"
           >
             <SquarePlus className="w-4 h-4" />
             Create workplace
@@ -155,7 +155,7 @@ export function WorkspaceFeature({
       </div>
 
       {/* Tabs and Last Check */}
-      <div className="flex justify-between self-stretch gap-1 px-24 py-8 pb-1">
+      <div className="flex justify-between self-stretch gap-1 px-4 md:px-8 lg:px-24 py-8 pb-1">
         <div />
         <div className="flex justify-center items-center gap-1 p-3">
           <p className="text-sm font-normal text-center text-muted-foreground">
@@ -165,7 +165,7 @@ export function WorkspaceFeature({
       </div>
 
       {/* Workspaces Grid */}
-      <div className="flex items-center self-stretch gap-6 px-24 py-6">
+      <div className="flex items-center self-stretch gap-6 px-4 md:px-8 lg:px-24 py-6">
         {isLoading && (
           <div className="flex items-center justify-center w-full">
             <p className="text-muted-foreground">Loading workspaces...</p>

@@ -10,22 +10,25 @@ import (
 	"github.com/google/uuid"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/domain/entities"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/domain/repositories"
-	"github.com/jcsoftdev/pulzifi-back/shared/kafka"
+	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/scheduler"
+	"github.com/jcsoftdev/pulzifi-back/shared/eventbus"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"go.uber.org/zap"
 )
 
 type UpdateMonitoringConfigHandler struct {
-	repo     repositories.MonitoringConfigRepository
-	producer *kafka.ProducerClient
-	tenant   string
+	repo      repositories.MonitoringConfigRepository
+	eventBus  *eventbus.EventBus
+	tenant    string
+	scheduler *scheduler.Scheduler
 }
 
-func NewUpdateMonitoringConfigHandler(repo repositories.MonitoringConfigRepository, producer *kafka.ProducerClient, tenant string) *UpdateMonitoringConfigHandler {
+func NewUpdateMonitoringConfigHandler(repo repositories.MonitoringConfigRepository, eventBus *eventbus.EventBus, tenant string, scheduler *scheduler.Scheduler) *UpdateMonitoringConfigHandler {
 	return &UpdateMonitoringConfigHandler{
-		repo:     repo,
-		producer: producer,
-		tenant:   tenant,
+		repo:      repo,
+		eventBus:  eventBus,
+		tenant:    tenant,
+		scheduler: scheduler,
 	}
 }
 
@@ -82,6 +85,9 @@ func (h *UpdateMonitoringConfigHandler) Handle(ctx context.Context, pageID uuid.
 
 		if config.CheckFrequency != "Off" {
 			shouldDispatch = true
+			if h.scheduler != nil {
+				h.scheduler.WakeUp()
+			}
 		}
 	} else {
 		// Config exists, update only provided fields
@@ -91,6 +97,9 @@ func (h *UpdateMonitoringConfigHandler) Handle(ctx context.Context, pageID uuid.
 			config.CheckFrequency = *req.CheckFrequency
 			if config.CheckFrequency != "Off" {
 				shouldDispatch = true
+				if h.scheduler != nil {
+					h.scheduler.WakeUp()
+				}
 			}
 		} else {
 			logger.Info("UpdateMonitoringConfigHandler: CheckFrequency not provided in request")
@@ -117,30 +126,12 @@ func (h *UpdateMonitoringConfigHandler) Handle(ctx context.Context, pageID uuid.
 	}
 
 	// Dispatch snapshot request if needed
-	logger.Info("UpdateMonitoringConfigHandler: Dispatch check", zap.Bool("shouldDispatch", shouldDispatch), zap.Bool("producer_exists", h.producer != nil))
-	if shouldDispatch && h.producer != nil {
-		pageURL, err := h.repo.GetPageURL(ctx, pageID)
-		logger.Info("UpdateMonitoringConfigHandler: Page URL retrieval", zap.String("url", pageURL), zap.Error(err))
-		if err == nil && pageURL != "" {
-			payload := map[string]interface{}{
-				"page_id":     pageID.String(),
-				"url":         pageURL,
-				"schema_name": h.tenant,
-			}
-			bytes, _ := json.Marshal(payload)
-			err := h.producer.Produce("snapshot-requests", pageID.String(), bytes)
-			if err != nil {
-				logger.Error("Failed to produce snapshot request", zap.String("page_id", pageID.String()), zap.Error(err))
-			} else {
-				logger.Info("Dispatched snapshot request due to config update", zap.String("page_id", pageID.String()))
-				// Update last checked at
-				if err := h.repo.UpdateLastCheckedAt(ctx, pageID); err != nil {
-					logger.Error("Failed to update last_checked_at", zap.String("page_id", pageID.String()), zap.Error(err))
-				}
-			}
-		} else if err != nil {
-			logger.Error("Failed to get page URL for snapshot dispatch", zap.Error(err))
-		}
+	// REFACTOR: The API should NOT dispatch execution directly. The Scheduler is responsible for this.
+	// We just log that the config was updated.
+	if shouldDispatch {
+		logger.Info("UpdateMonitoringConfigHandler: Config updated, Scheduler will pick up next run", zap.String("page_id", pageID.String()))
+		// We can optionally trigger a scheduler "poke" if we want immediate feedback, but the requirement says "API does not dispatch executions".
+		// So we do nothing here regarding dispatch.
 	}
 
 	// Return response

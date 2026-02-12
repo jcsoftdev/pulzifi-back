@@ -94,10 +94,12 @@ export function PagesTable({
 
   return (
     <div className="bg-card border border-border rounded-lg overflow-hidden">
-      {/* Table Header */}
-      <div className="flex items-center border-b border-border bg-background">
-        {/* Checkbox Column */}
-        <div className="flex items-center gap-2.5 px-2 py-2.5 w-8">
+      <div className="overflow-x-auto">
+        <div className="min-w-[1000px]">
+          {/* Table Header */}
+          <div className="flex items-center border-b border-border bg-background">
+            {/* Checkbox Column */}
+            <div className="flex items-center gap-2.5 px-2 py-2.5 w-8">
           <button
             type="button"
             onClick={toggleSelectAll}
@@ -350,13 +352,15 @@ export function PagesTable({
           })
         )}
       </div>
+        </div>
+      </div>
 
       {/* Footer */}
-      <div className="flex items-center justify-between px-24 py-3 border-t border-border bg-background">
-        <div className="text-sm font-normal text-muted-foreground">
+      <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-4 md:px-8 lg:px-24 py-3 border-t border-border bg-background">
+        <div className="text-sm font-normal text-muted-foreground w-full md:w-auto text-center md:text-left">
           {selectedPages.size} of {pages.length} row(s) selected.
         </div>
-        <div className="flex items-center gap-8">
+        <div className="flex flex-wrap justify-center items-center gap-4 md:gap-8 w-full md:w-auto">
           {/* Rows per page */}
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-foreground">Rows per page</span>

@@ -15,6 +15,7 @@ import (
 	"github.com/jcsoftdev/pulzifi-back/modules/organization/infrastructure/persistence"
 	"github.com/jcsoftdev/pulzifi-back/shared/config"
 	"github.com/jcsoftdev/pulzifi-back/shared/database"
+	"github.com/jcsoftdev/pulzifi-back/shared/eventbus"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
 	"go.uber.org/zap"
@@ -49,23 +50,19 @@ func main() {
 	defer db.Close()
 	logger.Info("Connected to database")
 
-	// Initialize Kafka client
-	kafkaClient, err := messaging.NewKafkaClient(cfg)
-	if err != nil {
-		logger.Error("Failed to initialize Kafka client", zap.Error(err))
-		panic(err)
-	}
-	defer kafkaClient.Close()
-
 	// Initialize repositories
 	orgRepo := persistence.NewOrganizationPostgresRepository(db)
 
 	// Initialize domain services
 	orgService := services.NewOrganizationService()
 
-	// Initialize messaging (Kafka)
-	messagePublisher := messaging.NewPublisher(kafkaClient)
-	messageSubscriber := messaging.NewSubscriber(kafkaClient)
+	// Initialize messaging (EventBus for MVP, Kafka for later)
+	// We use the singleton EventBus for in-memory communication
+	messageBus := eventbus.GetInstance()
+
+	// Initialize messaging adapters
+	messagePublisher := messaging.NewPublisher(messageBus)
+	messageSubscriber := messaging.NewSubscriber(messageBus)
 
 	// Initialize application handlers
 	createOrgHandler := create_organization.NewCreateOrganizationHandler(orgRepo, orgService, db, messagePublisher)

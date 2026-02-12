@@ -12,19 +12,28 @@ import (
 	createnotificationpreference "github.com/jcsoftdev/pulzifi-back/modules/monitoring/application/create_notification_preference"
 	getmonitoringconfig "github.com/jcsoftdev/pulzifi-back/modules/monitoring/application/get_monitoring_config"
 	listchecks "github.com/jcsoftdev/pulzifi-back/modules/monitoring/application/list_checks"
+	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/application/orchestrator"
 	updatemonitoringconfig "github.com/jcsoftdev/pulzifi-back/modules/monitoring/application/update_monitoring_config"
-	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/consumer"
+	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/application/workers"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/persistence"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/scheduler"
-	"github.com/jcsoftdev/pulzifi-back/shared/kafka"
+	snapshotapp "github.com/jcsoftdev/pulzifi-back/modules/snapshot/application"
+	snapshotextractor "github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/extractor"
+	snapshotminio "github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/minio"
+	"github.com/jcsoftdev/pulzifi-back/shared/config"
+	"github.com/jcsoftdev/pulzifi-back/shared/eventbus"
+	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
 	"github.com/jcsoftdev/pulzifi-back/shared/router"
+	"go.uber.org/zap"
 )
 
 // Module implements the router.ModuleRegisterer interface for the Monitoring module
 type Module struct {
-	db            *sql.DB
-	kafkaProducer *kafka.ProducerClient
+	db         *sql.DB
+	eventBus   *eventbus.EventBus
+	scheduler  *scheduler.Scheduler
+	workerPool *workers.WorkerPool
 }
 
 // NewModule creates a new instance of the Monitoring module
@@ -33,25 +42,55 @@ func NewModule() router.ModuleRegisterer {
 }
 
 // NewModuleWithDB creates a new instance with database connection
-func NewModuleWithDB(db *sql.DB, producer *kafka.ProducerClient) router.ModuleRegisterer {
+func NewModuleWithDB(db *sql.DB, eventBus *eventbus.EventBus) router.ModuleRegisterer {
 	m := &Module{
-		db:            db,
-		kafkaProducer: producer,
+		db:       db,
+		eventBus: eventBus,
 	}
 
-	// Start scheduler if producer is available
-	if producer != nil {
-		sched := scheduler.NewScheduler(db, producer)
-		sched.Start(context.Background())
+	// Initialize Configuration
+	cfg := config.Load()
 
-		// Start consumer
-		cons := consumer.NewSnapshotConsumer(db)
-		if cons != nil {
-			cons.Start(context.Background())
+	// Initialize Snapshot Infrastructure
+	minioClient, err := snapshotminio.NewClient(cfg)
+	if err != nil {
+		logger.Error("Failed to initialize MinIO client", zap.Error(err))
+	} else {
+		// Ensure bucket exists
+		if err := minioClient.EnsureBucket(context.Background()); err != nil {
+			logger.Error("Failed to ensure MinIO bucket", zap.Error(err))
 		}
 	}
 
+	extractorClient := snapshotextractor.NewHTTPClient(cfg.ExtractorURL)
+	snapshotWorker := snapshotapp.NewSnapshotWorker(minioClient, extractorClient, m.db)
+
+	// Create WorkerPool
+	m.workerPool = workers.NewWorkerPool(snapshotWorker, 100)
+
+	repoFactory := persistence.NewPostgresRepositoryFactory(m.db)
+	orch := orchestrator.NewOrchestrator(repoFactory, m.workerPool)
+
+	// Create Scheduler instance
+	m.scheduler = scheduler.NewScheduler(m.db, orch)
+
 	return m
+}
+
+// StartBackgroundProcesses initializes and starts the Scheduler, Orchestrator, and Workers
+func (m *Module) StartBackgroundProcesses() {
+	if m.scheduler == nil || m.workerPool == nil {
+		logger.Error("Scheduler or WorkerPool not initialized in Module")
+		return
+	}
+
+	// Start Worker Pool
+	m.workerPool.Start(5)
+
+	// Start Scheduler
+	m.scheduler.Start(context.Background())
+
+	logger.Info("Monitoring Scheduler and Orchestrator initialized and started")
 }
 
 // ModuleName returns the name of the module
@@ -200,7 +239,7 @@ func (m *Module) handleCreateMonitoringConfig(w http.ResponseWriter, r *http.Req
 	repo := persistence.NewMonitoringConfigPostgresRepository(m.db, tenant)
 
 	// Use real handler
-	handler := createmonitoringconfig.NewCreateMonitoringConfigHandler(repo)
+	handler := createmonitoringconfig.NewCreateMonitoringConfigHandler(repo, m.scheduler)
 	handler.HandleHTTP(w, r)
 }
 
@@ -260,7 +299,7 @@ func (m *Module) handleUpdateMonitoringConfig(w http.ResponseWriter, r *http.Req
 	repo := persistence.NewMonitoringConfigPostgresRepository(m.db, tenant)
 
 	// Use real handler
-	handler := updatemonitoringconfig.NewUpdateMonitoringConfigHandler(repo, m.kafkaProducer, tenant)
+	handler := updatemonitoringconfig.NewUpdateMonitoringConfigHandler(repo, m.eventBus, tenant, m.scheduler)
 	handler.HandleHTTP(w, r)
 }
 

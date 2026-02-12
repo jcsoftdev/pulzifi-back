@@ -17,14 +17,14 @@ import (
 	usage "github.com/jcsoftdev/pulzifi-back/modules/usage/infrastructure/http"
 	workspace "github.com/jcsoftdev/pulzifi-back/modules/workspace/infrastructure/http"
 	"github.com/jcsoftdev/pulzifi-back/shared/config"
-	"github.com/jcsoftdev/pulzifi-back/shared/kafka"
+	"github.com/jcsoftdev/pulzifi-back/shared/eventbus"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
 	"github.com/jcsoftdev/pulzifi-back/shared/router"
 	"go.uber.org/zap"
 )
 
-func registerAllModulesInternal(registry *router.Registry, db *sql.DB, kafkaProducer *kafka.ProducerClient) {
+func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus *eventbus.EventBus, enableWorkers bool) {
 	cfg := config.Load()
 
 	userRepo := authpersistence.NewUserPostgresRepository(db)
@@ -59,7 +59,7 @@ func registerAllModulesInternal(registry *router.Registry, db *sql.DB, kafkaProd
 		{"Workspace", workspace.NewModuleWithDB(db)},
 		{"Page", page.NewModuleWithDB(db)},
 		{"Alert", alert.NewModuleWithDB(db)},
-		{"Monitoring", monitoring.NewModuleWithDB(db, kafkaProducer)},
+		{"Monitoring", monitoring.NewModuleWithDB(db, eventBus)},
 		{"Integration", integration.NewModule()},
 		{"Insight", insight.NewModuleWithDB(db)},
 		{"Report", report.NewModule()},
@@ -71,6 +71,14 @@ func registerAllModulesInternal(registry *router.Registry, db *sql.DB, kafkaProd
 	for _, m := range moduleInstances {
 		registry.Register(m.module)
 		logger.Info("Registered module", zap.String("module", m.name))
+
+		// Special handling for Monitoring module to start background processes if enabled
+		if m.name == "Monitoring" && enableWorkers {
+			if monModule, ok := m.module.(*monitoring.Module); ok {
+				monModule.StartBackgroundProcesses()
+				logger.Info("Started background processes for Monitoring module")
+			}
+		}
 	}
 
 	logger.Info("All modules registered successfully", zap.Int("total", registry.Count()))

@@ -40,17 +40,17 @@ export async function PageDetailFeature({ workspaceId, pageId }: Readonly<PageDe
         ]}
       />
 
-      <div className="px-8 py-8 space-y-8 max-w-7xl mx-auto w-full">
+      <div className="px-4 md:px-8 py-6 md:py-8 space-y-6 md:space-y-8 max-w-7xl mx-auto w-full">
         <PageInfoWithActions initialPage={page} workspaceId={workspaceId} />
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="flex flex-col gap-8 lg:col-span-2">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
+          <div className="flex flex-col gap-6 md:gap-8 lg:col-span-2">
             <ChecksHistory checks={checks} workspaceId={workspaceId} pageId={pageId} />
 
             <AdvancedSettingsCard pageId={pageId} initialConfig={config} />
           </div>
 
-          <div className="flex flex-col gap-8 lg:col-span-1">
+          <div className="flex flex-col gap-6 md:gap-8 lg:col-span-1">
             <GeneralSummaryCard page={page} config={config} />
 
             <IntelligentInsightsCard insights={insights} />

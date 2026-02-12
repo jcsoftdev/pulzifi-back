@@ -1,7 +1,14 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { Menu } from 'lucide-react'
 import { Header } from '@workspace/ui/components/organisms'
+import {
+  Button,
+  Sheet,
+  SheetContent,
+  SheetTrigger,
+} from '@workspace/ui/components/atoms'
 import type { BreadcrumbItem } from '@workspace/ui/components/molecules'
 import type { ReactNode } from 'react'
 
@@ -45,20 +52,34 @@ export function AppShell({
   }, [])
 
   return (
-    <div className="flex min-h-screen bg-sidebar">
-      <div className="sticky top-0 h-screen">{sidebar}</div>
-      <div className="flex-1 flex flex-col bg-background">
-        <div className="sticky top-0 z-10 bg-background">
-          <Header
-            checks={checksData}
-            hasNotifications={hasNotifications}
-            notificationCount={notificationCount}
-            onNotificationClick={() => console.log('Notifications clicked')}
-            breadcrumbs={breadcrumbs}
-          />
+    <Sheet>
+      <div className="flex min-h-screen bg-sidebar">
+        <div className="hidden md:block sticky top-0 h-screen">{sidebar}</div>
+        <div className="flex-1 flex flex-col bg-background min-w-0">
+          <div className="sticky top-0 z-10 bg-background">
+            <Header
+              checks={checksData}
+              hasNotifications={hasNotifications}
+              notificationCount={notificationCount}
+              onNotificationClick={() => console.log('Notifications clicked')}
+              breadcrumbs={breadcrumbs}
+            >
+              <SheetTrigger asChild>
+                <Button
+                  variant="ghost"
+                  className="md:hidden -ml-2 mr-2 px-2 h-auto"
+                >
+                  <Menu className="h-5 w-5" />
+                </Button>
+              </SheetTrigger>
+            </Header>
+          </div>
+          {children}
         </div>
-        {children}
       </div>
-    </div>
+      <SheetContent side="left" className="p-0 w-auto border-none">
+        {sidebar}
+      </SheetContent>
+    </Sheet>
   )
 }

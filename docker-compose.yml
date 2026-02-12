@@ -505,6 +505,22 @@ services:
       retries: 3
       start_period: 40s
 
+  extractor-service:
+    build:
+      context: modules/infra/extractor
+      dockerfile: Dockerfile
+    container_name: pulzifi-extractor
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    networks:
+      - pulzifi-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
   snapshot-service:
     build:
       context: .
@@ -522,12 +538,15 @@ services:
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
       MINIO_BUCKET: ${MINIO_BUCKET:-pulzifi-snapshots}
       MINIO_USE_SSL: ${MINIO_USE_SSL:-false}
+      EXTRACTOR_URL: http://extractor-service:3000
     env_file:
       - .env
     depends_on:
       kafka:
         condition: service_healthy
       minio:
+        condition: service_healthy
+      extractor-service:
         condition: service_healthy
     networks:
       - pulzifi-network

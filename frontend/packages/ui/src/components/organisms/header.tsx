@@ -27,6 +27,7 @@ const Header = React.forwardRef<HTMLElement, HeaderProps>(
       hasNotifications,
       notificationCount,
       breadcrumbs,
+      children,
       className,
       ...props
     },
@@ -38,11 +39,22 @@ const Header = React.forwardRef<HTMLElement, HeaderProps>(
         className={cn('w-full border-b border-border bg-background', className)}
         {...props}
       >
-        <div className="flex items-center justify-between px-24 py-4 gap-4">
-          {breadcrumbs && breadcrumbs.length > 0 ? <Breadcrumb items={breadcrumbs} /> : <div />}
+        <div className="flex items-center justify-between px-4 lg:px-24 py-4 gap-4">
+          <div className="flex items-center gap-4">
+            {children}
+            {breadcrumbs && breadcrumbs.length > 0 ? (
+              <Breadcrumb items={breadcrumbs} />
+            ) : null}
+          </div>
           <div className="flex items-center gap-4">
             {checks && (
-              <ChecksTag current={checks.current} max={checks.max} refillDate={checks.refillDate} />
+              <div className="hidden md:block">
+                <ChecksTag
+                  current={checks.current}
+                  max={checks.max}
+                  refillDate={checks.refillDate}
+                />
+              </div>
             )}
             <NotificationButton
               onClick={onNotificationClick}

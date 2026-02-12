@@ -5,23 +5,24 @@ import (
 	"encoding/json"
 
 	"github.com/jcsoftdev/pulzifi-back/modules/organization/domain/events"
+	"github.com/jcsoftdev/pulzifi-back/shared/eventbus"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"go.uber.org/zap"
 )
 
-// Publisher publishes domain events to Kafka
+// Publisher publishes domain events to the MessageBus (Kafka or In-Memory)
 type Publisher struct {
-	kafkaClient *KafkaClient
+	bus eventbus.MessageBus
 }
 
 // NewPublisher creates a new publisher
-func NewPublisher(kafkaClient *KafkaClient) *Publisher {
+func NewPublisher(bus eventbus.MessageBus) *Publisher {
 	return &Publisher{
-		kafkaClient: kafkaClient,
+		bus: bus,
 	}
 }
 
-// PublishOrganizationCreated publishes organization created event to Kafka
+// PublishOrganizationCreated publishes organization created event
 func (p *Publisher) PublishOrganizationCreated(ctx context.Context, event *events.OrganizationCreated) error {
 	payload, err := json.Marshal(event)
 	if err != nil {
@@ -29,7 +30,7 @@ func (p *Publisher) PublishOrganizationCreated(ctx context.Context, event *event
 		return err
 	}
 
-	err = p.kafkaClient.Producer.Produce(
+	err = p.bus.Publish(
 		"organization.created",
 		event.ID.String(),
 		payload,
@@ -43,7 +44,7 @@ func (p *Publisher) PublishOrganizationCreated(ctx context.Context, event *event
 	return nil
 }
 
-// PublishOrganizationDeleted publishes organization deleted event to Kafka
+// PublishOrganizationDeleted publishes organization deleted event
 func (p *Publisher) PublishOrganizationDeleted(ctx context.Context, event *events.OrganizationDeleted) error {
 	payload, err := json.Marshal(event)
 	if err != nil {
@@ -51,7 +52,7 @@ func (p *Publisher) PublishOrganizationDeleted(ctx context.Context, event *event
 		return err
 	}
 
-	err = p.kafkaClient.Producer.Produce(
+	err = p.bus.Publish(
 		"organization.deleted",
 		event.ID.String(),
 		payload,
@@ -65,7 +66,7 @@ func (p *Publisher) PublishOrganizationDeleted(ctx context.Context, event *event
 	return nil
 }
 
-// PublishOrganizationUpdated publishes organization updated event to Kafka
+// PublishOrganizationUpdated publishes organization updated event
 func (p *Publisher) PublishOrganizationUpdated(ctx context.Context, event *events.OrganizationUpdated) error {
 	payload, err := json.Marshal(event)
 	if err != nil {
@@ -73,7 +74,7 @@ func (p *Publisher) PublishOrganizationUpdated(ctx context.Context, event *event
 		return err
 	}
 
-	err = p.kafkaClient.Producer.Produce(
+	err = p.bus.Publish(
 		"organization.updated",
 		event.ID.String(),
 		payload,

@@ -46,68 +46,68 @@ services:
       timeout: 5s
       retries: 5
 
-  redis:
-    image: redis:7-alpine
-    container_name: pulzifi-redis-monolith
-    restart: unless-stopped
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis-data:/data
-    networks:
-      - pulzifi-network
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: pulzifi-redis-monolith
+  #   restart: unless-stopped
+  #   ports:
+  #     - "6381:6379"
+  #   volumes:
+  #     - redis-data:/data
+  #   networks:
+  #     - pulzifi-network
+  #   healthcheck:
+  #     test: ["CMD", "redis-cli", "ping"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
 
   # ============================================================
   # INFRASTRUCTURE SERVICES
   # ============================================================
 
-  zookeeper:
-    image: confluentinc/cp-zookeeper:7.5.1
-    container_name: pulzifi-zookeeper
-    restart: unless-stopped
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
-    volumes:
-      - zookeeper-data:/var/lib/zookeeper/data
-    networks:
-      - pulzifi-network
+  # zookeeper:
+  #   image: confluentinc/cp-zookeeper:7.5.1
+  #   container_name: pulzifi-zookeeper
+  #   restart: unless-stopped
+  #   environment:
+  #     ZOOKEEPER_CLIENT_PORT: 2181
+  #     ZOOKEEPER_TICK_TIME: 2000
+  #   volumes:
+  #     - zookeeper-data:/var/lib/zookeeper/data
+  #   networks:
+  #     - pulzifi-network
 
-  kafka:
-    image: confluentinc/cp-kafka:7.5.1
-    container_name: pulzifi-kafka
-    restart: unless-stopped
-    depends_on:
-      - zookeeper
-    ports:
-      - "9092:9092"
-      - "29092:29092"
-    environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: true
-      KAFKA_LOG4J_LOGGERS: "kafka.controller=INFO,kafka.producer.async.DefaultEventHandler=INFO,state.change.logger=INFO"
-    volumes:
-      - kafka-data:/var/lib/kafka/data
-    networks:
-      - pulzifi-network
-    healthcheck:
-      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
+  # kafka:
+  #   image: confluentinc/cp-kafka:7.5.1
+  #   container_name: pulzifi-kafka
+  #   restart: unless-stopped
+  #   depends_on:
+  #     - zookeeper
+  #   ports:
+  #     - "9092:9092"
+  #     - "29092:29092"
+  #   environment:
+  #     KAFKA_BROKER_ID: 1
+  #     KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+  #     KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092
+  #     KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+  #     KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+  #     KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+  #     KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+  #     KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+  #     KAFKA_AUTO_CREATE_TOPICS_ENABLE: true
+  #     KAFKA_LOG4J_LOGGERS: "kafka.controller=INFO,kafka.producer.async.DefaultEventHandler=INFO,state.change.logger=INFO"
+  #   volumes:
+  #     - kafka-data:/var/lib/kafka/data
+  #   networks:
+  #     - pulzifi-network
+  #   healthcheck:
+  #     test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 5
+  #     start_period: 30s
 
   minio:
     image: minio/minio
@@ -130,22 +130,42 @@ services:
       timeout: 20s
       retries: 3
 
+  extractor:
+    build:
+      context: modules/infra/extractor
+      dockerfile: Dockerfile
+    container_name: pulzifi-extractor
+    restart: unless-stopped
+    shm_size: '1gb'
+    ports:
+      - "3005:3000"
+    networks:
+      - pulzifi-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
   # ============================================================
   # MONOLITH APPLICATION
   # ============================================================
 
   monolith:
+    build:
+      context: .
+      dockerfile: Dockerfile.monolith.all-in-one
     image: pulzifi-monolith:latest
     container_name: pulzifi-monolith
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
+      # kafka:
+      #   condition: service_healthy
       minio:
+        condition: service_healthy
+      extractor:
         condition: service_healthy
     environment:
       HTTP_PORT: 9090
@@ -153,15 +173,18 @@ services:
       DB_USER: ${DB_USER:-pulzifi_user}
       DB_PASSWORD: ${DB_PASSWORD:-pulzifi_password}
       DB_NAME: ${DB_NAME:-pulzifi}
-      REDIS_HOST: redis
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_password}
-      KAFKA_BROKERS: kafka:29092
+      # REDIS_HOST: pulzifi-redis-monolith
+      # KAFKA_BROKERS: kafka:29092
       MINIO_ENDPOINT: minio:9000
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
       MINIO_BUCKET: ${MINIO_BUCKET:-pulzifi-snapshots}
       MINIO_USE_SSL: ${MINIO_USE_SSL:-false}
+      MINIO_PUBLIC_URL: http://localhost:9000
+      EXTRACTOR_URL: http://extractor:3000
+      # REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_password}
       ENVIRONMENT: development
+      ENABLE_WORKERS: "false"
     env_file:
       - .env
     ports:
@@ -170,12 +193,50 @@ services:
       - .:/workspace
     networks:
       - pulzifi-network
+    command: air -c .air.api.toml
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.monolith.all-in-one
+    image: pulzifi-monolith:latest
+    container_name: pulzifi-worker
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      extractor:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_USER: ${DB_USER:-pulzifi_user}
+      DB_PASSWORD: ${DB_PASSWORD:-pulzifi_password}
+      DB_NAME: ${DB_NAME:-pulzifi}
+      # REDIS_HOST: pulzifi-redis-monolith
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+      MINIO_BUCKET: ${MINIO_BUCKET:-pulzifi-snapshots}
+      MINIO_USE_SSL: ${MINIO_USE_SSL:-false}
+      EXTRACTOR_URL: http://extractor:3000
+      # REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_password}
+      ENVIRONMENT: development
+      ENABLE_WORKERS: "true"
+    env_file:
+      - .env
+    volumes:
+      - .:/workspace
+    networks:
+      - pulzifi-network
+    command: air -c .air.worker.toml
 
   # ============================================================
   # NGINX REVERSE PROXY
@@ -200,30 +261,3 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-
-  snapshot-service:
-    build:
-      context: .
-      dockerfile: modules/snapshot/Dockerfile
-      args:
-        MODULE_NAME: snapshot
-    container_name: pulzifi-snapshot
-    restart: unless-stopped
-    shm_size: '1gb'
-    environment:
-      MODULE_NAME: snapshot
-      KAFKA_BROKERS: kafka:29092
-      MINIO_ENDPOINT: minio:9000
-      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
-      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
-      MINIO_BUCKET: ${MINIO_BUCKET:-pulzifi-snapshots}
-      MINIO_USE_SSL: ${MINIO_USE_SSL:-false}
-    env_file:
-      - .env
-    depends_on:
-      kafka:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
-    networks:
-      - pulzifi-network

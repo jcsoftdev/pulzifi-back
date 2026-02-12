@@ -15,8 +15,8 @@ export function PageInfoSkeleton() {
         </div>
 
         <div className="flex items-center gap-3">
-          <Skeleton className="h-10 w-24" />
-          <Skeleton className="h-10 w-32" />
+          <Skeleton className="h-9 w-24" />
+          <Skeleton className="h-9 w-32" />
         </div>
       </div>
     </div>
@@ -106,7 +106,7 @@ export function GeneralSummarySkeleton() {
         {/* Check Frequency */}
         <div className="flex flex-col gap-2">
           <Skeleton className="h-4 w-32" /> {/* Label */}
-          <Skeleton className="h-10 w-full rounded-md" /> {/* Dropdown */}
+          <Skeleton className="h-9 w-full rounded-md" /> {/* Dropdown */}
         </div>
 
         {/* Options List */}

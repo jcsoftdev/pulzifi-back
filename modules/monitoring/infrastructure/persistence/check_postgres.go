@@ -83,6 +83,37 @@ func (r *CheckPostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (*e
 	return &check, nil
 }
 
+// Update updates an existing check
+func (r *CheckPostgresRepository) Update(ctx context.Context, check *entities.Check) error {
+	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
+		return err
+	}
+
+	q := `UPDATE checks SET 
+		status = $1, 
+		screenshot_url = $2, 
+		html_snapshot_url = $3, 
+		content_hash = $4, 
+		change_detected = $5, 
+		change_type = $6, 
+		error_message = $7, 
+		duration_ms = $8 
+		WHERE id = $9`
+
+	_, err := r.db.ExecContext(ctx, q,
+		check.Status,
+		check.ScreenshotURL,
+		check.HTMLSnapshotURL,
+		check.ContentHash,
+		check.ChangeDetected,
+		check.ChangeType,
+		check.ErrorMessage,
+		check.DurationMs,
+		check.ID,
+	)
+	return err
+}
+
 // ListByPage retrieves all checks for a page
 func (r *CheckPostgresRepository) ListByPage(ctx context.Context, pageID uuid.UUID) ([]*entities.Check, error) {
 	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
