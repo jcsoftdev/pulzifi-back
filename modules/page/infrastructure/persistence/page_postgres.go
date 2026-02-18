@@ -59,7 +59,7 @@ func (r *PagePostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (*en
 			p.id, p.workspace_id, p.name, p.url, p.thumbnail_url, 
 			p.last_checked_at, p.last_change_detected_at, p.check_count, 
 			p.created_by, p.created_at, p.updated_at, p.deleted_at,
-			COALESCE(mc.check_frequency, 'Every day') as check_frequency,
+			COALESCE(mc.check_frequency, 'Off') as check_frequency,
 			COALESCE(
 				(SELECT COUNT(*) FROM ` + r.table("checks") + ` WHERE page_id = p.id AND change_detected = true), 
 				0
@@ -125,7 +125,7 @@ func (r *PagePostgresRepository) ListByWorkspace(ctx context.Context, workspaceI
 			p.id, p.workspace_id, p.name, p.url, p.thumbnail_url, 
 			p.last_checked_at, p.last_change_detected_at, p.check_count, 
 			p.created_by, p.created_at, p.updated_at, p.deleted_at,
-			COALESCE(mc.check_frequency, 'Every day') as check_frequency,
+			COALESCE(mc.check_frequency, 'Off') as check_frequency,
 			COALESCE(
 				(SELECT COUNT(*) FROM ` + r.table("checks") + ` c WHERE c.page_id = p.id AND c.change_detected = true), 
 				0

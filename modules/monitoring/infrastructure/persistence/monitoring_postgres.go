@@ -68,6 +68,16 @@ func (r *MonitoringConfigPostgresRepository) GetDueSnapshotTasks(ctx context.Con
 		AND mc.check_frequency != 'Off'
 		AND (
 			(mc.check_frequency = '30m' AND (p.last_checked_at IS NULL OR p.last_checked_at < NOW() - INTERVAL '30 minutes')) OR
+			(mc.check_frequency = '1h' AND (p.last_checked_at IS NULL OR p.last_checked_at < NOW() - INTERVAL '1 hour')) OR
+			(mc.check_frequency = '1 hr' AND (p.last_checked_at IS NULL OR p.last_checked_at < NOW() - INTERVAL '1 hour')) OR
+			(mc.check_frequency = '2h' AND (p.last_checked_at IS NULL OR p.last_checked_at < NOW() - INTERVAL '2 hours')) OR
+			(mc.check_frequency = '2 hr' AND (p.last_checked_at IS NULL OR p.last_checked_at < NOW() - INTERVAL '2 hours')) OR
+			(mc.check_frequency = '8h' AND (p.last_checked_at IS NULL OR p.last_checked_at < NOW() - INTERVAL '8 hours')) OR
+			(mc.check_frequency = '8 hr' AND (p.last_checked_at IS NULL OR p.last_checked_at < NOW() - INTERVAL '8 hours')) OR
+			(mc.check_frequency = '24h' AND (p.last_checked_at IS NULL OR p.last_checked_at < NOW() - INTERVAL '1 day')) OR
+			(mc.check_frequency = '1d' AND (p.last_checked_at IS NULL OR p.last_checked_at < NOW() - INTERVAL '1 day')) OR
+			(mc.check_frequency = '48h' AND (p.last_checked_at IS NULL OR p.last_checked_at < NOW() - INTERVAL '48 hours')) OR
+			(mc.check_frequency = '2d' AND (p.last_checked_at IS NULL OR p.last_checked_at < NOW() - INTERVAL '48 hours')) OR
 			(mc.check_frequency = 'Every 30 minutes' AND (p.last_checked_at IS NULL OR p.last_checked_at < NOW() - INTERVAL '30 minutes')) OR
 			(mc.check_frequency = 'Every 1 hour' AND (p.last_checked_at IS NULL OR p.last_checked_at < NOW() - INTERVAL '1 hour')) OR
 			(mc.check_frequency = 'Every 2 hours' AND (p.last_checked_at IS NULL OR p.last_checked_at < NOW() - INTERVAL '2 hours')) OR
@@ -114,6 +124,15 @@ func (r *MonitoringConfigPostgresRepository) UpdateLastCheckedAt(ctx context.Con
 		return err
 	}
 	q := `UPDATE pages SET last_checked_at = NOW() WHERE id = $1 AND deleted_at IS NULL`
+	_, err := r.db.ExecContext(ctx, q, pageID)
+	return err
+}
+
+func (r *MonitoringConfigPostgresRepository) MarkPageDueNow(ctx context.Context, pageID uuid.UUID) error {
+	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
+		return err
+	}
+	q := `UPDATE pages SET last_checked_at = NULL WHERE id = $1 AND deleted_at IS NULL`
 	_, err := r.db.ExecContext(ctx, q, pageID)
 	return err
 }

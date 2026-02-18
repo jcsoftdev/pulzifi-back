@@ -38,6 +38,8 @@ type Orchestrator struct {
 	dispatcher  JobDispatcher
 }
 
+var ErrQuotaExceeded = errors.New("quota exceeded")
+
 func NewOrchestrator(repoFactory RepositoryFactory, dispatcher JobDispatcher) *Orchestrator {
 	return &Orchestrator{
 		repoFactory: repoFactory,
@@ -70,7 +72,7 @@ func (o *Orchestrator) ScheduleCheck(ctx context.Context, job CheckJob) error {
 		if err := pageRepo.UpdateLastChecked(ctx, job.PageID); err != nil {
 			logger.Error("Failed to update last_checked_at", zap.Error(err))
 		}
-		return errors.New("quota exceeded")
+		return ErrQuotaExceeded
 	}
 
 	// 2. Create Check (Pending)

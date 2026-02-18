@@ -1,8 +1,15 @@
-export type DiffResult = {
-  value: string
-  added?: boolean
-  removed?: boolean
-}[]
+export type DiffSegmentType = 'added' | 'removed' | 'unchanged'
+
+export interface DiffSegment {
+  type: DiffSegmentType
+  text: string
+}
+
+export interface DiffRow {
+  segments: DiffSegment[]
+}
+
+export type DiffResult = DiffRow[]
 
 export function diffLines(oldText: string, newText: string): DiffResult {
   const oldLines = oldText.split('\n')
@@ -13,19 +20,76 @@ export function diffLines(oldText: string, newText: string): DiffResult {
   let j = 0
 
   while (i < oldLines.length || j < newLines.length) {
-    if (i < oldLines.length && j < newLines.length && oldLines[i] === newLines[j]) {
-      result.push({ value: oldLines[i] || '' })
+    const oldLine = oldLines[i] ?? ''
+    const newLine = newLines[j] ?? ''
+
+    if (i < oldLines.length && j < newLines.length && oldLine === newLine) {
+      result.push({
+        segments: [
+          {
+            type: 'unchanged',
+            text: oldLine,
+          },
+        ],
+      })
       i++
       j++
-    } else if (j < newLines.length && (i >= oldLines.length || !oldLines.includes(newLines[j] || '', i))) {
-      result.push({ value: newLines[j] || '', added: true })
-      j++
-    } else if (i < oldLines.length) {
-      result.push({ value: oldLines[i] || '', removed: true })
+      continue
+    }
+
+    if (i < oldLines.length && j < newLines.length) {
+      const segments: DiffSegment[] = []
+
+      if (oldLine.trim()) {
+        segments.push({
+          type: 'removed',
+          text: oldLine,
+        })
+      }
+
+      if (newLine.trim()) {
+        segments.push({
+          type: 'added',
+          text: newLine,
+        })
+      }
+
+      if (segments.length > 0) {
+        result.push({ segments })
+      }
+
       i++
-    } else {
-      // Should not happen if logic is correct for simple cases
       j++
+      continue
+    }
+
+    if (j < newLines.length) {
+      if (newLine.trim()) {
+        result.push({
+          segments: [
+            {
+              type: 'added',
+              text: newLine,
+            },
+          ],
+        })
+      }
+      j++
+      continue
+    }
+
+    if (i < oldLines.length) {
+      if (oldLine.trim()) {
+        result.push({
+          segments: [
+            {
+              type: 'removed',
+              text: oldLine,
+            },
+          ],
+        })
+      }
+      i++
     }
   }
 

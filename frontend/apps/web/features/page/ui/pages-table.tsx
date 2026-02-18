@@ -75,7 +75,7 @@ export function PagesTable({
   } => {
     if (!lastChangeDetectedAt) {
       return {
-        text: 'No changes detected',
+        text: '—',
         variant: 'default',
       }
     }
@@ -276,27 +276,22 @@ export function PagesTable({
                 </div>
 
                 {/* Detected Changes */}
-                <div className="flex items-center justify-center px-2 py-2 flex-[0_0_150px]">
-                  {page.detectedChanges > 0 ? (
+                <div className="flex items-center px-2 py-2 flex-[0_0_150px] gap-2">
+                  <Badge
+                    variant={page.detectedChanges > 0 ? 'destructive' : 'secondary'}
+                    className="min-w-8 justify-center"
+                  >
+                    {page.detectedChanges}
+                  </Badge>
+                  {page.detectedChanges > 0 && (
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => onViewChanges?.(page.id)}
-                      className="px-2.5 py-1.5 h-auto text-xs font-medium gap-1 bg-background"
+                      className="px-2 py-1 h-auto text-xs font-medium gap-1 bg-background"
                     >
                       <RefreshCcw className="w-3.5 h-3.5" />
-                      View Changes
-                      <span className="ml-1 w-2 h-2 bg-destructive rounded-full" />
-                    </Button>
-                  ) : (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="px-2.5 py-1.5 h-auto text-xs font-medium gap-1 bg-muted/50"
-                      disabled
-                    >
-                      <RefreshCcw className="w-3.5 h-3.5" />
-                      View Changes
+                      View
                     </Button>
                   )}
                 </div>

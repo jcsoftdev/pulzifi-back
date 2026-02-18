@@ -15,4 +15,5 @@ type MonitoringConfigRepository interface {
 	GetDueSnapshotTasks(ctx context.Context) ([]entities.SnapshotTask, error)
 	GetPageURL(ctx context.Context, pageID uuid.UUID) (string, error)
 	UpdateLastCheckedAt(ctx context.Context, pageID uuid.UUID) error
+	MarkPageDueNow(ctx context.Context, pageID uuid.UUID) error
 }

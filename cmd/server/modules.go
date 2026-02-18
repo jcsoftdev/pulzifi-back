@@ -30,20 +30,23 @@ func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus 
 	userRepo := authpersistence.NewUserPostgresRepository(db)
 	roleRepo := authpersistence.NewRolePostgresRepository(db)
 	permRepo := authpersistence.NewPermissionPostgresRepository(db)
-	refreshTokenRepo := authpersistence.NewRefreshTokenPostgresRepository(db)
+	sessionRepo := authpersistence.NewSessionPostgresRepository(db)
 	orgRepo := orgpersistence.NewOrganizationPostgresRepository(db)
 
 	authService := authservices.NewBcryptAuthService(userRepo, permRepo)
-	tokenService := authservices.NewJWTService(
-		cfg.JWTSecret,
-		cfg.JWTExpiration,
-		cfg.JWTRefreshExpiration,
-		roleRepo,
-		permRepo,
-	)
+	cookieSecure := cfg.Environment == "production"
 
 	// Create auth module and set global middleware
-	authModule := auth.NewModule(userRepo, refreshTokenRepo, authService, tokenService, cfg.CookieDomain)
+	authModule := auth.NewModule(auth.ModuleDeps{
+		UserRepo:     userRepo,
+		SessionRepo:  sessionRepo,
+		RoleRepo:     roleRepo,
+		PermRepo:     permRepo,
+		AuthService:  authService,
+		SessionTTL:   cfg.JWTExpiration,
+		CookieDomain: cfg.CookieDomain,
+		CookieSecure: cookieSecure,
+	})
 	authMiddleware := authModule.(*auth.Module).AuthMiddleware()
 
 	// Set global middleware for all modules
@@ -63,7 +66,7 @@ func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus 
 		{"Integration", integration.NewModule()},
 		{"Insight", insight.NewModuleWithDB(db)},
 		{"Report", report.NewModule()},
-		{"Usage", usage.NewModule()},
+		{"Usage", usage.NewModuleWithDB(db)},
 	}
 
 	logger.Info("Registering all modules", zap.Int("count", len(moduleInstances)))

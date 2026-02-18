@@ -8,7 +8,7 @@ import (
 	"github.com/jcsoftdev/pulzifi-back/modules/snapshot/application"
 	"github.com/jcsoftdev/pulzifi-back/modules/snapshot/domain/entities"
 	"github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/extractor"
-	"github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/minio"
+	"github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/storage"
 	"github.com/jcsoftdev/pulzifi-back/shared/config"
 	"github.com/jcsoftdev/pulzifi-back/shared/database"
 )
@@ -26,19 +26,19 @@ func main() {
 		os.Exit(1)
 	}
 
-	minioClient, err := minio.NewClient(cfg)
+	objectStorage, err := storage.NewObjectStorage(cfg)
 	if err != nil {
 		fmt.Println("error:", err)
 		os.Exit(1)
 	}
-	if err := minioClient.EnsureBucket(context.Background()); err != nil {
+	if err := objectStorage.EnsureBucket(context.Background()); err != nil {
 		fmt.Println("error:", err)
 		os.Exit(1)
 	}
 
 	extractorClient := extractor.NewHTTPClient(cfg.ExtractorURL)
 
-	service := application.NewSnapshotService(minioClient, extractorClient, db)
+	service := application.NewSnapshotService(objectStorage, extractorClient, db)
 	req := entities.SnapshotRequest{
 		PageID:     "test-page",
 		URL:        url,

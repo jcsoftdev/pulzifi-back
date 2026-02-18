@@ -16,4 +16,7 @@ export type { User, LoginDto, LoginResponse } from './auth-api'
 export { PageApi } from './page-api'
 export type { Page, CreatePageDto, ListPagesParams } from './page-api'
 
+export { SuperAdminApi } from './super-admin-api'
+export type { AdminPlan, AdminOrganizationPlan } from './super-admin-api'
+
 export type { HttpError } from '@workspace/shared-http'

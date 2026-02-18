@@ -159,7 +159,7 @@ export function GeneralSummaryCard({ page, config }: Readonly<GeneralSummaryCard
         <div className="flex flex-col gap-2">
           <span className="text-sm font-medium text-muted-foreground">Check Frequency</span>
           <Select
-            value={config?.checkFrequency || page.checkFrequency || 'Every day'}
+            value={config?.checkFrequency || page.checkFrequency || 'Off'}
             onValueChange={(value) =>
               handleUpdateConfig({
                 checkFrequency: value,

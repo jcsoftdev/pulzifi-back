@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { LogOut } from 'lucide-react'
-import { signOut } from 'next-auth/react'
 import { Button } from '@workspace/ui/components/atoms/button'
 import { Avatar, AvatarImage, AvatarFallback } from '@workspace/ui/components/atoms/avatar'
 import type { User } from '../domain/types'
@@ -16,9 +15,7 @@ export function ProfileFooter({ user }: Readonly<ProfileFooterProps>) {
 
   const handleLogout = async () => {
     setIsLoggingOut(true)
-    await signOut({
-      redirect: false,
-    })
+    await fetch('/api/auth/logout', { method: 'POST' })
 
     // Redirect to login without subdomain
     const protocol = globalThis.window?.location.protocol || 'http:'

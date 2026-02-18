@@ -36,7 +36,7 @@ func (h *CreatePageHandler) Handle(ctx context.Context, req *CreatePageRequest, 
 		URL:             req.URL,
 		CheckCount:      0,
 		Tags:            tags,
-		CheckFrequency:  "Every day",
+		CheckFrequency:  "Off",
 		DetectedChanges: 0,
 		CreatedBy:       createdBy,
 		CreatedAt:       time.Now(),
@@ -47,7 +47,7 @@ func (h *CreatePageHandler) Handle(ctx context.Context, req *CreatePageRequest, 
 	if err := h.repo.Create(ctx, page); err != nil {
 		return nil, err
 	}
-	
+
 	// Create default monitoring config
 	// Note: This should ideally be done in a transaction or a separate service
 	// For now we'll just return the page with default values

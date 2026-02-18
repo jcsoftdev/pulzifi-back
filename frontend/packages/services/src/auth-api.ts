@@ -1,4 +1,4 @@
-import { getHttpClient, FetchHttpClient } from '@workspace/shared-http'
+import { getHttpClient } from '@workspace/shared-http'
 
 // Internal: Backend response types (snake_case from Go)
 interface UserBackendDto {
@@ -12,19 +12,11 @@ interface UserBackendDto {
 }
 
 interface LoginBackendResponse {
-  access_token: string
-  refresh_token: string
-  token_type: string
-  expires_in: number
-  tenant?: string
-}
-
-interface RegisterBackendResponse {
-  user_id: string
-  email: string
-  first_name: string
-  last_name: string
-  message: string
+  session_id?: string
+  expires_in?: number
+  tenant?: string | null
+  sessionId?: string
+  expiresIn?: number
 }
 
 // Exported: Frontend types (camelCase)
@@ -44,26 +36,9 @@ export interface LoginDto {
 }
 
 export interface LoginResponse {
-  accessToken: string
-  refreshToken: string
-  tokenType: string
+  sessionId?: string
   expiresIn: number
   tenant?: string
-}
-
-export interface RegisterDto {
-  email: string
-  password: string
-  firstName: string
-  lastName: string
-}
-
-export interface RegisterResponse {
-  userId: string
-  email: string
-  firstName: string
-  lastName: string
-  message: string
 }
 
 // Helper: Transform backend to frontend format
@@ -79,6 +54,18 @@ function transformUser(backend: UserBackendDto): User {
   }
 }
 
+function mapLoginResponse(response: LoginBackendResponse): LoginResponse {
+  const sessionId = response.session_id ?? response.sessionId
+  const expiresIn = response.expires_in ?? response.expiresIn ?? 3600
+  const tenant = response.tenant ?? undefined
+
+  return {
+    sessionId,
+    expiresIn,
+    tenant,
+  }
+}
+
 export const AuthApi = {
   async getCurrentUser(): Promise<User> {
     const http = await getHttpClient()
@@ -87,71 +74,24 @@ export const AuthApi = {
   },
 
   async login(credentials: LoginDto): Promise<LoginResponse> {
-    // Use unauthenticated client for login
-    const http = new FetchHttpClient('http://localhost', {})
-    const response = await http.post<LoginBackendResponse>('/api/v1/auth/login', credentials, {
-      credentials: 'include',
-    })
-    return {
-      accessToken: response.access_token,
-      refreshToken: response.refresh_token,
-      tokenType: response.token_type,
-      expiresIn: response.expires_in,
-      tenant: response.tenant,
-    }
-  },
-
-  async register(data: RegisterDto): Promise<RegisterResponse> {
     const http = await getHttpClient()
-    const backendData = {
-      email: data.email,
-      password: data.password,
-      first_name: data.firstName,
-      last_name: data.lastName,
-    }
-    const response = await http.post<RegisterBackendResponse>('/api/v1/auth/register', backendData)
-    return {
-      userId: response.user_id,
-      email: response.email,
-      firstName: response.first_name,
-      lastName: response.last_name,
-      message: response.message,
-    }
+    const response = await http.post<LoginBackendResponse>('/api/v1/auth/login', credentials)
+    return mapLoginResponse(response)
   },
 
   async logout(): Promise<void> {
     const http = await getHttpClient()
-    await http.post(
-      '/api/v1/auth/logout',
-      {},
-      {
-        credentials: 'include',
-      }
-    )
+    await http.post('/api/v1/auth/logout', {})
   },
 
-  async refreshToken(refreshToken: string, tenant?: string): Promise<LoginResponse> {
-    // Use unauthenticated client for refresh with optional tenant
-    const headers: Record<string, string> = {}
-    if (tenant) {
-      headers['X-Tenant'] = tenant
-    }
-    const http = new FetchHttpClient('http://localhost', headers)
-    const response = await http.post<LoginBackendResponse>(
-      '/api/v1/auth/refresh',
-      {
-        refresh_token: refreshToken,
-      },
-      {
-        credentials: 'include',
-      }
-    )
-    return {
-      accessToken: response.access_token,
-      refreshToken: response.refresh_token,
-      tokenType: response.token_type,
-      expiresIn: response.expires_in,
-      tenant: tenant, // Preserve the tenant that was passed in
-    }
-  },
+  async register(data: {
+    email: string
+    password: string
+    firstName: string
+    lastName: string
+  }): Promise<User> {
+    const http = await getHttpClient()
+    const response = await http.post<UserBackendDto>('/api/v1/auth/register', data)
+    return transformUser(response)
+  }
 }

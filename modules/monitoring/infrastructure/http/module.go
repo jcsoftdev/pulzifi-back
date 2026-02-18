@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
+	"os"
 
 	"github.com/go-chi/chi/v5"
 	createcheck "github.com/jcsoftdev/pulzifi-back/modules/monitoring/application/create_check"
@@ -19,7 +20,7 @@ import (
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/scheduler"
 	snapshotapp "github.com/jcsoftdev/pulzifi-back/modules/snapshot/application"
 	snapshotextractor "github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/extractor"
-	snapshotminio "github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/minio"
+	snapshotstorage "github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/storage"
 	"github.com/jcsoftdev/pulzifi-back/shared/config"
 	"github.com/jcsoftdev/pulzifi-back/shared/eventbus"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
@@ -52,21 +53,27 @@ func NewModuleWithDB(db *sql.DB, eventBus *eventbus.EventBus) router.ModuleRegis
 	cfg := config.Load()
 
 	// Initialize Snapshot Infrastructure
-	minioClient, err := snapshotminio.NewClient(cfg)
+	objectStorage, err := snapshotstorage.NewObjectStorage(cfg)
 	if err != nil {
-		logger.Error("Failed to initialize MinIO client", zap.Error(err))
+		logger.Error("Failed to initialize object storage client", zap.Error(err))
 	} else {
-		// Ensure bucket exists
-		if err := minioClient.EnsureBucket(context.Background()); err != nil {
-			logger.Error("Failed to ensure MinIO bucket", zap.Error(err))
+		if err := objectStorage.EnsureBucket(context.Background()); err != nil {
+			logger.Error("Failed to initialize object storage", zap.Error(err))
 		}
 	}
 
 	extractorClient := snapshotextractor.NewHTTPClient(cfg.ExtractorURL)
-	snapshotWorker := snapshotapp.NewSnapshotWorker(minioClient, extractorClient, m.db)
+	snapshotWorker := snapshotapp.NewSnapshotWorker(objectStorage, extractorClient, m.db)
 
 	// Create WorkerPool
 	m.workerPool = workers.NewWorkerPool(snapshotWorker, 100)
+
+	// In API-only mode we still need immediate dispatch capability when user updates frequency.
+	// Start a lightweight in-process worker to consume TriggerPageCheck jobs.
+	if os.Getenv("ENABLE_WORKERS") == "false" {
+		m.workerPool.Start(1)
+		logger.Info("Monitoring inline worker started for immediate API dispatch", zap.Int("concurrency", 1))
+	}
 
 	repoFactory := persistence.NewPostgresRepositoryFactory(m.db)
 	orch := orchestrator.NewOrchestrator(repoFactory, m.workerPool)
@@ -103,6 +110,7 @@ func (m *Module) RegisterHTTPRoutes(router chi.Router) {
 	router.Route("/monitoring", func(r chi.Router) {
 		r.Use(middleware.AuthMiddleware.Authenticate)
 		r.Use(middleware.OrgMiddleware.RequireOrganizationMembership)
+		r.Use(middleware.RequireTenant)
 		r.Route("/checks", func(cr chi.Router) {
 			cr.Post("/", m.handleCreateCheck)
 			cr.Get("/", m.handleListChecks)

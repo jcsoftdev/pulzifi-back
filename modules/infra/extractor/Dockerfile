@@ -21,8 +21,8 @@ RUN ./node_modules/.bin/playwright install-deps
 # Install chromium browser binary
 RUN ./node_modules/.bin/playwright install chromium
 
-COPY index.js .
+COPY index.ts .
 
 EXPOSE 3000
 
-CMD ["bun", "index.js"]
+CMD ["bun", "run", "index.ts"]

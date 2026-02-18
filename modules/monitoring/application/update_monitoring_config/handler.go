@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -47,14 +48,14 @@ func (h *UpdateMonitoringConfigHandler) Handle(ctx context.Context, pageID uuid.
 	if config == nil {
 		logger.Info("UpdateMonitoringConfigHandler: Config not found, creating new one")
 		// Set defaults for new config
-		checkFrequency := "Every 1 hour"
+		checkFrequency := "Off"
 		scheduleType := "interval"
 		timezone := "UTC"
 		blockAdsCookies := true
 
 		// Override defaults with provided values
 		if req.CheckFrequency != nil {
-			checkFrequency = *req.CheckFrequency
+			checkFrequency = normalizeCheckFrequency(*req.CheckFrequency)
 		}
 		if req.ScheduleType != nil {
 			scheduleType = *req.ScheduleType
@@ -86,19 +87,34 @@ func (h *UpdateMonitoringConfigHandler) Handle(ctx context.Context, pageID uuid.
 		if config.CheckFrequency != "Off" {
 			shouldDispatch = true
 			if h.scheduler != nil {
+				if err := h.scheduler.TriggerPageCheck(ctx, h.tenant, pageID); err != nil {
+					logger.Error("UpdateMonitoringConfigHandler: Failed to trigger immediate check", zap.String("page_id", pageID.String()), zap.Error(err))
+				}
 				h.scheduler.WakeUp()
+			} else {
+				if err := h.repo.MarkPageDueNow(ctx, pageID); err != nil {
+					logger.Error("UpdateMonitoringConfigHandler: Failed to mark page due now", zap.String("page_id", pageID.String()), zap.Error(err))
+				}
 			}
 		}
 	} else {
 		// Config exists, update only provided fields
 		logger.Info("UpdateMonitoringConfigHandler: Config found, updating", zap.Any("current_config", config))
 		if req.CheckFrequency != nil {
-			logger.Info("UpdateMonitoringConfigHandler: Updating CheckFrequency", zap.String("new_frequency", *req.CheckFrequency))
-			config.CheckFrequency = *req.CheckFrequency
+			normalizedFrequency := normalizeCheckFrequency(*req.CheckFrequency)
+			logger.Info("UpdateMonitoringConfigHandler: Updating CheckFrequency", zap.String("new_frequency", normalizedFrequency))
+			config.CheckFrequency = normalizedFrequency
 			if config.CheckFrequency != "Off" {
 				shouldDispatch = true
 				if h.scheduler != nil {
+					if err := h.scheduler.TriggerPageCheck(ctx, h.tenant, pageID); err != nil {
+						logger.Error("UpdateMonitoringConfigHandler: Failed to trigger immediate check", zap.String("page_id", pageID.String()), zap.Error(err))
+					}
 					h.scheduler.WakeUp()
+				} else {
+					if err := h.repo.MarkPageDueNow(ctx, pageID); err != nil {
+						logger.Error("UpdateMonitoringConfigHandler: Failed to mark page due now", zap.String("page_id", pageID.String()), zap.Error(err))
+					}
 				}
 			}
 		} else {
@@ -144,6 +160,32 @@ func (h *UpdateMonitoringConfigHandler) Handle(ctx context.Context, pageID uuid.
 		BlockAdsCookies: config.BlockAdsCookies,
 		UpdatedAt:       config.UpdatedAt,
 	}, nil
+}
+
+func normalizeCheckFrequency(input string) string {
+	normalized := strings.ToLower(strings.TrimSpace(input))
+	normalized = strings.ReplaceAll(normalized, "_", " ")
+	normalized = strings.ReplaceAll(normalized, "-", " ")
+	normalized = strings.Join(strings.Fields(normalized), " ")
+
+	switch normalized {
+	case "off", "disabled", "none":
+		return "Off"
+	case "30m", "30 min", "30 mins", "every 30 minutes", "every 30m", "every 30 min":
+		return "Every 30 minutes"
+	case "1h", "1 hr", "1 hour", "every hour", "every 1 hour", "every 1hr":
+		return "Every 1 hour"
+	case "2h", "2 hr", "2 hours", "every 2 hours", "every 2hr":
+		return "Every 2 hours"
+	case "8h", "8 hr", "8 hours", "every 8 hours", "every 8hr":
+		return "Every 8 hours"
+	case "24h", "24 hr", "1d", "1 day", "daily", "every day":
+		return "Every day"
+	case "48h", "48 hr", "2d", "2 days", "every 48 hours":
+		return "Every 48 hours"
+	default:
+		return input
+	}
 }
 
 // HTTP Handler wrapper

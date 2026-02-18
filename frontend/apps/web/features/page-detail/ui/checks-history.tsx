@@ -13,6 +13,9 @@ interface ChecksHistoryProps {
 
 export function ChecksHistory({ checks, workspaceId, pageId }: Readonly<ChecksHistoryProps>) {
   const sectionId = useId()
+
+  const isCheckFailed = (check: Check) => check.status === 'error' || check.status === 'failed'
+
   return (
     <div id={sectionId} className="flex flex-col gap-6 bg-card border border-border rounded-xl p-6 h-full">
       <div className="flex items-center justify-between">
@@ -54,10 +57,12 @@ export function ChecksHistory({ checks, workspaceId, pageId }: Readonly<ChecksHi
                   <div className="mt-1 text-sm text-muted-foreground">No change detected</div>
                 )}
 
-                {check.status === 'failed' && (
+                {isCheckFailed(check) && (
                   <div className="mt-2 inline-flex items-center gap-2 rounded-md border border-destructive/20 bg-destructive/10 px-3 py-1">
                     <span className="text-sm text-destructive">
-                      Check failed: {check.errorMessage}
+                      {check.extractorFailed
+                        ? `Extractor failed${check.errorMessage ? `: ${check.errorMessage}` : ''}`
+                        : `Check failed${check.errorMessage ? `: ${check.errorMessage}` : ''}`}
                     </span>
                     <div className="w-2 h-2 rounded-full bg-destructive" />
                   </div>

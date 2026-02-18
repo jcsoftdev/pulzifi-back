@@ -1,15 +1,14 @@
 import type { IHttpClient } from './types'
 import { AxiosHttpClient } from './axios-client'
 import { FetchHttpClient } from './fetch-client'
-import { getTokenProvider } from './token-provider'
 import { extractTenantFromHostname, getTenantFromWindow } from './tenant-utils'
 
 // Client-side: Use base domain to go through Nginx reverse proxy
 const getClientApiUrl = (): string => {
-  if (typeof window === 'undefined') return ''
+  if (globalThis.window === undefined) return ''
 
-  const hostname = window.location.hostname
-  const protocol = window.location.protocol
+  const hostname = globalThis.window.location.hostname
+  const protocol = globalThis.window.location.protocol
 
   if (hostname.includes('.app.local')) {
     return `${protocol}//app.local`
@@ -22,23 +21,49 @@ const getClientApiUrl = (): string => {
  * Build server API URL - simplified without dynamic imports
  */
 function getServerApiUrl(): string {
-  // Always use localhost in development to reach Docker services
-  return 'http://localhost'
+  const configuredApiUrl =
+    process.env.SERVER_API_URL ?? process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL
+
+  if (configuredApiUrl) {
+    try {
+      return new URL(configuredApiUrl).origin
+    } catch {
+      try {
+        return new URL(`http://${configuredApiUrl}`).origin
+      } catch {
+        // fall through to default
+      }
+    }
+  }
+
+  // Default backend gateway for local development
+  return 'http://localhost:9090'
 }
 
-/**
- * Get tenant from auth session - static import to avoid memory leaks
- */
-async function getTenantFromAuth(): Promise<string | null> {
+async function getServerForwardHeaders(): Promise<Record<string, string>> {
+  const forwarded: Record<string, string> = {}
+
   try {
-    // Static import - tree-shaken if not used
-    const { auth } = await import('@workspace/auth')
-    const { isExtendedSession } = await import('@workspace/auth')
-    const session = await auth()
-    return isExtendedSession(session) ? (session.tenant ?? null) : null
+    const { headers } = await import('next/headers')
+    const incoming = await headers()
+
+    const cookie = incoming.get('cookie')
+    if (cookie) {
+      forwarded.Cookie = cookie
+    }
+
+    const host = incoming.get('host')
+    if (host) {
+      const tenant = extractTenantFromHostname(host)
+      if (tenant) {
+        forwarded['X-Tenant'] = tenant
+      }
+    }
   } catch {
-    return null
+    // No-op outside Next.js server runtime
   }
+
+  return forwarded
 }
 
 /**
@@ -46,17 +71,10 @@ async function getTenantFromAuth(): Promise<string | null> {
  * Gets tenant from auth session
  */
 export async function createServerHttpClient(): Promise<IHttpClient> {
-  const provider = getTokenProvider()
-  const headers: Record<string, string> = {}
-
-  // Get tenant from auth session
-  const tenant = await getTenantFromAuth()
-  if (tenant) {
-    headers['X-Tenant'] = tenant
-  }
+  const headers = await getServerForwardHeaders()
 
   const apiUrl = getServerApiUrl()
-  return new FetchHttpClient(apiUrl, headers, provider || undefined)
+  return new FetchHttpClient(apiUrl, headers)
 }
 
 /**
@@ -65,7 +83,6 @@ export async function createServerHttpClient(): Promise<IHttpClient> {
  * Communicates with backend through Nginx reverse proxy
  */
 export async function createBrowserHttpClient(): Promise<IHttpClient> {
-  const provider = getTokenProvider()
   const headers: Record<string, string> = {}
 
   const tenant = getTenantFromWindow()
@@ -75,7 +92,7 @@ export async function createBrowserHttpClient(): Promise<IHttpClient> {
 
   // Use same host as current page to prevent cross-site issues
   const apiUrl = getClientApiUrl()
-  return new AxiosHttpClient(apiUrl, headers, provider || undefined)
+  return new AxiosHttpClient(apiUrl, headers)
 }
 
 /**

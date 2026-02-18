@@ -2,9 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { signIn, getSession } from 'next-auth/react'
 import { LoginForm } from '@/features/auth/ui/login-form'
-import type { ExtendedSession } from '@workspace/auth'
+import { AuthApi } from '@workspace/services'
 import {
   Card,
   CardContent,
@@ -35,54 +34,19 @@ export default function LoginPage() {
     setError(undefined)
 
     try {
-      console.log('Client: Starting login for', credentials.email)
-
-      // Hacer signIn de NextAuth (que internamente llama a AuthApi.login)
-      const result = await signIn('credentials', {
-        email: credentials.email,
-        password: credentials.password,
-        redirect: false,
-      })
-
-      console.log('Client: SignIn result:', result)
-
-      if (result?.error) {
-        console.error('Client: SignIn error:', result.error)
-        setError('Invalid email or password')
-        return
-      }
-
-      if (!result?.ok) {
-        console.error('Client: SignIn not ok')
-        setError('Login failed. Please try again.')
-        return
-      }
-
-      console.log('Client: Login successful, waiting for session...')
-
-      // Esperar un momento para que NextAuth actualice la sesión
-      await new Promise((resolve) => setTimeout(resolve, 500))
-
-      // Usar getSession de NextAuth que garantiza obtener la sesión actualizada
-      const session = (await getSession()) as ExtendedSession | null
-
-      console.log('Client: Session data:', session)
-
-      const tenant = session?.tenant
+      const loginResponse = await AuthApi.login(credentials)
+      const tenant = loginResponse.tenant
 
       if (!tenant) {
-        console.warn('No tenant in session, redirecting to home')
         router.push('/')
         router.refresh()
         return
       }
 
-      console.log('Client: Login successful, redirecting to tenant:', tenant)
-
       // Redirigir al tenant correcto
-      const protocol = window.location.protocol
-      const port = window.location.port
-      const hostname = window.location.hostname
+      const protocol = globalThis.location.protocol
+      const port = globalThis.location.port
+      const hostname = globalThis.location.hostname
 
       const appDomain = process.env.NEXT_PUBLIC_APP_DOMAIN
       let baseDomain = appDomain
@@ -103,7 +67,6 @@ export default function LoginPage() {
 
       // Verificar si ya estamos en el subdominio correcto
       if (currentHost === targetHost) {
-        console.log('Already on correct tenant, redirecting to /')
         router.push('/')
         router.refresh()
       } else {
@@ -111,11 +74,10 @@ export default function LoginPage() {
         const portSuffix = port ? `:${port}` : ''
         const tenantUrl = `${protocol}//${targetHost}${portSuffix}`
 
-        console.log('Redirecting to:', tenantUrl)
-        window.location.href = tenantUrl
+        globalThis.location.href = tenantUrl
       }
-    } catch (err) {
-      console.error('Login error:', err)
+    } catch (error) {
+      console.error(error)
       setError('Invalid email or password')
     } finally {
       setIsLoading(false)

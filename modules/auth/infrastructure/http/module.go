@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/application/get_current_user"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/application/login"
-	"github.com/jcsoftdev/pulzifi-back/modules/auth/application/refresh_token"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/application/register"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/repositories"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/services"
@@ -23,26 +23,33 @@ import (
 type Module struct {
 	registerHandler       *register.Handler
 	loginHandler          *login.Handler
-	refreshTokenHandler   *refresh_token.Handler
 	getCurrentUserHandler *get_current_user.Handler
 	authMiddleware        *authmw.AuthMiddleware
+	sessionRepo           repositories.SessionRepository
 	cookieDomain          string
+	cookieSecure          bool
 }
 
-func NewModule(
-	userRepo repositories.UserRepository,
-	refreshTokenRepo repositories.RefreshTokenRepository,
-	authService services.AuthService,
-	tokenService services.TokenService,
-	cookieDomain string,
-) router.ModuleRegisterer {
+type ModuleDeps struct {
+	UserRepo     repositories.UserRepository
+	SessionRepo  repositories.SessionRepository
+	RoleRepo     repositories.RoleRepository
+	PermRepo     repositories.PermissionRepository
+	AuthService  services.AuthService
+	SessionTTL   time.Duration
+	CookieDomain string
+	CookieSecure bool
+}
+
+func NewModule(deps ModuleDeps) router.ModuleRegisterer {
 	return &Module{
-		registerHandler:       register.NewHandler(userRepo),
-		loginHandler:          login.NewHandler(authService, tokenService, userRepo, refreshTokenRepo),
-		refreshTokenHandler:   refresh_token.NewHandler(refreshTokenRepo, userRepo, tokenService),
-		getCurrentUserHandler: get_current_user.NewHandler(userRepo),
-		authMiddleware:        authmw.NewAuthMiddleware(tokenService),
-		cookieDomain:          cookieDomain,
+		registerHandler:       register.NewHandler(deps.UserRepo),
+		loginHandler:          login.NewHandler(deps.AuthService, deps.UserRepo, deps.SessionRepo, deps.SessionTTL),
+		getCurrentUserHandler: get_current_user.NewHandler(deps.UserRepo),
+		authMiddleware:        authmw.NewAuthMiddleware(deps.SessionRepo, deps.UserRepo, deps.RoleRepo, deps.PermRepo),
+		sessionRepo:           deps.SessionRepo,
+		cookieDomain:          deps.CookieDomain,
+		cookieSecure:          deps.CookieSecure,
 	}
 }
 
@@ -58,7 +65,6 @@ func (m *Module) RegisterHTTPRoutes(router chi.Router) {
 	router.Route("/auth", func(r chi.Router) {
 		r.Post("/register", m.handleRegister)
 		r.Post("/login", m.handleLogin)
-		r.Post("/refresh", m.handleRefresh)
 		r.Post("/logout", m.handleLogout)
 
 		r.Group(func(r chi.Router) {
@@ -128,62 +134,13 @@ func (m *Module) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cookies.SetAuthCookies(w, response.AccessToken, response.ExpiresIn, response.RefreshToken, m.cookieDomain)
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(response)
-}
-
-// handleRefresh refreshes an access token
-// @Summary Refresh token
-// @Description Refresh an access token using a refresh token
-// @Tags auth
-// @Accept json
-// @Produce json
-// @Param request body refresh_token.Request true "Refresh Request"
-// @Success 200 {object} refresh_token.Response
-// @Failure 400 {object} map[string]string
-// @Failure 401 {object} map[string]string
-// @Router /auth/refresh [post]
-func (m *Module) handleRefresh(w http.ResponseWriter, r *http.Request) {
-	var req refresh_token.Request
-
-	// Try to decode body if present
-	if r.ContentLength > 0 {
-		_ = json.NewDecoder(r.Body).Decode(&req)
-	}
-
-	// If no token in body, try cookie
-	if req.RefreshToken == "" {
-		if token, err := cookies.GetRefreshTokenFromCookie(r); err == nil {
-			req.RefreshToken = token
-		}
-	}
-
-	if req.RefreshToken == "" {
-		logger.ErrorWithContext(r.Context(), "Refresh token missing",
-			zap.String("endpoint", "/auth/refresh"),
-		)
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "refresh token required"})
-		return
-	}
-
-	response, err := m.refreshTokenHandler.Handle(r.Context(), &req)
-	if err != nil {
-		logger.ErrorWithContext(r.Context(), "Token refresh failed",
-			zap.Error(err),
-			zap.String("error_type", err.Error()),
-		)
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
-		return
-	}
-
-	cookies.SetAuthCookies(w, response.AccessToken, response.ExpiresIn, response.RefreshToken, m.cookieDomain)
+	cookies.SetSessionCookie(
+		w,
+		response.SessionID,
+		time.Now().Add(time.Duration(response.ExpiresIn)*time.Second),
+		m.cookieDomain,
+		m.cookieSecure,
+	)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -200,7 +157,10 @@ func (m *Module) handleRefresh(w http.ResponseWriter, r *http.Request) {
 // @Failure 401 {object} map[string]string
 // @Router /auth/logout [post]
 func (m *Module) handleLogout(w http.ResponseWriter, r *http.Request) {
-	cookies.ClearAuthCookies(w, m.cookieDomain)
+	if sessionID, err := cookies.GetSessionIDFromCookie(r); err == nil && sessionID != "" {
+		_ = m.sessionRepo.DeleteByID(r.Context(), sessionID)
+	}
+	cookies.ClearSessionCookie(w, m.cookieDomain, m.cookieSecure)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]interface{}{

@@ -11,6 +11,8 @@
 DROP TRIGGER IF EXISTS after_organization_insert ON public.organizations CASCADE;
 DROP FUNCTION IF EXISTS trigger_create_tenant_schema() CASCADE;
 DROP FUNCTION IF EXISTS create_tenant_schema(TEXT) CASCADE;
+DROP TABLE IF EXISTS public.organization_plans CASCADE;
+DROP TABLE IF EXISTS public.plans CASCADE;
 DROP TABLE IF EXISTS public.password_resets CASCADE;
 DROP TABLE IF EXISTS public.refresh_tokens CASCADE;
 DROP TABLE IF EXISTS public.user_roles CASCADE;
@@ -62,6 +64,45 @@ CREATE TABLE public.organizations (
 CREATE INDEX idx_organizations_subdomain ON public.organizations(subdomain);
 CREATE INDEX idx_organizations_schema_name ON public.organizations(schema_name);
 CREATE INDEX idx_organizations_owner_user_id ON public.organizations(owner_user_id);
+
+-- ============================================================
+-- TABLE: plans
+-- ============================================================
+CREATE TABLE public.plans (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    code VARCHAR(50) UNIQUE NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    checks_allowed_monthly INT NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_plans_code ON public.plans(code);
+CREATE INDEX idx_plans_active ON public.plans(is_active) WHERE is_active = TRUE;
+
+-- ============================================================
+-- TABLE: organization_plans
+-- ============================================================
+CREATE TABLE public.organization_plans (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+    plan_id UUID NOT NULL REFERENCES public.plans(id),
+    status VARCHAR(30) NOT NULL DEFAULT 'active',
+    started_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    ended_at TIMESTAMP NULL,
+    created_by UUID NULL REFERENCES public.users(id),
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    deleted_at TIMESTAMP NULL
+);
+
+CREATE INDEX idx_org_plans_org_id ON public.organization_plans(organization_id);
+CREATE INDEX idx_org_plans_plan_id ON public.organization_plans(plan_id);
+CREATE INDEX idx_org_plans_status ON public.organization_plans(status);
+CREATE INDEX idx_org_plans_active ON public.organization_plans(organization_id, started_at DESC)
+WHERE deleted_at IS NULL AND status = 'active';
 
 -- ============================================================
 -- TABLE: organization_members
@@ -173,6 +214,19 @@ CREATE TABLE public.user_roles (
 
 CREATE INDEX idx_user_roles_user_id ON public.user_roles(user_id);
 CREATE INDEX idx_user_roles_role_id ON public.user_roles(role_id);
+
+-- ============================================================
+-- TABLE: sessions
+-- ============================================================
+CREATE TABLE public.sessions (
+    id TEXT PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_sessions_user_id ON public.sessions(user_id);
+CREATE INDEX idx_sessions_expires_at ON public.sessions(expires_at);
 
 -- ============================================================
 -- PHASE 2: TENANT SCHEMA TEMPLATE FUNCTION
@@ -505,6 +559,46 @@ BEGIN
         )', schema_name);
     
     EXECUTE format('CREATE INDEX idx_usage_tracking_period ON %I.usage_tracking(period_start, period_end)', schema_name);
+
+    -- Seed current active usage period using organization's active plan limit.
+    -- Falls back to 1000 if plan assignment is not available.
+    EXECUTE format('
+        INSERT INTO %I.usage_tracking (
+            period_start,
+            period_end,
+            checks_allowed,
+            checks_used,
+            last_refill_at,
+            next_refill_at,
+            created_at,
+            updated_at
+        )
+        SELECT
+            date_trunc(''month'', CURRENT_DATE)::date,
+            (date_trunc(''month'', CURRENT_DATE) + INTERVAL ''1 month - 1 day'')::date,
+            COALESCE((
+                SELECT p.checks_allowed_monthly
+                FROM public.organizations o
+                JOIN public.organization_plans op ON op.organization_id = o.id
+                JOIN public.plans p ON p.id = op.plan_id
+                WHERE o.schema_name = %L
+                    AND op.deleted_at IS NULL
+                    AND op.status = ''active''
+                ORDER BY op.started_at DESC
+                LIMIT 1
+            ), 1000),
+            0,
+            NOW(),
+            date_trunc(''month'', CURRENT_DATE) + INTERVAL ''1 month'',
+            NOW(),
+            NOW()
+        WHERE NOT EXISTS (
+            SELECT 1
+            FROM %I.usage_tracking ut
+            WHERE ut.period_start <= CURRENT_DATE
+                AND ut.period_end >= CURRENT_DATE
+        )
+    ', schema_name, schema_name, schema_name);
     
     -- ========================================
     -- TABLE 14: usage_logs
@@ -536,6 +630,13 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION trigger_create_tenant_schema()
 RETURNS TRIGGER AS $$
 BEGIN
+    -- Assign default starter plan to new organization
+    INSERT INTO public.organization_plans (organization_id, plan_id, status, started_at, created_by)
+    SELECT NEW.id, p.id, 'active', NOW(), NEW.owner_user_id
+    FROM public.plans p
+    WHERE p.code = 'starter'
+    LIMIT 1;
+
     -- Call function to create tenant schema with full structure
     PERFORM create_tenant_schema(NEW.schema_name);
     RETURN NEW;
@@ -551,11 +652,18 @@ EXECUTE FUNCTION trigger_create_tenant_schema();
 -- PHASE 4: SAMPLE DATA (Optional - for testing)
 -- ============================================================
 
+-- Seed default plans
+INSERT INTO public.plans (id, code, name, description, checks_allowed_monthly, is_active) VALUES
+    ('20000000-0000-0000-0000-000000000001', 'starter', 'Starter', 'Default plan for new organizations', 1000, TRUE),
+    ('20000000-0000-0000-0000-000000000002', 'pro', 'Pro', 'Higher limits for growing teams', 10000, TRUE),
+    ('20000000-0000-0000-0000-000000000003', 'enterprise', 'Enterprise', 'Custom enterprise limits', 100000, TRUE)
+ON CONFLICT (code) DO NOTHING;
+
 -- Insert sample user
 INSERT INTO public.users (email, password_hash, first_name, last_name, email_verified)
 VALUES (
     'ajcarlos032@gmail.com',
-    '$2a$10$ph4OLEIfgKDX8K9CNYbws.oZgvtXlRcb9za2k3OZG13MHfY5kEzNK',
+    '$2a$10$1nlwBIyLx5dYDkl/d3C1leN2sapjLNOI24gUEea532AOJJH7WE7bu',
     'Carlos',
     'Admin',
     TRUE
@@ -564,7 +672,7 @@ VALUES (
 -- Insert sample organization (this will automatically trigger tenant schema creation)
 INSERT INTO public.organizations (name, subdomain, schema_name, owner_user_id)
 SELECT
-    'jcsoftdev INC',
+    'jcsoftdev-inc',
     'jcsoftdev-inc',
     'jcsoftdev_inc',
     id
@@ -588,7 +696,8 @@ ON CONFLICT (organization_id, user_id) DO NOTHING;
 INSERT INTO public.roles (id, name, description) VALUES
     ('00000000-0000-0000-0000-000000000001', 'ADMIN', 'Administrator with full access'),
     ('00000000-0000-0000-0000-000000000002', 'USER', 'Standard user with limited access'),
-    ('00000000-0000-0000-0000-000000000003', 'VIEWER', 'Read-only access')
+    ('00000000-0000-0000-0000-000000000003', 'VIEWER', 'Read-only access'),
+    ('00000000-0000-0000-0000-000000000004', 'SUPER_ADMIN', 'Platform super administrator with access to all organizations and plans')
 ON CONFLICT (name) DO NOTHING;
 
 -- ============================================================
@@ -613,7 +722,10 @@ INSERT INTO public.permissions (id, name, resource, action, description) VALUES
     ('10000000-0000-0000-0000-000000000014', 'users:write', 'users', 'write', 'Create and update users'),
     ('10000000-0000-0000-0000-000000000015', 'users:delete', 'users', 'delete', 'Delete users'),
     ('10000000-0000-0000-0000-000000000016', 'organizations:read', 'organizations', 'read', 'Read organizations'),
-    ('10000000-0000-0000-0000-000000000017', 'organizations:write', 'organizations', 'write', 'Manage organizations')
+    ('10000000-0000-0000-0000-000000000017', 'organizations:write', 'organizations', 'write', 'Manage organizations'),
+    ('10000000-0000-0000-0000-000000000018', 'plans:read', 'plans', 'read', 'Read plans'),
+    ('10000000-0000-0000-0000-000000000019', 'plans:write', 'plans', 'write', 'Create and update plans'),
+    ('10000000-0000-0000-0000-000000000020', 'organizations:plan_write', 'organizations', 'plan_write', 'Assign and change organization plans')
 ON CONFLICT (name) DO NOTHING;
 
 -- ============================================================
@@ -637,9 +749,21 @@ SELECT '00000000-0000-0000-0000-000000000003', id FROM public.permissions
 WHERE action = 'read'
 ON CONFLICT DO NOTHING;
 
+-- Assign all permissions to SUPER_ADMIN role
+INSERT INTO public.role_permissions (role_id, permission_id)
+SELECT '00000000-0000-0000-0000-000000000004', id FROM public.permissions
+ON CONFLICT DO NOTHING;
+
 -- Assign ADMIN role to default admin user
 INSERT INTO public.user_roles (user_id, role_id)
 SELECT u.id, '00000000-0000-0000-0000-000000000001'
+FROM public.users u
+WHERE u.email = 'ajcarlos032@gmail.com'
+ON CONFLICT DO NOTHING;
+
+-- Assign SUPER_ADMIN role to default admin user
+INSERT INTO public.user_roles (user_id, role_id)
+SELECT u.id, '00000000-0000-0000-0000-000000000004'
 FROM public.users u
 WHERE u.email = 'ajcarlos032@gmail.com'
 ON CONFLICT DO NOTHING;

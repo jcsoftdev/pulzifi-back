@@ -12,6 +12,14 @@ export interface ChecksData {
   refillDate: string
 }
 
+interface UsageQuotasResponse {
+  quotas: {
+    checks_used?: number
+    checks_allowed?: number
+    next_refill_at?: string | null
+  }
+}
+
 export interface UsageStats {
   workplaces: {
     current: number
@@ -31,16 +39,30 @@ export interface UsageStats {
 
 export const UsageApi = {
   async getChecksData(): Promise<ChecksData> {
-    // Mocked for development: backend not ready / or prefer mocked data for now.
-    // TODO: replace with real API call when backend endpoint is available.
-    return {
-      current: 300,
-      max: 1000,
-      refillDate: 'Oct 20, 2025',
+    const http = await getHttpClient()
+    const response = await http.get<UsageQuotasResponse>('/api/v1/usage/quotas')
+
+    const current = response.quotas?.checks_used ?? 0
+    const max = response.quotas?.checks_allowed ?? 0
+    const nextRefillRaw = response.quotas?.next_refill_at
+
+    let refillDate = 'N/A'
+    if (nextRefillRaw) {
+      const parsed = new Date(nextRefillRaw)
+      if (!Number.isNaN(parsed.getTime())) {
+        refillDate = parsed.toLocaleDateString('en-US', {
+          month: 'short',
+          day: '2-digit',
+          year: 'numeric',
+        })
+      }
     }
-    // Uncomment to call real backend:
-    // const http = await getHttpClient()
-    // return http.get<ChecksData>('/api/usage/checks')
+
+    return {
+      current,
+      max,
+      refillDate,
+    }
   },
 
   async getUsageStats(): Promise<UsageStats> {

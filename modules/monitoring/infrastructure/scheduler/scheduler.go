@@ -3,9 +3,11 @@ package scheduler
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/application/orchestrator"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/persistence"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
@@ -45,9 +47,9 @@ func (s *Scheduler) Start(ctx context.Context) {
 
 			var waitDuration time.Duration
 			if nextRun.IsZero() {
-				// No tasks pending, wait a long time but allow interruption
-				// Wait 24 hours if nothing to do, but wake up on signal
-				waitDuration = 24 * time.Hour
+				// No tasks pending. In split API/worker mode wake-up signals are in-process only,
+				// so we keep a short polling interval to discover newly enabled configs.
+				waitDuration = 15 * time.Second
 			} else {
 				waitDuration = nextRun.Sub(now)
 				if waitDuration < 0 {
@@ -111,6 +113,16 @@ func (s *Scheduler) getNextRunTime(ctx context.Context) time.Time {
 			SELECT MIN(
 				CASE 
 					WHEN mc.check_frequency = '30m' THEN COALESCE(p.last_checked_at, '2000-01-01'::timestamp) + INTERVAL '30 minutes'
+					WHEN mc.check_frequency = '1h' THEN COALESCE(p.last_checked_at, '2000-01-01'::timestamp) + INTERVAL '1 hour'
+					WHEN mc.check_frequency = '1 hr' THEN COALESCE(p.last_checked_at, '2000-01-01'::timestamp) + INTERVAL '1 hour'
+					WHEN mc.check_frequency = '2h' THEN COALESCE(p.last_checked_at, '2000-01-01'::timestamp) + INTERVAL '2 hours'
+					WHEN mc.check_frequency = '2 hr' THEN COALESCE(p.last_checked_at, '2000-01-01'::timestamp) + INTERVAL '2 hours'
+					WHEN mc.check_frequency = '8h' THEN COALESCE(p.last_checked_at, '2000-01-01'::timestamp) + INTERVAL '8 hours'
+					WHEN mc.check_frequency = '8 hr' THEN COALESCE(p.last_checked_at, '2000-01-01'::timestamp) + INTERVAL '8 hours'
+					WHEN mc.check_frequency = '24h' THEN COALESCE(p.last_checked_at, '2000-01-01'::timestamp) + INTERVAL '1 day'
+					WHEN mc.check_frequency = '1d' THEN COALESCE(p.last_checked_at, '2000-01-01'::timestamp) + INTERVAL '1 day'
+					WHEN mc.check_frequency = '48h' THEN COALESCE(p.last_checked_at, '2000-01-01'::timestamp) + INTERVAL '48 hours'
+					WHEN mc.check_frequency = '2d' THEN COALESCE(p.last_checked_at, '2000-01-01'::timestamp) + INTERVAL '48 hours'
 					WHEN mc.check_frequency = 'Every 30 minutes' THEN COALESCE(p.last_checked_at, '2000-01-01'::timestamp) + INTERVAL '30 minutes'
 					WHEN mc.check_frequency = 'Every 1 hour' THEN COALESCE(p.last_checked_at, '2000-01-01'::timestamp) + INTERVAL '1 hour'
 					WHEN mc.check_frequency = 'Every 2 hours' THEN COALESCE(p.last_checked_at, '2000-01-01'::timestamp) + INTERVAL '2 hours'
@@ -159,6 +171,47 @@ func (s *Scheduler) runCheck(ctx context.Context) {
 	}
 }
 
+// TriggerPageCheck schedules one immediate check for a specific page within a tenant schema.
+// This is used when a user updates monitoring frequency and expects an immediate run.
+func (s *Scheduler) TriggerPageCheck(ctx context.Context, schema string, pageID uuid.UUID) error {
+	q := fmt.Sprintf(`
+		SELECT p.url
+		FROM %s.pages p
+		JOIN %s.monitoring_configs mc ON mc.page_id = p.id
+		WHERE p.id = $1
+		  AND p.deleted_at IS NULL
+		  AND mc.deleted_at IS NULL
+		  AND mc.check_frequency != 'Off'
+		LIMIT 1
+	`, schema, schema)
+
+	var url string
+	if err := s.db.QueryRowContext(ctx, q, pageID).Scan(&url); err != nil {
+		if err == sql.ErrNoRows {
+			return nil
+		}
+		return err
+	}
+
+	job := orchestrator.CheckJob{
+		PageID:     pageID,
+		URL:        url,
+		SchemaName: schema,
+	}
+
+	go func(j orchestrator.CheckJob) {
+		if err := s.orchestrator.ScheduleCheck(context.Background(), j); err != nil {
+			if errors.Is(err, orchestrator.ErrQuotaExceeded) {
+				logger.Warn("Immediate check skipped due to quota", zap.String("page_id", j.PageID.String()), zap.String("schema", j.SchemaName))
+				return
+			}
+			logger.Error("Failed to schedule immediate check", zap.String("page_id", j.PageID.String()), zap.Error(err))
+		}
+	}(job)
+
+	return nil
+}
+
 func (s *Scheduler) processTenant(ctx context.Context, schema string) {
 	// Scheduler logic: Calculate next_run_at (Find due tasks)
 	// We use the existing repository logic to find due tasks
@@ -182,6 +235,10 @@ func (s *Scheduler) processTenant(ctx context.Context, schema string) {
 		go func(j orchestrator.CheckJob) {
 			// Create a detached context for the job execution
 			if err := s.orchestrator.ScheduleCheck(context.Background(), j); err != nil {
+				if errors.Is(err, orchestrator.ErrQuotaExceeded) {
+					logger.Warn("Check not scheduled due to quota", zap.String("page_id", j.PageID.String()), zap.String("schema", j.SchemaName))
+					return
+				}
 				logger.Error("Failed to schedule check", zap.String("page_id", j.PageID.String()), zap.Error(err))
 			}
 		}(job)

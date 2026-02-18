@@ -15,10 +15,33 @@
  * - "localhost" → null
  */
 export function extractTenantFromHostname(hostname: string): string | null {
-  const parts = hostname.split('.')
+  const normalizedHostname = hostname.split(':')[0]?.toLowerCase() ?? ''
+  if (!normalizedHostname) {
+    return null
+  }
+
+  const appDomain = process.env.NEXT_PUBLIC_APP_DOMAIN?.toLowerCase()
+  if (appDomain) {
+    if (normalizedHostname === appDomain) {
+      return null
+    }
+
+    if (normalizedHostname.endsWith(`.${appDomain}`)) {
+      const tenantPart = normalizedHostname.slice(0, -(appDomain.length + 1))
+      return tenantPart || null
+    }
+  }
+
+  const parts = normalizedHostname.split('.')
 
   // Need at least 2 parts for a subdomain (e.g., tenant.localhost)
   if (parts.length < 2) {
+    return null
+  }
+
+  // If not localhost and only two labels, treat it as base domain (non-tenant)
+  // Example: pulzifi.local -> null
+  if (parts.length === 2 && parts[1] !== 'localhost') {
     return null
   }
 

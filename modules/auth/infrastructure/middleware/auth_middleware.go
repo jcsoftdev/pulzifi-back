@@ -3,10 +3,11 @@ package middleware
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
-	"strings"
 
-	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/services"
+	"github.com/google/uuid"
+	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/repositories"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/cookies"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"go.uber.org/zap"
@@ -22,56 +23,90 @@ const (
 )
 
 type AuthMiddleware struct {
-	tokenService services.TokenService
+	sessionRepo repositories.SessionRepository
+	userRepo    repositories.UserRepository
+	roleRepo    repositories.RoleRepository
+	permRepo    repositories.PermissionRepository
 }
 
-func NewAuthMiddleware(tokenService services.TokenService) *AuthMiddleware {
+func NewAuthMiddleware(
+	sessionRepo repositories.SessionRepository,
+	userRepo repositories.UserRepository,
+	roleRepo repositories.RoleRepository,
+	permRepo repositories.PermissionRepository,
+) *AuthMiddleware {
 	return &AuthMiddleware{
-		tokenService: tokenService,
+		sessionRepo: sessionRepo,
+		userRepo:    userRepo,
+		roleRepo:    roleRepo,
+		permRepo:    permRepo,
 	}
 }
 
 func (m *AuthMiddleware) Authenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		token := ""
-		authHeader := r.Header.Get("Authorization")
-		if authHeader != "" {
-			parts := strings.SplitN(authHeader, " ", 2)
-			if len(parts) == 2 && parts[0] == "Bearer" {
-				token = parts[1]
-			}
-		}
-
-		if token == "" {
-			if cookieToken, err := cookies.GetAccessTokenFromCookie(r); err == nil {
-				token = cookieToken
-			}
-		}
-
-		if token == "" {
-			logger.Warn("Missing authorization token (header or cookie)")
-			m.unauthorized(w, "missing authorization token")
+		userID, userEmail, roles, permissions, ok := m.resolveAuthContext(r)
+		if !ok {
+			m.unauthorized(w, "unauthorized")
 			return
 		}
-		logger.Info("Attempting token validation", zap.String("token_preview", token[:30]))
-
-		claims, err := m.tokenService.ValidateToken(r.Context(), token)
-		if err != nil {
-			logger.Error("Token validation failed", zap.Error(err), zap.String("token_preview", token[:30]))
-			m.unauthorized(w, "invalid or expired token")
-			return
-		}
-
-		logger.Info("Token validated successfully", zap.String("user_id", claims.UserID.String()))
 
 		ctx := r.Context()
-		ctx = context.WithValue(ctx, UserIDKey, claims.UserID.String())
-		ctx = context.WithValue(ctx, UserEmailKey, claims.Email)
-		ctx = context.WithValue(ctx, UserRolesKey, claims.Roles)
-		ctx = context.WithValue(ctx, UserPermsKey, claims.Permissions)
+		ctx = context.WithValue(ctx, UserIDKey, userID)
+		ctx = context.WithValue(ctx, UserEmailKey, userEmail)
+		ctx = context.WithValue(ctx, UserRolesKey, roles)
+		ctx = context.WithValue(ctx, UserPermsKey, permissions)
 
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+func (m *AuthMiddleware) resolveAuthContext(r *http.Request) (string, string, []string, []string, bool) {
+	sessionID, err := cookies.GetSessionIDFromCookie(r)
+	if err != nil || sessionID == "" {
+		logger.Warn("Missing session cookie")
+		return "", "", nil, nil, false
+	}
+
+	session, err := m.sessionRepo.FindByID(r.Context(), sessionID)
+	if err != nil || session == nil || session.IsExpired() {
+		if session != nil && session.IsExpired() {
+			_ = m.sessionRepo.DeleteByID(r.Context(), sessionID)
+		}
+		logger.Warn("Session validation failed", zap.Error(err))
+		return "", "", nil, nil, false
+	}
+
+	user, err := m.userRepo.GetByID(r.Context(), session.UserID)
+	if err != nil || user == nil {
+		logger.Warn("User not found for session", zap.Error(err), zap.String("user_id", session.UserID.String()))
+		return "", "", nil, nil, false
+	}
+
+	roles, err := m.roleRepo.GetUserRoles(r.Context(), session.UserID)
+	if err != nil {
+		logger.Error("Failed to load user roles", zap.Error(err))
+		return "", "", nil, nil, false
+	}
+
+	permissions, err := m.permRepo.GetUserPermissions(r.Context(), session.UserID)
+	if err != nil {
+		logger.Error("Failed to load user permissions", zap.Error(err))
+		return "", "", nil, nil, false
+	}
+
+	roleNames := make([]string, 0, len(roles))
+	for _, role := range roles {
+		roleNames = append(roleNames, role.Name)
+	}
+
+	permissionNames := make([]string, 0, len(permissions))
+	for _, perm := range permissions {
+		permissionNames = append(permissionNames, perm.Name)
+	}
+
+	logger.Info("Session validated successfully", zap.String("user_id", session.UserID.String()))
+	return session.UserID.String(), user.Email, roleNames, permissionNames, true
 }
 
 func (m *AuthMiddleware) RequirePermission(resource, action string) func(http.Handler) http.Handler {
@@ -127,6 +162,24 @@ func (m *AuthMiddleware) RequireRole(requiredRole string) func(http.Handler) htt
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+func (m *AuthMiddleware) SessionIDFromRequest(r *http.Request) (string, error) {
+	return cookies.GetSessionIDFromCookie(r)
+}
+
+func (m *AuthMiddleware) ValidateSessionFromRequest(r *http.Request) (uuid.UUID, error) {
+	sessionID, err := cookies.GetSessionIDFromCookie(r)
+	if err != nil || sessionID == "" {
+		return uuid.Nil, errors.New("missing session")
+	}
+
+	session, err := m.sessionRepo.FindByID(r.Context(), sessionID)
+	if err != nil || session == nil || session.IsExpired() {
+		return uuid.Nil, errors.New("invalid or expired session")
+	}
+
+	return session.UserID, nil
 }
 
 func (m *AuthMiddleware) unauthorized(w http.ResponseWriter, message string) {

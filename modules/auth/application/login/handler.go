@@ -2,6 +2,7 @@ package login
 
 import (
 	"context"
+	"time"
 
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/entities"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/repositories"
@@ -11,23 +12,23 @@ import (
 )
 
 type Handler struct {
-	authService      services.AuthService
-	tokenService     services.TokenService
-	userRepo         repositories.UserRepository
-	refreshTokenRepo repositories.RefreshTokenRepository
+	authService services.AuthService
+	userRepo    repositories.UserRepository
+	sessionRepo repositories.SessionRepository
+	sessionTTL  time.Duration
 }
 
 func NewHandler(
 	authService services.AuthService,
-	tokenService services.TokenService,
 	userRepo repositories.UserRepository,
-	refreshTokenRepo repositories.RefreshTokenRepository,
+	sessionRepo repositories.SessionRepository,
+	sessionTTL time.Duration,
 ) *Handler {
 	return &Handler{
-		authService:      authService,
-		tokenService:     tokenService,
-		userRepo:         userRepo,
-		refreshTokenRepo: refreshTokenRepo,
+		authService: authService,
+		userRepo:    userRepo,
+		sessionRepo: sessionRepo,
+		sessionTTL:  sessionTTL,
 	}
 }
 
@@ -38,28 +39,10 @@ func (h *Handler) Handle(ctx context.Context, req *Request) (*Response, error) {
 		return nil, err
 	}
 
-	accessToken, err := h.tokenService.GenerateAccessToken(ctx, user.ID, user.Email)
-	if err != nil {
-		logger.Error("Failed to generate access token", zap.Error(err))
+	session := entities.NewSession(user.ID, h.sessionTTL)
+	if err := h.sessionRepo.Create(ctx, session); err != nil {
+		logger.Error("Failed to create session", zap.Error(err))
 		return nil, err
-	}
-
-	refreshToken, err := h.tokenService.GenerateRefreshToken(ctx, user.ID)
-	if err != nil {
-		logger.Error("Failed to generate refresh token", zap.Error(err))
-		return nil, err
-	}
-
-	// Store refresh token in database
-	refreshTokenEntity := entities.NewRefreshToken(
-		user.ID,
-		refreshToken,
-		h.tokenService.GetRefreshTokenExpiration(),
-	)
-
-	if err := h.refreshTokenRepo.Create(ctx, refreshTokenEntity); err != nil {
-		logger.Error("Failed to store refresh token", zap.Error(err))
-		// Continue anyway, user can still use access token
 	}
 
 	logger.Info("User logged in successfully", zap.String("email", user.Email), zap.String("id", user.ID.String()))
@@ -72,10 +55,8 @@ func (h *Handler) Handle(ctx context.Context, req *Request) (*Response, error) {
 	}
 
 	return &Response{
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
-		TokenType:    "Bearer",
-		ExpiresIn:    int64(h.tokenService.GetTokenExpiration().Seconds()),
-		Tenant:       tenant,
+		SessionID: session.ID,
+		ExpiresIn: int64(h.sessionTTL.Seconds()),
+		Tenant:    tenant,
 	}, nil
 }

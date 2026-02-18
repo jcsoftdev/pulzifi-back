@@ -1,16 +1,11 @@
 import axios, { type AxiosInstance, type AxiosRequestConfig, type AxiosError } from 'axios'
 import type { IHttpClient, RequestConfig } from './types'
-import type { ITokenProvider } from './token-provider'
 import { getTenantFromWindow } from './tenant-utils'
 
 export class AxiosHttpClient implements IHttpClient {
   private readonly client: AxiosInstance
 
-  constructor(
-    baseURL: string,
-    defaultHeaders?: Record<string, string>,
-    private readonly tokenProvider?: ITokenProvider
-  ) {
+  constructor(baseURL: string, defaultHeaders?: Record<string, string>) {
     this.client = axios.create({
       baseURL,
       headers: {
@@ -18,11 +13,11 @@ export class AxiosHttpClient implements IHttpClient {
         ...defaultHeaders,
       },
       timeout: 30000,
-      // Enable credentials to send cookies automatically (NextAuth)
+      // Enable credentials to send cookies automatically
       withCredentials: true,
     })
 
-    // Request interceptor: Add tenant from subdomain and auth token
+    // Request interceptor: Add tenant from subdomain
     this.client.interceptors.request.use(
       async (config) => {
         // Extract tenant from subdomain (client-side only)
@@ -30,14 +25,6 @@ export class AxiosHttpClient implements IHttpClient {
           const tenant = getTenantFromWindow()
           if (tenant && config.headers) {
             config.headers['X-Tenant'] = tenant
-          }
-        }
-
-        // Add auth token from provider (fallback if not using cookies)
-        if (this.tokenProvider) {
-          const token = await this.tokenProvider.getClientToken()
-          if (token && config.headers) {
-            config.headers.Authorization = `Bearer ${token}`
           }
         }
 

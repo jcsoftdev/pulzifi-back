@@ -10,8 +10,8 @@ import (
 	monEntities "github.com/jcsoftdev/pulzifi-back/modules/monitoring/domain/entities"
 	monPersistence "github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/persistence"
 	snapEntities "github.com/jcsoftdev/pulzifi-back/modules/snapshot/domain/entities"
+	"github.com/jcsoftdev/pulzifi-back/modules/snapshot/domain/repositories"
 	"github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/extractor"
-	"github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/minio"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"go.uber.org/zap"
 )
@@ -21,9 +21,9 @@ type SnapshotService struct {
 	db     *sql.DB
 }
 
-func NewSnapshotService(minioClient *minio.Client, extractorClient *extractor.HTTPClient, db *sql.DB) *SnapshotService {
+func NewSnapshotService(objectStorage repositories.ObjectStorage, extractorClient *extractor.HTTPClient, db *sql.DB) *SnapshotService {
 	return &SnapshotService{
-		worker: NewSnapshotWorker(minioClient, extractorClient, db),
+		worker: NewSnapshotWorker(objectStorage, extractorClient, db),
 		db:     db,
 	}
 }

@@ -38,6 +38,8 @@ export function ChangesViewLayout({
   const handleTabChange = onTabChange || setInternalActiveTab
 
   const activeCheck = checks.find((c) => c.id === activeCheckId) || checks[0]
+  const activeCheckFailed =
+    !!activeCheck && (activeCheck.status === 'error' || activeCheck.status === 'failed')
 
   const handleCheckChange = (checkId: string) => {
     const params = new URLSearchParams(searchParams.toString())
@@ -50,10 +52,17 @@ export function ChangesViewLayout({
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div className="flex flex-col gap-1">
-          <span className="text-sm text-muted-foreground">Change detected on:</span>
+          <span className="text-sm text-muted-foreground">
+            {activeCheckFailed ? 'Check failed on:' : 'Change detected on:'}
+          </span>
           <h1 className="text-2xl md:text-3xl font-bold text-foreground">
              {activeCheck ? formatDateTime(activeCheck.checkedAt) : 'No check selected'}
           </h1>
+          {activeCheck?.extractorFailed && (
+            <span className="text-sm text-destructive">
+              Extractor failed{activeCheck.errorMessage ? `: ${activeCheck.errorMessage}` : ''}
+            </span>
+          )}
         </div>
 
         <div className="w-full md:w-64">
@@ -65,6 +74,7 @@ export function ChangesViewLayout({
               {checks.map((check) => (
                 <SelectItem key={check.id} value={check.id}>
                   {formatDateTime(check.checkedAt)}
+                  {check.extractorFailed ? ' — Extractor failed' : ''}
                 </SelectItem>
               ))}
             </SelectContent>

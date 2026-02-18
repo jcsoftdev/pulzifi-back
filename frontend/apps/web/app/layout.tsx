@@ -1,12 +1,7 @@
 import { Geist, Geist_Mono } from 'next/font/google'
-import { setTokenProvider } from '@workspace/shared-http'
-import { tokenProvider } from '@workspace/auth'
 
 import '@workspace/ui/globals.css'
 import { Providers } from '@/components/providers'
-
-// Configure authentication token provider globally (server-side)
-setTokenProvider(tokenProvider)
 
 const fontSans = Geist({
   subsets: [

@@ -11,7 +11,7 @@ import (
 	"github.com/jcsoftdev/pulzifi-back/modules/snapshot/application"
 	"github.com/jcsoftdev/pulzifi-back/modules/snapshot/domain/entities"
 	"github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/extractor"
-	"github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/minio"
+	"github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/storage"
 	"github.com/jcsoftdev/pulzifi-back/shared/config"
 	"github.com/jcsoftdev/pulzifi-back/shared/database"
 	"github.com/jcsoftdev/pulzifi-back/shared/eventbus"
@@ -30,22 +30,22 @@ func main() {
 	}
 	defer db.Close()
 
-	// Init MinIO
-	minioClient, err := minio.NewClient(cfg)
+	// Init Object Storage
+	objectStorage, err := storage.NewObjectStorage(cfg)
 	if err != nil {
-		logger.Logger.Fatal("Failed to create MinIO client", zap.Error(err))
+		logger.Logger.Fatal("Failed to create object storage client", zap.Error(err))
 	}
-	// Ensure bucket exists with retry
+	// Ensure object storage is ready with retry
 	ensureBucketCtx := context.Background()
 	for i := 0; i < 30; i++ {
-		if err := minioClient.EnsureBucket(ensureBucketCtx); err != nil {
-			logger.Logger.Error("Failed to ensure bucket, retrying...", zap.Error(err), zap.Int("attempt", i+1))
+		if err := objectStorage.EnsureBucket(ensureBucketCtx); err != nil {
+			logger.Logger.Error("Failed to initialize object storage, retrying...", zap.Error(err), zap.Int("attempt", i+1))
 			time.Sleep(2 * time.Second)
 		} else {
 			break
 		}
 		if i == 29 {
-			logger.Logger.Fatal("Failed to ensure bucket after retries")
+			logger.Logger.Fatal("Failed to initialize object storage after retries")
 		}
 	}
 
@@ -53,7 +53,7 @@ func main() {
 	extractorClient := extractor.NewHTTPClient(cfg.ExtractorURL)
 
 	// Init Snapshot Service
-	snapshotService := application.NewSnapshotService(minioClient, extractorClient, db)
+	snapshotService := application.NewSnapshotService(objectStorage, extractorClient, db)
 
 	// Init Messaging (In-Memory for MVP)
 	messageBus := eventbus.GetInstance()

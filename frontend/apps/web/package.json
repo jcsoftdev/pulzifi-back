@@ -4,32 +4,30 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
+    "dev": "NODE_OPTIONS='' next dev --turbopack",
     "build": "next build",
     "start": "next start",
     "type-check": "tsc --noEmit",
     "format": "biome format ../../ --write"
   },
   "dependencies": {
-    "@workspace/auth": "workspace:*",
     "@workspace/services": "workspace:*",
     "@workspace/shared-http": "workspace:*",
     "@workspace/ui": "workspace:*",
-    "axios": "^1.13.2",
+    "axios": "^1.13.5",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "lucide-react": "^0.562.0",
-    "next": "16.1.1",
-    "next-auth": "^5.0.0-beta.30",
+    "lucide-react": "^0.574.0",
+    "next": "16.1.6",
     "next-themes": "^0.4.6",
-    "react": "^19.2.3",
-    "react-dom": "^19.2.3",
-    "tailwind-merge": "^3.4.0"
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "tailwind-merge": "^3.4.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.18",
-    "@types/node": "^25.0.3",
-    "@types/react": "^19.2.7",
+    "@types/node": "^25.2.3",
+    "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@workspace/typescript-config": "workspace:*",
     "typescript": "^5.9.3"

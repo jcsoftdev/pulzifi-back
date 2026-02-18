@@ -14,22 +14,22 @@ import (
 	"github.com/google/uuid"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/domain/entities"
 	monPersistence "github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/persistence"
+	"github.com/jcsoftdev/pulzifi-back/modules/snapshot/domain/repositories"
 	"github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/extractor"
-	"github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/minio"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
 	"go.uber.org/zap"
 )
 
 type SnapshotWorker struct {
-	minioClient     *minio.Client
+	objectStorage   repositories.ObjectStorage
 	extractorClient *extractor.HTTPClient
 	db              *sql.DB
 }
 
-func NewSnapshotWorker(minioClient *minio.Client, extractorClient *extractor.HTTPClient, db *sql.DB) *SnapshotWorker {
+func NewSnapshotWorker(objectStorage repositories.ObjectStorage, extractorClient *extractor.HTTPClient, db *sql.DB) *SnapshotWorker {
 	return &SnapshotWorker{
-		minioClient:     minioClient,
+		objectStorage:   objectStorage,
 		extractorClient: extractorClient,
 		db:              db,
 	}
@@ -76,7 +76,7 @@ func (s *SnapshotWorker) ExecuteCheck(ctx context.Context, checkID uuid.UUID, ta
 	htmlName := fmt.Sprintf("%s/%d.html", check.PageID, ts)
 
 	// Upload
-	imgURL, err := s.minioClient.Upload(ctx, imgName, bytes.NewReader(imgBytes), int64(len(imgBytes)), "image/png")
+	imgURL, err := s.objectStorage.Upload(ctx, imgName, bytes.NewReader(imgBytes), int64(len(imgBytes)), "image/png")
 	if err != nil {
 		logger.Error("Failed to upload screenshot", zap.Error(err))
 		// Continue even if upload fails? Or fail?
@@ -84,7 +84,7 @@ func (s *SnapshotWorker) ExecuteCheck(ctx context.Context, checkID uuid.UUID, ta
 		// For now fail.
 		return err
 	}
-	htmlURL, err := s.minioClient.Upload(ctx, htmlName, strings.NewReader(res.HTML), int64(len(res.HTML)), "text/html")
+	htmlURL, err := s.objectStorage.Upload(ctx, htmlName, strings.NewReader(res.HTML), int64(len(res.HTML)), "text/html")
 	if err != nil {
 		return err
 	}
@@ -99,6 +99,8 @@ func (s *SnapshotWorker) ExecuteCheck(ctx context.Context, checkID uuid.UUID, ta
 	check.ScreenshotURL = imgURL
 	check.HTMLSnapshotURL = htmlURL
 	check.ContentHash = contentHashStr
+	check.ChangeDetected = false
+	check.ChangeType = ""
 
 	// Compare logic (simplified)
 	// Fetch the actual previous successful check
@@ -112,7 +114,15 @@ func (s *SnapshotWorker) ExecuteCheck(ctx context.Context, checkID uuid.UUID, ta
 		}
 	}
 
-	return checkRepo.Update(ctx, check)
+	if err := checkRepo.Update(ctx, check); err != nil {
+		return err
+	}
+
+	if err := s.updatePageSnapshotMetadata(ctx, schemaName, check.PageID, imgURL, check.ChangeDetected); err != nil {
+		logger.Error("Failed to update page snapshot metadata", zap.Error(err), zap.String("page_id", check.PageID.String()))
+	}
+
+	return nil
 }
 
 func (s *SnapshotWorker) getPreviousSuccessfulCheck(ctx context.Context, repo *monPersistence.CheckPostgresRepository, pageID, currentCheckID uuid.UUID) *entities.Check {
@@ -146,4 +156,18 @@ func (s *SnapshotWorker) createAlert(ctx context.Context, schemaName string, che
 	} else {
 		logger.Info("Alert created", zap.String("check_id", check.ID.String()))
 	}
+}
+
+func (s *SnapshotWorker) updatePageSnapshotMetadata(ctx context.Context, schemaName string, pageID uuid.UUID, thumbnailURL string, changeDetected bool) error {
+	if _, err := s.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(schemaName)); err != nil {
+		return err
+	}
+
+	q := `UPDATE pages
+		SET thumbnail_url = $1,
+			last_change_detected_at = CASE WHEN $2 THEN NOW() ELSE last_change_detected_at END
+		WHERE id = $3`
+
+	_, err := s.db.ExecContext(ctx, q, thumbnailURL, changeDetected, pageID)
+	return err
 }

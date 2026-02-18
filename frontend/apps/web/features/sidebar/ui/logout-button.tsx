@@ -1,14 +1,12 @@
 'use client'
 
 import { LogOut } from 'lucide-react'
-import { signOut } from 'next-auth/react'
 import { Button } from '@workspace/ui/components/atoms/button'
 
 export function LogoutButton() {
   const handleLogout = async () => {
-    await signOut({
-      callbackUrl: '/login',
-    })
+    await fetch('/api/auth/logout', { method: 'POST' })
+    window.location.href = '/login'
   }
 
   return (

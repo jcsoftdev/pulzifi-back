@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useSession } from 'next-auth/react'
 import { useParams, useSearchParams } from 'next/navigation'
 import { ChangesViewService } from '@/features/changes-view/domain/changes-view-service'
 import { ChangesViewLayout } from '@/features/changes-view/ui/changes-view-layout'
@@ -9,18 +8,13 @@ import { VisualPulse } from '@/features/changes-view/ui/visual-pulse'
 import { TextChanges } from '@/features/changes-view/ui/text-changes'
 import { IntelligentInsights } from '@/features/changes-view/ui/intelligent-insights'
 import { diffLines } from '@/features/changes-view/utils/simple-diff'
+import type { DiffRow } from '@/features/changes-view/utils/simple-diff'
 import type { Check, Insight } from '@workspace/services/page-api'
 import { Loader2 } from 'lucide-react'
-
-interface TextChange {
-  type: 'added' | 'removed' | 'unchanged'
-  text: string
-}
 
 export default function ChangesPage() {
   const params = useParams()
   const searchParams = useSearchParams()
-  const { status, data: session } = useSession()
   const pageId = params.pageId as string
   const checkIdParam = searchParams.get('checkId')
 
@@ -28,18 +22,12 @@ export default function ChangesPage() {
   const [insights, setInsights] = useState<Insight[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('visual')
-  const [textChanges, setTextChanges] = useState<TextChange[]>([])
+  const [textChanges, setTextChanges] = useState<DiffRow[]>([])
   const [loadingDiff, setLoadingDiff] = useState(false)
-
-  useEffect(() => {
-    const token = (session as any)?.accessToken ?? null
-    ;(globalThis as any).__authToken__ = token
-  }, [session])
 
   useEffect(() => {
     async function loadData() {
       try {
-        if (status !== 'authenticated') return
         setLoading(true)
         const checksData = await ChangesViewService.getPageChecks(pageId)
         // Sort checks descending by date
@@ -60,7 +48,7 @@ export default function ChangesPage() {
       }
     }
     loadData()
-  }, [pageId, checkIdParam, status])
+  }, [pageId, checkIdParam])
 
   const activeCheckId = checkIdParam || checks[0]?.id || ''
   const activeCheckIndex = checks.findIndex(c => c.id === activeCheckId)
@@ -69,7 +57,6 @@ export default function ChangesPage() {
 
   useEffect(() => {
     async function loadDiff() {
-      if (status !== 'authenticated') return
       if (activeTab === 'text' && activeCheck) {
         setLoadingDiff(true)
         try {
@@ -103,12 +90,7 @@ export default function ChangesPage() {
              
              const diff = diffLines(prevText, currentText)
              
-             const changes: TextChange[] = diff.map(d => ({
-               type: d.added ? 'added' : d.removed ? 'removed' : 'unchanged',
-               text: d.value
-             }))
-             
-             setTextChanges(changes)
+             setTextChanges(diff)
           } else {
              setTextChanges([])
           }
@@ -121,7 +103,7 @@ export default function ChangesPage() {
       }
     }
     loadDiff()
-  }, [activeTab, activeCheck, previousCheck, status])
+  }, [activeTab, activeCheck, previousCheck])
 
 
   if (loading) {

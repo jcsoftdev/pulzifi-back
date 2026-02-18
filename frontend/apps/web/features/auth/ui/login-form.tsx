@@ -18,20 +18,13 @@ export function LoginForm({ onSubmit, isLoading = false, error }: Readonly<Login
   const emailId = useId()
   const passwordId = useId()
 
-  console.log('[LoginForm] Rendered with isLoading:', isLoading, 'error:', error)
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log('[LoginForm] Form submitted with:', {
-      email,
-      password: '***',
-    })
     try {
       await onSubmit({
         email,
         password,
       })
-      console.log('[LoginForm] onSubmit completed')
     } catch (error) {
       console.error('[LoginForm] onSubmit error:', error)
     }

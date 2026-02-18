@@ -1,22 +1,27 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"flag"
 	"fmt"
 	"log"
 	"os"
+	"regexp"
 
 	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/database"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
-	_ "github.com/lib/pq"
+	"github.com/lib/pq"
 )
 
 const (
 	defaultDBURL      = "postgres://pulzifi_user:pulzifi_password@localhost:5434/pulzifi?sslmode=disable"
 	migrationsBaseDir = "shared/database/migrations"
 )
+
+var validSchemaName = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
 
 func main() {
 	var (
@@ -79,6 +84,10 @@ func main() {
 
 		for _, tenant := range tenants {
 			log.Printf("Migrating tenant: %s", tenant)
+			if err := ensureTenantSchemaExists(db, tenant); err != nil {
+				log.Printf("Error ensuring tenant schema %s: %v", tenant, err)
+				continue
+			}
 			// For tenant migrations, we must set the search path to the tenant schema
 			// We do this by passing a configured driver instance or ensuring the connection uses the right path
 			if err := runMigration(db, tenant, "tenant", *cmd, *steps); err != nil {
@@ -89,14 +98,53 @@ func main() {
 	}
 }
 
+func ensureTenantSchemaExists(db *sql.DB, schemaName string) error {
+	if !validSchemaName.MatchString(schemaName) {
+		return fmt.Errorf("invalid schema name: %s", schemaName)
+	}
+
+	query := fmt.Sprintf("CREATE SCHEMA IF NOT EXISTS %s", pq.QuoteIdentifier(schemaName))
+	if _, err := db.Exec(query); err != nil {
+		return fmt.Errorf("failed to ensure schema exists: %w", err)
+	}
+
+	return nil
+}
+
 func runMigration(db *sql.DB, schemaName, migrationDirName, command string, steps int) error {
-	driver, err := postgres.WithInstance(db, &postgres.Config{
-		SchemaName: schemaName,
-		// Using x-migrations-table to track migrations per schema independently
-		MigrationsTable: "schema_migrations",
-	})
-	if err != nil {
-		return fmt.Errorf("failed to create driver: %w", err)
+	var (
+		driver database.Driver
+		conn   *sql.Conn
+		err    error
+	)
+
+	if migrationDirName == "tenant" {
+		conn, err = db.Conn(context.Background())
+		if err != nil {
+			return fmt.Errorf("failed to get tenant db connection: %w", err)
+		}
+		defer conn.Close()
+
+		if _, err := conn.ExecContext(context.Background(), fmt.Sprintf("SET search_path TO %s, public", pq.QuoteIdentifier(schemaName))); err != nil {
+			return fmt.Errorf("failed to set search_path for tenant %s: %w", schemaName, err)
+		}
+
+		driver, err = postgres.WithConnection(context.Background(), conn, &postgres.Config{
+			SchemaName:      schemaName,
+			MigrationsTable: "schema_migrations",
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create tenant driver: %w", err)
+		}
+	} else {
+		driver, err = postgres.WithInstance(db, &postgres.Config{
+			SchemaName: schemaName,
+			// Using x-migrations-table to track migrations per schema independently
+			MigrationsTable: "schema_migrations",
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create driver: %w", err)
+		}
 	}
 
 	cwd, _ := os.Getwd()

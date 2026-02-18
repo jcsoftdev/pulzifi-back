@@ -61,6 +61,7 @@ export interface Check {
   changeDetected: boolean
   changeType: string
   errorMessage?: string
+  extractorFailed: boolean
   checkedAt: string
 }
 
@@ -269,6 +270,10 @@ export const PageApi = {
       changeDetected: c.change_detected,
       changeType: c.change_type,
       errorMessage: c.error_message,
+      extractorFailed:
+        (c.status === 'error' || c.status === 'failed') &&
+        typeof c.error_message === 'string' &&
+        c.error_message.toLowerCase().includes('extractor'),
       checkedAt: c.checked_at,
     }))
   },
