@@ -28,14 +28,17 @@ func (h *GetMonitoringConfigHandler) Handle(ctx context.Context, pageID uuid.UUI
 	}
 
 	return &GetMonitoringConfigResponse{
-		ID:              config.ID,
-		PageID:          config.PageID,
-		CheckFrequency:  config.CheckFrequency,
-		ScheduleType:    config.ScheduleType,
-		Timezone:        config.Timezone,
-		BlockAdsCookies: config.BlockAdsCookies,
-		CreatedAt:       config.CreatedAt,
-		UpdatedAt:       config.UpdatedAt,
+		ID:                    config.ID,
+		PageID:                config.PageID,
+		CheckFrequency:        config.CheckFrequency,
+		ScheduleType:          config.ScheduleType,
+		Timezone:              config.Timezone,
+		BlockAdsCookies:       config.BlockAdsCookies,
+		EnabledInsightTypes:   config.EnabledInsightTypes,
+		EnabledAlertConditions: config.EnabledAlertConditions,
+		CustomAlertCondition:  config.CustomAlertCondition,
+		CreatedAt:             config.CreatedAt,
+		UpdatedAt:             config.UpdatedAt,
 	}, nil
 }
 

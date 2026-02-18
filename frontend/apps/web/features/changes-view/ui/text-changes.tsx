@@ -1,50 +1,138 @@
 'use client'
 
 import { cn } from '@workspace/ui/lib/utils'
-import type { DiffRow } from '../utils/simple-diff'
+import type { DiffRow, DiffSegment } from '../utils/simple-diff'
 
 export interface TextChangesProps {
   changes?: DiffRow[]
 }
 
+// ---------------------------------------------------------------------------
+// Group consecutive removed→added rows into unified before/after blocks,
+// matching how git's unified diff groups deletions with their replacements.
+// ---------------------------------------------------------------------------
+
+type InlineGroup = { kind: 'inline'; segments: DiffSegment[] }
+type BlockGroup = { kind: 'block'; removed: string | null; added: string | null }
+type DisplayGroup = InlineGroup | BlockGroup
+
+function buildGroups(rows: DiffRow[]): DisplayGroup[] {
+  const groups: DisplayGroup[] = []
+  let i = 0
+  while (i < rows.length) {
+    const row = rows[i]!
+    if (row.kind === 'removed') {
+      const next = rows[i + 1]
+      if (next?.kind === 'added') {
+        groups.push({
+          kind: 'block',
+          removed: row.segments[0]?.text ?? null,
+          added: next.segments[0]?.text ?? null,
+        })
+        i += 2
+      } else {
+        groups.push({ kind: 'block', removed: row.segments[0]?.text ?? null, added: null })
+        i++
+      }
+    } else if (row.kind === 'added') {
+      groups.push({ kind: 'block', removed: null, added: row.segments[0]?.text ?? null })
+      i++
+    } else {
+      // 'inline' — word-level diff within a content-matched paragraph
+      groups.push({ kind: 'inline', segments: row.segments })
+      i++
+    }
+  }
+  return groups
+}
+
+// ---------------------------------------------------------------------------
+// Segment renderer shared between inline and block rows
+// ---------------------------------------------------------------------------
+
+function Segments({ segments }: Readonly<{ segments: DiffSegment[] }>) {
+  return (
+    <>
+      {segments.map((seg, si) => (
+        <span
+          key={si}
+          className={cn(
+            si > 0 && 'ml-[0.25em]',
+            seg.type === 'removed' && 'line-through text-foreground/40',
+            seg.type === 'added' && 'text-emerald-400',
+            seg.type === 'unchanged' && 'text-foreground',
+          )}
+        >
+          {seg.text}
+        </span>
+      ))}
+    </>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Main component
+// ---------------------------------------------------------------------------
+
 export function TextChanges({ changes = [] }: Readonly<TextChangesProps>) {
   if (!changes || changes.length === 0) {
     return (
-      <div className="flex items-center justify-center h-64 bg-muted/20 rounded-lg border border-border">
-        <p className="text-muted-foreground">No text changes detected</p>
+      <div className="flex items-center justify-center h-64 rounded-xl border border-border bg-muted/10">
+        <p className="text-sm text-muted-foreground">No text changes detected</p>
       </div>
     )
   }
 
+  const groups = buildGroups(changes)
+
   return (
-    <div className="bg-card border border-border rounded-lg overflow-hidden">
-      <div className="px-6 py-4 border-b border-border bg-muted/30">
-        <h3 className="text-base font-semibold text-foreground">Text Changes</h3>
+    <div className="rounded-xl border border-border bg-card">
+      <div className="px-5 py-3.5 border-b border-border">
+        <h3 className="text-sm font-medium text-muted-foreground tracking-wide">Text Changes</h3>
       </div>
 
-      <div className="p-4 space-y-2 max-h-[480px] overflow-y-auto">
-        {changes.map((changeRow, rowIndex) => (
-          <div
-            key={rowIndex}
-            className="px-4 py-3 rounded-lg bg-background border border-border/40"
-          >
-            <p className="text-sm leading-relaxed">
-              {changeRow.segments.map((segment, segmentIndex) => (
-                <span
-                  key={segmentIndex}
-                  className={cn(
-                    segment.type === 'removed' && 'line-through text-foreground/50',
-                    segment.type === 'added' && 'text-green-600 dark:text-green-400',
-                    segment.type === 'unchanged' && 'text-foreground',
-                  )}
-                >
-                  {segmentIndex > 0 ? ' ' : ''}
-                  {segment.text}
-                </span>
-              ))}
-            </p>
-          </div>
-        ))}
+      <div className="p-4 space-y-2 max-h-[520px] overflow-y-auto">
+        {groups.map((group, idx) => {
+          // ── Inline word-diff ─────────────────────────────────────────────
+          if (group.kind === 'inline') {
+            return (
+              <div
+                key={idx}
+                className="px-4 py-3 rounded-lg border border-border/40 bg-muted/10 text-sm leading-relaxed"
+              >
+                <Segments segments={group.segments} />
+              </div>
+            )
+          }
+
+          // ── Before / after block ─────────────────────────────────────────
+          // Mirrors git's unified diff: old line then new line in one hunk
+          return (
+            <div
+              key={idx}
+              className="rounded-lg border border-border/40 overflow-hidden text-sm"
+            >
+              {group.removed !== null && (
+                <div className="flex gap-3 px-4 py-2.5 border-b border-border/30 bg-muted/10">
+                  <span className="select-none shrink-0 text-foreground/25 font-mono text-xs pt-px">
+                    −
+                  </span>
+                  <p className="leading-relaxed line-through text-foreground/40">
+                    {group.removed}
+                  </p>
+                </div>
+              )}
+              {group.added !== null && (
+                <div className="flex gap-3 px-4 py-2.5 bg-emerald-950/20">
+                  <span className="select-none shrink-0 text-emerald-500/60 font-mono text-xs pt-px">
+                    +
+                  </span>
+                  <p className="leading-relaxed text-emerald-400">{group.added}</p>
+                </div>
+              )}
+            </div>
+          )
+        })}
       </div>
     </div>
   )

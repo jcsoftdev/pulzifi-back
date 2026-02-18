@@ -84,6 +84,9 @@ interface MonitoringConfigBackendDto {
   schedule_type: string
   timezone: string
   block_ads_cookies: boolean
+  enabled_insight_types: string[]
+  enabled_alert_conditions: string[]
+  custom_alert_condition: string
   created_at: string
   updated_at: string
 }
@@ -95,6 +98,9 @@ export interface MonitoringConfig {
   scheduleType: string
   timezone: string
   blockAdsCookies: boolean
+  enabledInsightTypes: string[]
+  enabledAlertConditions: string[]
+  customAlertCondition: string
   createdAt: string
   updatedAt: string
 }
@@ -107,6 +113,9 @@ function transformMonitoringConfig(backend: MonitoringConfigBackendDto): Monitor
     scheduleType: backend.schedule_type,
     timezone: backend.timezone,
     blockAdsCookies: backend.block_ads_cookies,
+    enabledInsightTypes: backend.enabled_insight_types ?? ['marketing', 'market_analysis'],
+    enabledAlertConditions: backend.enabled_alert_conditions ?? ['any_changes'],
+    customAlertCondition: backend.custom_alert_condition ?? '',
     createdAt: backend.created_at,
     updatedAt: backend.updated_at,
   }
@@ -258,6 +267,9 @@ export const PageApi = {
     if (data.scheduleType) payload.schedule_type = data.scheduleType
     if (data.timezone) payload.timezone = data.timezone
     if (data.blockAdsCookies !== undefined) payload.block_ads_cookies = data.blockAdsCookies
+    if (data.enabledInsightTypes !== undefined) payload.enabled_insight_types = data.enabledInsightTypes
+    if (data.enabledAlertConditions !== undefined) payload.enabled_alert_conditions = data.enabledAlertConditions
+    if (data.customAlertCondition !== undefined) payload.custom_alert_condition = data.customAlertCondition
 
     const response = await http.put<MonitoringConfigBackendDto>(
       `/api/v1/monitoring/configs/${pageId}`,

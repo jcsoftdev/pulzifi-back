@@ -65,6 +65,10 @@ type Config struct {
 
 	// Extractor
 	ExtractorURL string
+
+	// AI / OpenRouter
+	OpenRouterAPIKey string
+	OpenRouterModel  string
 }
 
 func Load() *Config {
@@ -108,6 +112,8 @@ func Load() *Config {
 		CloudinaryAPISecret:   getEnv("CLOUDINARY_API_SECRET", ""),
 		CloudinaryFolder:      getEnv("CLOUDINARY_FOLDER", "pulzifi"),
 		ExtractorURL:          getEnv("EXTRACTOR_URL", "http://localhost:3000"),
+		OpenRouterAPIKey:      getEnv("OPENROUTER_API_KEY", ""),
+		OpenRouterModel:       getEnv("OPENROUTER_MODEL", "mistralai/mistral-7b-instruct:free"),
 	}
 }
 

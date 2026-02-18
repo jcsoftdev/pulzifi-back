@@ -67,16 +67,32 @@ func (h *UpdateMonitoringConfigHandler) Handle(ctx context.Context, pageID uuid.
 			blockAdsCookies = *req.BlockAdsCookies
 		}
 
+		enabledInsightTypes := []string{"marketing", "market_analysis"}
+		if len(req.EnabledInsightTypes) > 0 {
+			enabledInsightTypes = req.EnabledInsightTypes
+		}
+		enabledAlertConditions := []string{"any_changes"}
+		if len(req.EnabledAlertConditions) > 0 {
+			enabledAlertConditions = req.EnabledAlertConditions
+		}
+		customAlertCondition := ""
+		if req.CustomAlertCondition != nil {
+			customAlertCondition = *req.CustomAlertCondition
+		}
+
 		// Create new config using the constructor from entities
 		config = &entities.MonitoringConfig{
-			ID:              uuid.New(),
-			PageID:          pageID,
-			CheckFrequency:  checkFrequency,
-			ScheduleType:    scheduleType,
-			Timezone:        timezone,
-			BlockAdsCookies: blockAdsCookies,
-			CreatedAt:       time.Now(),
-			UpdatedAt:       time.Now(),
+			ID:                    uuid.New(),
+			PageID:                pageID,
+			CheckFrequency:        checkFrequency,
+			ScheduleType:          scheduleType,
+			Timezone:              timezone,
+			BlockAdsCookies:       blockAdsCookies,
+			EnabledInsightTypes:   enabledInsightTypes,
+			EnabledAlertConditions: enabledAlertConditions,
+			CustomAlertCondition:  customAlertCondition,
+			CreatedAt:             time.Now(),
+			UpdatedAt:             time.Now(),
 		}
 
 		// Create in database
@@ -90,7 +106,9 @@ func (h *UpdateMonitoringConfigHandler) Handle(ctx context.Context, pageID uuid.
 				if err := h.scheduler.TriggerPageCheck(ctx, h.tenant, pageID); err != nil {
 					logger.Error("UpdateMonitoringConfigHandler: Failed to trigger immediate check", zap.String("page_id", pageID.String()), zap.Error(err))
 				}
-				h.scheduler.WakeUp()
+				// Do NOT call WakeUp here — TriggerPageCheck already dispatches the check.
+				// Calling WakeUp causes the scheduler to also pick up the page (race with async UpdateLastChecked),
+				// resulting in duplicate executions.
 			} else {
 				if err := h.repo.MarkPageDueNow(ctx, pageID); err != nil {
 					logger.Error("UpdateMonitoringConfigHandler: Failed to mark page due now", zap.String("page_id", pageID.String()), zap.Error(err))
@@ -110,7 +128,7 @@ func (h *UpdateMonitoringConfigHandler) Handle(ctx context.Context, pageID uuid.
 					if err := h.scheduler.TriggerPageCheck(ctx, h.tenant, pageID); err != nil {
 						logger.Error("UpdateMonitoringConfigHandler: Failed to trigger immediate check", zap.String("page_id", pageID.String()), zap.Error(err))
 					}
-					h.scheduler.WakeUp()
+					// Do NOT call WakeUp here — TriggerPageCheck already dispatches the check.
 				} else {
 					if err := h.repo.MarkPageDueNow(ctx, pageID); err != nil {
 						logger.Error("UpdateMonitoringConfigHandler: Failed to mark page due now", zap.String("page_id", pageID.String()), zap.Error(err))
@@ -133,6 +151,16 @@ func (h *UpdateMonitoringConfigHandler) Handle(ctx context.Context, pageID uuid.
 			config.BlockAdsCookies = *req.BlockAdsCookies
 		}
 
+		if len(req.EnabledInsightTypes) > 0 {
+			config.EnabledInsightTypes = req.EnabledInsightTypes
+		}
+		if len(req.EnabledAlertConditions) > 0 {
+			config.EnabledAlertConditions = req.EnabledAlertConditions
+		}
+		if req.CustomAlertCondition != nil {
+			config.CustomAlertCondition = *req.CustomAlertCondition
+		}
+
 		config.UpdatedAt = time.Now()
 
 		// Save changes
@@ -152,13 +180,16 @@ func (h *UpdateMonitoringConfigHandler) Handle(ctx context.Context, pageID uuid.
 
 	// Return response
 	return &UpdateMonitoringConfigResponse{
-		ID:              config.ID,
-		PageID:          config.PageID,
-		CheckFrequency:  config.CheckFrequency,
-		ScheduleType:    config.ScheduleType,
-		Timezone:        config.Timezone,
-		BlockAdsCookies: config.BlockAdsCookies,
-		UpdatedAt:       config.UpdatedAt,
+		ID:                    config.ID,
+		PageID:                config.PageID,
+		CheckFrequency:        config.CheckFrequency,
+		ScheduleType:          config.ScheduleType,
+		Timezone:              config.Timezone,
+		BlockAdsCookies:       config.BlockAdsCookies,
+		EnabledInsightTypes:   config.EnabledInsightTypes,
+		EnabledAlertConditions: config.EnabledAlertConditions,
+		CustomAlertCondition:  config.CustomAlertCondition,
+		UpdatedAt:             config.UpdatedAt,
 	}, nil
 }
 

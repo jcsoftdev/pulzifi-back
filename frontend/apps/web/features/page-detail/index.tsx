@@ -12,12 +12,11 @@ export interface PageDetailFeatureProps {
 }
 
 export async function PageDetailFeature({ workspaceId, pageId }: Readonly<PageDetailFeatureProps>) {
-  const [page, workspace, config, checks, insights] = await Promise.all([
+  const [page, workspace, config, checks] = await Promise.all([
     PageDetailService.getPage(pageId),
     PageDetailService.getWorkspace(workspaceId),
     PageDetailService.getMonitoringConfig(pageId),
     PageDetailService.listChecks(pageId),
-    PageDetailService.listInsights(pageId),
   ])
 
   return (
@@ -53,7 +52,7 @@ export async function PageDetailFeature({ workspaceId, pageId }: Readonly<PageDe
           <div className="flex flex-col gap-6 md:gap-8 lg:col-span-1">
             <GeneralSummaryCard page={page} config={config} />
 
-            <IntelligentInsightsCard insights={insights} />
+            <IntelligentInsightsCard pageId={pageId} config={config} />
           </div>
         </div>
       </div>

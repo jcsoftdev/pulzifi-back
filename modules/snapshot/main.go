@@ -8,10 +8,13 @@ import (
 	"syscall"
 	"time"
 
+	generateinsights "github.com/jcsoftdev/pulzifi-back/modules/insight/application/generate_insights"
+	insightAI "github.com/jcsoftdev/pulzifi-back/modules/insight/infrastructure/ai"
 	"github.com/jcsoftdev/pulzifi-back/modules/snapshot/application"
 	"github.com/jcsoftdev/pulzifi-back/modules/snapshot/domain/entities"
 	"github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/extractor"
 	"github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/storage"
+	sharedAI "github.com/jcsoftdev/pulzifi-back/shared/ai"
 	"github.com/jcsoftdev/pulzifi-back/shared/config"
 	"github.com/jcsoftdev/pulzifi-back/shared/database"
 	"github.com/jcsoftdev/pulzifi-back/shared/eventbus"
@@ -52,8 +55,19 @@ func main() {
 	// Init Extractor Client
 	extractorClient := extractor.NewHTTPClient(cfg.ExtractorURL)
 
+	// Init Insight Handler (optional — requires OPENROUTER_API_KEY)
+	var insightHandler *generateinsights.GenerateInsightsHandler
+	if cfg.OpenRouterAPIKey != "" {
+		openRouterClient := sharedAI.NewOpenRouterClient(cfg.OpenRouterAPIKey, cfg.OpenRouterModel)
+		generator := insightAI.NewOpenRouterGenerator(openRouterClient)
+		insightHandler = generateinsights.NewGenerateInsightsHandler(generator, db)
+		logger.Info("Intelligent Insights enabled", zap.String("model", cfg.OpenRouterModel))
+	} else {
+		logger.Info("Intelligent Insights disabled (set OPENROUTER_API_KEY to enable)")
+	}
+
 	// Init Snapshot Service
-	snapshotService := application.NewSnapshotService(objectStorage, extractorClient, db)
+	snapshotService := application.NewSnapshotService(objectStorage, extractorClient, db, insightHandler)
 
 	// Init Messaging (In-Memory for MVP)
 	messageBus := eventbus.GetInstance()

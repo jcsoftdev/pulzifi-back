@@ -38,7 +38,7 @@ func main() {
 
 	extractorClient := extractor.NewHTTPClient(cfg.ExtractorURL)
 
-	service := application.NewSnapshotService(objectStorage, extractorClient, db)
+	service := application.NewSnapshotService(objectStorage, extractorClient, db, nil)
 	req := entities.SnapshotRequest{
 		PageID:     "test-page",
 		URL:        url,

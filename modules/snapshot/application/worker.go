@@ -8,14 +8,18 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"io"
+	"net/http"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/domain/entities"
 	monPersistence "github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/persistence"
+	generateinsights "github.com/jcsoftdev/pulzifi-back/modules/insight/application/generate_insights"
 	"github.com/jcsoftdev/pulzifi-back/modules/snapshot/domain/repositories"
 	"github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/extractor"
+	sharedHTML "github.com/jcsoftdev/pulzifi-back/shared/html"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
 	"go.uber.org/zap"
@@ -25,13 +29,15 @@ type SnapshotWorker struct {
 	objectStorage   repositories.ObjectStorage
 	extractorClient *extractor.HTTPClient
 	db              *sql.DB
+	insightHandler  *generateinsights.GenerateInsightsHandler
 }
 
-func NewSnapshotWorker(objectStorage repositories.ObjectStorage, extractorClient *extractor.HTTPClient, db *sql.DB) *SnapshotWorker {
+func NewSnapshotWorker(objectStorage repositories.ObjectStorage, extractorClient *extractor.HTTPClient, db *sql.DB, insightHandler *generateinsights.GenerateInsightsHandler) *SnapshotWorker {
 	return &SnapshotWorker{
 		objectStorage:   objectStorage,
 		extractorClient: extractorClient,
 		db:              db,
+		insightHandler:  insightHandler,
 	}
 }
 
@@ -110,7 +116,32 @@ func (s *SnapshotWorker) ExecuteCheck(ctx context.Context, checkID uuid.UUID, ta
 		if prevCheck.ContentHash != contentHashStr {
 			check.ChangeDetected = true
 			check.ChangeType = "content"
-			s.createAlert(ctx, schemaName, check)
+
+			// Load insight preferences for this page
+			configRepo := monPersistence.NewMonitoringConfigPostgresRepository(s.db, schemaName)
+			pageConfig, _ := configRepo.GetByPageID(ctx, check.PageID)
+
+			enabledInsightTypes := []string{"marketing", "market_analysis"}
+			enabledAlertConditions := []string{"any_changes"}
+			if pageConfig != nil {
+				if len(pageConfig.EnabledInsightTypes) > 0 {
+					enabledInsightTypes = pageConfig.EnabledInsightTypes
+				}
+				if len(pageConfig.EnabledAlertConditions) > 0 {
+					enabledAlertConditions = pageConfig.EnabledAlertConditions
+				}
+			}
+
+			// Only alert if "any_changes" is an enabled alert condition
+			if sliceContains(enabledAlertConditions, "any_changes") {
+				s.createAlert(ctx, schemaName, check)
+			}
+
+			// Generate insights for enabled types
+			if s.insightHandler != nil && len(enabledInsightTypes) > 0 {
+				prevText := s.fetchTextFromURL(prevCheck.HTMLSnapshotURL)
+				go s.generateInsightsAsync(check, targetURL, prevText, res.Text, schemaName, enabledInsightTypes)
+			}
 		}
 	}
 
@@ -156,6 +187,57 @@ func (s *SnapshotWorker) createAlert(ctx context.Context, schemaName string, che
 	} else {
 		logger.Info("Alert created", zap.String("check_id", check.ID.String()))
 	}
+}
+
+// generateInsightsAsync calls the insight handler in the background after a change is detected.
+func (s *SnapshotWorker) generateInsightsAsync(check *entities.Check, pageURL, prevText, newText, schemaName string, enabledTypes []string) {
+	genCtx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+
+	err := s.insightHandler.Handle(genCtx, &generateinsights.Request{
+		PageID:              check.PageID,
+		CheckID:             check.ID,
+		PageURL:             pageURL,
+		PrevText:            prevText,
+		NewText:             newText,
+		SchemaName:          schemaName,
+		EnabledInsightTypes: enabledTypes,
+	})
+	if err != nil {
+		logger.Error("Failed to generate insights", zap.String("check_id", check.ID.String()), zap.Error(err))
+	} else {
+		logger.Info("Insights generated successfully", zap.String("check_id", check.ID.String()))
+	}
+}
+
+// sliceContains reports whether s contains target.
+func sliceContains(s []string, target string) bool {
+	for _, v := range s {
+		if v == target {
+			return true
+		}
+	}
+	return false
+}
+
+// fetchTextFromURL downloads HTML from the given URL and extracts plain text.
+func (s *SnapshotWorker) fetchTextFromURL(url string) string {
+	if url == "" {
+		return ""
+	}
+	resp, err := http.Get(url) //nolint:noctx
+	if err != nil {
+		logger.Error("Failed to fetch HTML for text extraction", zap.String("url", url), zap.Error(err))
+		return ""
+	}
+	defer resp.Body.Close()
+
+	content, err := io.ReadAll(resp.Body)
+	if err != nil {
+		logger.Error("Failed to read HTML body", zap.String("url", url), zap.Error(err))
+		return ""
+	}
+	return sharedHTML.ExtractText(string(content))
 }
 
 func (s *SnapshotWorker) updatePageSnapshotMetadata(ctx context.Context, schemaName string, pageID uuid.UUID, thumbnailURL string, changeDetected bool) error {

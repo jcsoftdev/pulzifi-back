@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	generateinsights "github.com/jcsoftdev/pulzifi-back/modules/insight/application/generate_insights"
 	monEntities "github.com/jcsoftdev/pulzifi-back/modules/monitoring/domain/entities"
 	monPersistence "github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/persistence"
 	snapEntities "github.com/jcsoftdev/pulzifi-back/modules/snapshot/domain/entities"
@@ -21,9 +22,9 @@ type SnapshotService struct {
 	db     *sql.DB
 }
 
-func NewSnapshotService(objectStorage repositories.ObjectStorage, extractorClient *extractor.HTTPClient, db *sql.DB) *SnapshotService {
+func NewSnapshotService(objectStorage repositories.ObjectStorage, extractorClient *extractor.HTTPClient, db *sql.DB, insightHandler *generateinsights.GenerateInsightsHandler) *SnapshotService {
 	return &SnapshotService{
-		worker: NewSnapshotWorker(objectStorage, extractorClient, db),
+		worker: NewSnapshotWorker(objectStorage, extractorClient, db, insightHandler),
 		db:     db,
 	}
 }

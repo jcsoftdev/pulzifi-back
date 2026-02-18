@@ -18,9 +18,12 @@ import (
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/application/workers"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/persistence"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/scheduler"
+	generateinsights "github.com/jcsoftdev/pulzifi-back/modules/insight/application/generate_insights"
+	insightAI "github.com/jcsoftdev/pulzifi-back/modules/insight/infrastructure/ai"
 	snapshotapp "github.com/jcsoftdev/pulzifi-back/modules/snapshot/application"
 	snapshotextractor "github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/extractor"
 	snapshotstorage "github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/storage"
+	sharedAI "github.com/jcsoftdev/pulzifi-back/shared/ai"
 	"github.com/jcsoftdev/pulzifi-back/shared/config"
 	"github.com/jcsoftdev/pulzifi-back/shared/eventbus"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
@@ -63,7 +66,15 @@ func NewModuleWithDB(db *sql.DB, eventBus *eventbus.EventBus) router.ModuleRegis
 	}
 
 	extractorClient := snapshotextractor.NewHTTPClient(cfg.ExtractorURL)
-	snapshotWorker := snapshotapp.NewSnapshotWorker(objectStorage, extractorClient, m.db)
+
+	var insightHandler *generateinsights.GenerateInsightsHandler
+	if cfg.OpenRouterAPIKey != "" {
+		openRouterClient := sharedAI.NewOpenRouterClient(cfg.OpenRouterAPIKey, cfg.OpenRouterModel)
+		generator := insightAI.NewOpenRouterGenerator(openRouterClient)
+		insightHandler = generateinsights.NewGenerateInsightsHandler(generator, m.db)
+	}
+
+	snapshotWorker := snapshotapp.NewSnapshotWorker(objectStorage, extractorClient, m.db, insightHandler)
 
 	// Create WorkerPool
 	m.workerPool = workers.NewWorkerPool(snapshotWorker, 100)

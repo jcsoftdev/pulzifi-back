@@ -35,13 +35,16 @@ func (h *CreateMonitoringConfigHandler) Handle(ctx context.Context, req *CreateM
 	}
 
 	return &CreateMonitoringConfigResponse{
-		ID:              config.ID,
-		PageID:          config.PageID,
-		CheckFrequency:  config.CheckFrequency,
-		ScheduleType:    config.ScheduleType,
-		Timezone:        config.Timezone,
-		BlockAdsCookies: config.BlockAdsCookies,
-		CreatedAt:       config.CreatedAt,
+		ID:                    config.ID,
+		PageID:                config.PageID,
+		CheckFrequency:        config.CheckFrequency,
+		ScheduleType:          config.ScheduleType,
+		Timezone:              config.Timezone,
+		BlockAdsCookies:       config.BlockAdsCookies,
+		EnabledInsightTypes:   config.EnabledInsightTypes,
+		EnabledAlertConditions: config.EnabledAlertConditions,
+		CustomAlertCondition:  config.CustomAlertCondition,
+		CreatedAt:             config.CreatedAt,
 	}, nil
 }
 
