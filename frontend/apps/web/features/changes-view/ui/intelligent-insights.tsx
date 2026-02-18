@@ -1,8 +1,8 @@
 'use client'
 
-import { Check, Copy } from 'lucide-react'
-import { Button } from '@workspace/ui/components/atoms/button'
 import type { Insight } from '@workspace/services/page-api'
+import { Button } from '@workspace/ui/components/atoms/button'
+import { Copy } from 'lucide-react'
 
 interface IntelligentInsightsProps {
   insights: Insight[]
@@ -53,24 +53,38 @@ export function IntelligentInsights({ insights }: Readonly<IntelligentInsightsPr
       </div>
 
       <div className="lg:col-span-1">
-         {/* Placeholder for sidebar or just empty as per design having a sidebar-like structure on the right in some views, 
+        {/* Placeholder for sidebar or just empty as per design having a sidebar-like structure on the right in some views, 
              but the screenshot shows "Edit Intelligent Insights" button on the right */}
-          <div className="flex flex-col gap-6">
-             <Button className="w-full gap-2" variant="outline">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M8 1.5C4.41015 1.5 1.5 4.41015 1.5 8C1.5 11.5899 4.41015 14.5 8 14.5C11.5899 14.5 14.5 11.5899 14.5 8C14.5 4.41015 11.5899 1.5 8 1.5ZM8 1.5V14.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-                Edit Intelligent Insights
-             </Button>
+        <div className="flex flex-col gap-6">
+          <Button className="w-full gap-2" variant="outline">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 16 16"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <path
+                d="M8 1.5C4.41015 1.5 1.5 4.41015 1.5 8C1.5 11.5899 4.41015 14.5 8 14.5C11.5899 14.5 14.5 11.5899 14.5 8C14.5 4.41015 11.5899 1.5 8 1.5ZM8 1.5V14.5"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            Edit Intelligent Insights
+          </Button>
 
-             <div className="bg-muted/30 rounded-lg p-6 flex flex-col items-center justify-center text-center gap-4 border border-border border-dashed">
-                <p className="text-sm font-medium">Changes detected on June 15, 2025</p>
-                <Button variant="outline" className="bg-background">
-                    View Site
-                </Button>
-                <p className="text-xs text-muted-foreground">www.toyota.com/aboutus</p>
-             </div>
+          <div className="bg-muted/30 rounded-lg p-6 flex flex-col items-center justify-center text-center gap-4 border border-border border-dashed">
+            <p className="text-sm font-medium">Changes detected on June 15, 2025</p>
+            <Button variant="outline" className="bg-background">
+              View Site
+            </Button>
+            <p className="text-xs text-muted-foreground">www.toyota.com/aboutus</p>
           </div>
+        </div>
       </div>
     </div>
   )

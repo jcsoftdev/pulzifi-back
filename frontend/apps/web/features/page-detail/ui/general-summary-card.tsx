@@ -1,11 +1,8 @@
 'use client'
 
-import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
-import { PageApi, type Page, type MonitoringConfig } from '@workspace/services/page-api'
-import { Check, Pencil, Loader2, X } from 'lucide-react'
-import { Button } from '@workspace/ui/components/atoms/button'
+import { type MonitoringConfig, type Page, PageApi } from '@workspace/services/page-api'
 import { Badge } from '@workspace/ui/components/atoms/badge'
+import { Button } from '@workspace/ui/components/atoms/button'
 import { Input } from '@workspace/ui/components/atoms/input'
 import {
   Select,
@@ -14,6 +11,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@workspace/ui/components/atoms/select'
+import { Check, Loader2, Pencil, X } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { useState, useTransition } from 'react'
 
 interface GeneralSummaryCardProps {
   page: Page
@@ -110,7 +110,9 @@ export function GeneralSummaryCard({ page, config }: Readonly<GeneralSummaryCard
           <div className="flex flex-wrap gap-2">
             {page.tags?.map((tag) => (
               <div key={tag} className="flex items-center gap-1">
-                <Badge variant="outline" className="px-2 py-0.5 text-xs">{tag}</Badge>
+                <Badge variant="outline" className="px-2 py-0.5 text-xs">
+                  {tag}
+                </Badge>
                 {isEditingTags && (
                   <Button
                     type="button"

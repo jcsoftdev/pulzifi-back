@@ -2,8 +2,8 @@
 
 import { useState } from 'react'
 import { useWorkspaces } from '@/features/workspace/application/hooks/use-workspaces'
-import { CreateWorkspaceDialog } from './create-workspace-dialog'
 import type { Workspace } from '@/features/workspace/domain/types'
+import { CreateWorkspaceDialog } from './create-workspace-dialog'
 
 export interface WorkspaceModalManagerProps {
   onWorkspaceCreated?: (workspace: Workspace) => void

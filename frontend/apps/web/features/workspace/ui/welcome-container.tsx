@@ -1,5 +1,5 @@
-import { Settings2 } from 'lucide-react'
 import { Button } from '@workspace/ui/components/atoms/button'
+import { Settings2 } from 'lucide-react'
 
 export interface WelcomeContainerProps {
   onSettings?: () => void

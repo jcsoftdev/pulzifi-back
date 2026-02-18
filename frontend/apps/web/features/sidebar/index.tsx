@@ -1,13 +1,13 @@
-import Link from 'next/link'
 import { Button } from '@workspace/ui/components/atoms/button'
-import { OrganizationSelector } from './ui/organization-selector'
-import { NavigationLink } from './ui/navigation-link'
-import { WorkspacesSection } from './ui/workspaces-section'
-import { ProfileFooter } from './ui/profile-footer'
-import { LogoutButton } from './ui/logout-button'
-import { getMainRoutes, getBottomRoutes } from './domain/routes'
+import Link from 'next/link'
 import { NavigationService } from './domain/navigation-service'
+import { getBottomRoutes, getMainRoutes } from './domain/routes'
 import type { Organization, User, Workspace } from './domain/types'
+import { LogoutButton } from './ui/logout-button'
+import { NavigationLink } from './ui/navigation-link'
+import { OrganizationSelector } from './ui/organization-selector'
+import { ProfileFooter } from './ui/profile-footer'
+import { WorkspacesSection } from './ui/workspaces-section'
 
 export interface SidebarFeatureProps {
   organization?: Organization
@@ -89,13 +89,13 @@ export async function SidebarFeature({
   )
 }
 
-// Re-export types for convenience
-export type { Organization, User, Workspace } from './domain/types'
 export { NavigationService } from './domain/navigation-service'
 export {
-  getMainRoutes,
-  getBottomRoutes,
-  MAIN_ROUTES,
   BOTTOM_ROUTES,
+  getBottomRoutes,
+  getMainRoutes,
+  MAIN_ROUTES,
   type RouteConfig,
 } from './domain/routes'
+// Re-export types for convenience
+export type { Organization, User, Workspace } from './domain/types'

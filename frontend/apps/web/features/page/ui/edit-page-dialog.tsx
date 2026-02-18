@@ -1,16 +1,16 @@
 'use client'
 
-import { useState, useEffect, useId } from 'react'
+import { Button } from '@workspace/ui/components/atoms/button'
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from '@workspace/ui/components/atoms/dialog'
-import { Button } from '@workspace/ui/components/atoms/button'
 import { Input } from '@workspace/ui/components/atoms/input'
 import { Label } from '@workspace/ui/components/atoms/label'
+import { useEffect, useId, useState } from 'react'
 import type { Page } from '../domain/types'
 
 export interface EditPageDialogProps {

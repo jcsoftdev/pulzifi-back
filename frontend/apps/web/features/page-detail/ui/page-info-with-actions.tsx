@@ -1,10 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { type Page, PageApi } from '@workspace/services/page-api'
 import { useRouter } from 'next/navigation'
-import { PageApi, type Page } from '@workspace/services/page-api'
-import { EditPageDialog } from '@/features/page/ui/edit-page-dialog'
+import { useState } from 'react'
 import { DeletePageDialog } from '@/features/page/ui/delete-page-dialog'
+import { EditPageDialog } from '@/features/page/ui/edit-page-dialog'
 import { PageInfoCard } from './page-info-card'
 
 interface PageInfoWithActionsProps {

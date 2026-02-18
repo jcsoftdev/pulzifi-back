@@ -1,10 +1,10 @@
-import { ArrowRight } from 'lucide-react'
-import { Card } from '@workspace/ui/components/atoms/card'
-import { Button } from '@workspace/ui/components/atoms/button'
 import { Badge } from '@workspace/ui/components/atoms/badge'
+import { Button } from '@workspace/ui/components/atoms/button'
+import { Card } from '@workspace/ui/components/atoms/card'
 import { cn } from '@workspace/ui/lib/utils'
-import { WorkspaceDropdown } from './workspace-dropdown'
+import { ArrowRight } from 'lucide-react'
 import type { Workspace, WorkspaceType } from '../domain/types'
+import { WorkspaceDropdown } from './workspace-dropdown'
 
 export interface WorkspaceCardProps {
   workspace: Workspace & {

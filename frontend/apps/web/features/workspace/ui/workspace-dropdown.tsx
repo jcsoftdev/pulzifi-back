@@ -1,10 +1,10 @@
-import { ExternalLink, Pencil, Tag, Trash2 } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@workspace/ui/components/molecules/dropdown-menu'
+import { ExternalLink, Pencil, Tag, Trash2 } from 'lucide-react'
 
 export interface WorkspaceDropdownProps {
   trigger: React.ReactNode

@@ -1,4 +1,4 @@
-import { getHttpClient, type HttpError } from '@workspace/shared-http'
+import { getHttpClient, HttpError } from '@workspace/shared-http'
 
 // Internal: Backend response types (snake_case from Go)
 interface PageBackendDto {
@@ -65,6 +65,18 @@ export interface Check {
   checkedAt: string
 }
 
+interface CheckBackendDto {
+  id: string
+  page_id: string
+  status: string
+  screenshot_url: string
+  html_snapshot_url: string
+  change_detected: boolean
+  change_type: string
+  error_message?: string
+  checked_at: string
+}
+
 interface MonitoringConfigBackendDto {
   id: string
   page_id: string
@@ -107,7 +119,7 @@ interface InsightBackendDto {
   insight_type: string
   title: string
   content: string
-  metadata: any
+  metadata: Record<string, unknown>
   created_at: string
 }
 
@@ -118,7 +130,7 @@ export interface Insight {
   insightType: string
   title: string
   content: string
-  metadata: any
+  metadata: Record<string, unknown>
   createdAt: string
 }
 
@@ -167,7 +179,6 @@ export const PageApi = {
       const response = await http.get<ListPagesBackendResponse>(`/api/v1/pages${query}`)
       return response.pages.map(transformPage)
     } catch (error) {
-      const err = error as any
       const context = {
         endpoint: '/api/v1/pages',
         params,
@@ -175,12 +186,11 @@ export const PageApi = {
       }
 
       // Provide better error message for debugging
-      if (err.name === 'HttpError') {
-        const httpError = err as HttpError
+      if (error instanceof HttpError) {
         console.error('[PageAPI] Failed to list pages', {
-          status: httpError.status,
-          message: httpError.message,
-          path: httpError.path,
+          status: error.status,
+          message: error.message,
+          path: error.path,
           ...context,
         })
       } else {
@@ -232,7 +242,7 @@ export const PageApi = {
         `/api/v1/monitoring/configs/${pageId}`
       )
       return transformMonitoringConfig(response)
-    } catch (error) {
+    } catch {
       // Return null if not found or 404
       return null
     }
@@ -243,7 +253,7 @@ export const PageApi = {
     data: Partial<MonitoringConfig>
   ): Promise<MonitoringConfig> {
     const http = await getHttpClient()
-    const payload: any = {}
+    const payload: Record<string, unknown> = {}
     if (data.checkFrequency) payload.check_frequency = data.checkFrequency
     if (data.scheduleType) payload.schedule_type = data.scheduleType
     if (data.timezone) payload.timezone = data.timezone
@@ -259,7 +269,7 @@ export const PageApi = {
   async listChecks(pageId: string): Promise<Check[]> {
     const http = await getHttpClient()
     const response = await http.get<{
-      checks: any[]
+      checks: CheckBackendDto[]
     }>(`/api/v1/monitoring/checks/page/${pageId}`)
     return response.checks.map((c) => ({
       id: c.id,

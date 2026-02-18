@@ -1,10 +1,10 @@
 'use client'
 
-import { useState } from 'react'
-import { X, Plus } from 'lucide-react'
 import { Badge } from '@workspace/ui/components/atoms/badge'
-import { Input } from '@workspace/ui/components/atoms/input'
 import { Button } from '@workspace/ui/components/atoms/button'
+import { Input } from '@workspace/ui/components/atoms/input'
+import { Plus, X } from 'lucide-react'
+import { useState } from 'react'
 
 interface TagInputProps {
   tags: string[]

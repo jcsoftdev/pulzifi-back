@@ -1,12 +1,11 @@
-export type { IHttpClient, RequestConfig } from './types'
-export { UnauthorizedError, HttpError } from './types'
 export { AxiosHttpClient } from './axios-client'
-export { FetchHttpClient } from './fetch-client'
 export {
-  createServerHttpClient,
   createBrowserHttpClient,
+  createServerHttpClient,
   getHttpClient,
 } from './factory'
-
+export { FetchHttpClient } from './fetch-client'
 // Tenant utilities
 export { extractTenantFromHostname, getTenantFromWindow } from './tenant-utils'
+export type { IHttpClient, RequestConfig } from './types'
+export { HttpError, UnauthorizedError } from './types'

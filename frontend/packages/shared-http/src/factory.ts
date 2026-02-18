@@ -1,7 +1,7 @@
-import type { IHttpClient } from './types'
 import { AxiosHttpClient } from './axios-client'
 import { FetchHttpClient } from './fetch-client'
 import { extractTenantFromHostname, getTenantFromWindow } from './tenant-utils'
+import type { IHttpClient } from './types'
 
 // Client-side: Use base domain to go through Nginx reverse proxy
 const getClientApiUrl = (): string => {

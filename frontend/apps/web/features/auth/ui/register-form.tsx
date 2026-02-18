@@ -1,9 +1,9 @@
 'use client'
 
-import { useId, useState } from 'react'
 import { Button } from '@workspace/ui/components/atoms/button'
 import { Input } from '@workspace/ui/components/atoms/input'
 import { Label } from '@workspace/ui/components/atoms/label'
+import { useId, useState } from 'react'
 import type { RegisterData } from '../domain/types'
 
 export interface RegisterFormProps {

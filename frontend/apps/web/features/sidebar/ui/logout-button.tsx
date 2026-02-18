@@ -1,11 +1,13 @@
 'use client'
 
-import { LogOut } from 'lucide-react'
 import { Button } from '@workspace/ui/components/atoms/button'
+import { LogOut } from 'lucide-react'
 
 export function LogoutButton() {
   const handleLogout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' })
+    await fetch('/api/auth/logout', {
+      method: 'POST',
+    })
     window.location.href = '/login'
   }
 

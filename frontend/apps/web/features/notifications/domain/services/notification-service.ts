@@ -5,7 +5,7 @@
  */
 
 import { NotificationApi } from '@workspace/services'
-import type { NotificationsData, Notification } from '../types'
+import type { Notification, NotificationsData } from '../types'
 
 export const NotificationService = {
   /**

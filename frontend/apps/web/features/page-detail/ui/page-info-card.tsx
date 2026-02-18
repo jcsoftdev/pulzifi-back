@@ -1,8 +1,8 @@
 'use client'
 
-import { Pencil, Trash2 } from 'lucide-react'
-import { Button } from '@workspace/ui/components/atoms/button'
 import type { Page } from '@workspace/services/page-api'
+import { Button } from '@workspace/ui/components/atoms/button'
+import { Pencil, Trash2 } from 'lucide-react'
 
 interface PageInfoCardProps {
   page: Page

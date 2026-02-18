@@ -1,9 +1,9 @@
 'use client'
 
-import { useState } from 'react'
-import { LogOut } from 'lucide-react'
+import { Avatar, AvatarFallback, AvatarImage } from '@workspace/ui/components/atoms/avatar'
 import { Button } from '@workspace/ui/components/atoms/button'
-import { Avatar, AvatarImage, AvatarFallback } from '@workspace/ui/components/atoms/avatar'
+import { LogOut } from 'lucide-react'
+import { useState } from 'react'
 import type { User } from '../domain/types'
 
 export interface ProfileFooterProps {
@@ -15,7 +15,9 @@ export function ProfileFooter({ user }: Readonly<ProfileFooterProps>) {
 
   const handleLogout = async () => {
     setIsLoggingOut(true)
-    await fetch('/api/auth/logout', { method: 'POST' })
+    await fetch('/api/auth/logout', {
+      method: 'POST',
+    })
 
     // Redirect to login without subdomain
     const protocol = globalThis.window?.location.protocol || 'http:'

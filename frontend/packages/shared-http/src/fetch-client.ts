@@ -1,7 +1,7 @@
 import type { IHttpClient, RequestConfig } from './types'
-import { UnauthorizedError, HttpError } from './types'
+import { HttpError, UnauthorizedError } from './types'
 
-export { UnauthorizedError, HttpError } from './types'
+export { HttpError, UnauthorizedError } from './types'
 
 export class FetchHttpClient implements IHttpClient {
   constructor(
@@ -43,8 +43,16 @@ export class FetchHttpClient implements IHttpClient {
       try {
         errorDetails = await response.json()
         if (typeof errorDetails === 'object' && errorDetails !== null) {
-          const maybeError = (errorDetails as { error?: unknown }).error
-          const maybeMessage = (errorDetails as { message?: unknown }).message
+          const maybeError = (
+            errorDetails as {
+              error?: unknown
+            }
+          ).error
+          const maybeMessage = (
+            errorDetails as {
+              message?: unknown
+            }
+          ).message
           const parsedError = typeof maybeError === 'string' ? maybeError : undefined
           const parsedMessage = typeof maybeMessage === 'string' ? maybeMessage : undefined
           errorMessage = parsedError ?? parsedMessage ?? errorMessage

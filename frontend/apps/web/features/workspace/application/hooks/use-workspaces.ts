@@ -1,7 +1,7 @@
 'use client'
 
+import { type CreateWorkspaceDto, WorkspaceApi } from '@workspace/services'
 import { useCallback, useState } from 'react'
-import { WorkspaceApi, type CreateWorkspaceDto } from '@workspace/services'
 import type { Workspace } from '../../domain/types'
 
 export function useWorkspaces() {

@@ -1,6 +1,6 @@
-import { WorkspaceApi, OrganizationApi, AuthApi } from '@workspace/services'
-import type { Workspace, Organization, User } from './types'
-import { MAIN_ROUTES, BOTTOM_ROUTES, type RouteConfig } from './routes'
+import { AuthApi, OrganizationApi, WorkspaceApi } from '@workspace/services'
+import { BOTTOM_ROUTES, MAIN_ROUTES, type RouteConfig } from './routes'
+import type { Organization, User, Workspace } from './types'
 
 export interface NavigationData {
   mainRoutes: RouteConfig[]

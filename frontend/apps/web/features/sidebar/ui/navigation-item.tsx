@@ -1,8 +1,8 @@
 'use client'
 
+import { cn } from '@workspace/ui'
 import Link from 'next/link'
 import type { NavigationItem } from '../domain/types'
-import { cn } from '@workspace/ui'
 
 export interface NavigationItemComponentProps {
   item: NavigationItem

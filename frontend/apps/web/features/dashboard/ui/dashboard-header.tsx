@@ -1,9 +1,9 @@
 'use client'
 
-import { Plus } from 'lucide-react'
-import { StatCard } from './stat-card'
-import type { DashboardStats } from '../domain/types'
 import { Button } from '@workspace/ui/components/atoms'
+import { Plus } from 'lucide-react'
+import type { DashboardStats } from '../domain/types'
+import { StatCard } from './stat-card'
 
 export interface DashboardHeaderProps {
   userName: string

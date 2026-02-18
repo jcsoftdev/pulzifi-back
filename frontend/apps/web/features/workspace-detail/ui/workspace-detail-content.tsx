@@ -1,175 +1,175 @@
- 'use client'
- 
- import { useState } from 'react'
- import { useRouter } from 'next/navigation'
- import { SquarePlus, Settings, Trash2 } from 'lucide-react'
- import { Button } from '@workspace/ui/components/atoms/button'
- import { Input } from '@workspace/ui/components/atoms/input'
- import { Badge } from '@workspace/ui/components/atoms/badge'
- import { PagesTable } from '@/features/page/ui/pages-table'
- import { AddPageDialog } from '@/features/page/ui/add-page-dialog'
- import { EditPageDialog } from '@/features/page/ui/edit-page-dialog'
- import { DeletePageDialog } from '@/features/page/ui/delete-page-dialog'
- import { PageApi } from '@workspace/services/page-api'
- import { EditWorkspaceDialog } from '@/features/workspace/ui/edit-workspace-dialog'
- import { DeleteWorkspaceDialog } from '@/features/workspace/ui/delete-workspace-dialog'
- import { useWorkspaces } from '@/features/workspace/application/hooks/use-workspaces'
- import type { Page, CreatePageDto } from '@/features/page/domain/types'
- import type { Workspace, WorkspaceType } from '@/features/workspace/domain/types'
- 
- export interface WorkspaceDetailContentProps {
-   workspace: Workspace
-   initialPages?: Page[]
- }
- 
- export function WorkspaceDetailContent({
-   workspace: initialWorkspace,
-   initialPages = [],
- }: Readonly<WorkspaceDetailContentProps>) {
-   const router = useRouter()
-   const { updateWorkspace, deleteWorkspace, isLoading: isWorkspaceLoading } = useWorkspaces()
- 
-   const [workspace, setWorkspace] = useState<Workspace>(initialWorkspace)
-   const [pages, setPages] = useState<Page[]>(initialPages)
-   const [searchQuery, setSearchQuery] = useState('')
-   const [isAddPageOpen, setIsAddPageOpen] = useState(false)
-   const [isEditWorkspaceOpen, setIsEditWorkspaceOpen] = useState(false)
-   const [isDeleteWorkspaceOpen, setIsDeleteWorkspaceOpen] = useState(false)
-   const [isLoading, setIsLoading] = useState(false)
-   const [error, setError] = useState<Error | null>(null)
- 
-   const [isEditPageOpen, setIsEditPageOpen] = useState(false)
-   const [isDeletePageOpen, setIsDeletePageOpen] = useState(false)
-   const [selectedPage, setSelectedPage] = useState<Page | null>(null)
- 
-   const handleAddPage = async (data: CreatePageDto) => {
-     setIsLoading(true)
-     setError(null)
- 
-     try {
-       const newPage = await PageApi.createPage(data)
-       setPages((prev) => [
-         newPage,
-         ...prev,
-       ])
-       setIsAddPageOpen(false)
-     } catch (err) {
-       setError(err instanceof Error ? err : new Error('Failed to add page'))
-     } finally {
-       setIsLoading(false)
-     }
-   }
- 
-   const handleEditPageClick = (page: Page) => {
-     setSelectedPage(page)
-     setIsEditPageOpen(true)
-   }
- 
-   const handleDeletePageClick = (page: Page) => {
-     setSelectedPage(page)
-     setIsDeletePageOpen(true)
-   }
- 
-   const handleUpdatePage = async (
-     pageId: string,
-     data: {
-       name: string
-       url: string
-     }
-   ) => {
-     setIsLoading(true)
-     try {
-       const updatedPage = await PageApi.updatePage(pageId, data)
-       setPages((prev) => prev.map((p) => (p.id === pageId ? updatedPage : p)))
-       setIsEditPageOpen(false)
-       setSelectedPage(null)
-     } catch (err) {
-       console.error('Failed to update page:', err)
-     } finally {
-       setIsLoading(false)
-     }
-   }
- 
-   const handleDeletePage = async () => {
-     if (!selectedPage) return
-     setIsLoading(true)
-     try {
-       await PageApi.deletePage(selectedPage.id)
-       setPages((prev) => prev.filter((p) => p.id !== selectedPage.id))
-       setIsDeletePageOpen(false)
-       setSelectedPage(null)
-     } catch (err) {
-       console.error('Failed to delete page:', err)
-     } finally {
-       setIsLoading(false)
-     }
-   }
- 
-   const handleUpdateWorkspace = async (
-     id: string,
-     data: {
-       name: string
-       type: WorkspaceType
-       tags: string[]
-     }
-   ) => {
-     try {
-       const updated = await updateWorkspace(id, data)
-       if (updated) {
-         setWorkspace(updated)
-         setIsEditWorkspaceOpen(false)
-         router.refresh()
-       }
-     } catch (err) {
-       console.error('Failed to update workspace:', err)
-     }
-   }
- 
-   const handleDeleteWorkspace = async () => {
-     try {
-       await deleteWorkspace(workspace.id)
-       router.push('/workspaces')
-     } catch (err) {
-       console.error('Failed to delete workspace:', err)
-     }
-   }
- 
-   const handleViewChanges = (pageId: string) => {
+'use client'
+import { PageApi } from '@workspace/services/page-api'
+import { Badge } from '@workspace/ui/components/atoms/badge'
+import { Button } from '@workspace/ui/components/atoms/button'
+import { Input } from '@workspace/ui/components/atoms/input'
+import { Settings, SquarePlus, Trash2 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+
+import { useState } from 'react'
+import type { CreatePageDto, Page } from '@/features/page/domain/types'
+import { AddPageDialog } from '@/features/page/ui/add-page-dialog'
+import { DeletePageDialog } from '@/features/page/ui/delete-page-dialog'
+import { EditPageDialog } from '@/features/page/ui/edit-page-dialog'
+import { PagesTable } from '@/features/page/ui/pages-table'
+import { useWorkspaces } from '@/features/workspace/application/hooks/use-workspaces'
+import type { Workspace, WorkspaceType } from '@/features/workspace/domain/types'
+import { DeleteWorkspaceDialog } from '@/features/workspace/ui/delete-workspace-dialog'
+import { EditWorkspaceDialog } from '@/features/workspace/ui/edit-workspace-dialog'
+
+export interface WorkspaceDetailContentProps {
+  workspace: Workspace
+  initialPages?: Page[]
+}
+
+export function WorkspaceDetailContent({
+  workspace: initialWorkspace,
+  initialPages = [],
+}: Readonly<WorkspaceDetailContentProps>) {
+  const router = useRouter()
+  const { updateWorkspace, deleteWorkspace, isLoading: isWorkspaceLoading } = useWorkspaces()
+
+  const [workspace, setWorkspace] = useState<Workspace>(initialWorkspace)
+  const [pages, setPages] = useState<Page[]>(initialPages)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [isAddPageOpen, setIsAddPageOpen] = useState(false)
+  const [isEditWorkspaceOpen, setIsEditWorkspaceOpen] = useState(false)
+  const [isDeleteWorkspaceOpen, setIsDeleteWorkspaceOpen] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<Error | null>(null)
+
+  const [isEditPageOpen, setIsEditPageOpen] = useState(false)
+  const [isDeletePageOpen, setIsDeletePageOpen] = useState(false)
+  const [selectedPage, setSelectedPage] = useState<Page | null>(null)
+
+  const handleAddPage = async (data: CreatePageDto) => {
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      const newPage = await PageApi.createPage(data)
+      setPages((prev) => [
+        newPage,
+        ...prev,
+      ])
+      setIsAddPageOpen(false)
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Failed to add page'))
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleEditPageClick = (page: Page) => {
+    setSelectedPage(page)
+    setIsEditPageOpen(true)
+  }
+
+  const handleDeletePageClick = (page: Page) => {
+    setSelectedPage(page)
+    setIsDeletePageOpen(true)
+  }
+
+  const handleUpdatePage = async (
+    pageId: string,
+    data: {
+      name: string
+      url: string
+    }
+  ) => {
+    setIsLoading(true)
+    try {
+      const updatedPage = await PageApi.updatePage(pageId, data)
+      setPages((prev) => prev.map((p) => (p.id === pageId ? updatedPage : p)))
+      setIsEditPageOpen(false)
+      setSelectedPage(null)
+    } catch (err) {
+      console.error('Failed to update page:', err)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleDeletePage = async () => {
+    if (!selectedPage) return
+    setIsLoading(true)
+    try {
+      await PageApi.deletePage(selectedPage.id)
+      setPages((prev) => prev.filter((p) => p.id !== selectedPage.id))
+      setIsDeletePageOpen(false)
+      setSelectedPage(null)
+    } catch (err) {
+      console.error('Failed to delete page:', err)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleUpdateWorkspace = async (
+    id: string,
+    data: {
+      name: string
+      type: WorkspaceType
+      tags: string[]
+    }
+  ) => {
+    try {
+      const updated = await updateWorkspace(id, data)
+      if (updated) {
+        setWorkspace(updated)
+        setIsEditWorkspaceOpen(false)
+        router.refresh()
+      }
+    } catch (err) {
+      console.error('Failed to update workspace:', err)
+    }
+  }
+
+  const handleDeleteWorkspace = async () => {
+    try {
+      await deleteWorkspace(workspace.id)
+      router.push('/workspaces')
+    } catch (err) {
+      console.error('Failed to delete workspace:', err)
+    }
+  }
+
+  const handleViewChanges = (pageId: string) => {
     router.push(`/workspaces/${workspace.id}/pages/${pageId}/changes`)
   }
- 
-   const handlePageClick = (pageId: string) => {
-     router.push(`/workspaces/${workspace.id}/pages/${pageId}`)
-   }
- 
-   const handleCheckFrequencyChange = async (pageId: string, frequency: string) => {
-     setPages((prev) =>
-       prev.map((page) =>
-         page.id === pageId
-           ? {
-               ...page,
-               checkFrequency: frequency,
-             }
-           : page
-       )
-     )
- 
-     try {
-       await PageApi.updateMonitoringConfig(pageId, {
-         checkFrequency: frequency,
-       })
-     } catch (err) {
-       setPages(initialPages)
-       console.error('Failed to update check frequency:', err)
-     }
-   }
- 
-   const filteredPages = pages.filter((page) =>
-     page.name.toLowerCase().includes(searchQuery.toLowerCase())
-   )
- 
-   return (
-     <div className="flex-1 flex flex-col bg-background">
+
+  const handlePageClick = (pageId: string) => {
+    router.push(`/workspaces/${workspace.id}/pages/${pageId}`)
+  }
+
+  const handleCheckFrequencyChange = async (pageId: string, frequency: string) => {
+    setPages((prev) =>
+      prev.map((page) =>
+        page.id === pageId
+          ? {
+              ...page,
+              checkFrequency: frequency,
+            }
+          : page
+      )
+    )
+
+    try {
+      await PageApi.updateMonitoringConfig(pageId, {
+        checkFrequency: frequency,
+      })
+    } catch (err) {
+      setPages(initialPages)
+      console.error('Failed to update check frequency:', err)
+    }
+  }
+
+  const filteredPages = pages.filter((page) =>
+    page.name.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+
+  return (
+    <div className="flex-1 flex flex-col bg-background">
       <div className="flex flex-col md:flex-row justify-between items-start gap-4 px-4 md:px-8 lg:px-24 py-6">
         <div className="flex flex-col gap-2">
           <div className="flex flex-wrap items-center gap-3">
@@ -178,10 +178,10 @@
             </h1>
             <div className="flex gap-1">
               {workspace.tags?.map((tag) => (
-                  <Badge key={tag} variant="secondary">
-                    {tag}
-                  </Badge>
-                ))}
+                <Badge key={tag} variant="secondary">
+                  {tag}
+                </Badge>
+              ))}
             </div>
           </div>
           <p className="text-base font-normal text-muted-foreground">
@@ -190,7 +190,11 @@
         </div>
 
         <div className="flex items-center gap-2 w-full md:w-auto">
-          <Button variant="outline" onClick={() => setIsEditWorkspaceOpen(true)} className="gap-2 flex-1 md:flex-none">
+          <Button
+            variant="outline"
+            onClick={() => setIsEditWorkspaceOpen(true)}
+            className="gap-2 flex-1 md:flex-none"
+          >
             <Settings className="w-4 h-4" />
             Edit Workspace
           </Button>
@@ -252,57 +256,57 @@
       </div>
 
       <div className="px-4 md:px-8 lg:px-24 py-2 pb-6">
-         <PagesTable
-           pages={filteredPages}
-           onViewChanges={handleViewChanges}
-           onPageClick={handlePageClick}
-           onCheckFrequencyChange={handleCheckFrequencyChange}
-           onEdit={handleEditPageClick}
-           onDelete={handleDeletePageClick}
-         />
-       </div>
- 
-       <AddPageDialog
-         open={isAddPageOpen}
-         onOpenChange={setIsAddPageOpen}
-         onSubmit={handleAddPage}
-         workspaceId={workspace.id}
-         isLoading={isLoading}
-         error={error}
-       />
- 
-       <EditPageDialog
-         open={isEditPageOpen}
-         onOpenChange={setIsEditPageOpen}
-         onSubmit={handleUpdatePage}
-         page={selectedPage}
-         isLoading={isLoading}
-       />
- 
-       <DeletePageDialog
-         open={isDeletePageOpen}
-         onOpenChange={setIsDeletePageOpen}
-         onConfirm={handleDeletePage}
-         pageName={selectedPage?.name ?? ''}
-         isLoading={isLoading}
-       />
- 
-       <EditWorkspaceDialog
-         open={isEditWorkspaceOpen}
-         onOpenChange={setIsEditWorkspaceOpen}
-         onSubmit={handleUpdateWorkspace}
-         isLoading={isWorkspaceLoading}
-         error={null}
-         workspace={workspace}
-       />
- 
-       <DeleteWorkspaceDialog
-         open={isDeleteWorkspaceOpen}
-         onOpenChange={setIsDeleteWorkspaceOpen}
-         onConfirm={handleDeleteWorkspace}
-         workspaceName={workspace.name}
-         isLoading={isWorkspaceLoading}
-       />
-     </div>
-   )
- }
+        <PagesTable
+          pages={filteredPages}
+          onViewChanges={handleViewChanges}
+          onPageClick={handlePageClick}
+          onCheckFrequencyChange={handleCheckFrequencyChange}
+          onEdit={handleEditPageClick}
+          onDelete={handleDeletePageClick}
+        />
+      </div>
+
+      <AddPageDialog
+        open={isAddPageOpen}
+        onOpenChange={setIsAddPageOpen}
+        onSubmit={handleAddPage}
+        workspaceId={workspace.id}
+        isLoading={isLoading}
+        error={error}
+      />
+
+      <EditPageDialog
+        open={isEditPageOpen}
+        onOpenChange={setIsEditPageOpen}
+        onSubmit={handleUpdatePage}
+        page={selectedPage}
+        isLoading={isLoading}
+      />
+
+      <DeletePageDialog
+        open={isDeletePageOpen}
+        onOpenChange={setIsDeletePageOpen}
+        onConfirm={handleDeletePage}
+        pageName={selectedPage?.name ?? ''}
+        isLoading={isLoading}
+      />
+
+      <EditWorkspaceDialog
+        open={isEditWorkspaceOpen}
+        onOpenChange={setIsEditWorkspaceOpen}
+        onSubmit={handleUpdateWorkspace}
+        isLoading={isWorkspaceLoading}
+        error={null}
+        workspace={workspace}
+      />
+
+      <DeleteWorkspaceDialog
+        open={isDeleteWorkspaceOpen}
+        onOpenChange={setIsDeleteWorkspaceOpen}
+        onConfirm={handleDeleteWorkspace}
+        workspaceName={workspace.name}
+        isLoading={isWorkspaceLoading}
+      />
+    </div>
+  )
+}

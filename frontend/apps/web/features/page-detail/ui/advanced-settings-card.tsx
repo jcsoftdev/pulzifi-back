@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useTransition } from 'react'
-import { MonitoringConfig, PageApi } from '@workspace/services/page-api'
+import { type MonitoringConfig, PageApi } from '@workspace/services/page-api'
 import { useRouter } from 'next/navigation'
+import { useTransition } from 'react'
 
 interface AdvancedSettingsCardProps {
   pageId: string

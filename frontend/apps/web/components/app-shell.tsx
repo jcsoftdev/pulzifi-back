@@ -1,16 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { Menu } from 'lucide-react'
-import { Header } from '@workspace/ui/components/organisms'
-import {
-  Button,
-  Sheet,
-  SheetContent,
-  SheetTrigger,
-} from '@workspace/ui/components/atoms'
+import { Button, Sheet, SheetContent, SheetTrigger } from '@workspace/ui/components/atoms'
 import type { BreadcrumbItem } from '@workspace/ui/components/molecules'
+import { Header } from '@workspace/ui/components/organisms'
+import { Menu } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { useEffect, useState } from 'react'
 
 export interface AppShellProps {
   children: ReactNode
@@ -65,10 +60,7 @@ export function AppShell({
               breadcrumbs={breadcrumbs}
             >
               <SheetTrigger asChild>
-                <Button
-                  variant="ghost"
-                  className="md:hidden -ml-2 mr-2 px-2 h-auto"
-                >
+                <Button variant="ghost" className="md:hidden -ml-2 mr-2 px-2 h-auto">
                   <Menu className="h-5 w-5" />
                 </Button>
               </SheetTrigger>

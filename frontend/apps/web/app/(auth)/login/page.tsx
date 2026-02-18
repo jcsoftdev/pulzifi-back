@@ -1,8 +1,5 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { LoginForm } from '@/features/auth/ui/login-form'
 import { AuthApi } from '@workspace/services'
 import {
   Card,
@@ -12,6 +9,9 @@ import {
   CardTitle,
 } from '@workspace/ui/components/atoms/card'
 import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import { LoginForm } from '@/features/auth/ui/login-form'
 
 export default function LoginPage() {
   const router = useRouter()

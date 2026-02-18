@@ -1,10 +1,7 @@
 'use client'
 
-import * as React from 'react'
-import { useState } from 'react'
-import { ChevronDown, Clock, RefreshCcw } from 'lucide-react'
-import { Button } from '@workspace/ui/components/atoms/button'
 import { Badge } from '@workspace/ui/components/atoms/badge'
+import { Button } from '@workspace/ui/components/atoms/button'
 import {
   Select,
   SelectContent,
@@ -19,6 +16,8 @@ import {
   DropdownMenuTrigger,
 } from '@workspace/ui/components/molecules/dropdown-menu'
 import { cn } from '@workspace/ui/lib/utils'
+import { ChevronDown, Clock, RefreshCcw } from 'lucide-react'
+import { useState } from 'react'
 import type { Page } from '../domain/types'
 
 const CHECK_FREQUENCIES = [
@@ -100,253 +99,261 @@ export function PagesTable({
           <div className="flex items-center border-b border-border bg-background">
             {/* Checkbox Column */}
             <div className="flex items-center gap-2.5 px-2 py-2.5 w-8">
-          <button
-            type="button"
-            onClick={toggleSelectAll}
-            className={cn(
-              'w-4 h-4 border border-border rounded flex items-center justify-center',
-              'hover:border-primary transition-colors',
-              selectedPages.size === pages.length && 'bg-primary border-primary'
-            )}
-            aria-label={selectedPages.size === pages.length ? 'Deselect all' : 'Select all'}
-          >
-            {selectedPages.size === pages.length && (
-              <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-                <title>Selected</title>
-                <path
-                  d="M1 4L3.5 6.5L9 1"
-                  stroke="white"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            )}
-          </button>
-        </div>
-
-        {/* Page Name */}
-        <div className="flex items-center gap-2.5 px-2 py-2.5 flex-[0_0_200px]">
-          <span className="text-sm font-medium text-foreground/88">Page name</span>
-          <ChevronDown className="w-4 h-4 text-foreground/88" />
-        </div>
-
-        {/* Tag */}
-        <div className="flex items-center gap-2.5 px-2 py-2.5 flex-[0_0_150px]">
-          <span className="text-sm font-medium text-foreground/88">Tag</span>
-          <ChevronDown className="w-4 h-4 text-foreground/88" />
-        </div>
-
-        {/* Check Frequency */}
-        <div className="flex items-center gap-2.5 px-2 py-2.5 flex-[0_0_180px]">
-          <Clock className="w-4 h-4 text-foreground/88" />
-          <span className="text-sm font-medium text-foreground/88">Check Frequency</span>
-        </div>
-
-        {/* Thumbnail */}
-        <div className="flex items-center justify-center gap-2.5 px-2 py-2.5 flex-[0_0_125px]">
-          <span className="text-sm font-medium text-foreground/88">Thumbnail</span>
-        </div>
-
-        {/* Last Change */}
-        <div className="flex items-center gap-2.5 px-2 py-2.5 flex-[0_0_163px]">
-          <RefreshCcw className="w-4 h-4 text-foreground/88" />
-          <span className="text-sm font-medium text-foreground/88">Last change</span>
-          <ChevronDown className="w-4 h-4 text-foreground/88" />
-        </div>
-
-        {/* Detected Changes */}
-        <div className="flex items-center gap-2.5 px-2 py-2.5 flex-[0_0_150px]">
-          <span className="text-sm font-medium text-foreground/88">Detected Changes</span>
-          <ChevronDown className="w-4 h-4 text-foreground/88" />
-        </div>
-
-        {/* Actions */}
-        <div className="flex items-center px-2 py-2.5 flex-[0_0_60px]" />
-      </div>
-
-      {/* Table Body */}
-      <div className="divide-y divide-border">
-        {pages.length === 0 ? (
-          <div className="px-6 py-12 text-center">
-            <p className="text-sm text-muted-foreground">No pages found</p>
-          </div>
-        ) : (
-          pages.map((page) => {
-            const isSelected = selectedPages.has(page.id)
-            const { text: lastChangeText, variant: lastChangeVariant } = formatLastChange(
-              page.lastChangeDetectedAt
-            )
-            const firstTag = page.tags && page.tags.length > 0 ? page.tags[0] : undefined
-
-            return (
-              <div key={page.id} className="flex items-center hover:bg-muted/50 transition-colors">
-                {/* Checkbox */}
-                <div className="flex items-center px-2 py-2 w-8">
-                  <button
-                    type="button"
-                    onClick={() => toggleSelect(page.id)}
-                    className={cn(
-                      'w-4 h-4 border border-border rounded flex items-center justify-center',
-                      'hover:border-primary transition-colors',
-                      isSelected && 'bg-primary border-primary'
-                    )}
-                    aria-label={isSelected ? `Deselect ${page.name}` : `Select ${page.name}`}
-                  >
-                    {isSelected && (
-                      <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-                        <title>Selected</title>
-                        <path
-                          d="M1 4L3.5 6.5L9 1"
-                          stroke="white"
-                          strokeWidth="1.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                    )}
-                  </button>
-                </div>
-
-                {/* Page Name */}
-                <div className="flex items-center px-2 py-2 flex-[0_0_200px]">
-                  <button
-                    type="button"
-                    onClick={() => onPageClick?.(page.id)}
-                    className="text-sm font-normal text-foreground hover:underline text-left truncate"
-                  >
-                    {page.name}
-                  </button>
-                </div>
-
-                {/* Tag */}
-                <div className="flex items-center px-2 py-2 flex-[0_0_150px]">
-                  {firstTag && (
-                    <Badge
-                      variant="outline"
-                      className="px-2 py-0.5 text-xs font-medium text-foreground border-border"
-                    >
-                      {firstTag}
-                    </Badge>
-                  )}
-                </div>
-
-                {/* Check Frequency */}
-                <div className="flex items-center px-2 py-2 flex-[0_0_180px]">
-                  <Select
-                    value={page.checkFrequency}
-                    onValueChange={(value) => onCheckFrequencyChange?.(page.id, value)}
-                  >
-                    <SelectTrigger className="h-7 text-sm border-none shadow-none hover:bg-muted/50 focus:ring-0">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {CHECK_FREQUENCIES.map((freq) => (
-                        <SelectItem key={freq} value={freq}>
-                          {freq}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Thumbnail */}
-                <div className="flex items-center justify-center px-2 py-2 flex-[0_0_125px]">
-                  {page.thumbnailUrl ? (
-                    <img
-                      src={page.thumbnailUrl}
-                      alt={`${page.name} thumbnail`}
-                      className="w-14 h-9 object-cover rounded border border-border"
+              <button
+                type="button"
+                onClick={toggleSelectAll}
+                className={cn(
+                  'w-4 h-4 border border-border rounded flex items-center justify-center',
+                  'hover:border-primary transition-colors',
+                  selectedPages.size === pages.length && 'bg-primary border-primary'
+                )}
+                aria-label={selectedPages.size === pages.length ? 'Deselect all' : 'Select all'}
+              >
+                {selectedPages.size === pages.length && (
+                  <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                    <title>Selected</title>
+                    <path
+                      d="M1 4L3.5 6.5L9 1"
+                      stroke="white"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
                     />
-                  ) : (
-                    <div className="w-14 h-9 bg-muted rounded border border-border" />
-                  )}
-                </div>
+                  </svg>
+                )}
+              </button>
+            </div>
 
-                {/* Last Change */}
-                <div className="flex items-center px-2 py-2 flex-[0_0_163px]">
-                  <span
-                    className={cn(
-                      'text-sm font-medium',
-                      lastChangeVariant === 'success' ? 'text-foreground' : 'text-muted-foreground'
-                    )}
+            {/* Page Name */}
+            <div className="flex items-center gap-2.5 px-2 py-2.5 flex-[0_0_200px]">
+              <span className="text-sm font-medium text-foreground/88">Page name</span>
+              <ChevronDown className="w-4 h-4 text-foreground/88" />
+            </div>
+
+            {/* Tag */}
+            <div className="flex items-center gap-2.5 px-2 py-2.5 flex-[0_0_150px]">
+              <span className="text-sm font-medium text-foreground/88">Tag</span>
+              <ChevronDown className="w-4 h-4 text-foreground/88" />
+            </div>
+
+            {/* Check Frequency */}
+            <div className="flex items-center gap-2.5 px-2 py-2.5 flex-[0_0_180px]">
+              <Clock className="w-4 h-4 text-foreground/88" />
+              <span className="text-sm font-medium text-foreground/88">Check Frequency</span>
+            </div>
+
+            {/* Thumbnail */}
+            <div className="flex items-center justify-center gap-2.5 px-2 py-2.5 flex-[0_0_125px]">
+              <span className="text-sm font-medium text-foreground/88">Thumbnail</span>
+            </div>
+
+            {/* Last Change */}
+            <div className="flex items-center gap-2.5 px-2 py-2.5 flex-[0_0_163px]">
+              <RefreshCcw className="w-4 h-4 text-foreground/88" />
+              <span className="text-sm font-medium text-foreground/88">Last change</span>
+              <ChevronDown className="w-4 h-4 text-foreground/88" />
+            </div>
+
+            {/* Detected Changes */}
+            <div className="flex items-center gap-2.5 px-2 py-2.5 flex-[0_0_150px]">
+              <span className="text-sm font-medium text-foreground/88">Detected Changes</span>
+              <ChevronDown className="w-4 h-4 text-foreground/88" />
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center px-2 py-2.5 flex-[0_0_60px]" />
+          </div>
+
+          {/* Table Body */}
+          <div className="divide-y divide-border">
+            {pages.length === 0 ? (
+              <div className="px-6 py-12 text-center">
+                <p className="text-sm text-muted-foreground">No pages found</p>
+              </div>
+            ) : (
+              pages.map((page) => {
+                const isSelected = selectedPages.has(page.id)
+                const { text: lastChangeText, variant: lastChangeVariant } = formatLastChange(
+                  page.lastChangeDetectedAt
+                )
+                const firstTag = page.tags && page.tags.length > 0 ? page.tags[0] : undefined
+
+                return (
+                  <div
+                    key={page.id}
+                    className="flex items-center hover:bg-muted/50 transition-colors"
                   >
-                    {lastChangeText}
-                  </span>
-                </div>
-
-                {/* Detected Changes */}
-                <div className="flex items-center px-2 py-2 flex-[0_0_150px] gap-2">
-                  <Badge
-                    variant={page.detectedChanges > 0 ? 'destructive' : 'secondary'}
-                    className="min-w-8 justify-center"
-                  >
-                    {page.detectedChanges}
-                  </Badge>
-                  {page.detectedChanges > 0 && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => onViewChanges?.(page.id)}
-                      className="px-2 py-1 h-auto text-xs font-medium gap-1 bg-background"
-                    >
-                      <RefreshCcw className="w-3.5 h-3.5" />
-                      View
-                    </Button>
-                  )}
-                </div>
-
-                {/* Actions */}
-                <div className="flex items-center justify-center px-2 py-2 flex-[0_0_60px]">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
+                    {/* Checkbox */}
+                    <div className="flex items-center px-2 py-2 w-8">
                       <button
                         type="button"
-                        className="p-1 hover:bg-muted rounded transition-colors"
-                        aria-label="More actions"
+                        onClick={() => toggleSelect(page.id)}
+                        className={cn(
+                          'w-4 h-4 border border-border rounded flex items-center justify-center',
+                          'hover:border-primary transition-colors',
+                          isSelected && 'bg-primary border-primary'
+                        )}
+                        aria-label={isSelected ? `Deselect ${page.name}` : `Select ${page.name}`}
                       >
-                        <svg width="21" height="21" viewBox="0 0 21 21" fill="none">
-                          <title>More actions</title>
-                          <path
-                            d="M10.5 11.375C10.9832 11.375 11.375 10.9832 11.375 10.5C11.375 10.0168 10.9832 9.625 10.5 9.625C10.0168 9.625 9.625 10.0168 9.625 10.5C9.625 10.9832 10.0168 11.375 10.5 11.375Z"
-                            stroke="currentColor"
-                            strokeWidth="1.75"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                          <path
-                            d="M10.5 5.25C10.9832 5.25 11.375 4.85825 11.375 4.375C11.375 3.89175 10.9832 3.5 10.5 3.5C10.0168 3.5 9.625 3.89175 9.625 4.375C9.625 4.85825 10.0168 5.25 10.5 5.25Z"
-                            stroke="currentColor"
-                            strokeWidth="1.75"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                          <path
-                            d="M10.5 17.5C10.9832 17.5 11.375 17.1082 11.375 16.625C11.375 16.1418 10.9832 15.75 10.5 15.75C10.0168 15.75 9.625 16.1418 9.625 16.625C9.625 17.1082 10.0168 17.5 10.5 17.5Z"
-                            stroke="currentColor"
-                            strokeWidth="1.75"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
+                        {isSelected && (
+                          <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                            <title>Selected</title>
+                            <path
+                              d="M1 4L3.5 6.5L9 1"
+                              stroke="white"
+                              strokeWidth="1.5"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                        )}
                       </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => onEdit?.(page)}>Edit Page</DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => onDelete?.(page)}
-                        className="text-destructive focus:text-destructive"
+                    </div>
+
+                    {/* Page Name */}
+                    <div className="flex items-center px-2 py-2 flex-[0_0_200px]">
+                      <button
+                        type="button"
+                        onClick={() => onPageClick?.(page.id)}
+                        className="text-sm font-normal text-foreground hover:underline text-left truncate"
                       >
-                        Delete Page
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              </div>
-            )
-          })
-        )}
-      </div>
+                        {page.name}
+                      </button>
+                    </div>
+
+                    {/* Tag */}
+                    <div className="flex items-center px-2 py-2 flex-[0_0_150px]">
+                      {firstTag && (
+                        <Badge
+                          variant="outline"
+                          className="px-2 py-0.5 text-xs font-medium text-foreground border-border"
+                        >
+                          {firstTag}
+                        </Badge>
+                      )}
+                    </div>
+
+                    {/* Check Frequency */}
+                    <div className="flex items-center px-2 py-2 flex-[0_0_180px]">
+                      <Select
+                        value={page.checkFrequency}
+                        onValueChange={(value) => onCheckFrequencyChange?.(page.id, value)}
+                      >
+                        <SelectTrigger className="h-7 text-sm border-none shadow-none hover:bg-muted/50 focus:ring-0">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {CHECK_FREQUENCIES.map((freq) => (
+                            <SelectItem key={freq} value={freq}>
+                              {freq}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Thumbnail */}
+                    <div className="flex items-center justify-center px-2 py-2 flex-[0_0_125px]">
+                      {page.thumbnailUrl ? (
+                        // biome-ignore lint/performance/noImgElement: thumbnail URLs are external dynamic URLs
+                        <img
+                          src={page.thumbnailUrl}
+                          alt={`${page.name} thumbnail`}
+                          className="w-14 h-9 object-cover rounded border border-border"
+                        />
+                      ) : (
+                        <div className="w-14 h-9 bg-muted rounded border border-border" />
+                      )}
+                    </div>
+
+                    {/* Last Change */}
+                    <div className="flex items-center px-2 py-2 flex-[0_0_163px]">
+                      <span
+                        className={cn(
+                          'text-sm font-medium',
+                          lastChangeVariant === 'success'
+                            ? 'text-foreground'
+                            : 'text-muted-foreground'
+                        )}
+                      >
+                        {lastChangeText}
+                      </span>
+                    </div>
+
+                    {/* Detected Changes */}
+                    <div className="flex items-center px-2 py-2 flex-[0_0_150px] gap-2">
+                      <Badge
+                        variant={page.detectedChanges > 0 ? 'destructive' : 'secondary'}
+                        className="min-w-8 justify-center"
+                      >
+                        {page.detectedChanges}
+                      </Badge>
+                      {page.detectedChanges > 0 && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => onViewChanges?.(page.id)}
+                          className="px-2 py-1 h-auto text-xs font-medium gap-1 bg-background"
+                        >
+                          <RefreshCcw className="w-3.5 h-3.5" />
+                          View
+                        </Button>
+                      )}
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center justify-center px-2 py-2 flex-[0_0_60px]">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            type="button"
+                            className="p-1 hover:bg-muted rounded transition-colors"
+                            aria-label="More actions"
+                          >
+                            <svg width="21" height="21" viewBox="0 0 21 21" fill="none">
+                              <title>More actions</title>
+                              <path
+                                d="M10.5 11.375C10.9832 11.375 11.375 10.9832 11.375 10.5C11.375 10.0168 10.9832 9.625 10.5 9.625C10.0168 9.625 9.625 10.0168 9.625 10.5C9.625 10.9832 10.0168 11.375 10.5 11.375Z"
+                                stroke="currentColor"
+                                strokeWidth="1.75"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                              <path
+                                d="M10.5 5.25C10.9832 5.25 11.375 4.85825 11.375 4.375C11.375 3.89175 10.9832 3.5 10.5 3.5C10.0168 3.5 9.625 3.89175 9.625 4.375C9.625 4.85825 10.0168 5.25 10.5 5.25Z"
+                                stroke="currentColor"
+                                strokeWidth="1.75"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                              <path
+                                d="M10.5 17.5C10.9832 17.5 11.375 17.1082 11.375 16.625C11.375 16.1418 10.9832 15.75 10.5 15.75C10.0168 15.75 9.625 16.1418 9.625 16.625C9.625 17.1082 10.0168 17.5 10.5 17.5Z"
+                                stroke="currentColor"
+                                strokeWidth="1.75"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => onEdit?.(page)}>
+                            Edit Page
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => onDelete?.(page)}
+                            className="text-destructive focus:text-destructive"
+                          >
+                            Delete Page
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </div>
+                )
+              })
+            )}
+          </div>
         </div>
       </div>
 

@@ -1,7 +1,6 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter, usePathname, useSearchParams } from 'next/navigation'
+import type { Check } from '@workspace/services/page-api'
 import { formatDateTime } from '@workspace/ui'
 import {
   Select,
@@ -11,7 +10,8 @@ import {
   SelectValue,
 } from '@workspace/ui/components/atoms/select'
 import { cn } from '@workspace/ui/lib/utils'
-import type { Check } from '@workspace/services/page-api'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { useState } from 'react'
 
 interface ChangesViewLayoutProps {
   checks: Check[]
@@ -31,7 +31,7 @@ export function ChangesViewLayout({
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
-  
+
   // Local state for tabs if not controlled
   const [internalActiveTab, setInternalActiveTab] = useState('visual')
   const activeTab = controlledActiveTab || internalActiveTab
@@ -56,7 +56,7 @@ export function ChangesViewLayout({
             {activeCheckFailed ? 'Check failed on:' : 'Change detected on:'}
           </span>
           <h1 className="text-2xl md:text-3xl font-bold text-foreground">
-             {activeCheck ? formatDateTime(activeCheck.checkedAt) : 'No check selected'}
+            {activeCheck ? formatDateTime(activeCheck.checkedAt) : 'No check selected'}
           </h1>
           {activeCheck?.extractorFailed && (
             <span className="text-sm text-destructive">
@@ -66,7 +66,7 @@ export function ChangesViewLayout({
         </div>
 
         <div className="w-full md:w-64">
-           <Select value={activeCheckId} onValueChange={handleCheckChange}>
+          <Select value={activeCheckId} onValueChange={handleCheckChange}>
             <SelectTrigger className="w-full bg-background">
               <SelectValue placeholder="Select a check" />
             </SelectTrigger>
@@ -86,34 +86,37 @@ export function ChangesViewLayout({
       <div className="border-b border-border overflow-x-auto">
         <div className="flex gap-6 md:gap-8 min-w-max">
           <button
+            type="button"
             onClick={() => handleTabChange('visual')}
             className={cn(
-              "pb-3 text-sm font-medium border-b-2 transition-colors",
-              activeTab === 'visual' 
-                ? "border-primary text-foreground" 
-                : "border-transparent text-muted-foreground hover:text-foreground"
+              'pb-3 text-sm font-medium border-b-2 transition-colors',
+              activeTab === 'visual'
+                ? 'border-primary text-foreground'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
             )}
           >
             Visual Pulse
           </button>
           <button
-             onClick={() => handleTabChange('text')}
-             className={cn(
-              "pb-3 text-sm font-medium border-b-2 transition-colors",
-              activeTab === 'text' 
-                ? "border-primary text-foreground" 
-                : "border-transparent text-muted-foreground hover:text-foreground"
+            type="button"
+            onClick={() => handleTabChange('text')}
+            className={cn(
+              'pb-3 text-sm font-medium border-b-2 transition-colors',
+              activeTab === 'text'
+                ? 'border-primary text-foreground'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
             )}
           >
             Text Changes
           </button>
           <button
-             onClick={() => handleTabChange('insights')}
-             className={cn(
-              "pb-3 text-sm font-medium border-b-2 transition-colors",
-              activeTab === 'insights' 
-                ? "border-primary text-foreground" 
-                : "border-transparent text-muted-foreground hover:text-foreground"
+            type="button"
+            onClick={() => handleTabChange('insights')}
+            className={cn(
+              'pb-3 text-sm font-medium border-b-2 transition-colors',
+              activeTab === 'insights'
+                ? 'border-primary text-foreground'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
             )}
           >
             Intelligent Insights
@@ -122,9 +125,7 @@ export function ChangesViewLayout({
       </div>
 
       {/* Content */}
-      <div className="min-h-[500px]">
-        {children}
-      </div>
+      <div className="min-h-[500px]">{children}</div>
     </div>
   )
 }

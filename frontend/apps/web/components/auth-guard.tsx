@@ -1,7 +1,7 @@
-import type { ReactNode } from 'react'
-import { redirect } from 'next/navigation'
 import { AuthApi } from '@workspace/services'
 import { UnauthorizedError } from '@workspace/shared-http'
+import { redirect } from 'next/navigation'
+import type { ReactNode } from 'react'
 
 interface AuthGuardProps {
   children: ReactNode

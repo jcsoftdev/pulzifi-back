@@ -22,15 +22,17 @@ export interface AdminOrganizationPlan {
 export const SuperAdminApi = {
   async listPlans(): Promise<AdminPlan[]> {
     const http = await getHttpClient()
-    const response = await http.get<{ plans: AdminPlan[] }>('/api/v1/usage/admin/plans')
+    const response = await http.get<{
+      plans: AdminPlan[]
+    }>('/api/v1/usage/admin/plans')
     return response.plans || []
   },
 
   async listOrganizations(): Promise<AdminOrganizationPlan[]> {
     const http = await getHttpClient()
-    const response = await http.get<{ organizations: AdminOrganizationPlan[] }>(
-      '/api/v1/usage/admin/organizations'
-    )
+    const response = await http.get<{
+      organizations: AdminOrganizationPlan[]
+    }>('/api/v1/usage/admin/organizations')
     return response.organizations || []
   },
 

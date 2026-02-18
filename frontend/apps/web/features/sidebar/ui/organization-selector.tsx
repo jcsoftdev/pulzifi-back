@@ -1,8 +1,8 @@
 'use client'
 
-import { ChevronDown } from 'lucide-react'
-import { Button } from '@workspace/ui/components/atoms/button'
 import { Avatar, AvatarFallback } from '@workspace/ui/components/atoms/avatar'
+import { Button } from '@workspace/ui/components/atoms/button'
+import { ChevronDown } from 'lucide-react'
 import type { Organization } from '../domain/types'
 
 export interface OrganizationSelectorProps {

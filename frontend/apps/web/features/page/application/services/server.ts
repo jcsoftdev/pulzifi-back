@@ -1,5 +1,5 @@
 import { PageApi } from '@workspace/services'
-import type { Page, CreatePageDto } from '../../domain/types'
+import type { CreatePageDto, Page } from '../../domain/types'
 
 export async function getPagesServer(workspaceId: string): Promise<Page[]> {
   try {
@@ -7,11 +7,10 @@ export async function getPagesServer(workspaceId: string): Promise<Page[]> {
       workspaceId,
     })
   } catch (error) {
-    const err = error as any
+    const err = error instanceof Error ? error : new Error(String(error))
     console.error('[PageService] Failed to list pages', {
       workspaceId,
       error: err.message,
-      status: err.status,
     })
     throw error
   }

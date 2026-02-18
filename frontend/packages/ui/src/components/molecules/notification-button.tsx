@@ -1,9 +1,9 @@
 'use client'
 
-import * as React from 'react'
 import { Bell } from 'lucide-react'
-import { Button } from '../atoms/button'
+import * as React from 'react'
 import { cn } from '../../lib/utils'
+import { Button } from '../atoms/button'
 
 export interface NotificationButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   hasNotifications?: boolean

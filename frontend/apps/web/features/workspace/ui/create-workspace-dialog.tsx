@@ -1,14 +1,13 @@
 'use client'
 
-import { useState, useEffect, useId } from 'react'
+import { Button } from '@workspace/ui/components/atoms/button'
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from '@workspace/ui/components/atoms/dialog'
-import { Button } from '@workspace/ui/components/atoms/button'
 import { Input } from '@workspace/ui/components/atoms/input'
 import { Label } from '@workspace/ui/components/atoms/label'
 import {
@@ -18,8 +17,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@workspace/ui/components/atoms/select'
-import { TagInput } from './tag-input'
+import { useEffect, useId, useState } from 'react'
 import type { Workspace, WorkspaceType } from '@/features/workspace/domain/types'
+import { TagInput } from './tag-input'
 
 export interface CreateWorkspaceDialogProps {
   open: boolean

@@ -1,12 +1,12 @@
 'use client'
 
+import { Badge } from '@workspace/ui/components/atoms/badge'
+import { Button } from '@workspace/ui/components/atoms/button'
+import { cn } from '@workspace/ui/lib/utils'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { cn } from '@workspace/ui/lib/utils'
-import { Button } from '@workspace/ui/components/atoms/button'
-import { Badge } from '@workspace/ui/components/atoms/badge'
 import type { RouteConfig } from '../domain/routes'
-import { isRouteActive, ICON_MAP } from '../domain/routes'
+import { ICON_MAP, isRouteActive } from '../domain/routes'
 
 export interface NavigationLinkProps {
   route: RouteConfig

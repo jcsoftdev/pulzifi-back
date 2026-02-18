@@ -1,7 +1,7 @@
 'use client'
 
-import { DashboardHeader } from './ui/dashboard-header'
 import type { DashboardStats } from './domain/types'
+import { DashboardHeader } from './ui/dashboard-header'
 
 export function DashboardFeature() {
   const stats: DashboardStats = {

@@ -1,9 +1,9 @@
 'use client'
 
-import { formatRelativeTime, formatDateTime } from '@workspace/ui'
-import { useId } from 'react'
-import Link from 'next/link'
 import type { Check } from '@workspace/services/page-api'
+import { formatDateTime, formatRelativeTime } from '@workspace/ui'
+import Link from 'next/link'
+import { useId } from 'react'
 
 interface ChecksHistoryProps {
   checks: Check[]
@@ -17,7 +17,10 @@ export function ChecksHistory({ checks, workspaceId, pageId }: Readonly<ChecksHi
   const isCheckFailed = (check: Check) => check.status === 'error' || check.status === 'failed'
 
   return (
-    <div id={sectionId} className="flex flex-col gap-6 bg-card border border-border rounded-xl p-6 h-full">
+    <div
+      id={sectionId}
+      className="flex flex-col gap-6 bg-card border border-border rounded-xl p-6 h-full"
+    >
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold text-foreground">Checks history</h2>
       </div>
@@ -39,7 +42,7 @@ export function ChecksHistory({ checks, workspaceId, pageId }: Readonly<ChecksHi
                 }`}
               />
 
-              <Link 
+              <Link
                 href={`/workspaces/${workspaceId}/pages/${pageId}/changes?checkId=${check.id}`}
                 className="flex flex-col gap-1 hover:bg-muted/50 p-2 -ml-2 rounded-md transition-colors"
               >

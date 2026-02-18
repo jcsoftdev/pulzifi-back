@@ -93,5 +93,5 @@ export const AuthApi = {
     const http = await getHttpClient()
     const response = await http.post<UserBackendDto>('/api/v1/auth/register', data)
     return transformUser(response)
-  }
+  },
 }

@@ -1,8 +1,8 @@
-import { redirect } from 'next/navigation'
-import { headers } from 'next/headers'
-import { AuthProvider } from '@/components/providers/auth-provider'
 import { AuthApi } from '@workspace/services'
-import { UnauthorizedError, extractTenantFromHostname } from '@workspace/shared-http'
+import { extractTenantFromHostname, UnauthorizedError } from '@workspace/shared-http'
+import { headers } from 'next/headers'
+import { redirect } from 'next/navigation'
+import { AuthProvider } from '@/components/providers/auth-provider'
 
 export default async function AuthLayout({ children }: { children: React.ReactNode }) {
   const incomingHeaders = await headers()
@@ -10,11 +10,7 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
   const tenant = extractTenantFromHostname(host)
 
   if (!tenant) {
-    return (
-      <AuthProvider>
-        {children}
-      </AuthProvider>
-    )
+    return <AuthProvider>{children}</AuthProvider>
   }
 
   try {
@@ -26,9 +22,5 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
     }
   }
 
-  return (
-    <AuthProvider>
-      {children}
-    </AuthProvider>
-  )
+  return <AuthProvider>{children}</AuthProvider>
 }

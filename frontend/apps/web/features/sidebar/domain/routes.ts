@@ -1,5 +1,5 @@
-import { House, Workflow, Users, Shapes, Settings } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
+import { House, Settings, Shapes, Users, Workflow } from 'lucide-react'
 
 export type IconName = 'House' | 'Workflow' | 'Users' | 'Shapes' | 'Settings'
 

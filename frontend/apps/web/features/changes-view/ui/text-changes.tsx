@@ -21,25 +21,28 @@ export function TextChanges({ changes = [] }: Readonly<TextChangesProps>) {
       <div className="px-6 py-4 border-b border-border bg-muted/30">
         <h3 className="text-base font-semibold text-foreground">Text Changes</h3>
       </div>
-      <div className="p-6 space-y-3 font-mono text-sm max-h-[360px] overflow-y-auto overflow-x-auto">
-        {changes.map((changeRow, index) => (
+
+      <div className="p-4 space-y-2 max-h-[480px] overflow-y-auto">
+        {changes.map((changeRow, rowIndex) => (
           <div
-            key={index}
-            className="p-3 rounded-md bg-muted/30 whitespace-pre-wrap"
+            key={rowIndex}
+            className="px-4 py-3 rounded-lg bg-background border border-border/40"
           >
-            {changeRow.segments.map((segment, segmentIndex) => (
-              <span
-                key={`${index}-${segmentIndex}`}
-                className={cn(
-                  segment.type === 'added' && 'text-green-700 dark:text-green-400',
-                  segment.type === 'removed' && 'text-foreground line-through',
-                  segment.type === 'unchanged' && 'text-muted-foreground'
-                )}
-              >
-                {segmentIndex > 0 ? ' ' : ''}
-                {segment.text}
-              </span>
-            ))}
+            <p className="text-sm leading-relaxed">
+              {changeRow.segments.map((segment, segmentIndex) => (
+                <span
+                  key={segmentIndex}
+                  className={cn(
+                    segment.type === 'removed' && 'line-through text-foreground/50',
+                    segment.type === 'added' && 'text-green-600 dark:text-green-400',
+                    segment.type === 'unchanged' && 'text-foreground',
+                  )}
+                >
+                  {segmentIndex > 0 ? ' ' : ''}
+                  {segment.text}
+                </span>
+              ))}
+            </p>
           </div>
         ))}
       </div>

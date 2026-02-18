@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useCallback, useEffect, memo, useId } from 'react'
-import { usePathname } from 'next/navigation'
-import { cn } from '@workspace/ui/lib/utils'
 import { Button } from '@workspace/ui/components/atoms/button'
+import { cn } from '@workspace/ui/lib/utils'
+import { ChevronDown, SquarePlus } from 'lucide-react'
 import Link from 'next/link'
-import { SquarePlus, ChevronDown } from 'lucide-react'
-import { isWorkspaceActive, WORKSPACES_ROUTE, ICON_MAP } from '../domain/routes'
+import { usePathname } from 'next/navigation'
+import { memo, useCallback, useEffect, useId, useState } from 'react'
+import { ICON_MAP, isWorkspaceActive, WORKSPACES_ROUTE } from '../domain/routes'
 import type { Workspace } from '../domain/types'
 
 export interface WorkspacesSectionClientProps {

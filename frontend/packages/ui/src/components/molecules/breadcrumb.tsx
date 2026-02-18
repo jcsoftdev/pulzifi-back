@@ -1,8 +1,8 @@
 'use client'
 
-import * as React from 'react'
 import { ChevronRight } from 'lucide-react'
 import Link from 'next/link'
+import * as React from 'react'
 import { cn } from '../../lib/utils'
 
 export interface BreadcrumbItem {
@@ -23,7 +23,6 @@ export function Breadcrumb({ items, className }: Readonly<BreadcrumbProps>) {
       <ol className="flex items-center flex-wrap gap-1">
         {items.map((item, index) => {
           const isCurrent = item.isCurrent || index === items.length - 1
-          const isFirst = index === 0
 
           return (
             <React.Fragment key={`${item.label}-${index}`}>

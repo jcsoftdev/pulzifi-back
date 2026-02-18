@@ -1,11 +1,11 @@
 import {
-  PageApi,
-  type Page,
-  type MonitoringConfig,
   type Check,
   type Insight,
+  type MonitoringConfig,
+  type Page,
+  PageApi,
 } from '@workspace/services/page-api'
-import { WorkspaceApi, type Workspace } from '@workspace/services/workspace-api'
+import { type Workspace, WorkspaceApi } from '@workspace/services/workspace-api'
 
 export const PageDetailService = {
   async getPage(pageId: string): Promise<Page> {

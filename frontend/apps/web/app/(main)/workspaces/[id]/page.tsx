@@ -1,8 +1,8 @@
+import type { BreadcrumbItem } from '@workspace/ui/components/molecules'
+import { getPagesServer } from '@/features/page/application/services/server'
+import { getWorkspaceServer } from '@/features/workspace/application/services/server'
 import { WorkspaceDetailFeature } from '@/features/workspace-detail'
 import { WorkspaceBreadcrumbs } from './workspace-breadcrumbs'
-import type { BreadcrumbItem } from '@workspace/ui/components/molecules'
-import { getWorkspaceServer } from '@/features/workspace/application/services/server'
-import { getPagesServer } from '@/features/page/application/services/server'
 
 interface WorkspaceDetailPageProps {
   params: Promise<{

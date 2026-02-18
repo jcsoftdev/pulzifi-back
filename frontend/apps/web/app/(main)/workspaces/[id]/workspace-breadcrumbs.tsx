@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect } from 'react'
 import type { BreadcrumbItem } from '@workspace/ui/components/molecules'
+import { useEffect } from 'react'
 
 interface WorkspaceBreadcrumbsProps {
   breadcrumbs: BreadcrumbItem[]

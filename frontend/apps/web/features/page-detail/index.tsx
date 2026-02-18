@@ -1,10 +1,10 @@
 import { WorkspaceBreadcrumbs } from '@/app/(main)/workspaces/[id]/workspace-breadcrumbs'
 import { PageDetailService } from './domain/services/page-detail-service'
-import { PageInfoWithActions } from './ui/page-info-with-actions'
-import { ChecksHistory } from './ui/checks-history'
 import { AdvancedSettingsCard } from './ui/advanced-settings-card'
+import { ChecksHistory } from './ui/checks-history'
 import { GeneralSummaryCard } from './ui/general-summary-card'
 import { IntelligentInsightsCard } from './ui/intelligent-insights-card'
+import { PageInfoWithActions } from './ui/page-info-with-actions'
 
 export interface PageDetailFeatureProps {
   workspaceId: string

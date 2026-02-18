@@ -1,16 +1,16 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useParams, useSearchParams } from 'next/navigation'
-import { ChangesViewService } from '@/features/changes-view/domain/changes-view-service'
-import { ChangesViewLayout } from '@/features/changes-view/ui/changes-view-layout'
-import { VisualPulse } from '@/features/changes-view/ui/visual-pulse'
-import { TextChanges } from '@/features/changes-view/ui/text-changes'
-import { IntelligentInsights } from '@/features/changes-view/ui/intelligent-insights'
-import { diffLines } from '@/features/changes-view/utils/simple-diff'
-import type { DiffRow } from '@/features/changes-view/utils/simple-diff'
 import type { Check, Insight } from '@workspace/services/page-api'
 import { Loader2 } from 'lucide-react'
+import { useParams, useSearchParams } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import { ChangesViewService } from '@/features/changes-view/domain/changes-view-service'
+import { ChangesViewLayout } from '@/features/changes-view/ui/changes-view-layout'
+import { IntelligentInsights } from '@/features/changes-view/ui/intelligent-insights'
+import { TextChanges } from '@/features/changes-view/ui/text-changes'
+import { VisualPulse } from '@/features/changes-view/ui/visual-pulse'
+import type { DiffRow } from '@/features/changes-view/utils/simple-diff'
+import { diffLines } from '@/features/changes-view/utils/simple-diff'
 
 export default function ChangesPage() {
   const params = useParams()
@@ -31,8 +31,8 @@ export default function ChangesPage() {
         setLoading(true)
         const checksData = await ChangesViewService.getPageChecks(pageId)
         // Sort checks descending by date
-        const sortedChecks = checksData.sort((a: Check, b: Check) => 
-          new Date(b.checkedAt).getTime() - new Date(a.checkedAt).getTime()
+        const sortedChecks = checksData.sort(
+          (a: Check, b: Check) => new Date(b.checkedAt).getTime() - new Date(a.checkedAt).getTime()
         )
         setChecks(sortedChecks)
 
@@ -48,10 +48,13 @@ export default function ChangesPage() {
       }
     }
     loadData()
-  }, [pageId, checkIdParam])
+  }, [
+    pageId,
+    checkIdParam,
+  ])
 
   const activeCheckId = checkIdParam || checks[0]?.id || ''
-  const activeCheckIndex = checks.findIndex(c => c.id === activeCheckId)
+  const activeCheckIndex = checks.findIndex((c) => c.id === activeCheckId)
   const activeCheck = checks[activeCheckIndex]
   const previousCheck = checks[activeCheckIndex + 1]
 
@@ -63,36 +66,36 @@ export default function ChangesPage() {
           // If previous check exists, compare. Else show current text as added? Or just empty.
           // If no previous check, we can't show diff.
           if (!previousCheck) {
-             // Maybe fetch current text and show as all added?
-             // For now, let's leave empty or handle gracefully
-             setTextChanges([])
-             return
+            // Maybe fetch current text and show as all added?
+            // For now, let's leave empty or handle gracefully
+            setTextChanges([])
+            return
           }
-          
+
           // Need to fetch HTML content. Assuming Check object has htmlSnapshotUrl
           // If not in interface, we might need to cast or update interface.
           // Check interface in page-api.ts has `screenshotUrl`. It doesn't have `htmlSnapshotUrl` explicitly in frontend interface?
           // Let's check page-api.ts again.
-          
+
           // Assuming backend returns it but frontend interface might miss it.
           // I will use 'any' cast if needed or just try access.
-          const currentUrl = (activeCheck as any).htmlSnapshotUrl
-          const prevUrl = (previousCheck as any).htmlSnapshotUrl
+          const currentUrl = activeCheck.htmlSnapshotUrl
+          const prevUrl = previousCheck.htmlSnapshotUrl
 
           if (currentUrl && prevUrl) {
-             const [currentHtml, prevHtml] = await Promise.all([
-               ChangesViewService.getHtmlContent(currentUrl),
-               ChangesViewService.getHtmlContent(prevUrl)
-             ])
-             
-             const currentText = ChangesViewService.extractTextFromHtml(currentHtml)
-             const prevText = ChangesViewService.extractTextFromHtml(prevHtml)
-             
-             const diff = diffLines(prevText, currentText)
-             
-             setTextChanges(diff)
+            const [currentHtml, prevHtml] = await Promise.all([
+              ChangesViewService.getHtmlContent(currentUrl),
+              ChangesViewService.getHtmlContent(prevUrl),
+            ])
+
+            const currentText = ChangesViewService.extractTextFromHtml(currentHtml)
+            const prevText = ChangesViewService.extractTextFromHtml(prevHtml)
+
+            const diff = diffLines(prevText, currentText)
+
+            setTextChanges(diff)
           } else {
-             setTextChanges([])
+            setTextChanges([])
           }
         } catch (error) {
           console.error('Failed to calculate diff:', error)
@@ -103,8 +106,11 @@ export default function ChangesPage() {
       }
     }
     loadDiff()
-  }, [activeTab, activeCheck, previousCheck])
-
+  }, [
+    activeTab,
+    activeCheck,
+    previousCheck,
+  ])
 
   if (loading) {
     return (
@@ -128,18 +134,15 @@ export default function ChangesPage() {
             previousScreenshotUrl={previousCheck?.screenshotUrl}
           />
         )}
-        {activeTab === 'text' && (
-          loadingDiff ? (
-             <div className="flex items-center justify-center h-64">
-               <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-             </div>
+        {activeTab === 'text' &&
+          (loadingDiff ? (
+            <div className="flex items-center justify-center h-64">
+              <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+            </div>
           ) : (
             <TextChanges changes={textChanges} />
-          )
-        )}
-        {activeTab === 'insights' && (
-          <IntelligentInsights insights={insights} />
-        )}
+          ))}
+        {activeTab === 'insights' && <IntelligentInsights insights={insights} />}
       </ChangesViewLayout>
     </div>
   )

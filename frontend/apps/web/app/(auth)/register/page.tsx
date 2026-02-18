@@ -1,8 +1,5 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { RegisterForm } from '@/features/auth/ui/register-form'
 import { AuthApi } from '@workspace/services'
 import {
   Card,
@@ -12,6 +9,9 @@ import {
   CardTitle,
 } from '@workspace/ui/components/atoms/card'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { useState } from 'react'
+import { RegisterForm } from '@/features/auth/ui/register-form'
 
 export default function RegisterPage() {
   const router = useRouter()

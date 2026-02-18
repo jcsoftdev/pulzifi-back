@@ -1,6 +1,6 @@
 import * as React from 'react'
-import { Avatar, AvatarImage, AvatarFallback } from '../atoms/avatar'
 import { cn } from '../../lib/utils'
+import { Avatar, AvatarFallback, AvatarImage } from '../atoms/avatar'
 
 export interface UserProfileProps extends React.HTMLAttributes<HTMLDivElement> {
   name: string

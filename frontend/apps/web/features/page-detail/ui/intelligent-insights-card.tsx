@@ -1,7 +1,7 @@
 'use client'
 
-import { Check } from 'lucide-react'
 import type { Insight } from '@workspace/services/page-api'
+import { Check } from 'lucide-react'
 
 interface IntelligentInsightsCardProps {
   insights: Insight[]

@@ -1,11 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState, useTransition } from 'react'
-import {
-  type AdminOrganizationPlan,
-  type AdminPlan,
-  SuperAdminApi,
-} from '@workspace/services'
+import { type AdminOrganizationPlan, type AdminPlan, SuperAdminApi } from '@workspace/services'
 import {
   Badge,
   Button,
@@ -21,6 +16,7 @@ import {
   SelectValue,
 } from '@workspace/ui/components/atoms'
 import { Loader2 } from 'lucide-react'
+import { useCallback, useEffect, useState, useTransition } from 'react'
 
 export function PlanManagement() {
   const [isPending, startTransition] = useTransition()
@@ -44,7 +40,9 @@ export function PlanManagement() {
 
   useEffect(() => {
     loadData()
-  }, [loadData])
+  }, [
+    loadData,
+  ])
 
   const handlePlanChange = (organizationId: string, planCode: string) => {
     startTransition(async () => {
@@ -107,9 +105,7 @@ export function PlanManagement() {
                 <Badge variant="outline">
                   Current: {org.plan_name || org.plan_code || 'No plan'}
                 </Badge>
-                <Badge variant="outline">
-                  Limit: {org.checks_allowed_monthly}/month
-                </Badge>
+                <Badge variant="outline">Limit: {org.checks_allowed_monthly}/month</Badge>
                 <div className="w-full md:w-72">
                   <Select
                     value={org.plan_code || undefined}

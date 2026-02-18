@@ -1,6 +1,6 @@
-import axios, { type AxiosInstance, type AxiosRequestConfig, type AxiosError } from 'axios'
-import type { IHttpClient, RequestConfig } from './types'
+import axios, { type AxiosError, type AxiosInstance, type AxiosRequestConfig } from 'axios'
 import { getTenantFromWindow } from './tenant-utils'
+import type { IHttpClient, RequestConfig } from './types'
 
 export class AxiosHttpClient implements IHttpClient {
   private readonly client: AxiosInstance

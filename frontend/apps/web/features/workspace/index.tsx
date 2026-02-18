@@ -1,17 +1,17 @@
 'use client'
 
-import { useState, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
-import { SquarePlus } from 'lucide-react'
 import { Button } from '@workspace/ui/components/atoms/button'
-import { WorkspaceCard } from './ui/workspace-card'
-import { SearchBar } from './ui/search-bar'
-import { EmptyState } from './ui/empty-state'
-import { WelcomeContainer } from './ui/welcome-container'
-import { CreateWorkspaceDialog } from './ui/create-workspace-dialog'
-import { DeleteWorkspaceDialog } from './ui/delete-workspace-dialog'
+import { SquarePlus } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { useMemo, useState } from 'react'
 import { useWorkspaces } from './application/hooks/use-workspaces'
 import type { Workspace } from './domain/types'
+import { CreateWorkspaceDialog } from './ui/create-workspace-dialog'
+import { DeleteWorkspaceDialog } from './ui/delete-workspace-dialog'
+import { EmptyState } from './ui/empty-state'
+import { SearchBar } from './ui/search-bar'
+import { WelcomeContainer } from './ui/welcome-container'
+import { WorkspaceCard } from './ui/workspace-card'
 
 export interface WorkspaceFeatureProps {
   initialWorkspaces?: Workspace[]
@@ -43,7 +43,6 @@ export function WorkspaceFeature({
     searchQuery,
   ])
 
-  // biome-ignore lint/correctness/noUnusedVariables: Will be used for navigation
   const handleSelectWorkspace = (id: string) => {
     router.push(`/workspaces/${id}`)
   }

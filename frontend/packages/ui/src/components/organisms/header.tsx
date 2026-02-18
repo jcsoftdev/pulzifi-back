@@ -1,11 +1,11 @@
 'use client'
 
 import * as React from 'react'
+import { cn } from '../../lib/utils'
+import type { BreadcrumbItem } from '../molecules/breadcrumb'
+import { Breadcrumb } from '../molecules/breadcrumb'
 import { ChecksTag } from '../molecules/checks-tag'
 import { NotificationButton } from '../molecules/notification-button'
-import { Breadcrumb } from '../molecules/breadcrumb'
-import type { BreadcrumbItem } from '../molecules/breadcrumb'
-import { cn } from '../../lib/utils'
 
 export interface HeaderProps extends React.HTMLAttributes<HTMLElement> {
   checks?: {
@@ -42,9 +42,7 @@ const Header = React.forwardRef<HTMLElement, HeaderProps>(
         <div className="flex items-center justify-between px-4 lg:px-24 py-4 gap-4">
           <div className="flex items-center gap-4">
             {children}
-            {breadcrumbs && breadcrumbs.length > 0 ? (
-              <Breadcrumb items={breadcrumbs} />
-            ) : null}
+            {breadcrumbs && breadcrumbs.length > 0 ? <Breadcrumb items={breadcrumbs} /> : null}
           </div>
           <div className="flex items-center gap-4">
             {checks && (

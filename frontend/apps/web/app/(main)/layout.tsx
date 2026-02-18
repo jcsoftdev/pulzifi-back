@@ -1,8 +1,8 @@
 import { AppShell } from '@/components/app-shell'
 import { AuthGuard } from '@/components/auth-guard'
+import { NotificationService } from '@/features/notifications/domain/services/notification-service'
 import { SidebarFeature } from '@/features/sidebar'
 import { UsageService } from '@/features/usage/domain/services/usage-service'
-import { NotificationService } from '@/features/notifications/domain/services/notification-service'
 
 export default async function MainLayout({
   children,
