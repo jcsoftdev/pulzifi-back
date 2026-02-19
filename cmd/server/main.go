@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"net"
 	"net/http"
 	"os"
@@ -15,6 +16,12 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
 	"github.com/jcsoftdev/pulzifi-back/docs"
+	createorgapp "github.com/jcsoftdev/pulzifi-back/modules/organization/application/create_organization"
+	getorgapp "github.com/jcsoftdev/pulzifi-back/modules/organization/application/get_organization"
+	orgservices "github.com/jcsoftdev/pulzifi-back/modules/organization/domain/services"
+	orggrpc "github.com/jcsoftdev/pulzifi-back/modules/organization/infrastructure/grpc"
+	"github.com/jcsoftdev/pulzifi-back/modules/organization/infrastructure/grpc/pb"
+	orgpersistence "github.com/jcsoftdev/pulzifi-back/modules/organization/infrastructure/persistence"
 	"github.com/jcsoftdev/pulzifi-back/shared/cache"
 	"github.com/jcsoftdev/pulzifi-back/shared/config"
 	"github.com/jcsoftdev/pulzifi-back/shared/database"
@@ -185,7 +192,7 @@ func main() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		startGRPCServer(ctx, cfg.GRPCPort)
+		startGRPCServer(ctx, cfg.GRPCPort, db)
 	}()
 
 	logger.Info("Pulzifi Backend monolith is running")
@@ -229,8 +236,8 @@ func startHTTPServer(ctx context.Context, router chi.Router, port string) {
 	}
 }
 
-// startGRPCServer starts the gRPC server
-func startGRPCServer(ctx context.Context, port string) {
+// startGRPCServer starts the gRPC server and registers services
+func startGRPCServer(ctx context.Context, port string, db *sql.DB) {
 	lis, err := net.Listen("tcp", ":"+port)
 	if err != nil {
 		logger.Error("Failed to listen on gRPC port", zap.Error(err))
@@ -239,8 +246,13 @@ func startGRPCServer(ctx context.Context, port string) {
 
 	grpcServer := grpc.NewServer()
 
-	// Note: Register gRPC services here when available
-	// Example: pb.RegisterYourServiceServer(grpcServer, &yourServiceServer{})
+	// Register Organization gRPC service
+	orgRepo := orgpersistence.NewOrganizationPostgresRepository(db)
+	orgSvc := orgservices.NewOrganizationService()
+	createOrgHandler := createorgapp.NewCreateOrganizationHandler(orgRepo, orgSvc, db, nil)
+	getOrgHandler := getorgapp.NewGetOrganizationHandler(orgRepo)
+	orgServiceServer := orggrpc.NewOrganizationServiceServer(createOrgHandler, getOrgHandler, orgRepo)
+	pb.RegisterOrganizationServiceServer(grpcServer, orgServiceServer)
 
 	go func() {
 		<-ctx.Done()

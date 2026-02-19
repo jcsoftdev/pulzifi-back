@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	createcheck "github.com/jcsoftdev/pulzifi-back/modules/monitoring/application/create_check"
 	createmonitoringconfig "github.com/jcsoftdev/pulzifi-back/modules/monitoring/application/create_monitoring_config"
 	createnotificationpreference "github.com/jcsoftdev/pulzifi-back/modules/monitoring/application/create_notification_preference"
@@ -173,21 +174,45 @@ func (m *Module) handleCreateCheck(w http.ResponseWriter, r *http.Request) {
 	handler.HandleHTTP(w, r)
 }
 
-// handleListChecks lists all monitoring checks
+// handleListChecks lists monitoring checks for a page
 // @Summary List Monitoring Checks
-// @Description List all monitoring checks
+// @Description List monitoring checks filtered by page_id
 // @Tags monitoring
 // @Security BearerAuth
 // @Produce json
-// @Success 200 {object} map[string]interface{}
+// @Param page_id query string true "Page ID"
+// @Success 200 {object} listchecks.ListChecksResponse
+// @Failure 400 {object} map[string]string
 // @Router /monitoring/checks [get]
 func (m *Module) handleListChecks(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+
+	pageIDStr := r.URL.Query().Get("page_id")
+	if pageIDStr == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "page_id query parameter is required"})
+		return
+	}
+	pageID, err := uuid.Parse(pageIDStr)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "invalid page_id format"})
+		return
+	}
+
+	tenant := middleware.GetTenantFromContext(r.Context())
+	repo := persistence.NewCheckPostgresRepository(m.db, tenant)
+	handler := listchecks.NewListChecksHandler(repo)
+
+	resp, err := handler.Handle(r.Context(), pageID)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "failed to list checks"})
+		return
+	}
+
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"checks":  []interface{}{},
-		"message": "list checks",
-	})
+	json.NewEncoder(w).Encode(resp)
 }
 
 // handleListChecksByPage lists monitoring checks for a specific page
@@ -219,14 +244,35 @@ func (m *Module) handleListChecksByPage(w http.ResponseWriter, r *http.Request) 
 // @Produce json
 // @Param id path string true "Check ID"
 // @Success 200 {object} map[string]interface{}
+// @Failure 404 {object} map[string]string
 // @Router /monitoring/checks/{id} [get]
 func (m *Module) handleGetCheck(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "invalid check id"})
+		return
+	}
+
+	tenant := middleware.GetTenantFromContext(r.Context())
+	repo := persistence.NewCheckPostgresRepository(m.db, tenant)
+
+	check, err := repo.GetByID(r.Context(), id)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "failed to get check"})
+		return
+	}
+	if check == nil {
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]string{"error": "check not found"})
+		return
+	}
+
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{
-		"id":      chi.URLParam(r, "id"),
-		"message": "get check",
-	})
+	json.NewEncoder(w).Encode(check)
 }
 
 // handleCreateMonitoringConfig creates a new monitoring config
@@ -363,12 +409,33 @@ func (m *Module) handleCreateNotificationPreference(w http.ResponseWriter, r *ht
 // @Produce json
 // @Param id path string true "Preference ID"
 // @Success 200 {object} map[string]interface{}
+// @Failure 404 {object} map[string]string
 // @Router /monitoring/notification-preferences/{id} [get]
 func (m *Module) handleGetNotificationPreference(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "invalid preference id"})
+		return
+	}
+
+	tenant := middleware.GetTenantFromContext(r.Context())
+	repo := persistence.NewNotificationPreferencePostgresRepository(m.db, tenant)
+
+	pref, err := repo.GetByID(r.Context(), id)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "failed to get notification preference"})
+		return
+	}
+	if pref == nil {
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]string{"error": "notification preference not found"})
+		return
+	}
+
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{
-		"id":      chi.URLParam(r, "id"),
-		"message": "get notification preference",
-	})
+	json.NewEncoder(w).Encode(pref)
 }

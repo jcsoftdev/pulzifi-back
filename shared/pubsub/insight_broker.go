@@ -27,9 +27,27 @@ type InsightBroker struct {
 }
 
 func NewInsightBroker() *InsightBroker {
-	return &InsightBroker{
+	b := &InsightBroker{
 		listeners: make(map[string][]chan []byte),
 		cache:     make(map[string]cachedPayload),
+	}
+	go b.evictLoop()
+	return b
+}
+
+// evictLoop periodically removes expired entries from the replay cache.
+func (b *InsightBroker) evictLoop() {
+	ticker := time.NewTicker(cacheTTL)
+	defer ticker.Stop()
+	for range ticker.C {
+		now := time.Now()
+		b.mu.Lock()
+		for k, v := range b.cache {
+			if now.After(v.exp) {
+				delete(b.cache, k)
+			}
+		}
+		b.mu.Unlock()
 	}
 }
 

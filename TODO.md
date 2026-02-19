@@ -47,68 +47,69 @@ When a super admin approves a user, the system must (in a single transaction):
 
 - [x] Fix health endpoint — `string(rune(time.Now().Unix()))` produces garbage Unicode instead of timestamp
 - [x] Fix `SnapshotWorker.createAlert()` — uses raw SQL instead of Alert repository
-- [ ] Fix gRPC server — starts but has zero services registered
+- [x] Fix gRPC server — register OrganizationServiceServer (CreateOrg, GetOrg, GetOrgBySubdomain)
 
 ## 3. Stub Endpoints (returning hardcoded JSON)
 
 ### Organization
-- [ ] `GET /organizations` — list
-- [ ] `GET /organizations/{id}` — get
-- [ ] `PUT /organizations/{id}` — update
-- [ ] `DELETE /organizations/{id}` — delete
-- [ ] gRPC `GetOrganizationBySubdomain` — returns `nil, nil`
+- [x] `GET /organizations` — list (by current user)
+- [x] `GET /organizations/{id}` — get
+- [x] `PUT /organizations/{id}` — update name
+- [x] `DELETE /organizations/{id}` — soft delete
+- [x] gRPC `GetOrganizationBySubdomain` — implemented
 
 ### Monitoring
-- [ ] `GET /monitoring/checks` — returns empty array
-- [ ] `GET /monitoring/checks/{id}` — returns hardcoded mock
-- [ ] `GET /monitoring/notification-preferences/{id}` — returns hardcoded mock
+- [x] `GET /monitoring/checks` — list by page_id query param
+- [x] `GET /monitoring/checks/{id}` — get by ID
+- [x] `GET /monitoring/notification-preferences/{id}` — get by ID
 
 ### Insight
-- [ ] `GET /insights/{id}` — returns hardcoded mock
+- [x] `GET /insights/{id}` — real implementation
 
 ### Alert
-- [ ] `GET /alerts/{id}` — returns hardcoded mock
-- [ ] `PUT /alerts/{id}` — returns hardcoded mock
-- [ ] `DELETE /alerts/{id}` — returns hardcoded mock
+- [x] `GET /alerts/{id}` — real implementation
+- [x] `PUT /alerts/{id}` — marks alert as read
+- [x] `DELETE /alerts/{id}` — real implementation
 
-### Integration (entire module is placeholder)
-- [ ] `POST /integrations/webhooks`
-- [ ] `GET /integrations/webhooks`
-- [ ] `GET /integrations/webhooks/{id}`
+### Integration
+- [x] `POST /integrations` — upsert integration
+- [x] `GET /integrations` — list integrations
+- [x] `DELETE /integrations/{id}` — delete integration
+- [x] `POST /integrations/webhooks` — create webhook integration
+- [x] `GET /integrations/webhooks` — list webhook integrations
+- [x] `GET /integrations/webhooks/{id}` — get webhook by ID
 
-### Report (entire module is placeholder)
-- [ ] `POST /reports`
-- [ ] `GET /reports`
-- [ ] `GET /reports/{id}`
+### Report
+- [x] `POST /reports` — real implementation (DDD: entity, repository, postgres persistence)
+- [x] `GET /reports` — real implementation (supports `?page_id=` filter)
+- [x] `GET /reports/{id}` — real implementation
 
 ### Usage
-- [ ] `GET /usage/metrics` — returns empty object
+- [x] `GET /usage/metrics` — real implementation (checks, pages, workspaces, alerts stats)
 
 ## 4. Missing Features
 
 ### Team Invite Flow
-Currently the invite handler (`modules/team/application/invite_member/handler.go`) returns `ErrUserNotFound` if the invited email doesn't exist. It also sends no email notification.
-
-- [ ] If the invited email doesn't exist, auto-create the user with `status: approved` (no org needed — they're being invited into an existing org)
-- [ ] Generate a temporary password or invite token for the new user
+- [x] If the invited email doesn't exist, auto-create the user with `status: approved` (no org needed — they're being invited into an existing org)
+- [x] Generate a temporary password (random, bcrypt-hashed) for the new user
 - [ ] Send invitation email to the invited user with login/setup link
 - [ ] Send email notification to existing users when invited to an organization
 - [ ] Frontend: invitation acceptance page (set password if new user)
 
 ### Auth
-- [ ] Password reset flow (DB table `password_resets` exists, no handler)
-- [ ] OAuth/SSO providers
+- [x] Password reset flow — full implementation in `modules/auth/infrastructure/http/module.go`: generates token, stores in `public.password_resets`, sends email, verifies token, updates password
+- [x] OAuth/SSO providers — GitHub and Google OAuth2 implemented in `modules/auth/infrastructure/oauth/`, wired at `/auth/oauth/{provider}` and `/auth/oauth/{provider}/callback`
 
 ### Email
-- [ ] Register email module in `cmd/server/modules.go`
-- [ ] Implement real email provider (SendGrid/SES) — currently in-memory only
-- [ ] Wire email notifications to relevant events (invites, approvals, alerts)
+- [x] Register email module in `cmd/server/modules.go`
+- [x] Implement real email provider — Resend (`modules/email/infrastructure/providers/resend_provider.go`), selected when `RESEND_API_KEY` is set; falls back to no-op
+- [ ] Wire email notifications to relevant events (approvals, alerts) — invites partially wired, approvals not
 
 ### Workspace
-- [ ] Add endpoint to update workspace member role (frontend has edit dialog, backend missing)
+- [x] `PUT /workspaces/{id}/members/{user_id}` — update workspace member role (`modules/workspace/application/update_member_role/`)
 
 ### Organization
-- [ ] Implement cascade delete on user deletion (TODO in Kafka subscriber)
+- [ ] Implement cascade delete on user deletion (TODO in messaging subscriber)
 
 ### Infrastructure
 - [ ] Rate limiting (env vars in `.env.example`, not implemented)
@@ -117,18 +118,23 @@ Currently the invite handler (`modules/team/application/invite_member/handler.go
 
 ## 5. Tests
 
-- [ ] Add unit tests for domain services
-- [ ] Add unit tests for use case handlers
-- [ ] Add unit tests for middleware (auth, tenant, organization)
-- [ ] Add repository mocks/interfaces for testing
-- [ ] Add table-driven tests
+- [x] Unit tests for auth register handler (`modules/auth/application/register/handler_test.go`)
+- [x] Unit tests for auth middleware (`modules/auth/infrastructure/middleware/auth_middleware_test.go`)
+- [x] Unit tests for workspace update_member_role handler (`modules/workspace/application/update_member_role/handler_test.go`)
+- [x] Unit tests for workspace role value object (`modules/workspace/domain/value_objects/workspace_role_test.go`)
+- [x] Unit tests for organization domain service (`modules/organization/domain/services/organization_service_test.go`)
+- [x] Unit tests for email domain service (`modules/email/domain/services/email_service_test.go`)
+- [x] Repository mocks for admin, auth, organization, workspace modules
+- [ ] Unit tests for remaining domain services (snapshot, monitoring, insight, alert)
+- [ ] Unit tests for remaining use case handlers
+- [ ] Unit tests for tenant middleware (`shared/middleware/tenant_test.go` exists but coverage incomplete)
 - [ ] Fix existing e2e tests (hardcoded ports, fake JWT)
 
 ## 6. Performance
 
 - [ ] Scheduler: batch query across tenant schemas instead of N+1 queries
-- [ ] `getPreviousSuccessfulCheck`: add DB query with `LIMIT 1` instead of loading all checks
-- [ ] `InsightBroker`: add cache eviction loop (currently grows unbounded)
+- [x] `getPreviousSuccessfulCheck`: use `GetPreviousSuccessfulByPage` with `LIMIT 1` instead of loading all checks
+- [x] `InsightBroker`: add cache eviction loop (ticker every cacheTTL, removes expired entries)
 - [ ] Worker pool: handle full queue gracefully instead of silently dropping jobs
 - [ ] `fetchTextFromURL` in snapshot: handle private MinIO URLs, add retry logic
 
@@ -139,8 +145,8 @@ Currently the invite handler (`modules/team/application/invite_member/handler.go
 
 ## 8. Security
 
-- [ ] Remove default `JWT_SECRET=secret` — require it to be set
-- [ ] Sanitize schema name in `GetSetSearchPathSQL` (string interpolation)
+- [x] Remove default `JWT_SECRET=secret` — fatal in production, warning + insecure default in development
+- [x] Sanitize schema name in `GetSetSearchPathSQL` — validate with regex, reject invalid names
 
 ## 9. Frontend Gaps
 
@@ -151,5 +157,5 @@ Currently the invite handler (`modules/team/application/invite_member/handler.go
 
 ## 10. Unused Code
 
-- [ ] `shared/kafka/client.go` — Kafka client exists but app uses in-memory EventBus
+- [x] `shared/kafka/client.go` — deleted (app uses in-memory EventBus)
 - [ ] `shared/middleware/health.go` — unused, health defined inline in `main.go`

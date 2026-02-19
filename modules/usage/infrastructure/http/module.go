@@ -309,9 +309,9 @@ func (m *Module) handleAssignOrganizationPlan(w http.ResponseWriter, r *http.Req
 	})
 }
 
-// handleGetMetrics returns usage metrics
+// handleGetMetrics returns usage metrics for the current tenant
 // @Summary Get Usage Metrics
-// @Description Get usage metrics for the current organization
+// @Description Get usage metrics for the current organization (checks, pages, workspaces)
 // @Tags usage
 // @Security BearerAuth
 // @Produce json
@@ -319,10 +319,54 @@ func (m *Module) handleAssignOrganizationPlan(w http.ResponseWriter, r *http.Req
 // @Router /usage/metrics [get]
 func (m *Module) handleGetMetrics(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+
+	if m.db == nil {
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{"metrics": map[string]interface{}{}})
+		return
+	}
+
+	tenant := middleware.GetTenantFromContext(r.Context())
+	if tenant == "" {
+		http.Error(w, "tenant not found", http.StatusBadRequest)
+		return
+	}
+
+	if _, err := m.db.ExecContext(r.Context(), middleware.GetSetSearchPathSQL(tenant)); err != nil {
+		logger.Error("Failed to set tenant search_path for metrics", zap.Error(err))
+		http.Error(w, "failed to load metrics", http.StatusInternalServerError)
+		return
+	}
+
+	var totalChecks, successChecks, failedChecks int
+	m.db.QueryRowContext(r.Context(), `SELECT COUNT(*), COUNT(*) FILTER (WHERE status = 'success'), COUNT(*) FILTER (WHERE status = 'error') FROM checks`).Scan(&totalChecks, &successChecks, &failedChecks) //nolint:errcheck
+
+	var totalPages int
+	m.db.QueryRowContext(r.Context(), `SELECT COUNT(*) FROM pages WHERE deleted_at IS NULL`).Scan(&totalPages) //nolint:errcheck
+
+	var totalWorkspaces int
+	m.db.QueryRowContext(r.Context(), `SELECT COUNT(*) FROM workspaces WHERE deleted_at IS NULL`).Scan(&totalWorkspaces) //nolint:errcheck
+
+	var totalAlerts int
+	m.db.QueryRowContext(r.Context(), `SELECT COUNT(*) FROM alerts`).Scan(&totalAlerts) //nolint:errcheck
+
+	var checksUsed, checksAllowed int
+	m.db.QueryRowContext(r.Context(), `SELECT COALESCE(checks_used, 0), COALESCE(checks_allowed, 0) FROM usage_tracking WHERE period_start <= $1::date AND period_end >= $1::date ORDER BY period_end DESC LIMIT 1`, time.Now()).Scan(&checksUsed, &checksAllowed) //nolint:errcheck
+
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"metrics": map[string]interface{}{},
-		"message": "get usage metrics",
+		"metrics": map[string]interface{}{
+			"checks": map[string]interface{}{
+				"total":   totalChecks,
+				"success": successChecks,
+				"failed":  failedChecks,
+			},
+			"pages":              totalPages,
+			"workspaces":         totalWorkspaces,
+			"alerts":             totalAlerts,
+			"checks_used":        checksUsed,
+			"checks_allowed":     checksAllowed,
+		},
 	})
 }
 

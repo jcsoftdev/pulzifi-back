@@ -159,18 +159,11 @@ func (s *SnapshotWorker) ExecuteCheck(ctx context.Context, checkID uuid.UUID, ta
 }
 
 func (s *SnapshotWorker) getPreviousSuccessfulCheck(ctx context.Context, repo *monPersistence.CheckPostgresRepository, pageID, currentCheckID uuid.UUID) *entities.Check {
-	// We need to list checks and find the first one that is success and not current ID
-	// This is inefficient but works for now without modifying repo interface too much
-	checks, err := repo.ListByPage(ctx, pageID)
+	check, err := repo.GetPreviousSuccessfulByPage(ctx, pageID, currentCheckID)
 	if err != nil {
 		return nil
 	}
-	for _, c := range checks {
-		if c.ID != currentCheckID && c.Status == "success" {
-			return c
-		}
-	}
-	return nil
+	return check
 }
 
 func (s *SnapshotWorker) createAlert(ctx context.Context, schemaName string, check *entities.Check) {
@@ -226,23 +219,70 @@ func sliceContains(s []string, target string) bool {
 }
 
 // fetchTextFromURL downloads HTML from the given URL and extracts plain text.
-func (s *SnapshotWorker) fetchTextFromURL(url string) string {
-	if url == "" {
+// It retries up to 3 times with exponential backoff (1s, 2s, 4s) and uses a
+// 30-second timeout per attempt.
+func (s *SnapshotWorker) fetchTextFromURL(rawURL string) string {
+	if rawURL == "" {
 		return ""
 	}
-	resp, err := http.Get(url) //nolint:noctx
-	if err != nil {
-		logger.Error("Failed to fetch HTML for text extraction", zap.String("url", url), zap.Error(err))
-		return ""
-	}
-	defer resp.Body.Close()
 
-	content, err := io.ReadAll(resp.Body)
-	if err != nil {
-		logger.Error("Failed to read HTML body", zap.String("url", url), zap.Error(err))
-		return ""
+	const maxRetries = 3
+	backoff := 1 * time.Second
+
+	var lastErr error
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+		if err != nil {
+			cancel()
+			logger.Error("Failed to create request for text extraction",
+				zap.String("url", rawURL), zap.Error(err))
+			return ""
+		}
+
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			cancel()
+			lastErr = err
+			logger.Warn("Fetch attempt failed, will retry",
+				zap.String("url", rawURL),
+				zap.Int("attempt", attempt),
+				zap.Int("max_retries", maxRetries),
+				zap.Duration("backoff", backoff),
+				zap.Error(err))
+			if attempt < maxRetries {
+				time.Sleep(backoff)
+				backoff *= 2
+			}
+			continue
+		}
+
+		content, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		cancel()
+		if err != nil {
+			lastErr = err
+			logger.Warn("Failed to read HTML body, will retry",
+				zap.String("url", rawURL),
+				zap.Int("attempt", attempt),
+				zap.Int("max_retries", maxRetries),
+				zap.Duration("backoff", backoff),
+				zap.Error(err))
+			if attempt < maxRetries {
+				time.Sleep(backoff)
+				backoff *= 2
+			}
+			continue
+		}
+
+		return sharedHTML.ExtractText(string(content))
 	}
-	return sharedHTML.ExtractText(string(content))
+
+	logger.Error("All fetch attempts exhausted for text extraction",
+		zap.String("url", rawURL),
+		zap.Int("attempts", maxRetries),
+		zap.Error(lastErr))
+	return ""
 }
 
 func (s *SnapshotWorker) updatePageSnapshotMetadata(ctx context.Context, schemaName string, pageID uuid.UUID, thumbnailURL string, changeDetected bool) error {

@@ -162,3 +162,8 @@ func (h *Handler) Handle(ctx context.Context, requestID uuid.UUID, reviewerID uu
 
 	return nil
 }
+
+// GetRegistrationRequest retrieves a registration request by ID.
+func (h *Handler) GetRegistrationRequest(ctx context.Context, requestID uuid.UUID) (*entities.RegistrationRequest, error) {
+	return h.regReqRepo.GetByID(ctx, requestID)
+}

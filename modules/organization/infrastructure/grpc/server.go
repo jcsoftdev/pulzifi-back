@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 	createorgapp "github.com/jcsoftdev/pulzifi-back/modules/organization/application/create_organization"
 	getorgapp "github.com/jcsoftdev/pulzifi-back/modules/organization/application/get_organization"
+	"github.com/jcsoftdev/pulzifi-back/modules/organization/domain/repositories"
 	"github.com/jcsoftdev/pulzifi-back/modules/organization/infrastructure/grpc/pb"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"go.uber.org/zap"
@@ -16,16 +17,19 @@ type OrganizationServiceServer struct {
 	pb.UnimplementedOrganizationServiceServer
 	createOrgHandler *createorgapp.CreateOrganizationHandler
 	getOrgHandler    *getorgapp.GetOrganizationHandler
+	orgRepo          repositories.OrganizationRepository
 }
 
 // NewOrganizationServiceServer creates a new gRPC server
 func NewOrganizationServiceServer(
 	createOrgHandler *createorgapp.CreateOrganizationHandler,
 	getOrgHandler *getorgapp.GetOrganizationHandler,
+	orgRepo repositories.OrganizationRepository,
 ) *OrganizationServiceServer {
 	return &OrganizationServiceServer{
 		createOrgHandler: createOrgHandler,
 		getOrgHandler:    getOrgHandler,
+		orgRepo:          orgRepo,
 	}
 }
 
@@ -108,7 +112,24 @@ func (s *OrganizationServiceServer) GetOrganizationBySubdomain(
 	req *pb.GetOrganizationBySubdomainRequest,
 ) (*pb.GetOrganizationBySubdomainReply, error) {
 
-	// TODO: Implement GetOrganizationBySubdomain handler in application layer
-	logger.Warn("GetOrganizationBySubdomain not yet implemented")
-	return nil, nil
+	org, err := s.orgRepo.GetBySubdomain(ctx, req.Subdomain)
+	if err != nil {
+		logger.Error("Failed to get organization by subdomain via gRPC", zap.Error(err))
+		return nil, err
+	}
+	if org == nil {
+		return &pb.GetOrganizationBySubdomainReply{}, nil
+	}
+
+	return &pb.GetOrganizationBySubdomainReply{
+		Organization: &pb.Organization{
+			Id:          org.ID.String(),
+			Name:        org.Name,
+			Subdomain:   org.Subdomain,
+			SchemaName:  org.SchemaName,
+			OwnerUserId: org.OwnerUserID.String(),
+			CreatedAt:   org.CreatedAt.Format("2006-01-02T15:04:05Z"),
+			UpdatedAt:   org.UpdatedAt.Format("2006-01-02T15:04:05Z"),
+		},
+	}, nil
 }

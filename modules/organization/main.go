@@ -62,7 +62,7 @@ func main() {
 
 	// Initialize messaging adapters
 	messagePublisher := messaging.NewPublisher(messageBus)
-	messageSubscriber := messaging.NewSubscriber(messageBus)
+	messageSubscriber := messaging.NewSubscriber(messageBus, db)
 
 	// Initialize application handlers
 	createOrgHandler := create_organization.NewCreateOrganizationHandler(orgRepo, orgService, db, messagePublisher)
@@ -99,7 +99,7 @@ func main() {
 	grpcServer := grpc.NewServer()
 
 	// Register gRPC services
-	grpcService := grpcadapter.NewOrganizationServiceServer(createOrgHandler, getOrgHandler)
+	grpcService := grpcadapter.NewOrganizationServiceServer(createOrgHandler, getOrgHandler, orgRepo)
 	pb.RegisterOrganizationServiceServer(grpcServer, grpcService)
 
 	logger.Info("Starting gRPC server", zap.String("port", cfg.GRPCPort))

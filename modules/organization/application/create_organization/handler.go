@@ -103,18 +103,19 @@ func (h *CreateOrganizationHandler) Handle(
 	}
 
 	// Publish organization created event
-	createdEvent := &events.OrganizationCreated{
-		ID:          org.ID,
-		Name:        org.Name,
-		Subdomain:   org.Subdomain,
-		SchemaName:  org.SchemaName,
-		OwnerUserID: org.OwnerUserID,
-		CreatedAt:   org.CreatedAt,
-	}
-
-	if err := h.publisher.PublishOrganizationCreated(ctx, createdEvent); err != nil {
-		logger.Error("Failed to publish organization created event", zap.Error(err))
-		// Don't fail the request if event publishing fails
+	if h.publisher != nil {
+		createdEvent := &events.OrganizationCreated{
+			ID:          org.ID,
+			Name:        org.Name,
+			Subdomain:   org.Subdomain,
+			SchemaName:  org.SchemaName,
+			OwnerUserID: org.OwnerUserID,
+			CreatedAt:   org.CreatedAt,
+		}
+		if err := h.publisher.PublishOrganizationCreated(ctx, createdEvent); err != nil {
+			logger.Error("Failed to publish organization created event", zap.Error(err))
+			// Don't fail the request if event publishing fails
+		}
 	}
 
 	return &Response{

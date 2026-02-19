@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 
 	admin "github.com/jcsoftdev/pulzifi-back/modules/admin/infrastructure/http"
@@ -10,10 +11,14 @@ import (
 	authpersistence "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/persistence"
 	authservices "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/services"
 	dashboard "github.com/jcsoftdev/pulzifi-back/modules/dashboard/infrastructure/http"
+	emailservices "github.com/jcsoftdev/pulzifi-back/modules/email/domain/services"
+	email "github.com/jcsoftdev/pulzifi-back/modules/email/infrastructure/http"
+	emailproviders "github.com/jcsoftdev/pulzifi-back/modules/email/infrastructure/providers"
 	insight "github.com/jcsoftdev/pulzifi-back/modules/insight/infrastructure/http"
 	integration "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/http"
 	monitoring "github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/http"
 	organization "github.com/jcsoftdev/pulzifi-back/modules/organization/infrastructure/http"
+	orgmessaging "github.com/jcsoftdev/pulzifi-back/modules/organization/infrastructure/messaging"
 	orgpersistence "github.com/jcsoftdev/pulzifi-back/modules/organization/infrastructure/persistence"
 	orgservices "github.com/jcsoftdev/pulzifi-back/modules/organization/domain/services"
 	page "github.com/jcsoftdev/pulzifi-back/modules/page/infrastructure/http"
@@ -29,6 +34,16 @@ import (
 	"github.com/jcsoftdev/pulzifi-back/shared/router"
 	"go.uber.org/zap"
 )
+
+// createEmailProvider creates the appropriate email provider based on config.
+func createEmailProvider(cfg *config.Config) emailservices.EmailProvider {
+	if cfg.ResendAPIKey != "" {
+		logger.Info("Using Resend email provider")
+		return emailproviders.NewResendProvider(cfg.ResendAPIKey, cfg.EmailFromAddress, cfg.EmailFromName)
+	}
+	logger.Warn("RESEND_API_KEY not set — using no-op email provider (emails will be logged only)")
+	return emailproviders.NewNoopProvider()
+}
 
 func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus *eventbus.EventBus, enableWorkers bool) {
 	cfg := config.Load()
@@ -46,6 +61,9 @@ func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus 
 	jwtService := authservices.NewJWTService(cfg.JWTSecret, cfg.JWTExpiration, cfg.JWTRefreshExpiration, roleRepo, permRepo)
 	cookieSecure := cfg.Environment == "production"
 
+	// Create email provider (shared across modules)
+	emailProvider := createEmailProvider(cfg)
+
 	// Create auth module and set global middleware
 	authModule := auth.NewModule(auth.ModuleDeps{
 		UserRepo:         userRepo,
@@ -59,6 +77,9 @@ func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus 
 		TokenService:     jwtService,
 		CookieDomain:     cfg.CookieDomain,
 		CookieSecure:     cookieSecure,
+		FrontendURL:      cfg.FrontendURL,
+		EmailProvider:    emailProvider,
+		DB:               db,
 	})
 	authMiddleware := authModule.(*auth.Module).AuthMiddleware()
 
@@ -78,7 +99,10 @@ func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus 
 			OrgRepo:        orgRepo,
 			OrgService:     orgService,
 			AuthMiddleware: authMiddleware,
+			EmailProvider:  emailProvider,
+			FrontendURL:    cfg.FrontendURL,
 		})},
+		{"Email", email.NewModule(emailProvider)},
 		{"Organization", organization.NewModule(orgRepo)},
 		{"Workspace", workspace.NewModuleWithDB(db)},
 		{"Page", page.NewModuleWithDB(db)},
@@ -86,10 +110,10 @@ func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus 
 		{"Monitoring", monitoring.NewModuleWithDB(db, eventBus)},
 		{"Integration", integration.NewModuleWithDB(db)},
 		{"Insight", insight.NewModuleWithDB(db, pubsub.NewInsightBroker())},
-		{"Report", report.NewModule()},
+		{"Report", report.NewModuleWithDB(db)},
 		{"Usage", usage.NewModuleWithDB(db)},
 		{"Dashboard", dashboard.NewModuleWithDB(db)},
-		{"Team", team.NewModuleWithDB(db)},
+		{"Team", team.NewModuleWithDB(db, emailProvider, cfg.FrontendURL)},
 	}
 
 	logger.Info("Registering all modules", zap.Int("count", len(moduleInstances)))
@@ -106,6 +130,13 @@ func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus 
 			}
 		}
 	}
+
+	// Start organization event subscriber in background
+	orgSubscriber := orgmessaging.NewSubscriber(eventBus, db)
+	go func() {
+		orgSubscriber.ListenToEvents(context.Background())
+	}()
+	logger.Info("Started organization event subscriber")
 
 	logger.Info("All modules registered successfully", zap.Int("total", registry.Count()))
 }

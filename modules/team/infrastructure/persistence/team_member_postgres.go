@@ -106,6 +106,19 @@ func (r *teamMemberPostgresRepository) GetByUserAndOrg(ctx context.Context, orgI
 	return m, nil
 }
 
+func (r *teamMemberPostgresRepository) CreateUser(ctx context.Context, email, firstName, lastName, hashedPassword string) (uuid.UUID, error) {
+	id := uuid.New()
+	query := `
+		INSERT INTO public.users (id, email, first_name, last_name, password_hash, status, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, 'approved', NOW(), NOW())
+	`
+	_, err := r.db.ExecContext(ctx, query, id, email, firstName, lastName, hashedPassword)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	return id, nil
+}
+
 func (r *teamMemberPostgresRepository) FindUserByEmail(ctx context.Context, email string) (*entities.TeamMember, error) {
 	query := `
 		SELECT id, first_name, last_name, email, avatar_url

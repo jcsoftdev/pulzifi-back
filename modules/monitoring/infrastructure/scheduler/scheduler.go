@@ -14,6 +14,90 @@ import (
 	"go.uber.org/zap"
 )
 
+// frequencyIntervals maps compact frequency keys to their durations.
+var frequencyIntervals = map[string]time.Duration{
+	"30m": 30 * time.Minute,
+	"1h":  1 * time.Hour,
+	"2h":  2 * time.Hour,
+	"4h":  4 * time.Hour,
+	"8h":  8 * time.Hour,
+	"12h": 12 * time.Hour,
+	"24h": 24 * time.Hour,
+	"48h": 48 * time.Hour,
+}
+
+// frequencyAliases maps old verbose format strings to canonical short keys.
+var frequencyAliases = map[string]string{
+	"Every 30 minutes": "30m",
+	"Every 1 hour":     "1h",
+	"1 hr":             "1h",
+	"Every 2 hours":    "2h",
+	"2 hr":             "2h",
+	"Every 4 hours":    "4h",
+	"4 hr":             "4h",
+	"Every 8 hours":    "8h",
+	"8 hr":             "8h",
+	"Every 12 hours":   "12h",
+	"12 hr":            "12h",
+	"Every day":        "24h",
+	"1d":               "24h",
+	"Every 48 hours":   "48h",
+	"2d":               "48h",
+}
+
+// ResolveFrequency returns the duration for a given frequency string,
+// handling both canonical short keys and verbose aliases.
+func ResolveFrequency(freq string) (time.Duration, bool) {
+	if d, ok := frequencyIntervals[freq]; ok {
+		return d, true
+	}
+	if canonical, ok := frequencyAliases[freq]; ok {
+		return frequencyIntervals[canonical], true
+	}
+	return 0, false
+}
+
+// buildFrequencySQLCases generates the CASE WHEN SQL fragment dynamically
+// from the frequencyIntervals and frequencyAliases maps.
+func buildFrequencySQLCases() string {
+	// Collect all keys that resolve to each duration
+	type entry struct {
+		keys     []string
+		interval string
+	}
+	// Map from canonical key to postgres interval string
+	intervalSQL := map[string]string{
+		"30m": "30 minutes",
+		"1h":  "1 hour",
+		"2h":  "2 hours",
+		"4h":  "4 hours",
+		"8h":  "8 hours",
+		"12h": "12 hours",
+		"24h": "1 day",
+		"48h": "48 hours",
+	}
+
+	// Build all keys per canonical key
+	allKeys := make(map[string][]string)
+	for canonical := range frequencyIntervals {
+		allKeys[canonical] = append(allKeys[canonical], canonical)
+	}
+	for alias, canonical := range frequencyAliases {
+		allKeys[canonical] = append(allKeys[canonical], alias)
+	}
+
+	var cases string
+	for canonical, keys := range allKeys {
+		pgInterval := intervalSQL[canonical]
+		for _, k := range keys {
+			cases += fmt.Sprintf(
+				"\n\t\t\t\t\tWHEN mc.check_frequency = '%s' THEN COALESCE(p.last_checked_at, '2000-01-01'::timestamp) + INTERVAL '%s'",
+				k, pgInterval)
+		}
+	}
+	return cases
+}
+
 type Scheduler struct {
 	db           *sql.DB
 	orchestrator *orchestrator.Orchestrator
@@ -109,33 +193,17 @@ func (s *Scheduler) getNextRunTime(ctx context.Context) time.Time {
 
 		// Calculate min next_run based on check_frequency and last_checked_at
 		// Using a default past date (2000-01-01) for null last_checked_at to ensure it runs immediately
+		cases := buildFrequencySQLCases()
 		q := fmt.Sprintf(`
 			SELECT MIN(
-				CASE 
-					WHEN mc.check_frequency = '30m' THEN COALESCE(p.last_checked_at, '2000-01-01'::timestamp) + INTERVAL '30 minutes'
-					WHEN mc.check_frequency = '1h' THEN COALESCE(p.last_checked_at, '2000-01-01'::timestamp) + INTERVAL '1 hour'
-					WHEN mc.check_frequency = '1 hr' THEN COALESCE(p.last_checked_at, '2000-01-01'::timestamp) + INTERVAL '1 hour'
-					WHEN mc.check_frequency = '2h' THEN COALESCE(p.last_checked_at, '2000-01-01'::timestamp) + INTERVAL '2 hours'
-					WHEN mc.check_frequency = '2 hr' THEN COALESCE(p.last_checked_at, '2000-01-01'::timestamp) + INTERVAL '2 hours'
-					WHEN mc.check_frequency = '8h' THEN COALESCE(p.last_checked_at, '2000-01-01'::timestamp) + INTERVAL '8 hours'
-					WHEN mc.check_frequency = '8 hr' THEN COALESCE(p.last_checked_at, '2000-01-01'::timestamp) + INTERVAL '8 hours'
-					WHEN mc.check_frequency = '24h' THEN COALESCE(p.last_checked_at, '2000-01-01'::timestamp) + INTERVAL '1 day'
-					WHEN mc.check_frequency = '1d' THEN COALESCE(p.last_checked_at, '2000-01-01'::timestamp) + INTERVAL '1 day'
-					WHEN mc.check_frequency = '48h' THEN COALESCE(p.last_checked_at, '2000-01-01'::timestamp) + INTERVAL '48 hours'
-					WHEN mc.check_frequency = '2d' THEN COALESCE(p.last_checked_at, '2000-01-01'::timestamp) + INTERVAL '48 hours'
-					WHEN mc.check_frequency = 'Every 30 minutes' THEN COALESCE(p.last_checked_at, '2000-01-01'::timestamp) + INTERVAL '30 minutes'
-					WHEN mc.check_frequency = 'Every 1 hour' THEN COALESCE(p.last_checked_at, '2000-01-01'::timestamp) + INTERVAL '1 hour'
-					WHEN mc.check_frequency = 'Every 2 hours' THEN COALESCE(p.last_checked_at, '2000-01-01'::timestamp) + INTERVAL '2 hours'
-					WHEN mc.check_frequency = 'Every 8 hours' THEN COALESCE(p.last_checked_at, '2000-01-01'::timestamp) + INTERVAL '8 hours'
-					WHEN mc.check_frequency = 'Every day' THEN COALESCE(p.last_checked_at, '2000-01-01'::timestamp) + INTERVAL '1 day'
-					WHEN mc.check_frequency = 'Every 48 hours' THEN COALESCE(p.last_checked_at, '2000-01-01'::timestamp) + INTERVAL '48 hours'
+				CASE %s
 					ELSE '2100-01-01'::timestamp
 				END
 			)
 			FROM %s.monitoring_configs mc
 			JOIN %s.pages p ON mc.page_id = p.id
 			WHERE mc.deleted_at IS NULL AND p.deleted_at IS NULL AND mc.check_frequency != 'Off'
-		`, schema, schema)
+		`, cases, schema, schema)
 
 		var nextRun sql.NullTime
 		if err := s.db.QueryRowContext(ctx, q).Scan(&nextRun); err == nil && nextRun.Valid {

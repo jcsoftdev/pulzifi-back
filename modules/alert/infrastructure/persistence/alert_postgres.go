@@ -82,3 +82,11 @@ func (r *AlertPostgresRepository) MarkAsRead(ctx context.Context, id uuid.UUID) 
 	_, err := r.db.ExecContext(ctx, q, time.Now(), id)
 	return err
 }
+
+func (r *AlertPostgresRepository) Delete(ctx context.Context, id uuid.UUID) error {
+	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
+		return err
+	}
+	_, err := r.db.ExecContext(ctx, `DELETE FROM alerts WHERE id = $1`, id)
+	return err
+}

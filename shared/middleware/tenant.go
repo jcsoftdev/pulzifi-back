@@ -5,11 +5,15 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strings"
 
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"go.uber.org/zap"
 )
+
+// validSchemaName matches only safe identifier characters (alphanumeric + underscore).
+var validSchemaName = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
 
 // TenantContextKey is the key used to store tenant schema in context
 type contextKey string
@@ -185,9 +189,15 @@ func GetSubdomainFromContext(ctx context.Context) string {
 	return subdomain
 }
 
-// GetSetSearchPathSQL returns the proper SQL command to set the search_path
-// It quotes the schema name and includes "public" for accessing public schema tables
+// GetSetSearchPathSQL returns the proper SQL command to set the search_path.
+// The tenant (schema) name is validated to contain only safe identifier characters.
+// Returns a safe SET command or a no-op if the name is invalid.
 func GetSetSearchPathSQL(tenant string) string {
+	if !validSchemaName.MatchString(tenant) {
+		logger.Warn("Invalid schema name rejected", zap.String("tenant", tenant))
+		// Return a safe no-op that changes nothing
+		return "SELECT 1"
+	}
 	return `SET search_path TO "` + tenant + `", public`
 }
 

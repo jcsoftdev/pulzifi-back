@@ -12,6 +12,7 @@ type TeamMemberRepository interface {
 	GetByID(ctx context.Context, memberID uuid.UUID) (*entities.TeamMember, error)
 	GetByUserAndOrg(ctx context.Context, orgID, userID uuid.UUID) (*entities.TeamMember, error)
 	FindUserByEmail(ctx context.Context, email string) (*entities.TeamMember, error)
+	CreateUser(ctx context.Context, email, firstName, lastName, hashedPassword string) (uuid.UUID, error)
 	AddMember(ctx context.Context, orgID, userID uuid.UUID, role string, invitedBy *uuid.UUID) (*entities.TeamMember, error)
 	UpdateRole(ctx context.Context, memberID uuid.UUID, role string) error
 	Remove(ctx context.Context, memberID uuid.UUID) error

@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"strconv"
 	"time"
@@ -22,9 +23,6 @@ type Config struct {
 	RedisHost     string
 	RedisPort     string
 	RedisPassword string
-
-	// Kafka
-	KafkaBrokers string
 
 	// Server
 	HTTPPort             string
@@ -69,11 +67,33 @@ type Config struct {
 	// AI / OpenRouter
 	OpenRouterAPIKey string
 	OpenRouterModel  string
+
+	// Email (Resend)
+	ResendAPIKey     string
+	EmailFromAddress string
+	EmailFromName    string
+
+	// OAuth
+	GoogleClientID       string
+	GoogleClientSecret   string
+	GitHubClientID       string
+	GitHubClientSecret   string
+	OAuthRedirectBaseURL string
 }
 
 func Load() *Config {
 	// Load .env file if it exists
 	_ = godotenv.Load()
+
+	env := getEnv("ENVIRONMENT", "development")
+	jwtSecret := getEnv("JWT_SECRET", "")
+	if jwtSecret == "" {
+		if env == "production" {
+			log.Fatal("FATAL: JWT_SECRET must be set in production — refusing to start with insecure default")
+		}
+		log.Println("WARNING: JWT_SECRET is not set — using insecure default 'secret'. Set JWT_SECRET before deploying to production.")
+		jwtSecret = "secret"
+	}
 
 	return &Config{
 		DBHost:                getEnv("DB_HOST", "localhost"),
@@ -85,12 +105,11 @@ func Load() *Config {
 		RedisHost:             getEnv("REDIS_HOST", "localhost"),
 		RedisPort:             getEnv("REDIS_PORT", "6379"),
 		RedisPassword:         getEnv("REDIS_PASSWORD", ""),
-		KafkaBrokers:          getEnv("KAFKA_BROKERS", "localhost:9092"),
 		HTTPPort:              getEnv("HTTP_PORT", "9090"),
 		GRPCPort:              getEnv("GRPC_PORT", "9000"),
-		Environment:           getEnv("ENVIRONMENT", "development"),
+		Environment:           env,
 		LogLevel:              getEnv("LOG_LEVEL", "info"),
-		JWTSecret:             getEnv("JWT_SECRET", "secret"),
+		JWTSecret:             jwtSecret,
 		JWTExpiration:         getEnvDurationSeconds("JWT_EXPIRATION", 900),            // Default 15 minutes
 		JWTRefreshExpiration:  getEnvDurationSeconds("JWT_REFRESH_EXPIRATION", 604800), // Default 7 days
 		CookieDomain:          getEnv("COOKIE_DOMAIN", ""),
@@ -114,6 +133,14 @@ func Load() *Config {
 		ExtractorURL:          getEnv("EXTRACTOR_URL", "http://localhost:3000"),
 		OpenRouterAPIKey:      getEnv("OPENROUTER_API_KEY", ""),
 		OpenRouterModel:       getEnv("OPENROUTER_MODEL", "mistralai/mistral-7b-instruct:free"),
+		ResendAPIKey:          getEnv("RESEND_API_KEY", ""),
+		EmailFromAddress:      getEnv("EMAIL_FROM_ADDRESS", "noreply@pulzifi.com"),
+		EmailFromName:         getEnv("EMAIL_FROM_NAME", "Pulzifi"),
+		GoogleClientID:        getEnv("GOOGLE_CLIENT_ID", ""),
+		GoogleClientSecret:    getEnv("GOOGLE_CLIENT_SECRET", ""),
+		GitHubClientID:        getEnv("GITHUB_CLIENT_ID", ""),
+		GitHubClientSecret:    getEnv("GITHUB_CLIENT_SECRET", ""),
+		OAuthRedirectBaseURL:  getEnv("OAUTH_REDIRECT_BASE_URL", "http://localhost:9090"),
 	}
 }
 

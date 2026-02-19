@@ -8,6 +8,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	authmw "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/middleware"
+	emailservices "github.com/jcsoftdev/pulzifi-back/modules/email/domain/services"
+	"github.com/jcsoftdev/pulzifi-back/modules/email/infrastructure/templates"
 	invitemember "github.com/jcsoftdev/pulzifi-back/modules/team/application/invite_member"
 	listmembers "github.com/jcsoftdev/pulzifi-back/modules/team/application/list_members"
 	removemember "github.com/jcsoftdev/pulzifi-back/modules/team/application/remove_member"
@@ -25,11 +27,13 @@ const (
 )
 
 type Module struct {
-	db *sql.DB
+	db            *sql.DB
+	emailProvider emailservices.EmailProvider
+	frontendURL   string
 }
 
-func NewModuleWithDB(db *sql.DB) router.ModuleRegisterer {
-	return &Module{db: db}
+func NewModuleWithDB(db *sql.DB, emailProvider emailservices.EmailProvider, frontendURL string) router.ModuleRegisterer {
+	return &Module{db: db, emailProvider: emailProvider, frontendURL: frontendURL}
 }
 
 func (m *Module) ModuleName() string {
@@ -102,6 +106,18 @@ func (m *Module) handleInviteMember(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+
+	// Send invitation email (fire-and-forget)
+	go func() {
+		inviterEmail, _ := r.Context().Value(authmw.UserEmailKey).(string)
+		if inviterEmail == "" {
+			inviterEmail = "A team member"
+		}
+		subject, html := templates.TeamInvite(inviterEmail, subdomain, m.frontendURL)
+		if sendErr := m.emailProvider.Send(r.Context(), req.Email, subject, html); sendErr != nil {
+			logger.Error("Failed to send invite email", zap.Error(sendErr))
+		}
+	}()
 
 	writeJSON(w, http.StatusCreated, resp)
 }

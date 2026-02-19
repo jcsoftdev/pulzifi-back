@@ -69,6 +69,58 @@ func (r *IntegrationPostgresRepository) List(ctx context.Context) ([]*entities.I
 	return integrations, rows.Err()
 }
 
+func (r *IntegrationPostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (*entities.Integration, error) {
+	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
+		return nil, err
+	}
+
+	var i entities.Integration
+	var configJSON []byte
+	q := `SELECT id, service_type, config, enabled, created_by, created_at, updated_at
+	      FROM integrations WHERE id = $1 AND deleted_at IS NULL LIMIT 1`
+	err := r.db.QueryRowContext(ctx, q, id).Scan(
+		&i.ID, &i.ServiceType, &configJSON, &i.Enabled, &i.CreatedBy, &i.CreatedAt, &i.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if err := json.Unmarshal(configJSON, &i.Config); err != nil {
+		i.Config = map[string]interface{}{}
+	}
+	return &i, nil
+}
+
+func (r *IntegrationPostgresRepository) ListByServiceType(ctx context.Context, serviceType string) ([]*entities.Integration, error) {
+	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
+		return nil, err
+	}
+
+	q := `SELECT id, service_type, config, enabled, created_by, created_at, updated_at
+	      FROM integrations WHERE service_type = $1 AND deleted_at IS NULL ORDER BY created_at ASC`
+	rows, err := r.db.QueryContext(ctx, q, serviceType)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var integrations []*entities.Integration
+	for rows.Next() {
+		var i entities.Integration
+		var configJSON []byte
+		if err := rows.Scan(&i.ID, &i.ServiceType, &configJSON, &i.Enabled, &i.CreatedBy, &i.CreatedAt, &i.UpdatedAt); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(configJSON, &i.Config); err != nil {
+			i.Config = map[string]interface{}{}
+		}
+		integrations = append(integrations, &i)
+	}
+	return integrations, rows.Err()
+}
+
 func (r *IntegrationPostgresRepository) GetByServiceType(ctx context.Context, serviceType string) (*entities.Integration, error) {
 	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
 		return nil, err

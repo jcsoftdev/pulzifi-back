@@ -21,24 +21,27 @@ type SendEmailRequest struct {
 // SendEmailResponse represents the response of sending an email
 type SendEmailResponse struct {
 	EmailID string `json:"email_id" example:"550e8400-e29b-41d4-a716-446655440000"`
-	Status  string `json:"status" example:"pending"`
-	Message string `json:"message" example:"Email queued for sending"`
+	Status  string `json:"status" example:"sent"`
+	Message string `json:"message" example:"Email sent successfully"`
 }
 
 // SendEmailHandler handles the send email use case
 type SendEmailHandler struct {
 	emailRepo    repositories.EmailRepository
 	emailService *services.EmailService
+	provider     services.EmailProvider
 }
 
 // NewSendEmailHandler creates a new send email handler
 func NewSendEmailHandler(
 	emailRepo repositories.EmailRepository,
 	emailService *services.EmailService,
+	provider services.EmailProvider,
 ) *SendEmailHandler {
 	return &SendEmailHandler{
 		emailRepo:    emailRepo,
 		emailService: emailService,
+		provider:     provider,
 	}
 }
 
@@ -67,11 +70,22 @@ func (h *SendEmailHandler) Handle(ctx context.Context, req *SendEmailRequest) (*
 		return nil, &domainerrors.SendingFailedError{Reason: "failed to save email"}
 	}
 
-	logger.Info("Email queued successfully", zap.String("email_id", email.ID.String()))
+	// Send via provider
+	if err := h.provider.Send(ctx, req.To, req.Subject, req.Body); err != nil {
+		email.MarkAsFailed()
+		_ = h.emailRepo.Update(ctx, email)
+		logger.Error("Failed to send email", zap.Error(err))
+		return nil, &domainerrors.SendingFailedError{Reason: "failed to send email"}
+	}
+
+	email.MarkAsSent()
+	_ = h.emailRepo.Update(ctx, email)
+
+	logger.Info("Email sent successfully", zap.String("email_id", email.ID.String()))
 
 	return &SendEmailResponse{
 		EmailID: email.ID.String(),
 		Status:  string(email.Status),
-		Message: "Email queued for sending",
+		Message: "Email sent successfully",
 	}, nil
 }

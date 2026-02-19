@@ -154,34 +154,75 @@ func (m *Module) handleListAlerts(w http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Param id path string true "Alert ID"
 // @Success 200 {object} map[string]interface{}
+// @Failure 404 {object} map[string]string
 // @Router /alerts/{id} [get]
 func (m *Module) handleGetAlert(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "invalid alert id"})
+		return
+	}
+
+	tenant := middleware.GetTenantFromContext(r.Context())
+	repo := persistence.NewAlertPostgresRepository(m.db, tenant)
+
+	alert, err := repo.GetByID(r.Context(), id)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "failed to get alert"})
+		return
+	}
+	if alert == nil {
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]string{"error": "alert not found"})
+		return
+	}
+
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{
-		"id":      chi.URLParam(r, "id"),
-		"message": "get alert",
-	})
+	json.NewEncoder(w).Encode(alert)
 }
 
-// handleUpdateAlert updates an alert
-// @Summary Update Alert
-// @Description Update an alert
+// handleUpdateAlert marks an alert as read
+// @Summary Mark Alert as Read
+// @Description Mark an alert as read
 // @Tags alerts
 // @Security BearerAuth
-// @Accept json
 // @Produce json
 // @Param id path string true "Alert ID"
-// @Param request body map[string]string true "Update Alert Request"
 // @Success 200 {object} map[string]interface{}
+// @Failure 404 {object} map[string]string
 // @Router /alerts/{id} [put]
 func (m *Module) handleUpdateAlert(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "invalid alert id"})
+		return
+	}
+
+	tenant := middleware.GetTenantFromContext(r.Context())
+	repo := persistence.NewAlertPostgresRepository(m.db, tenant)
+
+	if err := repo.MarkAsRead(r.Context(), id); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "failed to update alert"})
+		return
+	}
+
+	alert, err := repo.GetByID(r.Context(), id)
+	if err != nil || alert == nil {
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]string{"error": "alert not found"})
+		return
+	}
+
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{
-		"id":      chi.URLParam(r, "id"),
-		"message": "update alert",
-	})
+	json.NewEncoder(w).Encode(alert)
 }
 
 // handleDeleteAlert deletes an alert
@@ -190,8 +231,26 @@ func (m *Module) handleUpdateAlert(w http.ResponseWriter, r *http.Request) {
 // @Tags alerts
 // @Security BearerAuth
 // @Success 204
+// @Failure 400 {object} map[string]string
 // @Router /alerts/{id} [delete]
 func (m *Module) handleDeleteAlert(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "invalid alert id"})
+		return
+	}
+
+	tenant := middleware.GetTenantFromContext(r.Context())
+	repo := persistence.NewAlertPostgresRepository(m.db, tenant)
+
+	if err := repo.Delete(r.Context(), id); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "failed to delete alert"})
+		return
+	}
+
 	w.WriteHeader(http.StatusNoContent)
 }

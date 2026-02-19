@@ -16,6 +16,7 @@ import (
 	list_workspace_members "github.com/jcsoftdev/pulzifi-back/modules/workspace/application/list_workspace_members"
 	listworkspaces "github.com/jcsoftdev/pulzifi-back/modules/workspace/application/list_workspaces"
 	remove_workspace_member "github.com/jcsoftdev/pulzifi-back/modules/workspace/application/remove_workspace_member"
+	update_member_role "github.com/jcsoftdev/pulzifi-back/modules/workspace/application/update_member_role"
 	updateworkspace "github.com/jcsoftdev/pulzifi-back/modules/workspace/application/update_workspace"
 	"github.com/jcsoftdev/pulzifi-back/modules/workspace/domain/value_objects"
 	workspacemw "github.com/jcsoftdev/pulzifi-back/modules/workspace/infrastructure/middleware"
@@ -132,6 +133,7 @@ func (m *Module) RegisterHTTPRoutes(router chi.Router) {
 			r.Use(workspaceAuth.RequireWorkspaceRole(value_objects.RoleOwner))
 
 			r.Post("/{id}/members", m.handleAddWorkspaceMember)
+			r.Put("/{id}/members/{user_id}", m.handleUpdateMemberRole)
 			r.Delete("/{id}/members/{user_id}", m.handleRemoveWorkspaceMember)
 		})
 	})
@@ -631,4 +633,89 @@ func (m *Module) handleRemoveWorkspaceMember(w http.ResponseWriter, r *http.Requ
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleUpdateMemberRole updates a member's role in a workspace
+// @Summary Update Workspace Member Role
+// @Description Update a member's role in a workspace
+// @Tags workspaces
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param id path string true "Workspace ID"
+// @Param user_id path string true "User ID to update"
+// @Param request body update_member_role.UpdateMemberRoleRequest true "Update Member Role Request"
+// @Success 200
+// @Failure 400 {object} map[string]string
+// @Failure 403 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Router /workspaces/{id}/members/{user_id} [put]
+func (m *Module) handleUpdateMemberRole(w http.ResponseWriter, r *http.Request) {
+	if m.db == nil {
+		http.Error(w, errDatabaseNotInitialized, http.StatusInternalServerError)
+		return
+	}
+
+	// Get workspace ID from URL
+	workspaceIDStr := chi.URLParam(r, "id")
+	workspaceID, err := uuid.Parse(workspaceIDStr)
+	if err != nil {
+		http.Error(w, errInvalidWorkspaceID, http.StatusBadRequest)
+		return
+	}
+
+	// Get target user ID from URL
+	targetUserIDStr := chi.URLParam(r, "user_id")
+	targetUserID, err := uuid.Parse(targetUserIDStr)
+	if err != nil {
+		http.Error(w, errInvalidUserID, http.StatusBadRequest)
+		return
+	}
+
+	// Get requester ID from context
+	requesterIDStr, ok := r.Context().Value(authmw.UserIDKey).(string)
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	requesterID, err := uuid.Parse(requesterIDStr)
+	if err != nil {
+		http.Error(w, errInvalidUserID, http.StatusBadRequest)
+		return
+	}
+
+	// Parse request
+	var req update_member_role.UpdateMemberRoleRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Get tenant and create repository
+	tenant := middleware.GetTenantFromContext(r.Context())
+	repo := persistence.NewWorkspacePostgresRepository(m.db, tenant)
+
+	// Execute handler
+	handler := update_member_role.NewUpdateMemberRoleHandler(repo)
+	err = handler.Handle(r.Context(), workspaceID, requesterID, targetUserID, &req)
+	if err != nil {
+		switch err {
+		case update_member_role.ErrWorkspaceNotFound:
+			http.Error(w, errWorkspaceNotFound, http.StatusNotFound)
+		case update_member_role.ErrNotWorkspaceMember:
+			http.Error(w, errNotWorkspaceMember, http.StatusForbidden)
+		case update_member_role.ErrInsufficientPermissions:
+			http.Error(w, "insufficient permissions", http.StatusForbidden)
+		case update_member_role.ErrInvalidRole:
+			http.Error(w, "invalid role", http.StatusBadRequest)
+		case update_member_role.ErrCannotChangeOwnRole:
+			http.Error(w, "cannot change your own role", http.StatusBadRequest)
+		default:
+			logger.Error("Failed to update workspace member role", zap.Error(err))
+			http.Error(w, errInternalServerError, http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }

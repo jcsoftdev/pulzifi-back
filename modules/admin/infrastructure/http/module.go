@@ -16,6 +16,8 @@ import (
 	"github.com/jcsoftdev/pulzifi-back/modules/admin/domain/repositories"
 	authrepos "github.com/jcsoftdev/pulzifi-back/modules/auth/domain/repositories"
 	authmw "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/middleware"
+	emailservices "github.com/jcsoftdev/pulzifi-back/modules/email/domain/services"
+	"github.com/jcsoftdev/pulzifi-back/modules/email/infrastructure/templates"
 	orgrepos "github.com/jcsoftdev/pulzifi-back/modules/organization/domain/repositories"
 	orgservices "github.com/jcsoftdev/pulzifi-back/modules/organization/domain/services"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
@@ -28,6 +30,9 @@ type Module struct {
 	approveHandler     *approveuser.Handler
 	rejectHandler      *rejectuser.Handler
 	authMiddleware     *authmw.AuthMiddleware
+	emailProvider      emailservices.EmailProvider
+	userRepo           authrepos.UserRepository
+	frontendURL        string
 }
 
 type ModuleDeps struct {
@@ -37,6 +42,8 @@ type ModuleDeps struct {
 	OrgRepo        orgrepos.OrganizationRepository
 	OrgService     *orgservices.OrganizationService
 	AuthMiddleware *authmw.AuthMiddleware
+	EmailProvider  emailservices.EmailProvider
+	FrontendURL    string
 }
 
 func NewModule(deps ModuleDeps) router.ModuleRegisterer {
@@ -45,6 +52,9 @@ func NewModule(deps ModuleDeps) router.ModuleRegisterer {
 		approveHandler:     approveuser.NewHandler(deps.DB, deps.RegReqRepo, deps.UserRepo, deps.OrgRepo, deps.OrgService),
 		rejectHandler:      rejectuser.NewHandler(deps.DB, deps.RegReqRepo, deps.UserRepo),
 		authMiddleware:     deps.AuthMiddleware,
+		emailProvider:      deps.EmailProvider,
+		userRepo:           deps.UserRepo,
+		frontendURL:        deps.FrontendURL,
 	}
 }
 
@@ -105,6 +115,25 @@ func (m *Module) handleApproveUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Send approval notification email (fire-and-forget)
+	go func() {
+		regReq, err := m.approveHandler.GetRegistrationRequest(r.Context(), requestID)
+		if err != nil {
+			logger.Error("Failed to get reg request for email", zap.Error(err))
+			return
+		}
+		user, err := m.userRepo.GetByID(r.Context(), regReq.UserID)
+		if err != nil || user == nil {
+			logger.Error("Failed to get user for approval email", zap.Error(err))
+			return
+		}
+		loginURL := m.frontendURL
+		subject, html := templates.ApprovalNotification(user.FirstName, regReq.OrganizationSubdomain, loginURL)
+		if err := m.emailProvider.Send(r.Context(), user.Email, subject, html); err != nil {
+			logger.Error("Failed to send approval email", zap.Error(err))
+		}
+	}()
+
 	writeJSON(w, http.StatusOK, map[string]string{"message": "user approved successfully"})
 }
 
@@ -132,6 +161,24 @@ func (m *Module) handleRejectUser(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to reject user"})
 		return
 	}
+
+	// Send rejection notification email (fire-and-forget)
+	go func() {
+		regReq, err := m.rejectHandler.GetRegistrationRequest(r.Context(), requestID)
+		if err != nil {
+			logger.Error("Failed to get reg request for rejection email", zap.Error(err))
+			return
+		}
+		user, err := m.userRepo.GetByID(r.Context(), regReq.UserID)
+		if err != nil || user == nil {
+			logger.Error("Failed to get user for rejection email", zap.Error(err))
+			return
+		}
+		subject, html := templates.RejectionNotification(user.FirstName)
+		if err := m.emailProvider.Send(r.Context(), user.Email, subject, html); err != nil {
+			logger.Error("Failed to send rejection email", zap.Error(err))
+		}
+	}()
 
 	writeJSON(w, http.StatusOK, map[string]string{"message": "user rejected successfully"})
 }

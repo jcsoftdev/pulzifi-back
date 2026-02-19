@@ -2,7 +2,9 @@ package workers
 
 import (
 	"context"
+	"fmt"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
@@ -74,15 +76,17 @@ func (p *WorkerPool) Dispatch(ctx context.Context, checkID uuid.UUID, url string
 		URL:        url,
 		SchemaName: schemaName,
 	}
-	
+
 	select {
 	case p.jobQueue <- job:
 		return nil
-	default:
-		logger.Warn("Job queue full, dropping job", zap.String("check_id", checkID.String()))
-		return nil // Or return error if we want to fail the check creation?
-		// Since check is already created as "pending", dropping it leaves it in pending state forever.
-		// Maybe we should update it to failed?
-		// For now, let's just log.
+	case <-time.After(5 * time.Second):
+		logger.Error("Job queue full, dropping job after 5s timeout",
+			zap.String("check_id", checkID.String()),
+			zap.String("url", url),
+			zap.String("schema", schemaName))
+		return fmt.Errorf("worker pool backpressure: job queue full, dropped job for check %s", checkID)
+	case <-ctx.Done():
+		return ctx.Err()
 	}
 }

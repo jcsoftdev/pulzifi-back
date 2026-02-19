@@ -278,12 +278,34 @@ func (m *Module) handleListInsights(w http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Param id path string true "Insight ID"
 // @Success 200 {object} map[string]interface{}
+// @Failure 404 {object} map[string]string
 // @Router /insights/{id} [get]
 func (m *Module) handleGetInsight(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "invalid insight id"})
+		return
+	}
+
+	tenant := middleware.GetTenantFromContext(r.Context())
+	repo := persistence.NewInsightPostgresRepository(m.db, tenant)
+
+	insight, err := repo.GetByID(r.Context(), id)
+	if err != nil {
+		logger.Error("Failed to get insight", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "failed to get insight"})
+		return
+	}
+	if insight == nil {
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]string{"error": "insight not found"})
+		return
+	}
+
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{
-		"id":      chi.URLParam(r, "id"),
-		"message": "get insight",
-	})
+	json.NewEncoder(w).Encode(insight)
 }
