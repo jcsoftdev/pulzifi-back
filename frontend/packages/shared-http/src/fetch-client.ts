@@ -1,4 +1,5 @@
-import type { IHttpClient, RequestConfig } from './types'
+import { env } from './env'
+import type { HttpResponse, IHttpClient, RequestConfig } from './types'
 import { HttpError, UnauthorizedError } from './types'
 
 export { HttpError, UnauthorizedError } from './types'
@@ -11,7 +12,7 @@ export class FetchHttpClient implements IHttpClient {
 
   private debugError(message: string, error: unknown): void {
     // Only log actual errors, not debug info
-    if (process.env.NODE_ENV === 'development') {
+    if (env.NODE_ENV === 'development') {
       console.error(`[FetchHttpClient] ${message}`, error)
     }
   }
@@ -95,10 +96,12 @@ export class FetchHttpClient implements IHttpClient {
     return data as T
   }
 
-  private async request<T>(url: string, config: RequestInit & RequestConfig = {}): Promise<T> {
-    const { params, headers, ...fetchConfig } = config
+  private async request<T>(
+    url: string,
+    config: RequestInit & RequestConfig = {}
+  ): Promise<T | HttpResponse<T>> {
+    const { params, headers, withHeaders, ...fetchConfig } = config
     const fullUrl = this.buildUrl(url, params)
-
     const finalHeaders = this.buildHeaders(headers)
 
     const response = await fetch(fullUrl, {
@@ -115,44 +118,42 @@ export class FetchHttpClient implements IHttpClient {
       return this.parseHttpError(response, url)
     }
 
-    return this.parseJsonResponse<T>(response, url)
+    const data = await this.parseJsonResponse<T>(response, fullUrl)
+
+    if (withHeaders) {
+      return { data, headers: response.headers, status: response.status }
+    }
+
+    return data
   }
 
-  async get<T>(url: string, config?: RequestConfig): Promise<T> {
-    return this.request<T>(url, {
-      ...config,
-      method: 'GET',
-    })
+  get<T>(url: string, config: RequestConfig & { withHeaders: true }): Promise<HttpResponse<T>>
+  get<T>(url: string, config?: RequestConfig): Promise<T>
+  async get<T>(url: string, config?: RequestConfig): Promise<T | HttpResponse<T>> {
+    return this.request<T>(url, { ...config, method: 'GET' })
   }
 
-  async post<T>(url: string, data?: unknown, config?: RequestConfig): Promise<T> {
-    return this.request<T>(url, {
-      ...config,
-      method: 'POST',
-      body: JSON.stringify(data),
-    })
+  post<T>(url: string, data: unknown, config: RequestConfig & { withHeaders: true }): Promise<HttpResponse<T>>
+  post<T>(url: string, data?: unknown, config?: RequestConfig): Promise<T>
+  async post<T>(url: string, data?: unknown, config?: RequestConfig): Promise<T | HttpResponse<T>> {
+    return this.request<T>(url, { ...config, method: 'POST', body: JSON.stringify(data) })
   }
 
-  async put<T>(url: string, data?: unknown, config?: RequestConfig): Promise<T> {
-    return this.request<T>(url, {
-      ...config,
-      method: 'PUT',
-      body: JSON.stringify(data),
-    })
+  put<T>(url: string, data: unknown, config: RequestConfig & { withHeaders: true }): Promise<HttpResponse<T>>
+  put<T>(url: string, data?: unknown, config?: RequestConfig): Promise<T>
+  async put<T>(url: string, data?: unknown, config?: RequestConfig): Promise<T | HttpResponse<T>> {
+    return this.request<T>(url, { ...config, method: 'PUT', body: JSON.stringify(data) })
   }
 
-  async patch<T>(url: string, data?: unknown, config?: RequestConfig): Promise<T> {
-    return this.request<T>(url, {
-      ...config,
-      method: 'PATCH',
-      body: JSON.stringify(data),
-    })
+  patch<T>(url: string, data: unknown, config: RequestConfig & { withHeaders: true }): Promise<HttpResponse<T>>
+  patch<T>(url: string, data?: unknown, config?: RequestConfig): Promise<T>
+  async patch<T>(url: string, data?: unknown, config?: RequestConfig): Promise<T | HttpResponse<T>> {
+    return this.request<T>(url, { ...config, method: 'PATCH', body: JSON.stringify(data) })
   }
 
-  async delete<T>(url: string, config?: RequestConfig): Promise<T> {
-    return this.request<T>(url, {
-      ...config,
-      method: 'DELETE',
-    })
+  delete<T>(url: string, config: RequestConfig & { withHeaders: true }): Promise<HttpResponse<T>>
+  delete<T>(url: string, config?: RequestConfig): Promise<T>
+  async delete<T>(url: string, config?: RequestConfig): Promise<T | HttpResponse<T>> {
+    return this.request<T>(url, { ...config, method: 'DELETE' })
   }
 }

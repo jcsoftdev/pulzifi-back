@@ -1,4 +1,5 @@
 export { AxiosHttpClient } from './axios-client'
+export { env } from './env'
 export {
   createBrowserHttpClient,
   createServerHttpClient,
@@ -7,5 +8,5 @@ export {
 export { FetchHttpClient } from './fetch-client'
 // Tenant utilities
 export { extractTenantFromHostname, getTenantFromWindow } from './tenant-utils'
-export type { IHttpClient, RequestConfig } from './types'
+export type { HttpResponse, IHttpClient, RequestConfig } from './types'
 export { HttpError, UnauthorizedError } from './types'

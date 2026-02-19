@@ -80,24 +80,21 @@ Frontend corre en `http://localhost:3000`
 
 **Frontend** (`.env.local`):
 ```bash
-NEXT_PUBLIC_API_URL=http://localhost          # Nginx
-NEXT_SERVER_API_URL=http://nginx              # Dentro de Docker
-NEXT_PUBLIC_COOKIE_DOMAIN=.localhost
+NEXT_PUBLIC_APP_DOMAIN=localhost
+NEXT_PUBLIC_API_URL=http://localhost:9090/api/v1
+SERVER_API_URL=http://localhost:9090
 ```
 
 **Backend** (`.env`):
 ```bash
 HTTP_PORT=9090
+COOKIE_DOMAIN=localhost
+FRONTEND_URL=http://localhost:3000
 DB_HOST=postgres
 REDIS_HOST=redis
 ```
 
 ## Logs
-
-Ver logs de Nginx:
-```bash
-docker logs -f pulzifi-nginx
-```
 
 Ver logs del monolith:
 ```bash
@@ -108,12 +105,8 @@ docker logs -f pulzifi-monolith
 
 **Error de CORS?**
 - Verifica que el frontend corra en `localhost:3000`
-- Nginx está configurado para permitir CORS desde ese origen
-
-**Nginx no inicia?**
-- Verifica que el puerto 80 esté libre: `lsof -i :80`
-- Revisa logs: `docker logs pulzifi-nginx`
+- Verifica `CORS_ALLOWED_ORIGINS` en `.env`
 
 **Backend no recibe X-Tenant?**
-- Verifica en logs de Nginx que se esté extrayendo el tenant
+- El frontend proxy extrae el tenant del subdomain y lo envía como header `X-Tenant`
 - Usa subdomain: `demo.localhost:3000` (no solo `localhost:3000`)

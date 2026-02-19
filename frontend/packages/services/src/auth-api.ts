@@ -7,16 +7,16 @@ interface UserBackendDto {
   email: string
   role: string
   avatar?: string
+  tenant?: string | null
   created_at: string
   updated_at?: string
 }
 
 interface LoginBackendResponse {
-  session_id?: string
   expires_in?: number
   tenant?: string | null
-  sessionId?: string
   expiresIn?: number
+  nonce?: string
 }
 
 // Exported: Frontend types (camelCase)
@@ -26,6 +26,7 @@ export interface User {
   email: string
   role: string
   avatar?: string
+  tenant?: string
   createdAt: string
   updatedAt?: string
 }
@@ -36,9 +37,9 @@ export interface LoginDto {
 }
 
 export interface LoginResponse {
-  sessionId?: string
   expiresIn: number
   tenant?: string
+  nonce?: string
 }
 
 // Helper: Transform backend to frontend format
@@ -49,20 +50,17 @@ function transformUser(backend: UserBackendDto): User {
     email: backend.email,
     role: backend.role,
     avatar: backend.avatar,
+    tenant: backend.tenant ?? undefined,
     createdAt: backend.created_at,
     updatedAt: backend.updated_at,
   }
 }
 
 function mapLoginResponse(response: LoginBackendResponse): LoginResponse {
-  const sessionId = response.session_id ?? response.sessionId
-  const expiresIn = response.expires_in ?? response.expiresIn ?? 3600
-  const tenant = response.tenant ?? undefined
-
   return {
-    sessionId,
-    expiresIn,
-    tenant,
+    expiresIn: response.expires_in ?? response.expiresIn ?? 3600,
+    tenant: response.tenant ?? undefined,
+    nonce: response.nonce,
   }
 }
 
@@ -75,13 +73,17 @@ export const AuthApi = {
 
   async login(credentials: LoginDto): Promise<LoginResponse> {
     const http = await getHttpClient()
-    const response = await http.post<LoginBackendResponse>('/api/v1/auth/login', credentials)
+    // Call the Next.js BFF route (/api/auth/login) — it proxies to the backend
+    // server-side and forwards Set-Cookie back as same-origin so the browser stores it.
+    // HttpOnly cookies cannot be read or set from JS directly.
+    const response = await http.post<LoginBackendResponse>('/api/auth/login', credentials)
     return mapLoginResponse(response)
   },
 
   async logout(): Promise<void> {
     const http = await getHttpClient()
-    await http.post('/api/v1/auth/logout', {})
+    // Use the Next.js BFF route so Set-Cookie (clear) is forwarded as same-origin
+    await http.post('/api/auth/logout', {})
   },
 
   async register(data: {

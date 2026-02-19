@@ -1,14 +1,47 @@
 import { extractTenantFromHostname } from '@workspace/shared-http'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
+import { env } from '@/lib/env'
+
+/**
+ * Returns the base domain login URL (without tenant subdomain).
+ * E.g. on tenant.pulzifi.local:3000 → http://pulzifi.local:3000/login
+ */
+function getBaseDomainLoginUrl(request: NextRequest, callbackPath?: string): URL {
+  const host = request.headers.get('host') || ''
+  const protocol = request.nextUrl.protocol // "http:" or "https:"
+  const appDomain = env.NEXT_PUBLIC_APP_DOMAIN
+
+  let baseDomainHost: string
+  if (appDomain) {
+    // Use configured app domain, preserving the port from the current host
+    const port = host.includes(':') ? `:${host.split(':')[1]}` : ''
+    baseDomainHost = `${appDomain}${port}`
+  } else {
+    // Fallback: strip the tenant subdomain from the current host
+    const hostWithoutPort = host.split(':')[0] || ''
+    const port = host.includes(':') ? `:${host.split(':')[1]}` : ''
+
+    if (hostWithoutPort.endsWith('.localhost')) {
+      // e.g. acme.localhost → localhost
+      baseDomainHost = `localhost${port}`
+    } else {
+      const parts = hostWithoutPort.split('.')
+      // Remove the first part (tenant) if there are enough parts
+      const baseParts = parts.length > 2 ? parts.slice(1) : parts
+      baseDomainHost = `${baseParts.join('.')}${port}`
+    }
+  }
+
+  const loginUrl = new URL(`${protocol}//${baseDomainHost}/login`)
+  if (callbackPath) {
+    loginUrl.searchParams.set('callbackUrl', callbackPath)
+  }
+  return loginUrl
+}
 
 /**
  * Auth Proxy - Handles authentication and tenant validation
- *
- * Per Next.js best practices, this proxy handles authentication logic
- * while Nginx handles tenant extraction from subdomain.
- *
- * See: https://nextjs.org/docs/messages/middleware-to-proxy
  */
 export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname
@@ -20,6 +53,7 @@ export async function proxy(request: NextRequest) {
     '/forgot-password',
     '/reset-password',
     '/lecture-ai',
+    '/api/auth/callback',
   ]
   const isPublicPath = publicPaths.some((p) => path.startsWith(p))
 
@@ -28,24 +62,21 @@ export async function proxy(request: NextRequest) {
   }
 
   const apiBase =
-    process.env.SERVER_API_URL ?? process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? ''
-  const backendOrigin = apiBase ? new URL(apiBase).origin : 'http://localhost:9090'
+    env.SERVER_API_URL ?? env.API_URL ?? env.NEXT_PUBLIC_API_URL ?? ''
+  const backendOrigin = new URL(apiBase).origin 
 
   const host = request.headers.get('host') || ''
   const tenant = extractTenantFromHostname(host)
   const cookie = request.headers.get('cookie') || ''
 
+  // No tenant subdomain → redirect to base domain login
   if (!tenant) {
-    const loginUrl = new URL('/login', request.url)
-    loginUrl.searchParams.set('callbackUrl', request.nextUrl.pathname)
-    return NextResponse.redirect(loginUrl)
+    return NextResponse.redirect(getBaseDomainLoginUrl(request, path))
   }
 
   const headers: Record<string, string> = {
     Cookie: cookie,
-  }
-  if (tenant) {
-    headers['X-Tenant'] = tenant
+    'X-Tenant': tenant,
   }
 
   const meResponse = await fetch(`${backendOrigin}/api/v1/auth/me`, {
@@ -54,14 +85,15 @@ export async function proxy(request: NextRequest) {
     cache: 'no-store',
   })
 
+  console.log({meResponse})
+
   if (meResponse.status === 401 || meResponse.status === 403) {
-    const loginUrl = new URL('/login', request.url)
-    loginUrl.searchParams.set('callbackUrl', request.nextUrl.pathname)
-    return NextResponse.redirect(loginUrl)
+    // Redirect to base domain login so cookie is set on the parent domain
+    return NextResponse.redirect(getBaseDomainLoginUrl(request, path))
   }
 
   if (!meResponse.ok) {
-    return NextResponse.redirect(new URL('/login', request.url))
+    return NextResponse.redirect(getBaseDomainLoginUrl(request))
   }
 
   return NextResponse.next()

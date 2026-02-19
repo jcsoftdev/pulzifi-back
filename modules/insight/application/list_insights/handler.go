@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
+	"github.com/jcsoftdev/pulzifi-back/modules/insight/domain/entities"
 	"github.com/jcsoftdev/pulzifi-back/modules/insight/domain/repositories"
 )
 
@@ -22,17 +23,26 @@ func (h *ListInsightsHandler) Handle(ctx context.Context, pageID uuid.UUID) (*Li
 	if err != nil {
 		return nil, err
 	}
+	return buildResponse(insights), nil
+}
 
+func (h *ListInsightsHandler) HandleByCheckID(ctx context.Context, checkID uuid.UUID) (*ListInsightsResponse, error) {
+	insights, err := h.repo.ListByCheckID(ctx, checkID)
+	if err != nil {
+		return nil, err
+	}
+	return buildResponse(insights), nil
+}
+
+func buildResponse(insights []*entities.Insight) *ListInsightsResponse {
 	response := &ListInsightsResponse{
 		Insights: make([]*InsightResponse, len(insights)),
 	}
-
 	for i, insight := range insights {
 		var metadata interface{}
 		if len(insight.Metadata) > 0 {
 			_ = json.Unmarshal(insight.Metadata, &metadata)
 		}
-
 		response.Insights[i] = &InsightResponse{
 			ID:          insight.ID,
 			PageID:      insight.PageID,
@@ -44,22 +54,33 @@ func (h *ListInsightsHandler) Handle(ctx context.Context, pageID uuid.UUID) (*Li
 			CreatedAt:   insight.CreatedAt,
 		}
 	}
-
-	return response, nil
+	return response
 }
 
 func (h *ListInsightsHandler) HandleHTTP(w http.ResponseWriter, r *http.Request) {
-	// Assuming insights are scoped to a page.
-	// The route might be /insights?page_id=... or /pages/{pageId}/insights
-	// Based on the module.go in insight, it was just /insights.
-	// But usually we list by page.
-	// Let's check query param "page_id".
+	// Support filtering by check_id (preferred when viewing a specific check)
+	// or by page_id (to list all insights for a page)
+	checkIDStr := r.URL.Query().Get("check_id")
+	if checkIDStr != "" {
+		checkID, err := uuid.Parse(checkIDStr)
+		if err != nil {
+			http.Error(w, "Invalid check ID", http.StatusBadRequest)
+			return
+		}
+		resp, err := h.HandleByCheckID(r.Context(), checkID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(resp)
+		return
+	}
 
 	pageIDStr := r.URL.Query().Get("page_id")
 	if pageIDStr == "" {
-		// If no page_id provided, maybe return empty or error?
-		// Or maybe implement ListAll? For now let's require page_id as this is for page details.
-		http.Error(w, "page_id query parameter is required", http.StatusBadRequest)
+		http.Error(w, "page_id or check_id query parameter is required", http.StatusBadRequest)
 		return
 	}
 

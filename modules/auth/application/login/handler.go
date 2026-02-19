@@ -2,7 +2,6 @@ package login
 
 import (
 	"context"
-	"time"
 
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/entities"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/repositories"
@@ -12,23 +11,23 @@ import (
 )
 
 type Handler struct {
-	authService services.AuthService
-	userRepo    repositories.UserRepository
-	sessionRepo repositories.SessionRepository
-	sessionTTL  time.Duration
+	authService      services.AuthService
+	userRepo         repositories.UserRepository
+	refreshTokenRepo repositories.RefreshTokenRepository
+	tokenService     services.TokenService
 }
 
 func NewHandler(
 	authService services.AuthService,
 	userRepo repositories.UserRepository,
-	sessionRepo repositories.SessionRepository,
-	sessionTTL time.Duration,
+	refreshTokenRepo repositories.RefreshTokenRepository,
+	tokenService services.TokenService,
 ) *Handler {
 	return &Handler{
-		authService: authService,
-		userRepo:    userRepo,
-		sessionRepo: sessionRepo,
-		sessionTTL:  sessionTTL,
+		authService:      authService,
+		userRepo:         userRepo,
+		refreshTokenRepo: refreshTokenRepo,
+		tokenService:     tokenService,
 	}
 }
 
@@ -39,24 +38,35 @@ func (h *Handler) Handle(ctx context.Context, req *Request) (*Response, error) {
 		return nil, err
 	}
 
-	session := entities.NewSession(user.ID, h.sessionTTL)
-	if err := h.sessionRepo.Create(ctx, session); err != nil {
-		logger.Error("Failed to create session", zap.Error(err))
+	accessToken, err := h.tokenService.GenerateAccessToken(ctx, user.ID, user.Email)
+	if err != nil {
+		logger.Error("Failed to generate access token", zap.Error(err))
 		return nil, err
 	}
 
-	logger.Info("User logged in successfully", zap.String("email", user.Email), zap.String("id", user.ID.String()))
+	refreshTokenStr, err := h.tokenService.GenerateRefreshToken(ctx, user.ID)
+	if err != nil {
+		logger.Error("Failed to generate refresh token", zap.Error(err))
+		return nil, err
+	}
 
-	// Get user's first organization
+	refreshToken := entities.NewRefreshToken(user.ID, refreshTokenStr, h.tokenService.GetRefreshTokenExpiration())
+	if err := h.refreshTokenRepo.Create(ctx, refreshToken); err != nil {
+		logger.Error("Failed to store refresh token", zap.Error(err))
+		return nil, err
+	}
+
 	tenant, err := h.userRepo.GetUserFirstOrganization(ctx, user.ID)
 	if err != nil {
 		logger.Error("Failed to get user first organization", zap.Error(err))
-		// Don't fail login if we can't get organization, just log the error
 	}
 
+	logger.Info("User logged in successfully", zap.String("email", user.Email))
+
 	return &Response{
-		SessionID: session.ID,
-		ExpiresIn: int64(h.sessionTTL.Seconds()),
-		Tenant:    tenant,
+		AccessToken:  accessToken,
+		RefreshToken: refreshTokenStr,
+		ExpiresIn:    int64(h.tokenService.GetTokenExpiration().Seconds()),
+		Tenant:       tenant,
 	}, nil
 }

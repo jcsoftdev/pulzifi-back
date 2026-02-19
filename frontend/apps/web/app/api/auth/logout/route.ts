@@ -1,51 +1,44 @@
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
+import { env } from '@/lib/env'
 
 function getBackendOrigin(): string {
   const apiBase =
-    process.env.SERVER_API_URL ?? process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? ''
-
-  if (!apiBase) {
-    return 'http://localhost:9090'
-  }
-
+    env.SERVER_API_URL ?? env.NEXT_PUBLIC_API_URL ?? 'http://localhost:9090'
   try {
     return new URL(apiBase).origin
   } catch {
-    return new URL(`http://${apiBase}`).origin
+    return 'http://localhost:9090'
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
     const cookie = request.headers.get('cookie') || ''
-    const response = await fetch(`${getBackendOrigin()}/api/v1/auth/logout`, {
+
+    await fetch(`${getBackendOrigin()}/api/v1/auth/logout`, {
       method: 'POST',
-      headers: {
-        Cookie: cookie,
-      },
+      headers: { Cookie: cookie },
       cache: 'no-store',
     })
 
-    const nextResponse = NextResponse.json({
-      success: true,
-    })
+    const nextResponse = NextResponse.json({ success: true })
 
-    const setCookie = response.headers.get('set-cookie')
-    if (setCookie) {
-      nextResponse.headers.set('set-cookie', setCookie)
-    }
+    // Clear cookies without Domain so they match the current origin
+    nextResponse.cookies.set('access_token', '', {
+      path: '/',
+      httpOnly: true,
+      maxAge: 0,
+    })
+    nextResponse.cookies.set('refresh_token', '', {
+      path: '/',
+      httpOnly: true,
+      maxAge: 0,
+    })
 
     return nextResponse
   } catch (error) {
     console.error('[Logout] Error:', error)
-    return NextResponse.json(
-      {
-        success: false,
-      },
-      {
-        status: 500,
-      }
-    )
+    return NextResponse.json({ success: false }, { status: 500 })
   }
 }

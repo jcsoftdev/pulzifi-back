@@ -1,6 +1,7 @@
 import axios, { type AxiosError, type AxiosInstance, type AxiosRequestConfig } from 'axios'
+import { env } from './env'
 import { getTenantFromWindow } from './tenant-utils'
-import type { IHttpClient, RequestConfig } from './types'
+import type { HttpResponse, IHttpClient, RequestConfig } from './types'
 
 export class AxiosHttpClient implements IHttpClient {
   private readonly client: AxiosInstance
@@ -47,7 +48,7 @@ export class AxiosHttpClient implements IHttpClient {
 
   private debugError(message: string, error: unknown): void {
     // Only log actual errors
-    if (process.env.NODE_ENV === 'development') {
+    if (env.NODE_ENV === 'development') {
       console.error(`[AxiosHttpClient] ${message}`, error)
     }
   }
@@ -59,28 +60,53 @@ export class AxiosHttpClient implements IHttpClient {
     }
   }
 
-  async get<T>(url: string, config?: RequestConfig): Promise<T> {
+  get<T>(url: string, config: RequestConfig & { withHeaders: true }): Promise<HttpResponse<T>>
+  get<T>(url: string, config?: RequestConfig): Promise<T>
+  async get<T>(url: string, config?: RequestConfig): Promise<T | HttpResponse<T>> {
     const response = await this.client.get<T>(url, this.convertConfig(config))
+    if (config?.withHeaders) {
+      return { data: response.data, headers: new Headers(response.headers as Record<string, string>), status: response.status }
+    }
     return response.data
   }
 
-  async post<T>(url: string, data?: unknown, config?: RequestConfig): Promise<T> {
+  post<T>(url: string, data: unknown, config: RequestConfig & { withHeaders: true }): Promise<HttpResponse<T>>
+  post<T>(url: string, data?: unknown, config?: RequestConfig): Promise<T>
+  async post<T>(url: string, data?: unknown, config?: RequestConfig): Promise<T | HttpResponse<T>> {
     const response = await this.client.post<T>(url, data, this.convertConfig(config))
+    if (config?.withHeaders) {
+      return { data: response.data, headers: new Headers(response.headers as Record<string, string>), status: response.status }
+    }
     return response.data
   }
 
-  async put<T>(url: string, data?: unknown, config?: RequestConfig): Promise<T> {
+  put<T>(url: string, data: unknown, config: RequestConfig & { withHeaders: true }): Promise<HttpResponse<T>>
+  put<T>(url: string, data?: unknown, config?: RequestConfig): Promise<T>
+  async put<T>(url: string, data?: unknown, config?: RequestConfig): Promise<T | HttpResponse<T>> {
     const response = await this.client.put<T>(url, data, this.convertConfig(config))
+    if (config?.withHeaders) {
+      return { data: response.data, headers: new Headers(response.headers as Record<string, string>), status: response.status }
+    }
     return response.data
   }
 
-  async patch<T>(url: string, data?: unknown, config?: RequestConfig): Promise<T> {
+  patch<T>(url: string, data: unknown, config: RequestConfig & { withHeaders: true }): Promise<HttpResponse<T>>
+  patch<T>(url: string, data?: unknown, config?: RequestConfig): Promise<T>
+  async patch<T>(url: string, data?: unknown, config?: RequestConfig): Promise<T | HttpResponse<T>> {
     const response = await this.client.patch<T>(url, data, this.convertConfig(config))
+    if (config?.withHeaders) {
+      return { data: response.data, headers: new Headers(response.headers as Record<string, string>), status: response.status }
+    }
     return response.data
   }
 
-  async delete<T>(url: string, config?: RequestConfig): Promise<T> {
+  delete<T>(url: string, config: RequestConfig & { withHeaders: true }): Promise<HttpResponse<T>>
+  delete<T>(url: string, config?: RequestConfig): Promise<T>
+  async delete<T>(url: string, config?: RequestConfig): Promise<T | HttpResponse<T>> {
     const response = await this.client.delete<T>(url, this.convertConfig(config))
+    if (config?.withHeaders) {
+      return { data: response.data, headers: new Headers(response.headers as Record<string, string>), status: response.status }
+    }
     return response.data
   }
 }

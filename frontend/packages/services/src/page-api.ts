@@ -300,11 +300,22 @@ export const PageApi = {
     }))
   },
 
-  async listInsights(pageId: string): Promise<Insight[]> {
+  async listInsights(pageId: string, checkId?: string): Promise<Insight[]> {
     const http = await getHttpClient()
+    const query = checkId ? `check_id=${checkId}` : `page_id=${pageId}`
     const response = await http.get<{
       insights: InsightBackendDto[]
-    }>(`/api/v1/insights?page_id=${pageId}`)
+    }>(`/api/v1/insights?${query}`)
     return response.insights.map(transformInsight)
+  },
+
+  async generateInsights(pageId: string, checkId: string): Promise<void> {
+    const http = await getHttpClient()
+    // Returns 202 immediately — generation runs in the background.
+    // Poll GET /insights?check_id=<id> to get results.
+    await http.post('/api/v1/insights/generate', {
+      page_id: pageId,
+      check_id: checkId,
+    })
   },
 }

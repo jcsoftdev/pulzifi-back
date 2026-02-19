@@ -89,7 +89,7 @@ func (m *Module) handleListPlans(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rows, err := m.db.QueryContext(r.Context(), `
-		SELECT id, code, name, description, checks_allowed_monthly, is_active
+		SELECT id, code, name, description, checks_allowed_monthly, is_active, storage_period_days
 		FROM public.plans
 		WHERE is_active = TRUE
 		ORDER BY checks_allowed_monthly ASC
@@ -108,8 +108,9 @@ func (m *Module) handleListPlans(w http.ResponseWriter, r *http.Request) {
 		var description sql.NullString
 		var checksAllowed int
 		var isActive bool
+		var storagePeriodDays int
 
-		if err := rows.Scan(&id, &code, &name, &description, &checksAllowed, &isActive); err != nil {
+		if err := rows.Scan(&id, &code, &name, &description, &checksAllowed, &isActive, &storagePeriodDays); err != nil {
 			logger.Error("Failed to scan plan row", zap.Error(err))
 			http.Error(w, "failed to list plans", http.StatusInternalServerError)
 			return
@@ -122,6 +123,7 @@ func (m *Module) handleListPlans(w http.ResponseWriter, r *http.Request) {
 			"description":            description.String,
 			"checks_allowed_monthly": checksAllowed,
 			"is_active":              isActive,
+			"storage_period_days":    storagePeriodDays,
 		})
 	}
 
@@ -149,7 +151,8 @@ func (m *Module) handleListOrganizationsWithPlans(w http.ResponseWriter, r *http
 			o.schema_name,
 			COALESCE(p.code, ''),
 			COALESCE(p.name, ''),
-			COALESCE(p.checks_allowed_monthly, 0)
+			COALESCE(p.checks_allowed_monthly, 0),
+			COALESCE(p.storage_period_days, 7)
 		FROM public.organizations o
 		LEFT JOIN LATERAL (
 			SELECT op.plan_id
@@ -177,8 +180,9 @@ func (m *Module) handleListOrganizationsWithPlans(w http.ResponseWriter, r *http
 		var name, subdomain, schemaName string
 		var planCode, planName string
 		var checksAllowed int
+		var storagePeriodDays int
 
-		if err := rows.Scan(&id, &name, &subdomain, &schemaName, &planCode, &planName, &checksAllowed); err != nil {
+		if err := rows.Scan(&id, &name, &subdomain, &schemaName, &planCode, &planName, &checksAllowed, &storagePeriodDays); err != nil {
 			logger.Error("Failed to scan organization plan row", zap.Error(err))
 			http.Error(w, "failed to list organizations", http.StatusInternalServerError)
 			return
@@ -192,6 +196,7 @@ func (m *Module) handleListOrganizationsWithPlans(w http.ResponseWriter, r *http
 			"plan_code":              planCode,
 			"plan_name":              planName,
 			"checks_allowed_monthly": checksAllowed,
+			"storage_period_days":    storagePeriodDays,
 		})
 	}
 
@@ -379,9 +384,10 @@ func (m *Module) handleGetQuotas(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			json.NewEncoder(w).Encode(map[string]interface{}{
 				"quotas": map[string]interface{}{
-					"checks_used":    0,
-					"checks_allowed": 0,
-					"next_refill_at": nil,
+					"checks_used":        0,
+					"checks_allowed":     0,
+					"next_refill_at":     nil,
+					"storage_period_days": 7,
 				},
 				"message": "no active quota period",
 			})
@@ -393,6 +399,22 @@ func (m *Module) handleGetQuotas(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Fetch storage_period_days from the org's active plan
+	storagePeriodDays := 7 // default
+	spQuery := `
+		SELECT COALESCE(p.storage_period_days, 7)
+		FROM public.organizations o
+		JOIN public.organization_plans op ON op.organization_id = o.id
+			AND op.status = 'active' AND op.deleted_at IS NULL
+		JOIN public.plans p ON p.id = op.plan_id
+		WHERE o.schema_name = $1
+		ORDER BY op.started_at DESC
+		LIMIT 1
+	`
+	if err := m.db.QueryRowContext(r.Context(), spQuery, tenant).Scan(&storagePeriodDays); err != nil && err != sql.ErrNoRows {
+		logger.Warn("Failed to fetch storage_period_days, using default", zap.Error(err), zap.String("tenant", tenant))
+	}
+
 	var refill interface{}
 	if nextRefillAt.Valid {
 		refill = nextRefillAt.Time.UTC().Format(time.RFC3339)
@@ -402,9 +424,10 @@ func (m *Module) handleGetQuotas(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"quotas": map[string]interface{}{
-			"checks_used":    checksUsed,
-			"checks_allowed": checksAllowed,
-			"next_refill_at": refill,
+			"checks_used":        checksUsed,
+			"checks_allowed":     checksAllowed,
+			"next_refill_at":     refill,
+			"storage_period_days": storagePeriodDays,
 		},
 		"message": "get usage quotas",
 	})

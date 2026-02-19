@@ -19,6 +19,7 @@ interface ChangesViewLayoutProps {
   children: React.ReactNode
   activeTab?: string // 'visual' | 'text' | 'insights'
   onTabChange?: (tab: string) => void
+  storagePeriodDays?: number
 }
 
 export function ChangesViewLayout({
@@ -27,6 +28,7 @@ export function ChangesViewLayout({
   children,
   activeTab: controlledActiveTab,
   onTabChange,
+  storagePeriodDays,
 }: Readonly<ChangesViewLayoutProps>) {
   const router = useRouter()
   const pathname = usePathname()
@@ -65,7 +67,12 @@ export function ChangesViewLayout({
           )}
         </div>
 
-        <div className="w-full md:w-64">
+        <div className="w-full md:w-64 flex flex-col gap-1">
+          {storagePeriodDays && (
+            <span className="text-xs text-muted-foreground text-right">
+              Storage period: {storagePeriodDays} days
+            </span>
+          )}
           <Select value={activeCheckId} onValueChange={handleCheckChange}>
             <SelectTrigger className="w-full bg-background">
               <SelectValue placeholder="Select a check" />

@@ -52,7 +52,7 @@ func TenantMiddleware(db *sql.DB) func(http.Handler) http.Handler {
 				logger.Debug("Generic domain (development mode), skipping schema resolution",
 					zap.String("subdomain", subdomain),
 					zap.String("host", r.Host))
-				// For development, use subdomain as schema too (will be handled by frontend/nginx)
+				// For development, use subdomain as schema too (will be handled by frontend proxy)
 				ctx := buildContextWithTenant(r.Context(), subdomain, subdomain)
 				next.ServeHTTP(w, r.WithContext(ctx))
 				return
@@ -82,6 +82,7 @@ func isPublicPath(path string) bool {
 		"/api/v1/health",
 		"/api/v1/auth/login",     // Login no requiere tenant
 		"/api/v1/auth/register",  // Register no requiere tenant
+		"/api/v1/auth/me",        // Current user (uses JWT, not tenant)
 		"/api/v1/auth/refresh",   // Token refresh
 		"/api/v1/auth/providers", // OAuth providers
 		"/api/v1/auth/csrf",      // CSRF token

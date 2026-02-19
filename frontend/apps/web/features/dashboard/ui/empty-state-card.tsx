@@ -9,6 +9,7 @@ export interface EmptyStateCardProps {
   buttonText: string
   onButtonClick: () => void
   icon?: React.ReactNode
+  buttonVariant?: 'default' | 'outline' | 'secondary' | 'ghost' | 'link' | 'destructive'
 }
 
 export function EmptyStateCard({
@@ -17,13 +18,14 @@ export function EmptyStateCard({
   buttonText,
   onButtonClick,
   icon,
+  buttonVariant = 'outline',
 }: Readonly<EmptyStateCardProps>) {
   return (
-    <div className="bg-card rounded-lg border border-border p-8 text-center">
+    <div className="bg-card rounded-lg border border-border p-8 text-center min-h-[220px] flex flex-col items-center justify-center">
       {icon && <div className="mb-4 flex justify-center">{icon}</div>}
       <h3 className="text-lg font-semibold text-foreground mb-2">{title}</h3>
       <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">{description}</p>
-      <Button onClick={onButtonClick} variant={'default'}>
+      <Button onClick={onButtonClick} variant={buttonVariant}>
         {buttonText}
       </Button>
     </div>

@@ -249,7 +249,7 @@ func main() {
         }
     </style>
     <script>
-        // Detect if we're behind nginx proxy and adjust base path
+        // Detect if we're behind a reverse proxy and adjust base path
         function getBasePath() {
             const path = window.location.pathname;
             if (path.includes('/api/docs')) {
@@ -510,8 +510,8 @@ func main() {
 		htmlContent = strings.ReplaceAll(htmlContent, `url("index`, `url("/api/docs/swagger-assets/`+serviceName+`/index`)
 		htmlContent = strings.ReplaceAll(htmlContent, `url('index`, `url('/api/docs/swagger-assets/`+serviceName+`/index`)
 
-		// Note: doc.json URL rewriting is handled by nginx sub_filter in the swagger-initializer.js proxy
-		// No need to rewrite here - nginx will transform the relative URL to absolute
+		// Note: doc.json URL rewriting uses absolute paths set above
+		// No additional rewriting needed for the relative URL
 
 		c.Header("Content-Type", "text/html; charset=utf-8")
 		c.String(http.StatusOK, htmlContent)

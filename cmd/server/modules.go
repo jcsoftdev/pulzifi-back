@@ -5,6 +5,7 @@ import (
 
 	alert "github.com/jcsoftdev/pulzifi-back/modules/alert/infrastructure/http"
 	auth "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/http"
+	dashboard "github.com/jcsoftdev/pulzifi-back/modules/dashboard/infrastructure/http"
 	authpersistence "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/persistence"
 	authservices "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/services"
 	insight "github.com/jcsoftdev/pulzifi-back/modules/insight/infrastructure/http"
@@ -14,12 +15,14 @@ import (
 	orgpersistence "github.com/jcsoftdev/pulzifi-back/modules/organization/infrastructure/persistence"
 	page "github.com/jcsoftdev/pulzifi-back/modules/page/infrastructure/http"
 	report "github.com/jcsoftdev/pulzifi-back/modules/report/infrastructure/http"
+	team "github.com/jcsoftdev/pulzifi-back/modules/team/infrastructure/http"
 	usage "github.com/jcsoftdev/pulzifi-back/modules/usage/infrastructure/http"
 	workspace "github.com/jcsoftdev/pulzifi-back/modules/workspace/infrastructure/http"
 	"github.com/jcsoftdev/pulzifi-back/shared/config"
 	"github.com/jcsoftdev/pulzifi-back/shared/eventbus"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
+	"github.com/jcsoftdev/pulzifi-back/shared/pubsub"
 	"github.com/jcsoftdev/pulzifi-back/shared/router"
 	"go.uber.org/zap"
 )
@@ -30,22 +33,23 @@ func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus 
 	userRepo := authpersistence.NewUserPostgresRepository(db)
 	roleRepo := authpersistence.NewRolePostgresRepository(db)
 	permRepo := authpersistence.NewPermissionPostgresRepository(db)
-	sessionRepo := authpersistence.NewSessionPostgresRepository(db)
+	refreshTokenRepo := authpersistence.NewRefreshTokenPostgresRepository(db)
 	orgRepo := orgpersistence.NewOrganizationPostgresRepository(db)
 
 	authService := authservices.NewBcryptAuthService(userRepo, permRepo)
+	jwtService := authservices.NewJWTService(cfg.JWTSecret, cfg.JWTExpiration, cfg.JWTRefreshExpiration, roleRepo, permRepo)
 	cookieSecure := cfg.Environment == "production"
 
 	// Create auth module and set global middleware
 	authModule := auth.NewModule(auth.ModuleDeps{
-		UserRepo:     userRepo,
-		SessionRepo:  sessionRepo,
-		RoleRepo:     roleRepo,
-		PermRepo:     permRepo,
-		AuthService:  authService,
-		SessionTTL:   cfg.JWTExpiration,
-		CookieDomain: cfg.CookieDomain,
-		CookieSecure: cookieSecure,
+		UserRepo:         userRepo,
+		RefreshTokenRepo: refreshTokenRepo,
+		RoleRepo:         roleRepo,
+		PermRepo:         permRepo,
+		AuthService:      authService,
+		TokenService:     jwtService,
+		CookieDomain:     cfg.CookieDomain,
+		CookieSecure:     cookieSecure,
 	})
 	authMiddleware := authModule.(*auth.Module).AuthMiddleware()
 
@@ -64,9 +68,11 @@ func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus 
 		{"Alert", alert.NewModuleWithDB(db)},
 		{"Monitoring", monitoring.NewModuleWithDB(db, eventBus)},
 		{"Integration", integration.NewModule()},
-		{"Insight", insight.NewModuleWithDB(db)},
+		{"Insight", insight.NewModuleWithDB(db, pubsub.NewInsightBroker())},
 		{"Report", report.NewModule()},
 		{"Usage", usage.NewModuleWithDB(db)},
+		{"Dashboard", dashboard.NewModuleWithDB(db)},
+		{"Team", team.NewModuleWithDB(db)},
 	}
 
 	logger.Info("Registering all modules", zap.Int("count", len(moduleInstances)))

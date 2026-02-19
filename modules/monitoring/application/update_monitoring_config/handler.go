@@ -49,7 +49,7 @@ func (h *UpdateMonitoringConfigHandler) Handle(ctx context.Context, pageID uuid.
 		logger.Info("UpdateMonitoringConfigHandler: Config not found, creating new one")
 		// Set defaults for new config
 		checkFrequency := "Off"
-		scheduleType := "interval"
+		scheduleType := "all_time"
 		timezone := "UTC"
 		blockAdsCookies := true
 

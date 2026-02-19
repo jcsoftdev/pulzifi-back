@@ -1,6 +1,7 @@
 'use client'
 
-import type { Check, Insight } from '@workspace/services/page-api'
+import type { Check, Insight, Page } from '@workspace/services/page-api'
+import { UsageApi } from '@workspace/services'
 import { Loader2 } from 'lucide-react'
 import { useParams, useSearchParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
@@ -15,47 +16,25 @@ import { diffLines } from '@/features/changes-view/utils/simple-diff'
 export default function ChangesPage() {
   const params = useParams()
   const searchParams = useSearchParams()
+  const workspaceId = params.id as string
   const pageId = params.pageId as string
   const checkIdParam = searchParams.get('checkId')
 
   const [checks, setChecks] = useState<Check[]>([])
   const [insights, setInsights] = useState<Insight[]>([])
+  const [page, setPage] = useState<Page | null>(null)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('visual')
   const [textChanges, setTextChanges] = useState<DiffRow[]>([])
   const [loadingDiff, setLoadingDiff] = useState(false)
+  const [storagePeriodDays, setStoragePeriodDays] = useState(7)
 
-  useEffect(() => {
-    async function loadData() {
-      try {
-        setLoading(true)
-        const checksData = await ChangesViewService.getPageChecks(pageId)
-        // Sort checks descending by date
-        const sortedChecks = checksData.sort(
-          (a: Check, b: Check) => new Date(b.checkedAt).getTime() - new Date(a.checkedAt).getTime()
-        )
-        setChecks(sortedChecks)
-
-        const activeCheckId = checkIdParam || sortedChecks[0]?.id
-        if (activeCheckId) {
-          const insightsData = await ChangesViewService.getPageInsights(pageId)
-          setInsights(insightsData.filter((i: Insight) => i.checkId === activeCheckId))
-        }
-      } catch (error) {
-        console.error('Failed to load changes data:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
-    loadData()
-  }, [
-    pageId,
-    checkIdParam,
-  ])
-
-  // Only detected-change checks appear in the dropdown
-  const detectedChecks = checks.filter((c) => c.changeDetected)
-
+  // Only detected-change checks within the storage period appear in the dropdown
+  const storageCutoff = new Date()
+  storageCutoff.setDate(storageCutoff.getDate() - storagePeriodDays)
+  const detectedChecks = checks.filter(
+    (c) => c.changeDetected && new Date(c.checkedAt) >= storageCutoff
+  )
   const activeCheckId = checkIdParam || detectedChecks[0]?.id || ''
   // Find position in the FULL sorted list so previousCheck is always the
   // immediately preceding run (not the previous detected change)
@@ -64,26 +43,48 @@ export default function ChangesPage() {
   const previousCheck = checks[activeCheckIndex + 1]
 
   useEffect(() => {
+    async function loadData() {
+      try {
+        setLoading(true)
+        const [checksData, pageData, usageData] = await Promise.all([
+          ChangesViewService.getPageChecks(pageId),
+          ChangesViewService.getPage(pageId),
+          UsageApi.getChecksData(),
+        ])
+        setStoragePeriodDays(usageData.storagePeriodDays)
+        // Sort checks descending by date
+        const sortedChecks = checksData.sort(
+          (a: Check, b: Check) => new Date(b.checkedAt).getTime() - new Date(a.checkedAt).getTime()
+        )
+        setChecks(sortedChecks)
+        setPage(pageData)
+
+        // Determine which check is active to fetch insights for it
+        const detected = sortedChecks.filter((c: Check) => c.changeDetected)
+        const resolvedCheckId = checkIdParam || detected[0]?.id
+        if (resolvedCheckId) {
+          const insightsData = await ChangesViewService.getPageInsights(pageId, resolvedCheckId)
+          setInsights(insightsData)
+        }
+      } catch (error) {
+        console.error('Failed to load changes data:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadData()
+  }, [pageId, checkIdParam])
+
+  useEffect(() => {
     async function loadDiff() {
       if (activeTab === 'text' && activeCheck) {
         setLoadingDiff(true)
         try {
-          // If previous check exists, compare. Else show current text as added? Or just empty.
-          // If no previous check, we can't show diff.
           if (!previousCheck) {
-            // Maybe fetch current text and show as all added?
-            // For now, let's leave empty or handle gracefully
             setTextChanges([])
             return
           }
 
-          // Need to fetch HTML content. Assuming Check object has htmlSnapshotUrl
-          // If not in interface, we might need to cast or update interface.
-          // Check interface in page-api.ts has `screenshotUrl`. It doesn't have `htmlSnapshotUrl` explicitly in frontend interface?
-          // Let's check page-api.ts again.
-
-          // Assuming backend returns it but frontend interface might miss it.
-          // I will use 'any' cast if needed or just try access.
           const currentUrl = activeCheck.htmlSnapshotUrl
           const prevUrl = previousCheck.htmlSnapshotUrl
 
@@ -111,11 +112,7 @@ export default function ChangesPage() {
       }
     }
     loadDiff()
-  }, [
-    activeTab,
-    activeCheck,
-    previousCheck,
-  ])
+  }, [activeTab, activeCheck, previousCheck])
 
   if (loading) {
     return (
@@ -132,6 +129,7 @@ export default function ChangesPage() {
         activeCheckId={activeCheckId}
         activeTab={activeTab}
         onTabChange={setActiveTab}
+        storagePeriodDays={storagePeriodDays}
       >
         {activeTab === 'visual' && (
           <VisualPulse
@@ -147,7 +145,18 @@ export default function ChangesPage() {
           ) : (
             <TextChanges changes={textChanges} />
           ))}
-        {activeTab === 'insights' && <IntelligentInsights insights={insights} />}
+        {activeTab === 'insights' && (
+          <IntelligentInsights
+            insights={insights}
+            check={activeCheck}
+            pageUrl={page?.url}
+            screenshotUrl={activeCheck?.screenshotUrl}
+            workspaceId={workspaceId}
+            pageId={pageId}
+            checkId={activeCheckId}
+            onInsightsGenerated={setInsights}
+          />
+        )}
       </ChangesViewLayout>
     </div>
   )

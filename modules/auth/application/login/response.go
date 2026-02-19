@@ -1,7 +1,8 @@
 package login
 
 type Response struct {
-	SessionID string  `json:"session_id"`
-	ExpiresIn int64   `json:"expires_in"`
-	Tenant    *string `json:"tenant,omitempty"`
+	AccessToken  string  `json:"access_token"`
+	RefreshToken string  `json:"refresh_token"`
+	ExpiresIn    int64   `json:"expires_in"`
+	Tenant       *string `json:"tenant,omitempty"`
 }

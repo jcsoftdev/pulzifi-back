@@ -1,20 +1,16 @@
 import { AxiosHttpClient } from './axios-client'
+import { env } from './env'
 import { FetchHttpClient } from './fetch-client'
 import { extractTenantFromHostname, getTenantFromWindow } from './tenant-utils'
 import type { IHttpClient } from './types'
 
-// Client-side: Use base domain to go through Nginx reverse proxy
+// Client-side: Use the current page's origin so both BFF routes (/api/auth/...)
+// and API rewrites (/api/v1/...) resolve through the same Next.js server.
 const getClientApiUrl = (): string => {
-  if (globalThis.window === undefined) return ''
-
-  const hostname = globalThis.window.location.hostname
-  const protocol = globalThis.window.location.protocol
-
-  if (hostname.includes('.app.local')) {
-    return `${protocol}//app.local`
+  if (globalThis.window !== undefined) {
+    return globalThis.window.location.origin
   }
-
-  return `${protocol}//${hostname}`
+  return 'http://localhost:3000'
 }
 
 /**
@@ -22,7 +18,7 @@ const getClientApiUrl = (): string => {
  */
 function getServerApiUrl(): string {
   const configuredApiUrl =
-    process.env.SERVER_API_URL ?? process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL
+    env.SERVER_API_URL ?? env.API_URL ?? env.NEXT_PUBLIC_API_URL
 
   if (configuredApiUrl) {
     try {
@@ -80,7 +76,7 @@ export async function createServerHttpClient(): Promise<IHttpClient> {
 /**
  * Create HTTP client for browser usage (Client Components, useEffect, event handlers)
  * Uses AxiosHttpClient with automatic tenant extraction from subdomain
- * Communicates with backend through Nginx reverse proxy
+ * Communicates with backend directly via NEXT_PUBLIC_API_URL
  */
 export async function createBrowserHttpClient(): Promise<IHttpClient> {
   const headers: Record<string, string> = {}

@@ -181,26 +181,3 @@ services:
       - pulzifi-network
     command: air -c .air.worker.toml
 
-  # ============================================================
-  # NGINX REVERSE PROXY
-  # ============================================================
-
-  nginx:
-    image: nginx:1.25-alpine
-    container_name: pulzifi-nginx
-    restart: unless-stopped
-    depends_on:
-      - monolith
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx.monolith.conf:/etc/nginx/nginx.conf:ro
-      - ./ssl:/etc/nginx/ssl:ro
-    networks:
-      - pulzifi-network
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3

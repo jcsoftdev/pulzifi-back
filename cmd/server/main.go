@@ -40,7 +40,11 @@ var _ = docs.SwaggerInfo // Ensure docs is imported
 func main() {
 	// Load configuration
 	cfg := config.Load()
-	logger.Info("Starting Pulzifi Backend - Unified Monolith", zap.String("environment", cfg.Environment))
+	logger.Info("Starting Pulzifi Backend - Unified Monolith",
+		zap.String("environment", cfg.Environment),
+		zap.String("cookie_domain", cfg.CookieDomain),
+		zap.Bool("cookie_secure", cfg.Environment == "production"),
+	)
 
 	// Connect to database
 	db, err := database.Connect(cfg)
@@ -105,11 +109,22 @@ func main() {
 			if strings.Contains(origin, "localhost") || strings.Contains(origin, "127.0.0.1") {
 				return true
 			}
-			// Check configured origins
+			// Check configured origins (supports wildcard subdomains like https://*.pulzifi.com)
 			allowedOrigins := strings.Split(cfg.CORSAllowedOrigins, ",")
 			for _, allowed := range allowedOrigins {
-				if strings.TrimSpace(allowed) == origin {
+				allowed = strings.TrimSpace(allowed)
+				if allowed == origin {
 					return true
+				}
+				// Wildcard subdomain matching: http://*.example.com matches http://foo.example.com
+				if strings.HasPrefix(allowed, "http://*.") || strings.HasPrefix(allowed, "https://*.") {
+					// Split at *. to get the suffix (e.g., "http://*.pulzifi.com" → suffix ".pulzifi.com")
+					idx := strings.Index(allowed, "*.")
+					prefix := allowed[:idx]  // "http://" or "https://"
+					suffix := allowed[idx+1:] // ".pulzifi.com" or ".pulzifi.com:3000"
+					if strings.HasPrefix(origin, prefix) && strings.HasSuffix(origin, suffix) {
+						return true
+					}
 				}
 			}
 			return false
@@ -191,10 +206,12 @@ func main() {
 // startHTTPServer starts the HTTP server and listens for context cancellation
 func startHTTPServer(ctx context.Context, router chi.Router, port string) {
 	server := &http.Server{
-		Addr:         ":" + port,
-		Handler:      router,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
+		Addr:        ":" + port,
+		Handler:     router,
+		ReadTimeout: 15 * time.Second,
+		// WriteTimeout is intentionally 0 (disabled) to support long-lived
+		// SSE connections that can take up to 120s to stream their response.
+		// Individual handlers enforce their own per-request deadlines.
 	}
 
 	go func() {

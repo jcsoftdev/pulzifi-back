@@ -9,12 +9,14 @@ export interface DashboardHeaderProps {
   userName: string
   stats: DashboardStats
   onCreateWorkspace: () => void
+  onAddPage?: () => void
 }
 
 export function DashboardHeader({
   userName,
   stats,
   onCreateWorkspace,
+  onAddPage,
 }: Readonly<DashboardHeaderProps>) {
   return (
     <div className="bg-background px-4 md:px-8 lg:px-24 py-6 space-y-5">
@@ -36,11 +38,11 @@ export function DashboardHeader({
             Create workplace
           </Button>
           <Button
-            onClick={onCreateWorkspace}
+            onClick={onAddPage}
             className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm h-9 px-4 gap-2 flex-1 md:flex-none justify-center"
           >
             <Plus className="w-4 h-4" />
-            Add website
+            Add new page
           </Button>
         </div>
       </div>

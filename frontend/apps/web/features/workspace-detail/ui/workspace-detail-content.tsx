@@ -48,6 +48,11 @@ export function WorkspaceDetailContent({
 
     try {
       const newPage = await PageApi.createPage(data)
+      // Seed default monitoring config: Weekdays schedule, frequency Off
+      await PageApi.updateMonitoringConfig(newPage.id, {
+        scheduleType: 'all_time',
+        checkFrequency: 'Off',
+      })
       setPages((prev) => [
         newPage,
         ...prev,

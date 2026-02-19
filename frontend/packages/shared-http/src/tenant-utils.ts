@@ -2,6 +2,7 @@
  * Tenant extraction utilities (shared across frontend)
  * Handles subdomain-based multi-tenancy
  */
+import { env } from './env'
 
 /**
  * Extracts tenant from hostname
@@ -20,7 +21,7 @@ export function extractTenantFromHostname(hostname: string): string | null {
     return null
   }
 
-  const appDomain = process.env.NEXT_PUBLIC_APP_DOMAIN?.toLowerCase()
+  const appDomain = env.NEXT_PUBLIC_APP_DOMAIN?.toLowerCase()
   if (appDomain) {
     if (normalizedHostname === appDomain) {
       return null
@@ -63,19 +64,11 @@ export function extractTenantFromHostname(hostname: string): string | null {
 
 /**
  * Gets tenant from current window location (client-side only)
- * Returns default tenant from env if no subdomain found
  */
 export function getTenantFromWindow(): string | null {
   if (globalThis.window === undefined) {
     return null
   }
 
-  const tenant = extractTenantFromHostname(globalThis.window.location.hostname)
-
-  // Fallback to default tenant for development
-  if (!tenant && typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_DEFAULT_TENANT) {
-    return process.env.NEXT_PUBLIC_DEFAULT_TENANT
-  }
-
-  return tenant
+  return extractTenantFromHostname(globalThis.window.location.hostname)
 }

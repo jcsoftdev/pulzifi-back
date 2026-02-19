@@ -27,6 +27,7 @@ type Response struct {
 	Email     string  `json:"email"`
 	Role      string  `json:"role"`
 	Avatar    *string `json:"avatar,omitempty"`
+	Tenant    *string `json:"tenant,omitempty"`
 	CreatedAt string  `json:"created_at"`
 	UpdatedAt string  `json:"updated_at"`
 }
@@ -42,7 +43,14 @@ func (h *Handler) Handle(ctx context.Context, userID uuid.UUID) (*Response, erro
 		return nil, nil
 	}
 
-	return h.toResponse(user), nil
+	resp := h.toResponse(user)
+
+	tenant, err := h.userRepo.GetUserFirstOrganization(ctx, userID)
+	if err == nil {
+		resp.Tenant = tenant
+	}
+
+	return resp, nil
 }
 
 func (h *Handler) toResponse(user *entities.User) *Response {

@@ -1,6 +1,13 @@
 export type { HttpError } from '@workspace/shared-http'
 export type { LoginDto, LoginResponse, User } from './auth-api'
 export { AuthApi } from './auth-api'
+export type {
+  DashboardStats,
+  RecentAlert,
+  RecentInsight,
+  WorkspaceChanges,
+} from './dashboard-api'
+export { DashboardApi } from './dashboard-api'
 export type { Notification, NotificationsData } from './notification-api'
 export { NotificationApi } from './notification-api'
 export type { Organization } from './organization-api'
@@ -12,5 +19,7 @@ export type { AdminOrganizationPlan, AdminPlan } from './super-admin-api'
 export { SuperAdminApi } from './super-admin-api'
 export type { ChecksData, UsageStats } from './usage-api'
 export { UsageApi } from './usage-api'
+export type { InviteMemberDto, TeamMember, UpdateMemberDto } from './team-api'
+export { TeamApi } from './team-api'
 export type { CreateWorkspaceDto, ListWorkspacesResponse, Workspace } from './workspace-api'
 export { WorkspaceApi } from './workspace-api'

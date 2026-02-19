@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/application/get_current_user"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/application/login"
+	refreshapp "github.com/jcsoftdev/pulzifi-back/modules/auth/application/refresh_token"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/application/register"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/repositories"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/services"
@@ -23,31 +24,33 @@ import (
 type Module struct {
 	registerHandler       *register.Handler
 	loginHandler          *login.Handler
+	refreshHandler        *refreshapp.Handler
 	getCurrentUserHandler *get_current_user.Handler
 	authMiddleware        *authmw.AuthMiddleware
-	sessionRepo           repositories.SessionRepository
+	tokenService          services.TokenService
 	cookieDomain          string
 	cookieSecure          bool
 }
 
 type ModuleDeps struct {
-	UserRepo     repositories.UserRepository
-	SessionRepo  repositories.SessionRepository
-	RoleRepo     repositories.RoleRepository
-	PermRepo     repositories.PermissionRepository
-	AuthService  services.AuthService
-	SessionTTL   time.Duration
-	CookieDomain string
-	CookieSecure bool
+	UserRepo         repositories.UserRepository
+	RefreshTokenRepo repositories.RefreshTokenRepository
+	RoleRepo         repositories.RoleRepository
+	PermRepo         repositories.PermissionRepository
+	AuthService      services.AuthService
+	TokenService     services.TokenService
+	CookieDomain     string
+	CookieSecure     bool
 }
 
 func NewModule(deps ModuleDeps) router.ModuleRegisterer {
 	return &Module{
 		registerHandler:       register.NewHandler(deps.UserRepo),
-		loginHandler:          login.NewHandler(deps.AuthService, deps.UserRepo, deps.SessionRepo, deps.SessionTTL),
+		loginHandler:          login.NewHandler(deps.AuthService, deps.UserRepo, deps.RefreshTokenRepo, deps.TokenService),
+		refreshHandler:        refreshapp.NewHandler(deps.RefreshTokenRepo, deps.UserRepo, deps.TokenService),
 		getCurrentUserHandler: get_current_user.NewHandler(deps.UserRepo),
-		authMiddleware:        authmw.NewAuthMiddleware(deps.SessionRepo, deps.UserRepo, deps.RoleRepo, deps.PermRepo),
-		sessionRepo:           deps.SessionRepo,
+		authMiddleware:        authmw.NewAuthMiddleware(deps.TokenService),
+		tokenService:          deps.TokenService,
 		cookieDomain:          deps.CookieDomain,
 		cookieSecure:          deps.CookieSecure,
 	}
@@ -61,11 +64,12 @@ func (m *Module) ModuleName() string {
 	return "Auth"
 }
 
-func (m *Module) RegisterHTTPRoutes(router chi.Router) {
-	router.Route("/auth", func(r chi.Router) {
+func (m *Module) RegisterHTTPRoutes(r chi.Router) {
+	r.Route("/auth", func(r chi.Router) {
 		r.Post("/register", m.handleRegister)
 		r.Post("/login", m.handleLogin)
 		r.Post("/logout", m.handleLogout)
+		r.Post("/refresh", m.handleRefresh)
 
 		r.Group(func(r chi.Router) {
 			r.Use(m.authMiddleware.Authenticate)
@@ -74,145 +78,121 @@ func (m *Module) RegisterHTTPRoutes(router chi.Router) {
 	})
 }
 
-// @Summary Register a new user
-// @Description Register a new user with email and password
-// @Tags auth
-// @Accept json
-// @Produce json
-// @Param request body register.Request true "Register Request"
-// @Success 201 {object} register.Response
-// @Failure 400 {object} map[string]string
-// @Router /auth/register [post]
 func (m *Module) handleRegister(w http.ResponseWriter, r *http.Request) {
 	var req register.Request
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		logger.Error("Failed to decode request", zap.Error(err))
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "invalid request body"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 		return
 	}
 
 	response, err := m.registerHandler.Handle(context.Background(), &req)
 	if err != nil {
 		logger.Error("Failed to register user", zap.Error(err))
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(response)
+	writeJSON(w, http.StatusCreated, response)
 }
 
-// @Summary Login user
-// @Description Authenticate user with email and password
-// @Tags auth
-// @Accept json
-// @Produce json
-// @Param request body login.Request true "Login Request"
-// @Success 200 {object} login.Response
-// @Failure 401 {object} map[string]string
-// @Router /auth/login [post]
 func (m *Module) handleLogin(w http.ResponseWriter, r *http.Request) {
 	var req login.Request
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "invalid request body"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 		return
 	}
 
 	response, err := m.loginHandler.Handle(r.Context(), &req)
 	if err != nil {
 		logger.Error("Login failed", zap.Error(err))
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]string{"error": "invalid credentials"})
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid credentials"})
 		return
 	}
 
-	cookies.SetSessionCookie(
-		w,
-		response.SessionID,
-		time.Now().Add(time.Duration(response.ExpiresIn)*time.Second),
-		m.cookieDomain,
-		m.cookieSecure,
+	accessExpires := time.Now().Add(m.tokenService.GetTokenExpiration())
+	cookies.SetAccessTokenCookie(w, r, response.AccessToken, accessExpires, m.cookieDomain, m.cookieSecure)
+
+	refreshExpires := m.tokenService.GetRefreshTokenExpiration()
+	cookies.SetRefreshTokenCookie(w, r, response.RefreshToken, refreshExpires, m.cookieDomain, m.cookieSecure)
+
+	logger.Info("Login successful, JWT cookies set",
+		zap.String("host", r.Host),
+		zap.Bool("secure", m.cookieSecure),
 	)
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(response)
-}
-
-// handleLogout logs out a user
-// @Summary Logout user
-// @Description Logout the current user
-// @Tags auth
-// @Accept json
-// @Produce json
-// @Success 200 {object} map[string]interface{}
-// @Failure 401 {object} map[string]string
-// @Router /auth/logout [post]
-func (m *Module) handleLogout(w http.ResponseWriter, r *http.Request) {
-	if sessionID, err := cookies.GetSessionIDFromCookie(r); err == nil && sessionID != "" {
-		_ = m.sessionRepo.DeleteByID(r.Context(), sessionID)
-	}
-	cookies.ClearSessionCookie(w, m.cookieDomain, m.cookieSecure)
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"message": "logged out successfully",
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"access_token":  response.AccessToken,
+		"refresh_token": response.RefreshToken,
+		"expires_in":    response.ExpiresIn,
+		"tenant":        response.Tenant,
 	})
 }
 
-// @Summary Get Current User
-// @Description Get the current authenticated user's information
-// @Tags auth
-// @Security BearerAuth
-// @Produce json
-// @Success 200 {object} get_current_user.Response
-// @Failure 401 {object} map[string]string
-// @Failure 404 {object} map[string]string
-// @Router /auth/me [get]
+func (m *Module) handleLogout(w http.ResponseWriter, r *http.Request) {
+	cookies.ClearAuthCookies(w, r, m.cookieDomain, m.cookieSecure)
+	writeJSON(w, http.StatusOK, map[string]interface{}{"message": "logged out successfully"})
+}
+
+func (m *Module) handleRefresh(w http.ResponseWriter, r *http.Request) {
+	refreshTokenStr, err := cookies.GetTokenFromCookie(r, cookies.RefreshTokenCookie)
+	if err != nil || refreshTokenStr == "" {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "missing refresh token"})
+		return
+	}
+
+	req := &refreshapp.Request{RefreshToken: refreshTokenStr}
+	response, err := m.refreshHandler.Handle(r.Context(), req)
+	if err != nil {
+		logger.Warn("Token refresh failed", zap.Error(err))
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid or expired refresh token"})
+		return
+	}
+
+	accessExpires := time.Now().Add(m.tokenService.GetTokenExpiration())
+	cookies.SetAccessTokenCookie(w, r, response.AccessToken, accessExpires, m.cookieDomain, m.cookieSecure)
+
+	refreshExpires := m.tokenService.GetRefreshTokenExpiration()
+	cookies.SetRefreshTokenCookie(w, r, response.RefreshToken, refreshExpires, m.cookieDomain, m.cookieSecure)
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"expires_in": response.ExpiresIn,
+		"tenant":     response.Tenant,
+	})
+}
+
 func (m *Module) handleGetCurrentUser(w http.ResponseWriter, r *http.Request) {
 	userIDStr, ok := r.Context().Value(authmw.UserIDKey).(string)
 	if !ok {
 		logger.Error("User ID not found in context")
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]string{"error": "unauthorized"})
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
 		return
 	}
 
 	userID, err := uuid.Parse(userIDStr)
 	if err != nil {
 		logger.Error("Invalid user ID", zap.Error(err))
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "invalid user id"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid user id"})
 		return
 	}
 
 	response, err := m.getCurrentUserHandler.Handle(context.Background(), userID)
 	if err != nil {
 		logger.Error("Failed to get current user", zap.Error(err))
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "failed to get user"})
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to get user"})
 		return
 	}
 
 	if response == nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(w).Encode(map[string]string{"error": "user not found"})
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "user not found"})
 		return
 	}
 
+	writeJSON(w, http.StatusOK, response)
+}
+
+func writeJSON(w http.ResponseWriter, status int, v interface{}) {
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(response)
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(v)
 }

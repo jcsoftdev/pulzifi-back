@@ -1,6 +1,7 @@
 'use client'
 
 import { AuthApi } from '@workspace/services'
+import { env } from '@/lib/env'
 import {
   Card,
   CardContent,
@@ -43,39 +44,38 @@ export default function LoginPage() {
         return
       }
 
-      // Redirigir al tenant correcto
+      // Cookies are set on the base domain by the BFF, so they're
+      // automatically available on all tenant subdomains. Just redirect.
       const protocol = globalThis.location.protocol
       const port = globalThis.location.port
       const hostname = globalThis.location.hostname
 
-      const appDomain = process.env.NEXT_PUBLIC_APP_DOMAIN
+      const appDomain = env.NEXT_PUBLIC_APP_DOMAIN
       let baseDomain = appDomain
-
-      // Si no hay variable de entorno, intentar inferir (fallback)
       if (!baseDomain) {
         if (hostname === 'localhost' || hostname === '127.0.0.1') {
           baseDomain = 'localhost'
+        } else if (hostname.endsWith('.localhost')) {
+          // e.g. acme.localhost → baseDomain = "localhost"
+          baseDomain = 'localhost'
         } else {
-          const parts = hostname.split('.')
-          baseDomain = parts.slice(-2).join('.')
+          // e.g. acme.pulzifi.com → baseDomain = "pulzifi.com"
+          baseDomain = hostname.split('.').slice(-2).join('.')
         }
       }
 
-      // Construir el host destino: tenant.dominioBase
       const targetHost = `${tenant}.${baseDomain}`
-      const currentHost = hostname
+      const portSuffix = port ? `:${port}` : ''
+      const redirectTo = searchParams.get('callbackUrl') || '/'
 
-      // Verificar si ya estamos en el subdominio correcto
-      if (currentHost === targetHost) {
-        router.push('/')
-        router.refresh()
-      } else {
-        // Construir URL completa
-        const portSuffix = port ? `:${port}` : ''
-        const tenantUrl = `${protocol}//${targetHost}${portSuffix}`
-
-        globalThis.location.href = tenantUrl
+      // Always redirect via the callback route so cookies are set at the
+      // correct tenant subdomain origin.
+      const callbackUrl = new URL(`${protocol}//${targetHost}${portSuffix}/api/auth/callback`)
+      if (loginResponse.nonce) {
+        callbackUrl.searchParams.set('nonce', loginResponse.nonce)
       }
+      callbackUrl.searchParams.set('redirectTo', redirectTo)
+      globalThis.location.href = callbackUrl.toString()
     } catch (error) {
       console.error(error)
       setError('Invalid email or password')

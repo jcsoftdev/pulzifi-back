@@ -5,8 +5,8 @@ export const ChangesViewService = {
     return PageApi.listChecks(pageId)
   },
 
-  async getPageInsights(pageId: string): Promise<Insight[]> {
-    return PageApi.listInsights(pageId)
+  async getPageInsights(pageId: string, checkId?: string): Promise<Insight[]> {
+    return PageApi.listInsights(pageId, checkId)
   },
 
   async getPage(pageId: string) {

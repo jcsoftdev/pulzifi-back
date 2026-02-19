@@ -10,6 +10,7 @@ export interface ChecksData {
   current: number
   max: number
   refillDate: string
+  storagePeriodDays: number
 }
 
 interface UsageQuotasResponse {
@@ -17,6 +18,7 @@ interface UsageQuotasResponse {
     checks_used?: number
     checks_allowed?: number
     next_refill_at?: string | null
+    storage_period_days?: number
   }
 }
 
@@ -58,10 +60,13 @@ export const UsageApi = {
       }
     }
 
+    const storagePeriodDays = response.quotas?.storage_period_days ?? 7
+
     return {
       current,
       max,
       refillDate,
+      storagePeriodDays,
     }
   },
 

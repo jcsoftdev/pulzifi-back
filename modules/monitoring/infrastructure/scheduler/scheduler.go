@@ -193,6 +193,13 @@ func (s *Scheduler) TriggerPageCheck(ctx context.Context, schema string, pageID 
 		return err
 	}
 
+	// Mark the page as checked now so the scheduler loop doesn't also pick it up
+	// before the async goroutine below has a chance to call UpdateLastChecked.
+	repo := persistence.NewMonitoringConfigPostgresRepository(s.db, schema)
+	if err := repo.UpdateLastCheckedAt(ctx, pageID); err != nil {
+		logger.Error("TriggerPageCheck: failed to pre-update last_checked_at", zap.String("page_id", pageID.String()), zap.Error(err))
+	}
+
 	job := orchestrator.CheckJob{
 		PageID:     pageID,
 		URL:        url,
@@ -223,6 +230,13 @@ func (s *Scheduler) processTenant(ctx context.Context, schema string) {
 	}
 
 	for _, task := range tasks {
+		// Pre-update last_checked_at synchronously so that the next scheduler
+		// iteration doesn't see this page as due again before the goroutine commits.
+		if err := repo.UpdateLastCheckedAt(ctx, task.PageID); err != nil {
+			logger.Error("Failed to pre-update last_checked_at", zap.String("page_id", task.PageID.String()), zap.Error(err))
+			continue
+		}
+
 		// Create Job (In-Memory)
 		job := orchestrator.CheckJob{
 			PageID:     task.PageID,
