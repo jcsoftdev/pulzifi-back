@@ -1,90 +1,122 @@
 package http
 
 import (
+	"database/sql"
 	"encoding/json"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
+	authmw "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/middleware"
+	deleteintegration "github.com/jcsoftdev/pulzifi-back/modules/integration/application/delete_integration"
+	listintegrations "github.com/jcsoftdev/pulzifi-back/modules/integration/application/list_integrations"
+	upsertintegration "github.com/jcsoftdev/pulzifi-back/modules/integration/application/upsert_integration"
+	"github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/persistence"
+	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
 	"github.com/jcsoftdev/pulzifi-back/shared/router"
+	"go.uber.org/zap"
 )
 
-// Module implements the router.ModuleRegisterer interface for the Integration module
-type Module struct{}
-
-// NewModule creates a new instance of the Integration module
-func NewModule() router.ModuleRegisterer {
-	return &Module{}
+type Module struct {
+	db *sql.DB
 }
 
-// ModuleName returns the name of the module
+func NewModuleWithDB(db *sql.DB) router.ModuleRegisterer {
+	return &Module{db: db}
+}
+
 func (m *Module) ModuleName() string {
 	return "Integration"
 }
 
-// RegisterHTTPRoutes registers all HTTP routes for the Integration module
-func (m *Module) RegisterHTTPRoutes(router chi.Router) {
-	router.Route("/integrations", func(r chi.Router) {
+func (m *Module) RegisterHTTPRoutes(r chi.Router) {
+	r.Route("/integrations", func(r chi.Router) {
 		r.Use(middleware.AuthMiddleware.Authenticate)
 		r.Use(middleware.OrgMiddleware.RequireOrganizationMembership)
-		r.Route("/webhooks", func(wr chi.Router) {
-			wr.Post("/", m.handleCreateWebhook)
-			wr.Get("/", m.handleListWebhooks)
-			wr.Get("/{id}", m.handleGetWebhook)
-		})
+
+		r.Get("/", m.handleListIntegrations)
+		r.Post("/", m.handleUpsertIntegration)
+		r.Delete("/{id}", m.handleDeleteIntegration)
 	})
 }
 
-// handleCreateWebhook creates a new webhook integration
-// @Summary Create Webhook Integration
-// @Description Create a new webhook integration
-// @Tags integrations
-// @Security BearerAuth
-// @Accept json
-// @Produce json
-// @Param request body map[string]string true "Create Webhook Request"
-// @Success 201 {object} map[string]interface{}
-// @Router /integrations/webhooks [post]
-func (m *Module) handleCreateWebhook(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"id":      "550e8400-e29b-41d4-a716-446655440000",
-		"message": "create webhook",
-	})
+func (m *Module) handleListIntegrations(w http.ResponseWriter, r *http.Request) {
+	tenant := middleware.GetSubdomainFromContext(r.Context())
+	repo := persistence.NewIntegrationPostgresRepository(m.db, tenant)
+	handler := listintegrations.NewHandler(repo)
+
+	resp, err := handler.Handle(r.Context())
+	if err != nil {
+		logger.Error("Failed to list integrations", zap.Error(err))
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, resp)
 }
 
-// handleListWebhooks lists all webhook integrations
-// @Summary List Webhook Integrations
-// @Description List all webhook integrations
-// @Tags integrations
-// @Security BearerAuth
-// @Produce json
-// @Success 200 {object} map[string]interface{}
-// @Router /integrations/webhooks [get]
-func (m *Module) handleListWebhooks(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"webhooks": []interface{}{},
-		"message":  "list webhooks",
-	})
+func (m *Module) handleUpsertIntegration(w http.ResponseWriter, r *http.Request) {
+	tenant := middleware.GetSubdomainFromContext(r.Context())
+
+	userIDStr, ok := r.Context().Value(authmw.UserIDKey).(string)
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid user id"})
+		return
+	}
+
+	var req upsertintegration.Request
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+
+	repo := persistence.NewIntegrationPostgresRepository(m.db, tenant)
+	handler := upsertintegration.NewHandler(repo)
+
+	resp, err := handler.Handle(r.Context(), &req, userID)
+	if err != nil {
+		if err == upsertintegration.ErrInvalidServiceType {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		logger.Error("Failed to upsert integration", zap.Error(err))
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, resp)
 }
 
-// handleGetWebhook gets a webhook integration by ID
-// @Summary Get Webhook Integration
-// @Description Get a webhook integration by ID
-// @Tags integrations
-// @Security BearerAuth
-// @Produce json
-// @Param id path string true "Webhook ID"
-// @Success 200 {object} map[string]interface{}
-// @Router /integrations/webhooks/{id} [get]
-func (m *Module) handleGetWebhook(w http.ResponseWriter, r *http.Request) {
+func (m *Module) handleDeleteIntegration(w http.ResponseWriter, r *http.Request) {
+	tenant := middleware.GetSubdomainFromContext(r.Context())
+
+	idStr := chi.URLParam(r, "id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid id"})
+		return
+	}
+
+	repo := persistence.NewIntegrationPostgresRepository(m.db, tenant)
+	handler := deleteintegration.NewHandler(repo)
+
+	if err := handler.Handle(r.Context(), id); err != nil {
+		logger.Error("Failed to delete integration", zap.Error(err))
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func writeJSON(w http.ResponseWriter, status int, v interface{}) {
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{
-		"id":      chi.URLParam(r, "id"),
-		"message": "get webhook",
-	})
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(v)
 }

@@ -1,6 +1,5 @@
 'use client'
 
-import { AuthApi } from '@workspace/services'
 import {
   Card,
   CardContent,
@@ -9,38 +8,11 @@ import {
   CardTitle,
 } from '@workspace/ui/components/atoms/card'
 import Link from 'next/link'
-import { useState } from 'react'
-import type { RegisterData } from '@/features/auth/domain/types'
-import { RegisterForm } from '@/features/auth/ui/register-form'
+import { useRegister } from './application/use-register'
+import { RegisterForm } from './ui/register-form'
 
-export default function RegisterPage() {
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string>()
-  const [submitted, setSubmitted] = useState(false)
-
-  const handleRegister = async (data: RegisterData) => {
-    setIsLoading(true)
-    setError(undefined)
-
-    try {
-      await AuthApi.register(data)
-      setSubmitted(true)
-    } catch (err: unknown) {
-      const error = err as {
-        response?: {
-          data?: {
-            error?: string
-          }
-        }
-        message?: string
-      }
-      const errorMessage =
-        error?.response?.data?.error || error?.message || 'Registration failed. Please try again.'
-      setError(errorMessage)
-    } finally {
-      setIsLoading(false)
-    }
-  }
+export function RegisterFeature() {
+  const { register, isLoading, error, submitted, checkSubdomain, subdomainStatus, subdomainMessage } = useRegister()
 
   if (submitted) {
     return (
@@ -74,7 +46,14 @@ export default function RegisterPage() {
             <CardDescription>Sign up to get started with Pulzifi</CardDescription>
           </CardHeader>
           <CardContent>
-            <RegisterForm onSubmit={handleRegister} isLoading={isLoading} error={error} />
+            <RegisterForm
+              onSubmit={register}
+              isLoading={isLoading}
+              error={error}
+              onSubdomainChange={checkSubdomain}
+              subdomainStatus={subdomainStatus}
+              subdomainMessage={subdomainMessage}
+            />
 
             <div className="mt-6 text-center text-sm text-muted-foreground">
               Already have an account?{' '}

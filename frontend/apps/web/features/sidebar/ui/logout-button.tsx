@@ -28,7 +28,8 @@ export function LogoutButton() {
       baseDomainHost = `${baseParts.join('.')}${port}`
     }
 
-    window.location.href = `${protocol}//${baseDomainHost}/login`
+    // Always bounce through the main-domain logout endpoint so its cookies are cleared too.
+    window.location.href = `${protocol}//${baseDomainHost}/api/auth/logout?redirectTo=/login`
   }
 
   return (

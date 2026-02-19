@@ -283,25 +283,21 @@ func (m *Module) handleAssignOrganizationPlan(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	updateUsageSQL := `
-		UPDATE %s.usage_tracking ut
-		SET checks_allowed = $1,
-		    updated_at = NOW()
-		WHERE ut.period_start <= CURRENT_DATE
-		  AND ut.period_end >= CURRENT_DATE
-	`
-
-	if _, err := tx.ExecContext(r.Context(),
-		fmt.Sprintf(updateUsageSQL, schemaName),
-		checksAllowed,
-	); err != nil {
-		http.Error(w, "failed to sync tenant usage", http.StatusInternalServerError)
-		return
-	}
-
 	if err := tx.Commit(); err != nil {
 		http.Error(w, "failed to commit plan change", http.StatusInternalServerError)
 		return
+	}
+
+	// Best-effort: sync checks_allowed on any active usage_tracking row.
+	// The table may not exist yet for newly provisioned orgs, so failures are non-fatal.
+	updateUsageSQL := fmt.Sprintf(`
+		UPDATE %s.usage_tracking
+		SET checks_allowed = $1, updated_at = NOW()
+		WHERE period_start <= CURRENT_DATE AND period_end >= CURRENT_DATE
+	`, schemaName)
+	if _, err := m.db.ExecContext(r.Context(), updateUsageSQL, checksAllowed); err != nil {
+		logger.Warn("Failed to sync tenant usage_tracking after plan change (non-fatal)",
+			zap.String("schema", schemaName), zap.Error(err))
 	}
 
 	w.Header().Set("Content-Type", "application/json")

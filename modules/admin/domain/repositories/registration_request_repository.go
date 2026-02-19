@@ -23,4 +23,7 @@ type RegistrationRequestRepository interface {
 
 	// UpdateStatus updates the status of a registration request
 	UpdateStatus(ctx context.Context, id uuid.UUID, status string, reviewedBy uuid.UUID) error
+
+	// ExistsPendingBySubdomain checks whether a pending registration request already exists for the given subdomain
+	ExistsPendingBySubdomain(ctx context.Context, subdomain string) (bool, error)
 }

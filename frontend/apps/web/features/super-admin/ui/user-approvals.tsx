@@ -13,7 +13,11 @@ import {
 import { Loader2 } from 'lucide-react'
 import { useCallback, useEffect, useState, useTransition } from 'react'
 
-export function UserApprovals() {
+interface UserApprovalsProps {
+  onUserApproved?: () => void
+}
+
+export function UserApprovals({ onUserApproved }: UserApprovalsProps) {
   const [isPending, startTransition] = useTransition()
   const [users, setUsers] = useState<PendingUser[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -39,6 +43,7 @@ export function UserApprovals() {
       try {
         await SuperAdminApi.approveUser(requestId)
         await loadData()
+        onUserApproved?.()
       } catch {
         setError('Failed to approve user.')
       }

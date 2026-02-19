@@ -68,12 +68,25 @@ export default function LoginPage() {
       const portSuffix = port ? `:${port}` : ''
       const redirectTo = searchParams.get('callbackUrl') || '/'
 
-      const callbackUrl = new URL(`${protocol}//${targetHost}${portSuffix}/api/auth/callback`)
+      const tenantCallbackUrl = new URL(`${protocol}//${targetHost}${portSuffix}/api/auth/callback`)
       if (loginResponse.nonce) {
-        callbackUrl.searchParams.set('nonce', loginResponse.nonce)
+        tenantCallbackUrl.searchParams.set('nonce', loginResponse.nonce)
       }
-      callbackUrl.searchParams.set('redirectTo', redirectTo)
-      globalThis.location.href = callbackUrl.toString()
+      tenantCallbackUrl.searchParams.set('redirectTo', redirectTo)
+
+      // When logging in from a tenant subdomain we also need to set cookies at
+      // the base domain so the main domain recognises the session.
+      // Redirect chain: base/set-base-session → tenant/callback → app
+      const isOnSubdomain = hostname !== baseDomain
+      if (isOnSubdomain && loginResponse.nonce) {
+        const baseSessionUrl = new URL(`${protocol}//${baseDomain}${portSuffix}/api/auth/set-base-session`)
+        baseSessionUrl.searchParams.set('nonce', loginResponse.nonce)
+        baseSessionUrl.searchParams.set('tenant', tenant)
+        baseSessionUrl.searchParams.set('returnTo', tenantCallbackUrl.toString())
+        globalThis.location.href = baseSessionUrl.toString()
+      } else {
+        globalThis.location.href = tenantCallbackUrl.toString()
+      }
     } catch (err: unknown) {
       const axiosError = err as {
         response?: {

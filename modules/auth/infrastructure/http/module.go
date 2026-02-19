@@ -10,6 +10,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	adminrepos "github.com/jcsoftdev/pulzifi-back/modules/admin/domain/repositories"
+	checksubdomain "github.com/jcsoftdev/pulzifi-back/modules/auth/application/check_subdomain"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/application/get_current_user"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/application/login"
 	refreshapp "github.com/jcsoftdev/pulzifi-back/modules/auth/application/refresh_token"
@@ -27,14 +28,15 @@ import (
 )
 
 type Module struct {
-	registerHandler       *register.Handler
-	loginHandler          *login.Handler
-	refreshHandler        *refreshapp.Handler
-	getCurrentUserHandler *get_current_user.Handler
-	authMiddleware        *authmw.AuthMiddleware
-	tokenService          services.TokenService
-	cookieDomain          string
-	cookieSecure          bool
+	registerHandler        *register.Handler
+	checkSubdomainHandler  *checksubdomain.Handler
+	loginHandler           *login.Handler
+	refreshHandler         *refreshapp.Handler
+	getCurrentUserHandler  *get_current_user.Handler
+	authMiddleware         *authmw.AuthMiddleware
+	tokenService           services.TokenService
+	cookieDomain           string
+	cookieSecure           bool
 }
 
 type ModuleDeps struct {
@@ -54,6 +56,7 @@ type ModuleDeps struct {
 func NewModule(deps ModuleDeps) router.ModuleRegisterer {
 	return &Module{
 		registerHandler:       register.NewHandler(deps.UserRepo, deps.RegReqRepo, deps.OrgRepo, deps.OrgService),
+		checkSubdomainHandler: checksubdomain.NewHandler(deps.RegReqRepo, deps.OrgRepo, deps.OrgService),
 		loginHandler:          login.NewHandler(deps.AuthService, deps.UserRepo, deps.RefreshTokenRepo, deps.TokenService),
 		refreshHandler:        refreshapp.NewHandler(deps.RefreshTokenRepo, deps.UserRepo, deps.TokenService),
 		getCurrentUserHandler: get_current_user.NewHandler(deps.UserRepo),
@@ -75,6 +78,7 @@ func (m *Module) ModuleName() string {
 func (m *Module) RegisterHTTPRoutes(r chi.Router) {
 	r.Route("/auth", func(r chi.Router) {
 		r.Post("/register", m.handleRegister)
+		r.Get("/check-subdomain", m.handleCheckSubdomain)
 		r.Post("/login", m.handleLogin)
 		r.Post("/logout", m.handleLogout)
 		r.Post("/refresh", m.handleRefresh)
@@ -102,6 +106,23 @@ func (m *Module) handleRegister(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusCreated, response)
+}
+
+func (m *Module) handleCheckSubdomain(w http.ResponseWriter, r *http.Request) {
+	subdomain := r.URL.Query().Get("subdomain")
+	if subdomain == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "subdomain is required"})
+		return
+	}
+
+	response, err := m.checkSubdomainHandler.Handle(r.Context(), subdomain)
+	if err != nil {
+		logger.Error("Failed to check subdomain", zap.Error(err))
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to check subdomain"})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, response)
 }
 
 func (m *Module) handleLogin(w http.ResponseWriter, r *http.Request) {

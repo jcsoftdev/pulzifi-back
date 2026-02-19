@@ -54,6 +54,7 @@ export async function proxy(request: NextRequest) {
     '/reset-password',
     '/lecture-ai',
     '/api/auth/callback',
+    '/api/auth/set-base-session',
   ]
   const isPublicPath = publicPaths.some((p) => path.startsWith(p))
 

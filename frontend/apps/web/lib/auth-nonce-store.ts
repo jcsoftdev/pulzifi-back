@@ -49,3 +49,18 @@ export function consumeNonce(nonce: string): Omit<NonceEntry, 'expiresAt'> | nul
   const { expiresAt: _, ...tokens } = entry
   return tokens
 }
+
+/**
+ * Read nonce tokens WITHOUT consuming the entry.
+ * Used by set-base-session so the same nonce can later be consumed by the
+ * tenant callback.
+ */
+export function peekNonce(nonce: string): Omit<NonceEntry, 'expiresAt'> | null {
+  const entry = store.get(nonce)
+  if (!entry || entry.expiresAt < Date.now()) {
+    store.delete(nonce)
+    return null
+  }
+  const { expiresAt: _, ...tokens } = entry
+  return tokens
+}

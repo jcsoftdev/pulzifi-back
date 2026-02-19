@@ -57,9 +57,9 @@ export const SuperAdminApi = {
   async listPendingUsers(): Promise<PendingUser[]> {
     const http = await getHttpClient()
     const response = await http.get<{
-      requests: PendingUser[]
+      pending_users: PendingUser[]
     }>('/api/v1/admin/users/pending')
-    return response.requests || []
+    return response.pending_users || []
   },
 
   async approveUser(requestId: string): Promise<void> {

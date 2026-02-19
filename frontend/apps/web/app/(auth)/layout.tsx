@@ -2,7 +2,7 @@ import { AuthApi } from '@workspace/services'
 import { extractTenantFromHostname } from '@workspace/shared-http'
 import { env } from '@/lib/env'
 import { isRedirectError } from 'next/dist/client/components/redirect-error'
-import { headers } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { AuthProvider } from '@/components/providers/auth-provider'
 
@@ -41,12 +41,13 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
   if (!tenant) {
     // Base domain (e.g. localhost:3000/login) — check if user already has a
     // valid session. If so, redirect to their tenant subdomain.
+    const protocol = incomingHeaders.get('x-forwarded-proto')
+      ? `${incomingHeaders.get('x-forwarded-proto')}:`
+      : 'http:'
+
     try {
       const user = await AuthApi.getCurrentUser()
       if (user.tenant) {
-        const protocol = incomingHeaders.get('x-forwarded-proto')
-          ? `${incomingHeaders.get('x-forwarded-proto')}:`
-          : 'http:'
         const url = buildTenantRedirectUrl(host, protocol, user.tenant)
         redirect(url)
       }
@@ -55,7 +56,15 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
       if (isRedirectError(error)) {
         throw error
       }
-      // Any other error (401, network, etc.) — just show the login page
+      // getCurrentUser() may fail when there is no X-Tenant context at the
+      // base domain. Fall back to the tenant_hint cookie set by
+      // /api/auth/set-base-session when the user logged in from a subdomain.
+      const cookieStore = await cookies()
+      const tenantHint = cookieStore.get('tenant_hint')?.value
+      if (tenantHint) {
+        const url = buildTenantRedirectUrl(host, protocol, tenantHint)
+        redirect(url)
+      }
     }
 
     return <AuthProvider>{children}</AuthProvider>

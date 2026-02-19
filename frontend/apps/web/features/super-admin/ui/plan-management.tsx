@@ -22,11 +22,12 @@ export function PlanManagement() {
   const [isPending, startTransition] = useTransition()
   const [plans, setPlans] = useState<AdminPlan[]>([])
   const [organizations, setOrganizations] = useState<AdminOrganizationPlan[]>([])
-  const [error, setError] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
 
   const loadData = useCallback(async () => {
     try {
-      setError(null)
+      setLoadError(null)
       const [plansData, orgsData] = await Promise.all([
         SuperAdminApi.listPlans(),
         SuperAdminApi.listOrganizations(),
@@ -34,7 +35,7 @@ export function PlanManagement() {
       setPlans(plansData)
       setOrganizations(orgsData)
     } catch {
-      setError('You need SUPER_ADMIN role to manage organization plans.')
+      setLoadError('You need SUPER_ADMIN role to manage organization plans.')
     }
   }, [])
 
@@ -45,23 +46,24 @@ export function PlanManagement() {
   ])
 
   const handlePlanChange = (organizationId: string, planCode: string) => {
+    setActionError(null)
     startTransition(async () => {
       try {
         await SuperAdminApi.assignPlan(organizationId, planCode)
         await loadData()
       } catch {
-        setError('Failed to update plan for this organization.')
+        setActionError('Failed to update plan for this organization.')
       }
     })
   }
 
-  if (error) {
+  if (loadError) {
     return (
       <div className="flex-1 p-8 max-w-7xl mx-auto w-full">
         <Card>
           <CardHeader>
             <CardTitle>Super Admin Access</CardTitle>
-            <CardDescription>{error}</CardDescription>
+            <CardDescription>{loadError}</CardDescription>
           </CardHeader>
         </Card>
       </div>
@@ -80,6 +82,12 @@ export function PlanManagement() {
           </div>
           {isPending && <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />}
         </div>
+
+        {actionError && (
+          <div className="text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-md px-4 py-3">
+            {actionError}
+          </div>
+        )}
 
         <Card>
           <CardHeader>
@@ -108,7 +116,7 @@ export function PlanManagement() {
                 <Badge variant="outline">Limit: {org.checks_allowed_monthly}/month</Badge>
                 <div className="w-full md:w-72">
                   <Select
-                    value={org.plan_code || undefined}
+                    value={org.plan_code || ''}
                     onValueChange={(value) => handlePlanChange(org.id, value)}
                     disabled={isPending}
                   >

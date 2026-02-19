@@ -19,6 +19,15 @@ interface LoginBackendResponse {
   nonce?: string
 }
 
+interface RegisterBackendResponse {
+  user_id: string
+  email: string
+  first_name: string
+  last_name: string
+  status: string
+  message: string
+}
+
 // Exported: Frontend types (camelCase)
 export interface User {
   id: string
@@ -86,6 +95,13 @@ export const AuthApi = {
     await http.post('/api/auth/logout', {})
   },
 
+  async checkSubdomain(subdomain: string): Promise<{ available: boolean; message?: string }> {
+    const http = await getHttpClient()
+    return http.get<{ available: boolean; message?: string }>(
+      `/api/v1/auth/check-subdomain?subdomain=${encodeURIComponent(subdomain)}`
+    )
+  },
+
   async register(data: {
     email: string
     password: string
@@ -93,9 +109,9 @@ export const AuthApi = {
     lastName: string
     organizationName: string
     organizationSubdomain: string
-  }): Promise<{ user: User; status: string }> {
+  }): Promise<{ status: string; message: string }> {
     const http = await getHttpClient()
-    const response = await http.post<{ user: UserBackendDto; status: string }>('/api/v1/auth/register', {
+    const response = await http.post<RegisterBackendResponse>('/api/v1/auth/register', {
       email: data.email,
       password: data.password,
       firstName: data.firstName,
@@ -104,8 +120,8 @@ export const AuthApi = {
       organization_subdomain: data.organizationSubdomain,
     })
     return {
-      user: transformUser(response.user),
       status: response.status,
+      message: response.message,
     }
   },
 }

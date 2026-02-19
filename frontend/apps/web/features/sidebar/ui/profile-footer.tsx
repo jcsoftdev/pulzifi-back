@@ -26,18 +26,19 @@ export function ProfileFooter({ user }: Readonly<ProfileFooterProps>) {
     const portStr = port ? `:${port}` : ''
 
     const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1'
+    const isLocalhostSubdomain = hostname.endsWith('.localhost')
 
-    if (isLocalhost) {
-      // localhost:port -> localhost:port/login
-      const loginUrl = `${protocol}//localhost${portStr}/login`
-      globalThis.window?.location.replace(loginUrl)
+    let baseHost: string
+    if (isLocalhost || isLocalhostSubdomain) {
+      baseHost = `localhost${portStr}`
     } else {
-      // jcsoftdev-inc.app.local -> app.local/login
       const parts = hostname.split('.')
-      const baseDomain = parts.slice(-2).join('.')
-      const loginUrl = `${protocol}//${baseDomain}/login`
-      globalThis.window?.location.replace(loginUrl)
+      const baseDomain = parts.length > 2 ? parts.slice(1).join('.') : hostname
+      baseHost = `${baseDomain}${portStr}`
     }
+
+    // Always bounce through the main-domain logout endpoint so its cookies are cleared too.
+    globalThis.window?.location.replace(`${protocol}//${baseHost}/api/auth/logout?redirectTo=/login`)
   }
 
   return (

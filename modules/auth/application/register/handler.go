@@ -52,7 +52,7 @@ func (h *Handler) Handle(ctx context.Context, req *Request) (*Response, error) {
 		return nil, errors.NewUserError("INVALID_SUBDOMAIN", err.Error())
 	}
 
-	// Check subdomain uniqueness
+	// Check subdomain uniqueness against existing (approved) organizations
 	count, err := h.orgRepo.CountBySubdomain(ctx, subdomain)
 	if err != nil {
 		logger.Error("Failed to check subdomain uniqueness", zap.Error(err))
@@ -60,6 +60,16 @@ func (h *Handler) Handle(ctx context.Context, req *Request) (*Response, error) {
 	}
 	if count > 0 {
 		return nil, errors.NewUserError("SUBDOMAIN_TAKEN", "subdomain is already in use")
+	}
+
+	// Check subdomain uniqueness against pending registration requests
+	pendingExists, err := h.regReqRepo.ExistsPendingBySubdomain(ctx, subdomain)
+	if err != nil {
+		logger.Error("Failed to check pending subdomain", zap.Error(err))
+		return nil, err
+	}
+	if pendingExists {
+		return nil, errors.NewUserError("SUBDOMAIN_PENDING", "subdomain is already pending registration approval")
 	}
 
 	// Check if user already exists

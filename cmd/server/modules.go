@@ -84,7 +84,7 @@ func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus 
 		{"Page", page.NewModuleWithDB(db)},
 		{"Alert", alert.NewModuleWithDB(db)},
 		{"Monitoring", monitoring.NewModuleWithDB(db, eventBus)},
-		{"Integration", integration.NewModule()},
+		{"Integration", integration.NewModuleWithDB(db)},
 		{"Insight", insight.NewModuleWithDB(db, pubsub.NewInsightBroker())},
 		{"Report", report.NewModule()},
 		{"Usage", usage.NewModuleWithDB(db)},

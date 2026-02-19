@@ -120,6 +120,20 @@ func (r *RegistrationRequestPostgresRepository) UpdateStatus(ctx context.Context
 	return nil
 }
 
+// ExistsPendingBySubdomain returns true if there is already a pending request for the given subdomain
+func (r *RegistrationRequestPostgresRepository) ExistsPendingBySubdomain(ctx context.Context, subdomain string) (bool, error) {
+	query := `
+		SELECT COUNT(*) FROM public.registration_requests
+		WHERE organization_subdomain = $1 AND status = 'pending'
+	`
+	var count int
+	if err := r.db.QueryRowContext(ctx, query, subdomain).Scan(&count); err != nil {
+		logger.Error("Failed to check pending subdomain", zap.Error(err))
+		return false, err
+	}
+	return count > 0, nil
+}
+
 func (r *RegistrationRequestPostgresRepository) scanOne(ctx context.Context, query string, arg interface{}) (*entities.RegistrationRequest, error) {
 	var req entities.RegistrationRequest
 	var reviewedBy sql.NullString
