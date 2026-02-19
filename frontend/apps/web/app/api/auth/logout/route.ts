@@ -3,8 +3,7 @@ import { NextResponse } from 'next/server'
 import { env } from '@/lib/env'
 
 function getBackendOrigin(): string {
-  const apiBase =
-    env.SERVER_API_URL ?? env.NEXT_PUBLIC_API_URL ?? 'http://localhost:9090'
+  const apiBase = env.SERVER_API_URL ?? 'http://localhost:9090'
   try {
     return new URL(apiBase).origin
   } catch {

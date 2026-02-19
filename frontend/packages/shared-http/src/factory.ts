@@ -17,8 +17,7 @@ const getClientApiUrl = (): string => {
  * Build server API URL - simplified without dynamic imports
  */
 function getServerApiUrl(): string {
-  const configuredApiUrl =
-    env.SERVER_API_URL ?? env.API_URL ?? env.NEXT_PUBLIC_API_URL
+  const configuredApiUrl = env.SERVER_API_URL
 
   if (configuredApiUrl) {
     try {

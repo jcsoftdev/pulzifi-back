@@ -61,9 +61,8 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next()
   }
 
-  const apiBase =
-    env.SERVER_API_URL ?? env.API_URL ?? env.NEXT_PUBLIC_API_URL ?? ''
-  const backendOrigin = new URL(apiBase).origin 
+  const apiBase = env.SERVER_API_URL ?? ''
+  const backendOrigin = new URL(apiBase).origin
 
   const host = request.headers.get('host') || ''
   const tenant = extractTenantFromHostname(host)
