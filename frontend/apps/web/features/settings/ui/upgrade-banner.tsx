@@ -1,6 +1,6 @@
 export function UpgradeBanner() {
   return (
-    <div className="rounded-2xl bg-[#eef0fb] px-8 py-6 flex items-center justify-between gap-4 overflow-hidden">
+    <div className="rounded-2xl bg-sidebar-accent px-8 py-6 flex items-center justify-between gap-4 overflow-hidden">
       <div className="flex-1">
         <p className="text-sm text-muted-foreground font-medium">Don&apos;t miss what matters next</p>
         <h2 className="text-xl font-bold text-foreground mt-1 leading-snug">
@@ -10,17 +10,17 @@ export function UpgradeBanner() {
         </h2>
         <button
           type="button"
-          className="mt-4 inline-flex items-center gap-2 bg-[#5b5fcf] hover:bg-[#4a4db8] text-white text-sm font-medium px-5 py-2.5 rounded-full transition-colors"
+          className="mt-4 inline-flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium px-5 py-2.5 rounded-full transition-colors"
         >
           Check pricing &rarr;
         </button>
       </div>
       <div className="hidden sm:block flex-shrink-0 w-32 h-32 relative">
         {/* Decorative illustration placeholder */}
-        <div className="w-full h-full rounded-full bg-[#dde0f8] flex items-center justify-center">
+        <div className="w-full h-full rounded-full bg-primary/15 flex items-center justify-center">
           <svg
             xmlns="http://www.w3.org/2000/svg"
-            className="w-16 h-16 text-[#5b5fcf] opacity-60"
+            className="w-16 h-16 text-primary opacity-60"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"

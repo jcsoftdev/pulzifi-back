@@ -3,6 +3,100 @@ import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { env } from '@/lib/env'
 
+function parseTokenFromSetCookies(setCookieHeaders: string[], cookieName: string): string | null {
+  for (const header of setCookieHeaders) {
+    const eqIdx = header.indexOf('=')
+    if (eqIdx === -1) continue
+    const name = header.slice(0, eqIdx).trim()
+    const afterEq = header.slice(eqIdx + 1)
+    const semiIdx = afterEq.indexOf(';')
+    const value = semiIdx === -1 ? afterEq.trim() : afterEq.slice(0, semiIdx).trim()
+    if (name === cookieName) return value
+  }
+  return null
+}
+
+function buildUpdatedCookieString(
+  existingCookies: string,
+  newAccessToken: string,
+  newRefreshToken: string | null
+): string {
+  const cookieMap: Record<string, string> = {}
+  for (const part of existingCookies.split(';')) {
+    const trimmed = part.trim()
+    const eqIdx = trimmed.indexOf('=')
+    if (eqIdx === -1) continue
+    cookieMap[trimmed.slice(0, eqIdx).trim()] = trimmed.slice(eqIdx + 1).trim()
+  }
+  cookieMap['access_token'] = newAccessToken
+  if (newRefreshToken) cookieMap['refresh_token'] = newRefreshToken
+  return Object.entries(cookieMap)
+    .map(([k, v]) => `${k}=${v}`)
+    .join('; ')
+}
+
+async function attemptTokenRefresh(
+  request: NextRequest,
+  backendOrigin: string,
+  cookie: string,
+  tenant: string
+): Promise<NextResponse | null> {
+  try {
+    const refreshResponse = await fetch(`${backendOrigin}/api/v1/auth/refresh`, {
+      method: 'POST',
+      headers: {
+        Cookie: cookie,
+        'X-Tenant': tenant,
+        'Content-Type': 'application/json',
+      },
+      cache: 'no-store',
+    })
+
+    if (!refreshResponse.ok) return null
+
+    const setCookieHeaders = refreshResponse.headers.getSetCookie()
+    const newAccessToken = parseTokenFromSetCookies(setCookieHeaders, 'access_token')
+    const newRefreshToken = parseTokenFromSetCookies(setCookieHeaders, 'refresh_token')
+
+    if (!newAccessToken) return null
+
+    const updatedCookieStr = buildUpdatedCookieString(cookie, newAccessToken, newRefreshToken)
+
+    const retryResponse = await fetch(`${backendOrigin}/api/v1/auth/me`, {
+      method: 'GET',
+      headers: { Cookie: updatedCookieStr, 'X-Tenant': tenant },
+      cache: 'no-store',
+    })
+
+    if (!retryResponse.ok) return null
+
+    const requestHeaders = new Headers(request.headers)
+    requestHeaders.set('Cookie', updatedCookieStr)
+    const response = NextResponse.next({ request: { headers: requestHeaders } })
+
+    const isSecure = request.nextUrl.protocol === 'https:'
+    response.cookies.set('access_token', newAccessToken, {
+      path: '/',
+      httpOnly: true,
+      secure: isSecure,
+      sameSite: 'lax',
+    })
+    if (newRefreshToken) {
+      response.cookies.set('refresh_token', newRefreshToken, {
+        path: '/',
+        httpOnly: true,
+        secure: isSecure,
+        sameSite: 'lax',
+        maxAge: 7 * 24 * 60 * 60,
+      })
+    }
+
+    return response
+  } catch {
+    return null
+  }
+}
+
 /**
  * Returns the base domain login URL (without tenant subdomain).
  * E.g. on tenant.pulzifi.local:3000 → http://pulzifi.local:3000/login
@@ -88,7 +182,9 @@ export async function proxy(request: NextRequest) {
   console.log({meResponse})
 
   if (meResponse.status === 401 || meResponse.status === 403) {
-    // Redirect to base domain login so cookie is set on the parent domain
+    // Try to refresh the token before redirecting to login
+    const refreshed = await attemptTokenRefresh(request, backendOrigin, cookie, tenant)
+    if (refreshed) return refreshed
     return NextResponse.redirect(getBaseDomainLoginUrl(request, path))
   }
 

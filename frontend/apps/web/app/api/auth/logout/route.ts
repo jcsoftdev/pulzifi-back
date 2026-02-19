@@ -23,6 +23,7 @@ export async function GET(request: NextRequest) {
 
   response.cookies.set('access_token', '', { path: '/', httpOnly: true, maxAge: 0 })
   response.cookies.set('refresh_token', '', { path: '/', httpOnly: true, maxAge: 0 })
+  response.cookies.set('tenant_hint', '', { path: '/', httpOnly: true, maxAge: 0 })
 
   return response
 }
@@ -43,6 +44,7 @@ export async function POST(request: NextRequest) {
     // routes, so clearing without Domain is the correct match.
     nextResponse.cookies.set('access_token', '', { path: '/', httpOnly: true, maxAge: 0 })
     nextResponse.cookies.set('refresh_token', '', { path: '/', httpOnly: true, maxAge: 0 })
+    nextResponse.cookies.set('tenant_hint', '', { path: '/', httpOnly: true, maxAge: 0 })
 
     return nextResponse
   } catch (error) {

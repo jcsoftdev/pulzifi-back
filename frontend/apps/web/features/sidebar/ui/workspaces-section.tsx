@@ -5,7 +5,7 @@ import { cn } from '@workspace/ui/lib/utils'
 import { ChevronDown, SquarePlus } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { memo, useCallback, useEffect, useId, useState } from 'react'
+import { memo, useCallback, useEffect, useState } from 'react'
 import { ICON_MAP, isWorkspaceActive, WORKSPACES_ROUTE } from '../domain/routes'
 import type { Workspace } from '../domain/types'
 
@@ -45,7 +45,7 @@ export function WorkspacesSection({ workspaces }: Readonly<WorkspacesSectionClie
   const isOnWorkspacePath = pathname?.startsWith('/workspaces')
   const [isOpen, setIsOpen] = useState<boolean>(isOnWorkspacePath ?? false)
 
-  const listId = useId()
+  const listId = 'workspaces-list'
 
   useEffect(() => {
     if (isOnWorkspacePath) {

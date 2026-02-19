@@ -53,7 +53,7 @@ export function SettingsFeature({ userEmail }: Readonly<SettingsFeatureProps>) {
             >
               <div
                 className={`w-14 h-14 rounded-xl flex items-center justify-center transition-colors
-                  ${activeTab === tab.id ? 'bg-[#5b5fcf] text-white' : 'bg-muted text-muted-foreground group-hover:bg-muted/80'}`}
+                  ${activeTab === tab.id ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground group-hover:bg-muted/80'}`}
               >
                 <TabIcon id={tab.id} />
                 {tab.premium && (
@@ -70,27 +70,27 @@ export function SettingsFeature({ userEmail }: Readonly<SettingsFeatureProps>) {
         {/* Content area */}
         <div className="mt-6 space-y-3">
           {/* Email channel (always shown, free) */}
-          <div className="border border-border rounded-xl px-4 py-3">
+          <div className="bg-secondary dark:bg-muted border border-border rounded-xl px-4 py-3">
             <p className="text-xs text-muted-foreground mb-1">Emails</p>
             <div className="flex items-center gap-2 flex-wrap">
               {userEmail && (
-                <span className="text-sm text-foreground bg-muted px-2.5 py-1 rounded-md">
+                <span className="text-sm text-foreground bg-background px-2.5 py-1 rounded-md">
                   {userEmail}
                 </span>
               )}
               <span className="text-sm text-muted-foreground">
-                <span className="text-[#5b5fcf] font-medium cursor-pointer">+ add more</span>{' '}
+                <span className="text-primary font-medium cursor-pointer">+ add more</span>{' '}
                 in account settings
               </span>
             </div>
           </div>
 
           {/* Text/SMS channel (premium placeholder) */}
-          <div className="border border-border rounded-xl px-4 py-3 opacity-60">
+          <div className="bg-secondary dark:bg-muted border border-border rounded-xl px-4 py-3 opacity-60">
             <p className="text-xs text-muted-foreground mb-1">Text</p>
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">
-                <span className="text-[#5b5fcf] font-medium">+ add more</span>{' '}
+                <span className="text-primary font-medium">+ add more</span>{' '}
                 in account settings
               </span>
             </div>
@@ -99,7 +99,7 @@ export function SettingsFeature({ userEmail }: Readonly<SettingsFeatureProps>) {
           {/* Upgrade CTA */}
           <button
             type="button"
-            className="border border-[#5b5fcf] text-[#5b5fcf] text-sm font-medium px-4 py-2 rounded-full hover:bg-[#5b5fcf]/5 transition-colors"
+            className="border border-primary text-primary text-sm font-medium px-4 py-2 rounded-full hover:bg-primary/5 transition-colors"
           >
             Upgrade to get more
           </button>

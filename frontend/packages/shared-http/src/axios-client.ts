@@ -3,6 +3,19 @@ import { env } from './env'
 import { getTenantFromWindow } from './tenant-utils'
 import type { HttpResponse, IHttpClient, RequestConfig } from './types'
 
+// Shared refresh state — ensures only one refresh call is in-flight at a time
+let isRefreshing = false
+let refreshSubscribers: ((success: boolean) => void)[] = []
+
+function subscribeTokenRefresh(cb: (success: boolean) => void) {
+  refreshSubscribers.push(cb)
+}
+
+function notifyRefreshSubscribers(success: boolean) {
+  refreshSubscribers.forEach((cb) => cb(success))
+  refreshSubscribers = []
+}
+
 export class AxiosHttpClient implements IHttpClient {
   private readonly client: AxiosInstance
 
@@ -39,11 +52,63 @@ export class AxiosHttpClient implements IHttpClient {
 
     this.client.interceptors.response.use(
       (response) => response,
-      (error: AxiosError) => {
-        // 401 is handled by AuthGuard wrapper at layout level
-        return Promise.reject(error)
+      async (error: AxiosError) => {
+        const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean }
+        if (error.response?.status === 401 && !originalRequest._retry) {
+          return this.handleUnauthorized(error, originalRequest)
+        }
+        throw error
       }
     )
+  }
+
+  private redirectToLogin(): void {
+    if (globalThis.window === undefined) return
+    const { protocol, host } = globalThis.window.location
+    const hostWithoutPort = host.split(':')[0]
+    const port = host.includes(':') ? `:${host.split(':')[1]}` : ''
+    let baseDomainHost = host
+    if (hostWithoutPort.endsWith('.localhost')) {
+      baseDomainHost = `localhost${port}`
+    } else {
+      const parts = hostWithoutPort.split('.')
+      if (parts.length > 2) baseDomainHost = `${parts.slice(1).join('.')}${port}`
+    }
+    globalThis.window.location.href = `${protocol}//${baseDomainHost}/login`
+  }
+
+  private async handleUnauthorized(
+    error: AxiosError,
+    originalRequest: AxiosRequestConfig & { _retry?: boolean }
+  ): Promise<unknown> {
+    if (isRefreshing) {
+      // Queue this request until the in-flight refresh completes
+      return new Promise((resolve, reject) => {
+        subscribeTokenRefresh((success) => {
+          if (success) resolve(this.client(originalRequest))
+          else reject(error)
+        })
+      })
+    }
+
+    originalRequest._retry = true
+    isRefreshing = true
+
+    try {
+      const refreshResponse = await fetch('/api/auth/refresh', {
+        method: 'POST',
+        credentials: 'include',
+      })
+      if (!refreshResponse.ok) throw new Error('Refresh failed')
+      notifyRefreshSubscribers(true)
+      return this.client(originalRequest)
+    } catch {
+      notifyRefreshSubscribers(false)
+      this.redirectToLogin()
+      throw error
+    } finally {
+      isRefreshing = false
+    }
   }
 
   private debugError(message: string, error: unknown): void {

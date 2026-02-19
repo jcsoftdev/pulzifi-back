@@ -7,9 +7,14 @@ import { env } from '@/lib/env'
 
 export function LogoutButton() {
   const handleLogout = async () => {
-    await AuthApi.logout()
+    // Best-effort: clear subdomain cookies via the BFF. Even if this fails,
+    // the main-domain redirect below will still clear those cookies.
+    try {
+      await AuthApi.logout()
+    } catch {
+      // continue to cross-domain logout regardless
+    }
 
-    // Redirect to base domain login so re-login sets cookie on the parent domain
     const host = window.location.host
     const hostname = window.location.hostname
     const protocol = window.location.protocol
@@ -28,7 +33,8 @@ export function LogoutButton() {
       baseDomainHost = `${baseParts.join('.')}${port}`
     }
 
-    // Always bounce through the main-domain logout endpoint so its cookies are cleared too.
+    // Always bounce through the main-domain logout endpoint so its cookies
+    // (access_token, refresh_token, tenant_hint) are cleared too.
     window.location.href = `${protocol}//${baseDomainHost}/api/auth/logout?redirectTo=/login`
   }
 

@@ -46,7 +46,7 @@ export function WebhookIntegrationRow({
   }
 
   return (
-    <div className="border border-border rounded-xl px-4 py-3 flex items-center gap-3">
+    <div className="bg-secondary dark:bg-muted border border-border rounded-xl px-4 py-3 flex items-center gap-3">
       <div className="flex-1">
         <p className="text-xs text-muted-foreground mb-1">{label}</p>
         <input
@@ -54,7 +54,7 @@ export function WebhookIntegrationRow({
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder={placeholder}
-          className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none"
+          className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none caret-primary"
         />
       </div>
       {integration ? (
