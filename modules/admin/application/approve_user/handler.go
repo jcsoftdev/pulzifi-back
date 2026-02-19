@@ -14,6 +14,7 @@ import (
 	orgentities "github.com/jcsoftdev/pulzifi-back/modules/organization/domain/entities"
 	orgrepos "github.com/jcsoftdev/pulzifi-back/modules/organization/domain/repositories"
 	orgservices "github.com/jcsoftdev/pulzifi-back/modules/organization/domain/services"
+	sharedDB "github.com/jcsoftdev/pulzifi-back/shared/database"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"go.uber.org/zap"
 )
@@ -128,9 +129,29 @@ func (h *Handler) Handle(ctx context.Context, requestID uuid.UUID, reviewerID uu
 		return fmt.Errorf("failed to assign role: %w", err)
 	}
 
+	// 6. Assign default (starter) plan to the organization
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO public.organization_plans (id, organization_id, plan_id, status, started_at, created_at, updated_at)
+		 SELECT gen_random_uuid(), $1, id, 'active', NOW(), NOW(), NOW()
+		 FROM public.plans WHERE name = 'starter' LIMIT 1`,
+		org.ID,
+	)
+	if err != nil {
+		logger.Error("Failed to assign default plan", zap.Error(err))
+		return fmt.Errorf("failed to assign default plan: %w", err)
+	}
+
 	if err := tx.Commit(); err != nil {
 		logger.Error("Failed to commit approval transaction", zap.Error(err))
 		return err
+	}
+
+	// Provision tenant schema (DDL — must run outside the transaction)
+	if err := sharedDB.ProvisionTenantSchema(h.db, schemaName); err != nil {
+		logger.Error("Failed to provision tenant schema after approval — manual migration may be needed",
+			zap.Error(err),
+			zap.String("schema", schemaName),
+		)
 	}
 
 	logger.Info("User approved successfully",

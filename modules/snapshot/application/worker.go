@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	alertentities "github.com/jcsoftdev/pulzifi-back/modules/alert/domain/entities"
+	alertPersistence "github.com/jcsoftdev/pulzifi-back/modules/alert/infrastructure/persistence"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/domain/entities"
 	monPersistence "github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/persistence"
 	generateinsights "github.com/jcsoftdev/pulzifi-back/modules/insight/application/generate_insights"
@@ -177,12 +179,15 @@ func (s *SnapshotWorker) createAlert(ctx context.Context, schemaName string, che
 		return
 	}
 
-	// Insert Alert
-	q := `INSERT INTO alerts (workspace_id, page_id, check_id, type, title, description) 
-		  SELECT workspace_id, $1, $2, 'content_change', 'Content Changed', 'The page content has changed.' 
-		  FROM pages WHERE id = $1`
+	var workspaceID uuid.UUID
+	if err := s.db.QueryRowContext(ctx, `SELECT workspace_id FROM pages WHERE id = $1`, check.PageID).Scan(&workspaceID); err != nil {
+		logger.Error("Failed to get workspace_id for alert", zap.Error(err), zap.String("page_id", check.PageID.String()))
+		return
+	}
 
-	if _, err := s.db.ExecContext(ctx, q, check.PageID, check.ID); err != nil {
+	alert := alertentities.NewAlert(workspaceID, check.PageID, check.ID, "content_change", "Content Changed", "The page content has changed.")
+	alertRepo := alertPersistence.NewAlertPostgresRepository(s.db, schemaName)
+	if err := alertRepo.Create(ctx, alert); err != nil {
 		logger.Error("Failed to create alert", zap.Error(err))
 	} else {
 		logger.Info("Alert created", zap.String("check_id", check.ID.String()))

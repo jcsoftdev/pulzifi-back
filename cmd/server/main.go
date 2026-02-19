@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -142,7 +143,7 @@ func main() {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status":"healthy","service":"pulzifi-backend-monolith","time":` +
-			string(rune(time.Now().Unix())) + `}`))
+			strconv.FormatInt(time.Now().Unix(), 10) + `}`))
 	})
 
 	// Create module registry and register all modules

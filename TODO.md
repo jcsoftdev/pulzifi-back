@@ -22,12 +22,12 @@ When a super admin approves a user, the system must (in a single transaction):
 - [x] Set user `status` to `approved`
 - [x] Create the organization in `public.organizations` (name + subdomain from registration) — PG trigger `after_organization_insert` auto-creates tenant schema
 - [x] Generate schema name from subdomain (via `OrganizationService.GenerateSchemaName`)
-- [ ] Create the PostgreSQL schema: `CREATE SCHEMA IF NOT EXISTS "<schema_name>"` (handled by PG trigger, but verify tenant migrations run)
-- [ ] Run tenant migrations against the new schema (reuse logic from `cmd/migrate/main.go:runMigration`)
+- [x] Create the PostgreSQL schema: `CREATE SCHEMA IF NOT EXISTS "<schema_name>"` (handled by PG trigger, but verify tenant migrations run)
+- [x] Run tenant migrations against the new schema (extracted to `shared/database/migrator.go:ProvisionTenantSchema`)
 - [x] Add user as owner in `public.organization_members`
 - [x] Assign the `ADMIN` role in `public.user_roles`
-- [ ] Assign a default plan in `public.organization_plans`
-- [ ] Seed `usage_tracking` in the new tenant schema (currently done by migration `tenant/000004`)
+- [x] Assign a default plan in `public.organization_plans`
+- [x] Seed `usage_tracking` in the new tenant schema (handled by tenant migration `000004` which runs via `ProvisionTenantSchema`)
 - [ ] (Optional) Send approval notification email to the user
 
 ### Frontend (backend API ready, frontend not yet)
@@ -45,8 +45,8 @@ When a super admin approves a user, the system must (in a single transaction):
 
 ## 2. Critical Bugs
 
-- [ ] Fix health endpoint — `string(rune(time.Now().Unix()))` produces garbage Unicode instead of timestamp
-- [ ] Fix `SnapshotWorker.createAlert()` — uses raw SQL instead of Alert repository
+- [x] Fix health endpoint — `string(rune(time.Now().Unix()))` produces garbage Unicode instead of timestamp
+- [x] Fix `SnapshotWorker.createAlert()` — uses raw SQL instead of Alert repository
 - [ ] Fix gRPC server — starts but has zero services registered
 
 ## 3. Stub Endpoints (returning hardcoded JSON)
