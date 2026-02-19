@@ -38,6 +38,7 @@ CREATE TABLE public.users (
     email_verified BOOLEAN DEFAULT FALSE,
     email_notifications_enabled BOOLEAN DEFAULT TRUE,
     notification_frequency VARCHAR(50) DEFAULT 'immediate', -- 'immediate', 'daily_digest', 'weekly_digest'
+    status VARCHAR(20) NOT NULL DEFAULT 'approved',
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
     deleted_at TIMESTAMP NULL
@@ -46,6 +47,7 @@ CREATE TABLE public.users (
 CREATE INDEX idx_users_email ON public.users(email);
 CREATE INDEX idx_users_email_verified ON public.users(email_verified);
 CREATE INDEX idx_users_email_notifications_enabled ON public.users(email_notifications_enabled);
+CREATE INDEX idx_users_status ON public.users(status);
 
 -- ============================================================
 -- TABLE: organizations
@@ -227,6 +229,21 @@ CREATE TABLE public.sessions (
 
 CREATE INDEX idx_sessions_user_id ON public.sessions(user_id);
 CREATE INDEX idx_sessions_expires_at ON public.sessions(expires_at);
+
+-- ============================================================
+-- TABLE: registration_requests
+-- ============================================================
+CREATE TABLE public.registration_requests (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL UNIQUE REFERENCES public.users(id) ON DELETE CASCADE,
+    organization_name VARCHAR(255) NOT NULL,
+    organization_subdomain VARCHAR(100) NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+    reviewed_by UUID REFERENCES public.users(id),
+    reviewed_at TIMESTAMP NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
 
 -- ============================================================
 -- PHASE 2: TENANT SCHEMA TEMPLATE FUNCTION

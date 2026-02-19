@@ -3,19 +3,24 @@ package http
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	adminrepos "github.com/jcsoftdev/pulzifi-back/modules/admin/domain/repositories"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/application/get_current_user"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/application/login"
 	refreshapp "github.com/jcsoftdev/pulzifi-back/modules/auth/application/refresh_token"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/application/register"
+	autherrors "github.com/jcsoftdev/pulzifi-back/modules/auth/domain/errors"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/repositories"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/services"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/cookies"
 	authmw "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/middleware"
+	orgrepos "github.com/jcsoftdev/pulzifi-back/modules/organization/domain/repositories"
+	orgservices "github.com/jcsoftdev/pulzifi-back/modules/organization/domain/services"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"github.com/jcsoftdev/pulzifi-back/shared/router"
 	"go.uber.org/zap"
@@ -37,6 +42,9 @@ type ModuleDeps struct {
 	RefreshTokenRepo repositories.RefreshTokenRepository
 	RoleRepo         repositories.RoleRepository
 	PermRepo         repositories.PermissionRepository
+	RegReqRepo       adminrepos.RegistrationRequestRepository
+	OrgRepo          orgrepos.OrganizationRepository
+	OrgService       *orgservices.OrganizationService
 	AuthService      services.AuthService
 	TokenService     services.TokenService
 	CookieDomain     string
@@ -45,7 +53,7 @@ type ModuleDeps struct {
 
 func NewModule(deps ModuleDeps) router.ModuleRegisterer {
 	return &Module{
-		registerHandler:       register.NewHandler(deps.UserRepo),
+		registerHandler:       register.NewHandler(deps.UserRepo, deps.RegReqRepo, deps.OrgRepo, deps.OrgService),
 		loginHandler:          login.NewHandler(deps.AuthService, deps.UserRepo, deps.RefreshTokenRepo, deps.TokenService),
 		refreshHandler:        refreshapp.NewHandler(deps.RefreshTokenRepo, deps.UserRepo, deps.TokenService),
 		getCurrentUserHandler: get_current_user.NewHandler(deps.UserRepo),
@@ -105,6 +113,13 @@ func (m *Module) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	response, err := m.loginHandler.Handle(r.Context(), &req)
 	if err != nil {
+		var userErr autherrors.UserError
+		if errors.As(err, &userErr) {
+			if userErr.Code == autherrors.ErrUserNotApproved.Code || userErr.Code == autherrors.ErrUserRejected.Code {
+				writeJSON(w, http.StatusForbidden, map[string]string{"error": userErr.Message, "code": userErr.Code})
+				return
+			}
+		}
 		logger.Error("Login failed", zap.Error(err))
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid credentials"})
 		return

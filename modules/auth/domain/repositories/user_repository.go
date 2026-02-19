@@ -29,4 +29,10 @@ type UserRepository interface {
 
 	// GetUserFirstOrganization gets the first organization subdomain for a user
 	GetUserFirstOrganization(ctx context.Context, userID uuid.UUID) (*string, error)
+
+	// UpdateStatus updates a user's status
+	UpdateStatus(ctx context.Context, id uuid.UUID, status string) error
+
+	// ListByStatus retrieves users filtered by status
+	ListByStatus(ctx context.Context, status string, limit, offset int) ([]*entities.User, error)
 }

@@ -27,8 +27,8 @@ func NewUserPostgresRepository(db *sql.DB) *UserPostgresRepository {
 // Create stores a new user
 func (r *UserPostgresRepository) Create(ctx context.Context, user *entities.User) error {
 	query := `
-		INSERT INTO public.users (id, email, password_hash, first_name, last_name, avatar_url, email_verified, email_notifications_enabled, notification_frequency, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		INSERT INTO public.users (id, email, password_hash, first_name, last_name, avatar_url, status, email_verified, email_notifications_enabled, notification_frequency, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 	`
 
 	_, err := r.db.ExecContext(ctx, query,
@@ -38,6 +38,7 @@ func (r *UserPostgresRepository) Create(ctx context.Context, user *entities.User
 		user.FirstName,
 		user.LastName,
 		user.AvatarURL,
+		user.Status,
 		user.EmailVerified,
 		user.EmailNotificationsEnabled,
 		user.NotificationFrequency,
@@ -56,7 +57,7 @@ func (r *UserPostgresRepository) Create(ctx context.Context, user *entities.User
 // GetByID retrieves a user by their ID
 func (r *UserPostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (*entities.User, error) {
 	query := `
-		SELECT id, email, password_hash, first_name, last_name, avatar_url, email_verified, email_notifications_enabled, notification_frequency, created_at, updated_at, deleted_at
+		SELECT id, email, password_hash, first_name, last_name, avatar_url, status, email_verified, email_notifications_enabled, notification_frequency, created_at, updated_at, deleted_at
 		FROM public.users
 		WHERE id = $1 AND deleted_at IS NULL
 	`
@@ -71,6 +72,7 @@ func (r *UserPostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (*en
 		&user.FirstName,
 		&user.LastName,
 		&user.AvatarURL,
+		&user.Status,
 		&user.EmailVerified,
 		&user.EmailNotificationsEnabled,
 		&user.NotificationFrequency,
@@ -97,7 +99,7 @@ func (r *UserPostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (*en
 // GetByEmail retrieves a user by their email
 func (r *UserPostgresRepository) GetByEmail(ctx context.Context, email string) (*entities.User, error) {
 	query := `
-		SELECT id, email, password_hash, first_name, last_name, avatar_url, email_verified, email_notifications_enabled, notification_frequency, created_at, updated_at, deleted_at
+		SELECT id, email, password_hash, first_name, last_name, avatar_url, status, email_verified, email_notifications_enabled, notification_frequency, created_at, updated_at, deleted_at
 		FROM public.users
 		WHERE email = $1 AND deleted_at IS NULL
 	`
@@ -112,6 +114,7 @@ func (r *UserPostgresRepository) GetByEmail(ctx context.Context, email string) (
 		&user.FirstName,
 		&user.LastName,
 		&user.AvatarURL,
+		&user.Status,
 		&user.EmailVerified,
 		&user.EmailNotificationsEnabled,
 		&user.NotificationFrequency,
@@ -235,4 +238,76 @@ func (r *UserPostgresRepository) GetUserFirstOrganization(ctx context.Context, u
 	}
 
 	return &subdomain, nil
+}
+
+// UpdateStatus updates a user's status
+func (r *UserPostgresRepository) UpdateStatus(ctx context.Context, id uuid.UUID, status string) error {
+	query := `
+		UPDATE public.users
+		SET status = $1, updated_at = $2
+		WHERE id = $3 AND deleted_at IS NULL
+	`
+
+	result, err := r.db.ExecContext(ctx, query, status, time.Now(), id)
+	if err != nil {
+		logger.Error("Failed to update user status", zap.Error(err))
+		return err
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		return sql.ErrNoRows
+	}
+
+	return nil
+}
+
+// ListByStatus retrieves users filtered by status
+func (r *UserPostgresRepository) ListByStatus(ctx context.Context, status string, limit, offset int) ([]*entities.User, error) {
+	query := `
+		SELECT id, email, password_hash, first_name, last_name, avatar_url, status, email_verified, email_notifications_enabled, notification_frequency, created_at, updated_at, deleted_at
+		FROM public.users
+		WHERE status = $1 AND deleted_at IS NULL
+		ORDER BY created_at DESC
+		LIMIT $2 OFFSET $3
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, status, limit, offset)
+	if err != nil {
+		logger.Error("Failed to list users by status", zap.Error(err))
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []*entities.User
+	for rows.Next() {
+		var user entities.User
+		var deletedAt sql.NullTime
+
+		if err := rows.Scan(
+			&user.ID,
+			&user.Email,
+			&user.PasswordHash,
+			&user.FirstName,
+			&user.LastName,
+			&user.AvatarURL,
+			&user.Status,
+			&user.EmailVerified,
+			&user.EmailNotificationsEnabled,
+			&user.NotificationFrequency,
+			&user.CreatedAt,
+			&user.UpdatedAt,
+			&deletedAt,
+		); err != nil {
+			logger.Error("Failed to scan user row", zap.Error(err))
+			return nil, err
+		}
+
+		if deletedAt.Valid {
+			user.DeletedAt = &deletedAt.Time
+		}
+		users = append(users, &user)
+	}
+
+	return users, nil
 }

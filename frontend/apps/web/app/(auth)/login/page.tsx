@@ -19,12 +19,16 @@ export default function LoginPage() {
   const searchParams = useSearchParams()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string>()
+  const [infoBanner, setInfoBanner] = useState<string>()
 
-  // Check for session expired error
   useEffect(() => {
     const errorParam = searchParams.get('error')
     if (errorParam === 'SessionExpired') {
       setError('Your session has expired. Please sign in again.')
+    }
+
+    if (searchParams.get('registered') === 'true') {
+      setInfoBanner('Registration successful! Please wait for admin approval before logging in.')
     }
   }, [
     searchParams,
@@ -44,8 +48,6 @@ export default function LoginPage() {
         return
       }
 
-      // Cookies are set on the base domain by the BFF, so they're
-      // automatically available on all tenant subdomains. Just redirect.
       const protocol = globalThis.location.protocol
       const port = globalThis.location.port
       const hostname = globalThis.location.hostname
@@ -56,10 +58,8 @@ export default function LoginPage() {
         if (hostname === 'localhost' || hostname === '127.0.0.1') {
           baseDomain = 'localhost'
         } else if (hostname.endsWith('.localhost')) {
-          // e.g. acme.localhost → baseDomain = "localhost"
           baseDomain = 'localhost'
         } else {
-          // e.g. acme.pulzifi.com → baseDomain = "pulzifi.com"
           baseDomain = hostname.split('.').slice(-2).join('.')
         }
       }
@@ -68,17 +68,33 @@ export default function LoginPage() {
       const portSuffix = port ? `:${port}` : ''
       const redirectTo = searchParams.get('callbackUrl') || '/'
 
-      // Always redirect via the callback route so cookies are set at the
-      // correct tenant subdomain origin.
       const callbackUrl = new URL(`${protocol}//${targetHost}${portSuffix}/api/auth/callback`)
       if (loginResponse.nonce) {
         callbackUrl.searchParams.set('nonce', loginResponse.nonce)
       }
       callbackUrl.searchParams.set('redirectTo', redirectTo)
       globalThis.location.href = callbackUrl.toString()
-    } catch (error) {
-      console.error(error)
-      setError('Invalid email or password')
+    } catch (err: unknown) {
+      const axiosError = err as {
+        response?: {
+          status?: number
+          data?: {
+            error?: string
+            code?: string
+          }
+        }
+      }
+
+      if (axiosError?.response?.status === 403) {
+        const code = axiosError.response.data?.code
+        if (code === 'USER_REJECTED') {
+          setError('Your account has been rejected. Please contact support.')
+        } else {
+          setError('Your account is pending approval by an administrator.')
+        }
+      } else {
+        setError('Invalid email or password')
+      }
     } finally {
       setIsLoading(false)
     }
@@ -93,6 +109,12 @@ export default function LoginPage() {
             <CardDescription>Sign in to your account to continue</CardDescription>
           </CardHeader>
           <CardContent>
+            {infoBanner && (
+              <div className="text-sm bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 p-3 rounded-md border border-blue-200 dark:border-blue-800 mb-4">
+                {infoBanner}
+              </div>
+            )}
+
             <LoginForm onSubmit={handleLogin} isLoading={isLoading} error={error} />
 
             <div className="mt-6 text-center text-sm text-muted-foreground">

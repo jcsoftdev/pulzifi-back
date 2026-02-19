@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/entities"
+	autherrors "github.com/jcsoftdev/pulzifi-back/modules/auth/domain/errors"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/repositories"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -37,6 +38,14 @@ func (s *BcryptAuthService) Authenticate(ctx context.Context, email, password st
 
 	if err := s.ValidateCredentials(ctx, user, password); err != nil {
 		return nil, err
+	}
+
+	// Check user approval status
+	switch user.Status {
+	case entities.UserStatusPending:
+		return nil, autherrors.ErrUserNotApproved
+	case entities.UserStatusRejected:
+		return nil, autherrors.ErrUserRejected
 	}
 
 	return user, nil

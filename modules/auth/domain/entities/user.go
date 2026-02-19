@@ -6,6 +6,12 @@ import (
 	"github.com/google/uuid"
 )
 
+const (
+	UserStatusPending  = "pending"
+	UserStatusApproved = "approved"
+	UserStatusRejected = "rejected"
+)
+
 // User represents a user in the system
 type User struct {
 	ID                        uuid.UUID
@@ -14,6 +20,7 @@ type User struct {
 	FirstName                 string
 	LastName                  string
 	AvatarURL                 *string
+	Status                    string
 	EmailVerified             bool
 	EmailNotificationsEnabled bool
 	NotificationFrequency     string // 'immediate', 'daily_digest', 'weekly_digest'
@@ -30,6 +37,7 @@ func NewUser(email, passwordHash, firstName, lastName string) *User {
 		PasswordHash:              passwordHash,
 		FirstName:                 firstName,
 		LastName:                  lastName,
+		Status:                    UserStatusPending,
 		EmailVerified:             false,
 		EmailNotificationsEnabled: true,
 		NotificationFrequency:     "immediate",

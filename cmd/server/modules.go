@@ -3,16 +3,19 @@ package main
 import (
 	"database/sql"
 
+	admin "github.com/jcsoftdev/pulzifi-back/modules/admin/infrastructure/http"
+	adminpersistence "github.com/jcsoftdev/pulzifi-back/modules/admin/infrastructure/persistence"
 	alert "github.com/jcsoftdev/pulzifi-back/modules/alert/infrastructure/http"
 	auth "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/http"
-	dashboard "github.com/jcsoftdev/pulzifi-back/modules/dashboard/infrastructure/http"
 	authpersistence "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/persistence"
 	authservices "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/services"
+	dashboard "github.com/jcsoftdev/pulzifi-back/modules/dashboard/infrastructure/http"
 	insight "github.com/jcsoftdev/pulzifi-back/modules/insight/infrastructure/http"
 	integration "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/http"
 	monitoring "github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/http"
 	organization "github.com/jcsoftdev/pulzifi-back/modules/organization/infrastructure/http"
 	orgpersistence "github.com/jcsoftdev/pulzifi-back/modules/organization/infrastructure/persistence"
+	orgservices "github.com/jcsoftdev/pulzifi-back/modules/organization/domain/services"
 	page "github.com/jcsoftdev/pulzifi-back/modules/page/infrastructure/http"
 	report "github.com/jcsoftdev/pulzifi-back/modules/report/infrastructure/http"
 	team "github.com/jcsoftdev/pulzifi-back/modules/team/infrastructure/http"
@@ -36,6 +39,9 @@ func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus 
 	refreshTokenRepo := authpersistence.NewRefreshTokenPostgresRepository(db)
 	orgRepo := orgpersistence.NewOrganizationPostgresRepository(db)
 
+	regReqRepo := adminpersistence.NewRegistrationRequestPostgresRepository(db)
+	orgService := orgservices.NewOrganizationService()
+
 	authService := authservices.NewBcryptAuthService(userRepo, permRepo)
 	jwtService := authservices.NewJWTService(cfg.JWTSecret, cfg.JWTExpiration, cfg.JWTRefreshExpiration, roleRepo, permRepo)
 	cookieSecure := cfg.Environment == "production"
@@ -46,6 +52,9 @@ func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus 
 		RefreshTokenRepo: refreshTokenRepo,
 		RoleRepo:         roleRepo,
 		PermRepo:         permRepo,
+		RegReqRepo:       regReqRepo,
+		OrgRepo:          orgRepo,
+		OrgService:       orgService,
 		AuthService:      authService,
 		TokenService:     jwtService,
 		CookieDomain:     cfg.CookieDomain,
@@ -62,6 +71,14 @@ func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus 
 		module router.ModuleRegisterer
 	}{
 		{"Auth", authModule},
+		{"Admin", admin.NewModule(admin.ModuleDeps{
+			DB:             db,
+			RegReqRepo:     regReqRepo,
+			UserRepo:       userRepo,
+			OrgRepo:        orgRepo,
+			OrgService:     orgService,
+			AuthMiddleware: authMiddleware,
+		})},
 		{"Organization", organization.NewModule(orgRepo)},
 		{"Workspace", workspace.NewModuleWithDB(db)},
 		{"Page", page.NewModuleWithDB(db)},

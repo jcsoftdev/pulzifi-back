@@ -8,6 +8,8 @@ export interface RegisterData {
   password: string
   firstName: string
   lastName: string
+  organizationName: string
+  organizationSubdomain: string
 }
 
 export interface AuthError {

@@ -40,6 +40,7 @@ export function ChangesViewLayout({
   const handleTabChange = onTabChange || setInternalActiveTab
 
   const activeCheck = checks.find((c) => c.id === activeCheckId) || checks[0]
+  const resolvedCheckId = activeCheck?.id || ''
   const activeCheckFailed =
     !!activeCheck && (activeCheck.status === 'error' || activeCheck.status === 'failed')
 
@@ -73,7 +74,7 @@ export function ChangesViewLayout({
               Storage period: {storagePeriodDays} days
             </span>
           )}
-          <Select value={activeCheckId} onValueChange={handleCheckChange}>
+          <Select value={resolvedCheckId} onValueChange={handleCheckChange}>
             <SelectTrigger className="w-full bg-background">
               <SelectValue placeholder="Select a check" />
             </SelectTrigger>

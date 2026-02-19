@@ -91,9 +91,21 @@ export const AuthApi = {
     password: string
     firstName: string
     lastName: string
-  }): Promise<User> {
+    organizationName: string
+    organizationSubdomain: string
+  }): Promise<{ user: User; status: string }> {
     const http = await getHttpClient()
-    const response = await http.post<UserBackendDto>('/api/v1/auth/register', data)
-    return transformUser(response)
+    const response = await http.post<{ user: UserBackendDto; status: string }>('/api/v1/auth/register', {
+      email: data.email,
+      password: data.password,
+      firstName: data.firstName,
+      lastName: data.lastName,
+      organization_name: data.organizationName,
+      organization_subdomain: data.organizationSubdomain,
+    })
+    return {
+      user: transformUser(response.user),
+      status: response.status,
+    }
   },
 }

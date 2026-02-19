@@ -17,10 +17,14 @@ export function RegisterForm({ onSubmit, isLoading = false, error }: Readonly<Re
   const [password, setPassword] = useState('')
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
+  const [organizationName, setOrganizationName] = useState('')
+  const [organizationSubdomain, setOrganizationSubdomain] = useState('')
   const firstNameId = useId()
   const lastNameId = useId()
   const emailId = useId()
   const passwordId = useId()
+  const orgNameId = useId()
+  const subdomainId = useId()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -29,6 +33,8 @@ export function RegisterForm({ onSubmit, isLoading = false, error }: Readonly<Re
       password,
       firstName,
       lastName,
+      organizationName,
+      organizationSubdomain,
     })
   }
 
@@ -58,6 +64,31 @@ export function RegisterForm({ onSubmit, isLoading = false, error }: Readonly<Re
             placeholder="Doe"
           />
         </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor={orgNameId}>Organization Name</Label>
+        <Input
+          id={orgNameId}
+          type="text"
+          value={organizationName}
+          onChange={(e) => setOrganizationName(e.target.value)}
+          required
+          placeholder="Acme Inc."
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor={subdomainId}>Subdomain</Label>
+        <Input
+          id={subdomainId}
+          type="text"
+          value={organizationSubdomain}
+          onChange={(e) => setOrganizationSubdomain(e.target.value.toLowerCase())}
+          required
+          placeholder="your-company"
+        />
+        <p className="text-xs text-muted-foreground mt-1">Lowercase letters, numbers, and hyphens only</p>
       </div>
 
       <div className="space-y-2">

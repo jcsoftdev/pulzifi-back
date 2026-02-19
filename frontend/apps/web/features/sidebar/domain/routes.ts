@@ -1,7 +1,7 @@
 import type { LucideIcon } from 'lucide-react'
-import { House, Settings, Shapes, Users, Workflow } from 'lucide-react'
+import { House, Settings, Shapes, ShieldCheck, Users, Workflow } from 'lucide-react'
 
-export type IconName = 'House' | 'Workflow' | 'Users' | 'Shapes' | 'Settings'
+export type IconName = 'House' | 'Workflow' | 'Users' | 'Shapes' | 'Settings' | 'ShieldCheck'
 
 export interface RouteConfig {
   id: string
@@ -30,6 +30,7 @@ export const ICON_MAP: Record<IconName, LucideIcon> = {
   Users,
   Shapes,
   Settings,
+  ShieldCheck,
 }
 
 /**
@@ -65,6 +66,14 @@ export const WORKSPACES_ROUTE: WorkspaceRouteConfig = {
 }
 
 export const BOTTOM_ROUTES: RouteConfig[] = [
+  {
+    id: 'admin',
+    label: 'Admin',
+    href: '/admin',
+    icon: 'ShieldCheck',
+    position: 'bottom',
+    order: 0,
+  },
   {
     id: 'resources',
     label: 'Resources',

@@ -9,29 +9,22 @@ import {
   CardTitle,
 } from '@workspace/ui/components/atoms/card'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { useState } from 'react'
+import type { RegisterData } from '@/features/auth/domain/types'
 import { RegisterForm } from '@/features/auth/ui/register-form'
 
 export default function RegisterPage() {
-  const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string>()
+  const [submitted, setSubmitted] = useState(false)
 
-  const handleRegister = async (data: {
-    email: string
-    password: string
-    firstName: string
-    lastName: string
-  }) => {
+  const handleRegister = async (data: RegisterData) => {
     setIsLoading(true)
     setError(undefined)
 
     try {
       await AuthApi.register(data)
-
-      // Redirect to login after successful registration
-      router.push('/login?registered=true')
+      setSubmitted(true)
     } catch (err: unknown) {
       const error = err as {
         response?: {
@@ -47,6 +40,29 @@ export default function RegisterPage() {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  if (submitted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background px-4">
+        <div className="w-full max-w-md">
+          <Card>
+            <CardHeader className="text-center">
+              <CardTitle className="text-3xl">Registration submitted!</CardTitle>
+              <CardDescription>
+                Your account is pending approval by an administrator. You will be able to log in once
+                your account has been approved.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="text-center">
+              <Link href="/login" className="text-primary hover:underline font-medium">
+                Back to login
+              </Link>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    )
   }
 
   return (

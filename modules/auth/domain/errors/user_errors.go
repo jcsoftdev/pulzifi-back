@@ -25,4 +25,6 @@ var (
 	ErrInvalidPassword   = UserError{Code: "INVALID_PASSWORD", Message: "invalid password"}
 	ErrWeakPassword      = UserError{Code: "WEAK_PASSWORD", Message: "password is too weak"}
 	ErrUnauthorized      = UserError{Code: "UNAUTHORIZED", Message: "unauthorized"}
+	ErrUserNotApproved   = UserError{Code: "USER_NOT_APPROVED", Message: "account is pending approval"}
+	ErrUserRejected      = UserError{Code: "USER_REJECTED", Message: "account has been rejected"}
 )
