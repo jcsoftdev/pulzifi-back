@@ -81,3 +81,5 @@ tmp
 docs/
 
 /.trae
+
+/*.sql
