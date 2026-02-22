@@ -1,0 +1,50 @@
+# ============================================================
+# Production Dockerfile — API Server (cmd/server)
+# ============================================================
+
+# ---- Build stage ----
+FROM golang:1.25-bookworm AS builder
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git ca-certificates build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install swag for swagger doc generation
+RUN go install github.com/swaggo/swag/cmd/swag@latest
+
+WORKDIR /app
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+
+# Generate swagger docs (required before build — docs/ is gitignored)
+RUN swag init -g cmd/server/main.go --output docs
+
+# Build production binary
+RUN go build -ldflags="-s -w" -o /app/bin/api ./cmd/server/
+
+# ---- Runtime stage ----
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN addgroup --system --gid 1001 appgroup && \
+    adduser --system --uid 1001 --ingroup appgroup appuser
+
+WORKDIR /app
+
+COPY --from=builder /app/bin/api ./api
+
+RUN chown -R appuser:appgroup /app
+USER appuser
+
+EXPOSE 9090
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+    CMD curl -f http://localhost:${HTTP_PORT:-9090}/health || exit 1
+
+CMD ["./api"]

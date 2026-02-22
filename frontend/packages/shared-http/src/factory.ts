@@ -4,9 +4,20 @@ import { FetchHttpClient } from './fetch-client'
 import { extractTenantFromHostname, getTenantFromWindow } from './tenant-utils'
 import type { IHttpClient } from './types'
 
-// Client-side: Use the current page's origin so both BFF routes (/api/auth/...)
-// and API rewrites (/api/v1/...) resolve through the same Next.js server.
+// Client-side: call the backend directly when NEXT_PUBLIC_API_URL is set,
+// bypassing the Next.js rewrite proxy. Falls back to same-origin (proxy) otherwise.
 const getClientApiUrl = (): string => {
+  if (env.NEXT_PUBLIC_API_URL) {
+    return env.NEXT_PUBLIC_API_URL
+  }
+  if (globalThis.window !== undefined) {
+    return globalThis.window.location.origin
+  }
+  return 'http://localhost:3000'
+}
+
+// BFF routes (/api/auth/...) must always go through the Next.js server.
+const getBffBaseUrl = (): string => {
   if (globalThis.window !== undefined) {
     return globalThis.window.location.origin
   }
@@ -70,6 +81,19 @@ export async function createServerHttpClient(): Promise<IHttpClient> {
 
   const apiUrl = getServerApiUrl()
   return new FetchHttpClient(apiUrl, headers)
+}
+
+/**
+ * Create HTTP client for Next.js BFF routes (/api/auth/...).
+ * Always routes through the Next.js server regardless of NEXT_PUBLIC_API_URL.
+ */
+export async function createBffHttpClient(): Promise<IHttpClient> {
+  const headers: Record<string, string> = {}
+  const tenant = getTenantFromWindow()
+  if (tenant) {
+    headers['X-Tenant'] = tenant
+  }
+  return new AxiosHttpClient(getBffBaseUrl(), headers)
 }
 
 /**

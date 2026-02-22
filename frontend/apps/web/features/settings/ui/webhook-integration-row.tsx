@@ -2,6 +2,7 @@
 
 import type { Integration } from '@workspace/services'
 import { useState } from 'react'
+import { notification } from '@/lib/notification'
 import type { ServiceType } from '../domain/types'
 
 interface WebhookIntegrationRowProps {
@@ -29,6 +30,9 @@ export function WebhookIntegrationRow({
     setSaving(true)
     try {
       await onConnect(serviceType, url.trim())
+      notification.success({ title: 'Integration connected', description: `${label} webhook has been connected.` })
+    } catch (err) {
+      notification.error({ title: 'Failed to connect', description: err instanceof Error ? err.message : 'Please try again.' })
     } finally {
       setSaving(false)
     }
@@ -40,6 +44,9 @@ export function WebhookIntegrationRow({
     try {
       await onDisconnect(integration.id)
       setUrl('')
+      notification.success({ title: 'Integration disconnected', description: `${label} webhook has been removed.` })
+    } catch (err) {
+      notification.error({ title: 'Failed to disconnect', description: err instanceof Error ? err.message : 'Please try again.' })
     } finally {
       setSaving(false)
     }

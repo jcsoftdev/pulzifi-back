@@ -145,6 +145,11 @@ func main() {
 	})
 	httpRouter.Use(corsHandler)
 
+	// Rate limiting middleware
+	rateLimiter := middlewarex.NewRateLimiter(cfg.RateLimitRequests, cfg.RateLimitWindow)
+	defer rateLimiter.Stop()
+	httpRouter.Use(rateLimiter.Handler)
+
 	// Health endpoint
 	httpRouter.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

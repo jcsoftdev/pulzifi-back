@@ -2,6 +2,8 @@ package middleware
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 )
@@ -221,5 +223,130 @@ func TestGetTenantFromContextOrError(t *testing.T) {
 				t.Errorf("GetTenantFromContextOrError() = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestExtractSubdomain(t *testing.T) {
+	tests := []struct {
+		name      string
+		host      string
+		xTenant   string
+		xFwdHost  string
+		want      string
+	}{
+		{"X-Tenant header", "localhost:8080", "acme", "", "acme"},
+		{"X-Forwarded-Host with subdomain", "localhost:8080", "", "acme.example.com", "acme"},
+		{"Host with subdomain", "acme.example.com:443", "", "", "acme"},
+		{"Host with two parts extracts first", "example.com", "", "", "example"},
+		{"localhost no subdomain", "localhost:3000", "", "", ""},
+		{"empty host", "", "", "", ""},
+		{"X-Tenant takes priority", "other.example.com:80", "priority", "", "priority"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := httptest.NewRequest(http.MethodGet, "/test", nil)
+			r.Host = tt.host
+			if tt.xTenant != "" {
+				r.Header.Set("X-Tenant", tt.xTenant)
+			}
+			if tt.xFwdHost != "" {
+				r.Header.Set("X-Forwarded-Host", tt.xFwdHost)
+			}
+			got := extractSubdomain(r)
+			if got != tt.want {
+				t.Errorf("extractSubdomain() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestIsValidSubdomain(t *testing.T) {
+	tests := []struct {
+		name      string
+		subdomain string
+		want      bool
+	}{
+		{"valid subdomain", "acme", true},
+		{"empty string", "", false},
+		{"localhost is invalid", "localhost", false},
+		{"app is valid", "app", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isValidSubdomain(tt.subdomain)
+			if got != tt.want {
+				t.Errorf("isValidSubdomain(%q) = %v, want %v", tt.subdomain, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestIsGenericDomain(t *testing.T) {
+	tests := []struct {
+		name      string
+		subdomain string
+		want      bool
+	}{
+		{"app", "app", true},
+		{"localhost", "localhost", true},
+		{"127.0.0.1", "127.0.0.1", true},
+		{"acme", "acme", false},
+		{"empty", "", false},
+		{"custom", "myorg", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isGenericDomain(tt.subdomain)
+			if got != tt.want {
+				t.Errorf("isGenericDomain(%q) = %v, want %v", tt.subdomain, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestRequireTenant(t *testing.T) {
+	handler := RequireTenant(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	t.Run("tenant present", func(t *testing.T) {
+		r := httptest.NewRequest(http.MethodGet, "/test", nil)
+		ctx := context.WithValue(r.Context(), TenantContextKey, "my_schema")
+		r = r.WithContext(ctx)
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, r)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("status: want %d, got %d", http.StatusOK, w.Code)
+		}
+	})
+
+	t.Run("tenant missing", func(t *testing.T) {
+		r := httptest.NewRequest(http.MethodGet, "/test", nil)
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, r)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("status: want %d, got %d", http.StatusBadRequest, w.Code)
+		}
+	})
+}
+
+func TestBuildContextWithTenant(t *testing.T) {
+	ctx := buildContextWithTenant(context.Background(), "acme", "acme_schema")
+
+	subdomain := GetSubdomainFromContext(ctx)
+	if subdomain != "acme" {
+		t.Errorf("subdomain: want %q, got %q", "acme", subdomain)
+	}
+
+	tenant := GetTenantFromContext(ctx)
+	if tenant != "acme_schema" {
+		t.Errorf("tenant: want %q, got %q", "acme_schema", tenant)
 	}
 }

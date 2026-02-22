@@ -29,7 +29,7 @@ func main() {
 	// but NewModuleWithDB requires it. We can pass nil if we don't need to listen to API events here.
 	// But if we want to support cross-module events later, we might need it.
 	// For now, pass nil.
-	mod := monitoring.NewModuleWithDB(db, nil)
+	mod := monitoring.NewModuleWithDB(db, nil, nil, "")
 
 	// Cast to concrete type to access StartBackgroundProcesses
 	if monitoringModule, ok := mod.(*monitoring.Module); ok {

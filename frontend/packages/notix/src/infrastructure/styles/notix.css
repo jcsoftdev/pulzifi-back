@@ -1,0 +1,468 @@
+/* ================================ Variables ================================ */
+
+:root {
+	--notix-spring-easing: linear(
+		0,
+		0.002 0.6%,
+		0.007 1.2%,
+		0.015 1.8%,
+		0.026 2.4%,
+		0.041 3.1%,
+		0.06 3.8%,
+		0.108 5.3%,
+		0.157 6.6%,
+		0.214 8%,
+		0.467 13.7%,
+		0.577 16.3%,
+		0.631 17.7%,
+		0.682 19.1%,
+		0.73 20.5%,
+		0.771 21.8%,
+		0.808 23.1%,
+		0.844 24.5%,
+		0.874 25.8%,
+		0.903 27.2%,
+		0.928 28.6%,
+		0.952 30.1%,
+		0.972 31.6%,
+		0.988 33.1%,
+		1.01 35.7%,
+		1.025 38.5%,
+		1.034 41.6%,
+		1.038 45%,
+		1.035 50.1%,
+		1.012 64.2%,
+		1.003 73%,
+		0.999 83.7%,
+		1
+	);
+
+	--notix-duration: 600ms;
+	--notix-z-index: 9999;
+	--notix-width: 350px;
+	--notix-height: 40px;
+	--notix-roundness: 16px;
+
+	/* Fill (background for pill + body) — defaults to design system background */
+	--notix-fill: var(--background, #ffffff);
+	/* Text color for content on the fill background */
+	--notix-on-fill: var(--foreground, rgba(0, 0, 0, 0.88));
+
+	/* Anchor border — defaults to design system border token */
+	--notix-anchor-border-color: var(--border, #d9d9d9);
+
+	/* State colors (OKLCH) — identical to sileo */
+	--notix-state-success: oklch(0.723 0.219 142.136);
+	--notix-state-error: oklch(0.637 0.237 25.331);
+	--notix-state-warning: oklch(0.795 0.184 86.047);
+	--notix-state-info: oklch(0.685 0.169 237.323);
+	--notix-state-loading: oklch(0.556 0 0);
+	--notix-state-action: oklch(0.623 0.214 259.815);
+}
+
+/* ================================ Viewport ================================ */
+
+[data-notix-viewport] {
+	position: fixed;
+	z-index: var(--notix-z-index);
+	display: flex;
+	gap: 0.75rem;
+	padding: 1rem;
+	pointer-events: none;
+	max-width: calc(100vw - 2rem);
+}
+
+[data-notix-viewport][data-position^="top"] {
+	top: 0;
+	flex-direction: column-reverse;
+}
+
+[data-notix-viewport][data-position^="bottom"] {
+	bottom: 0;
+	flex-direction: column;
+}
+
+[data-notix-viewport][data-position$="left"] {
+	left: 0;
+	align-items: flex-start;
+}
+
+[data-notix-viewport][data-position$="right"] {
+	right: 0;
+	align-items: flex-end;
+}
+
+[data-notix-viewport][data-position$="center"] {
+	left: 50%;
+	transform: translateX(-50%);
+	align-items: center;
+}
+
+/* ================================== Toast ================================== */
+
+[data-notix-toast] {
+	pointer-events: auto;
+	contain: layout style;
+	width: var(--notix-width);
+}
+
+/* ============================== Anchor (SVG Morph) ========================= */
+
+[data-notix-anchor] {
+	position: relative;
+	display: inline-flex;
+}
+
+/* State colors */
+[data-notix-anchor][data-state] { --_c: var(--notix-state-info); }
+[data-notix-anchor][data-state="success"] { --_c: var(--notix-state-success); }
+[data-notix-anchor][data-state="error"] { --_c: var(--notix-state-error); }
+[data-notix-anchor][data-state="warning"] { --_c: var(--notix-state-warning); }
+[data-notix-anchor][data-state="info"] { --_c: var(--notix-state-info); }
+[data-notix-anchor][data-state="loading"] { --_c: var(--notix-state-loading); }
+[data-notix-anchor][data-state="action"] { --_c: var(--notix-state-action); }
+
+/* ─── Open state: unified drop-shadow over pill + body ─── */
+[data-notix-anchor][data-open] {
+	filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.3))
+		drop-shadow(0 2px 6px rgba(0, 0, 0, 0.15));
+}
+
+/* ─── Canvas: right-aligned so the SVG body rect aligns with the content panel ─── */
+[data-notix-anchor] [data-notix-canvas] {
+	left: auto;
+	right: 0;
+	width: var(--notix-width);
+}
+
+/* ─── Trigger: attribute applied directly, rendered on top of pill SVG ─── */
+[data-notix-anchor-header] {
+	position: relative;
+	z-index: 2;
+	/* Strip trigger's own background/border so the SVG pill shows through */
+	background-color: transparent !important;
+	border-color: transparent !important;
+	box-shadow: none !important;
+	/* Color inherits from the trigger's own styles */
+}
+
+/* ─── Content panel: same width as the canvas ─── */
+[data-notix-anchor-content] {
+	position: absolute;
+	top: 100%;
+	right: 0;
+	width: var(--notix-width);
+	z-index: 1;
+	pointer-events: none;
+	opacity: 0;
+	transition: opacity calc(var(--notix-duration) * 0.08) ease;
+}
+
+[data-notix-anchor-content][data-visible] {
+	pointer-events: auto;
+	opacity: 1;
+	transition: opacity calc(var(--notix-duration) * 0.6) ease calc(var(--notix-duration) * 0.3);
+}
+
+[data-notix-anchor-content-inner] {
+	padding: 1rem;
+}
+
+/* ─── Typography ─── */
+
+[data-notix-anchor-title] {
+	font-size: 0.825rem;
+	font-weight: 500;
+	line-height: 1rem;
+	color: var(--_c);
+	margin-bottom: 0.5rem;
+}
+
+[data-notix-anchor-description] {
+	font-size: 0.875rem;
+	line-height: 1.25rem;
+	color: var(--notix-on-fill);
+}
+
+
+/* ============================== Default Toast ============================== */
+
+[data-notix-default] {
+	position: relative;
+	width: var(--notix-width);
+	height: var(--_h, var(--notix-height));
+	overflow: visible;
+	contain: layout style;
+	filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.3))
+		drop-shadow(0 2px 6px rgba(0, 0, 0, 0.15));
+}
+
+/* Entry: initially hidden */
+[data-notix-default]:not([data-ready="true"]) {
+	opacity: 0;
+}
+
+/* Ready state transitions */
+[data-notix-default][data-ready="true"] {
+	transition: height var(--notix-duration) var(--notix-spring-easing);
+}
+
+/* ─── SVG Canvas ─── */
+
+[data-notix-canvas] {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	pointer-events: none;
+	transform: translateZ(0);
+	contain: layout style;
+	overflow: visible;
+}
+
+[data-notix-svg] {
+	display: block; /* prevent inline baseline gap shifting the SVG down */
+	overflow: visible;
+}
+
+/* ─── Header ───
+   Absolutely positioned over the pill SVG rect, uses CSS vars for positioning. */
+
+[data-notix-header] {
+	position: absolute;
+	top: 0;
+	z-index: 20;
+	display: flex;
+	align-items: center;
+	padding: 0.5rem;
+	height: var(--notix-height);
+	overflow: hidden;
+	left: var(--_px, 0px);
+	transform: var(--_ht);
+	max-width: var(--_pw);
+}
+
+[data-notix-default][data-ready="true"] [data-notix-header] {
+	transition:
+		transform var(--notix-duration) var(--notix-spring-easing),
+		left var(--notix-duration) var(--notix-spring-easing),
+		max-width var(--notix-duration) var(--notix-spring-easing);
+}
+
+/* Header inner morphing (layer stack for blur crossfade) */
+[data-notix-header-stack] {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	height: 100%;
+}
+
+[data-notix-header-inner] {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	white-space: nowrap;
+	opacity: 1;
+	filter: blur(0px);
+	transform: translateZ(0);
+}
+
+[data-notix-header-inner][data-layer="current"] {
+	position: relative;
+	z-index: 1;
+	animation: notix-header-enter var(--notix-duration) var(--notix-spring-easing) both;
+}
+
+[data-notix-header-inner][data-layer="current"]:not(:only-child),
+[data-notix-header-inner][data-exiting="true"] {
+	will-change: opacity, filter;
+}
+
+[data-notix-header-inner][data-layer="prev"] {
+	position: absolute;
+	left: 0;
+	top: 0;
+	z-index: 0;
+	pointer-events: none;
+}
+
+[data-notix-header-inner][data-exiting="true"] {
+	animation: notix-header-exit calc(var(--notix-duration) * 0.7) ease forwards;
+}
+
+/* ─── Content (expandable description area) ─── */
+
+[data-notix-content] {
+	position: absolute;
+	top: var(--notix-height);
+	left: 0;
+	z-index: 10;
+	width: 100%;
+	pointer-events: none;
+	opacity: var(--_co, 0);
+}
+
+[data-notix-content]:not([data-visible="true"]) {
+	content-visibility: hidden;
+}
+
+[data-notix-default][data-ready="true"] [data-notix-content] {
+	transition: opacity calc(var(--notix-duration) * 0.08) ease
+		calc(var(--notix-duration) * 0.04);
+}
+
+[data-notix-content][data-visible="true"] {
+	pointer-events: auto;
+}
+
+[data-notix-default][data-ready="true"]
+	[data-notix-content][data-visible="true"] {
+	transition: opacity calc(var(--notix-duration) * 0.6) ease
+		calc(var(--notix-duration) * 0.3);
+}
+
+/* ─── Description ─── */
+
+[data-notix-description] {
+	width: 100%;
+	text-align: left;
+	padding: 1rem;
+	font-size: 0.875rem;
+	line-height: 1.25rem;
+	color: var(--notix-on-fill);
+	contain: layout style paint;
+	content-visibility: auto;
+}
+
+/* ─── Badge ─── */
+
+[data-notix-badge] {
+	display: flex;
+	height: 24px;
+	width: 24px;
+	flex-shrink: 0;
+	align-items: center;
+	justify-content: center;
+	padding: 2px;
+	box-sizing: border-box;
+	border-radius: 9999px;
+	color: var(--notix-tone, currentColor);
+	background-color: var(--notix-tone-bg, transparent);
+}
+
+/* ─── Title ─── */
+
+[data-notix-title] {
+	font-size: 0.825rem;
+	line-height: 1rem;
+	font-weight: 500;
+	text-transform: capitalize;
+	color: var(--notix-tone, currentColor);
+	white-space: nowrap;
+}
+
+/* ─── State Colors (OKLCH + color-mix, identical to sileo) ─── */
+
+:is([data-notix-badge], [data-notix-title], [data-notix-button])[data-state] {
+	--_c: var(--notix-state-success);
+}
+
+:is([data-notix-badge], [data-notix-title], [data-notix-button])[data-state="success"] {
+	--_c: var(--notix-state-success);
+}
+
+:is([data-notix-badge], [data-notix-title], [data-notix-button])[data-state="error"] {
+	--_c: var(--notix-state-error);
+}
+
+:is([data-notix-badge], [data-notix-title], [data-notix-button])[data-state="warning"] {
+	--_c: var(--notix-state-warning);
+}
+
+:is([data-notix-badge], [data-notix-title], [data-notix-button])[data-state="info"] {
+	--_c: var(--notix-state-info);
+}
+
+:is([data-notix-badge], [data-notix-title], [data-notix-button])[data-state="loading"] {
+	--_c: var(--notix-state-loading);
+}
+
+:is([data-notix-badge], [data-notix-title], [data-notix-button])[data-state="action"] {
+	--_c: var(--notix-state-action);
+}
+
+/* Tone + tone-bg via color-mix (same approach as sileo) */
+:is([data-notix-badge], [data-notix-title])[data-state] {
+	--notix-tone: var(--_c);
+	--notix-tone-bg: color-mix(in oklch, var(--_c) 20%, transparent);
+}
+
+/* ─── Button ─── */
+
+[data-notix-button] {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.25rem;
+	height: 1.75rem;
+	padding: 0 0.625rem;
+	margin-top: 0.75rem;
+	border-radius: 9999px;
+	border: 0;
+	font-size: 0.75rem;
+	font-weight: 500;
+	cursor: pointer;
+	color: var(--_c);
+	background-color: color-mix(in oklch, var(--_c) 15%, transparent);
+	transition: background-color 150ms ease;
+}
+
+[data-notix-button]:hover {
+	background-color: color-mix(in oklch, var(--_c) 25%, transparent);
+}
+
+/* ================================ Animations ============================== */
+
+[data-notix-icon="spin"] {
+	animation: notix-spin 1s linear infinite;
+}
+
+@keyframes notix-spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+@keyframes notix-header-enter {
+	from {
+		opacity: 0;
+		filter: blur(6px);
+	}
+	to {
+		opacity: 1;
+		filter: blur(0px);
+	}
+}
+
+@keyframes notix-header-exit {
+	from {
+		opacity: 1;
+		filter: blur(0px);
+	}
+	to {
+		opacity: 0;
+		filter: blur(6px);
+	}
+}
+
+/* ============================== Reduced Motion ============================= */
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+	}
+}

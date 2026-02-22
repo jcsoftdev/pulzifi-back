@@ -79,6 +79,10 @@ type Config struct {
 	GitHubClientID       string
 	GitHubClientSecret   string
 	OAuthRedirectBaseURL string
+
+	// Rate Limiting
+	RateLimitRequests int
+	RateLimitWindow   time.Duration
 }
 
 func Load() *Config {
@@ -141,6 +145,8 @@ func Load() *Config {
 		GitHubClientID:        getEnv("GITHUB_CLIENT_ID", ""),
 		GitHubClientSecret:    getEnv("GITHUB_CLIENT_SECRET", ""),
 		OAuthRedirectBaseURL:  getEnv("OAUTH_REDIRECT_BASE_URL", "http://localhost:9090"),
+		RateLimitRequests:     getEnvInt("RATE_LIMIT_REQUESTS", 500),
+		RateLimitWindow:       getEnvDuration("RATE_LIMIT_WINDOW", 60*time.Second),
 	}
 }
 
@@ -158,6 +164,24 @@ func getEnvDurationSeconds(key string, defaultSeconds int) time.Duration {
 		}
 	}
 	return time.Duration(defaultSeconds) * time.Second
+}
+
+func getEnvInt(key string, defaultValue int) int {
+	if value, exists := os.LookupEnv(key); exists {
+		if i, err := strconv.Atoi(value); err == nil {
+			return i
+		}
+	}
+	return defaultValue
+}
+
+func getEnvDuration(key string, defaultValue time.Duration) time.Duration {
+	if value, exists := os.LookupEnv(key); exists {
+		if d, err := time.ParseDuration(value); err == nil {
+			return d
+		}
+	}
+	return defaultValue
 }
 
 func getEnvBool(key string, defaultValue bool) bool {

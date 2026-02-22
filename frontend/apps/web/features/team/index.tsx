@@ -2,6 +2,7 @@
 
 import { Plus } from 'lucide-react'
 import { useState } from 'react'
+import { notification } from '@/lib/notification'
 import { useTeam } from './application/use-team'
 import type { TeamMember } from './domain/types'
 import { DeleteMemberDialog } from './ui/delete-member-dialog'
@@ -28,8 +29,10 @@ export function TeamFeature({ currentUserId }: Readonly<TeamFeatureProps>) {
     try {
       await inviteMember(email, role)
       setInviteOpen(false)
+      notification.success({ title: 'Invitation sent', description: `An invite has been sent to ${email}.` })
     } catch (err) {
       setActionError(err instanceof Error ? err : new Error('Failed to invite member'))
+      notification.error({ title: 'Failed to send invitation', description: err instanceof Error ? err.message : 'Please try again.' })
     } finally {
       setActionLoading(false)
     }
@@ -41,8 +44,10 @@ export function TeamFeature({ currentUserId }: Readonly<TeamFeatureProps>) {
     try {
       await updateMember(memberId, role)
       setEditingMember(null)
+      notification.success({ title: 'Member role updated' })
     } catch (err) {
       setActionError(err instanceof Error ? err : new Error('Failed to update member'))
+      notification.error({ title: 'Failed to update member', description: err instanceof Error ? err.message : 'Please try again.' })
     } finally {
       setActionLoading(false)
     }
@@ -55,8 +60,10 @@ export function TeamFeature({ currentUserId }: Readonly<TeamFeatureProps>) {
     try {
       await removeMember(deletingMember.id)
       setDeletingMember(null)
+      notification.success({ title: 'Member removed' })
     } catch (err) {
       setActionError(err instanceof Error ? err : new Error('Failed to remove member'))
+      notification.error({ title: 'Failed to remove member', description: err instanceof Error ? err.message : 'Please try again.' })
     } finally {
       setActionLoading(false)
     }

@@ -27,8 +27,6 @@ export async function GET(request: NextRequest) {
   const response = NextResponse.redirect(new URL(redirectTo, request.url))
   const isSecure = request.nextUrl.protocol === 'https:'
 
-  // Set cookies WITHOUT a Domain attribute — the browser scopes them to the
-  // exact origin (tenant.localhost:3000), which is exactly what we want.
   response.cookies.set('access_token', tokens.accessToken, {
     path: '/',
     httpOnly: true,

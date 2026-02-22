@@ -5,7 +5,6 @@
 function getBackendOrigin() {
   const apiBase =
     process.env.SERVER_API_URL ??
-    process.env.API_URL ??
     process.env.NEXT_PUBLIC_API_URL ??
     'http://localhost:9090'
   try {
@@ -16,7 +15,7 @@ function getBackendOrigin() {
 }
 
 const nextConfig = {
-  transpilePackages: ["@workspace/ui"],
+  transpilePackages: ['@workspace/ui', '@workspace/services', '@workspace/shared-http', '@workspace/notix'],
 
   async rewrites() {
     const backend = getBackendOrigin()

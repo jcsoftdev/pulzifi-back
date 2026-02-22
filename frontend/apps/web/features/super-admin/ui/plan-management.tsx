@@ -1,6 +1,7 @@
 'use client'
 
 import { type AdminOrganizationPlan, type AdminPlan, SuperAdminApi } from '@workspace/services'
+import { notification } from '@/lib/notification'
 import {
   Badge,
   Button,
@@ -51,8 +52,10 @@ export function PlanManagement() {
       try {
         await SuperAdminApi.assignPlan(organizationId, planCode)
         await loadData()
+        notification.success({ title: 'Plan updated', description: `Plan changed to ${planCode}.` })
       } catch {
         setActionError('Failed to update plan for this organization.')
+        notification.error({ title: 'Failed to update plan', description: 'Please try again.' })
       }
     })
   }

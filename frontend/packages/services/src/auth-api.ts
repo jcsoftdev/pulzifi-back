@@ -1,4 +1,4 @@
-import { getHttpClient } from '@workspace/shared-http'
+import { createBffHttpClient, getHttpClient } from '@workspace/shared-http'
 
 // Internal: Backend response types (snake_case from Go)
 interface UserBackendDto {
@@ -6,6 +6,7 @@ interface UserBackendDto {
   name: string
   email: string
   role: string
+  status?: string
   avatar?: string
   tenant?: string | null
   created_at: string
@@ -34,6 +35,7 @@ export interface User {
   name: string
   email: string
   role: string
+  status?: string
   avatar?: string
   tenant?: string
   createdAt: string
@@ -58,6 +60,7 @@ function transformUser(backend: UserBackendDto): User {
     name: backend.name,
     email: backend.email,
     role: backend.role,
+    status: backend.status,
     avatar: backend.avatar,
     tenant: backend.tenant ?? undefined,
     createdAt: backend.created_at,
@@ -81,24 +84,21 @@ export const AuthApi = {
   },
 
   async login(credentials: LoginDto): Promise<LoginResponse> {
-    const http = await getHttpClient()
-    // Call the Next.js BFF route (/api/auth/login) — it proxies to the backend
-    // server-side and forwards Set-Cookie back as same-origin so the browser stores it.
-    // HttpOnly cookies cannot be read or set from JS directly.
+    const http = await createBffHttpClient()
     const response = await http.post<LoginBackendResponse>('/api/auth/login', credentials)
     return mapLoginResponse(response)
   },
 
   async logout(): Promise<void> {
-    const http = await getHttpClient()
-    // Use the Next.js BFF route so Set-Cookie (clear) is forwarded as same-origin
+    const http = await createBffHttpClient()
     await http.post('/api/auth/logout', {})
   },
 
   async checkSubdomain(subdomain: string): Promise<{ available: boolean; message?: string }> {
     const http = await getHttpClient()
-    return http.get<{ available: boolean; message?: string }>(
-      `/api/v1/auth/check-subdomain?subdomain=${encodeURIComponent(subdomain)}`
+    return http.post<{ available: boolean; message?: string }>(
+      '/api/v1/auth/check-subdomain',
+      { subdomain }
     )
   },
 

@@ -26,6 +26,7 @@ type Response struct {
 	Name      string  `json:"name"`
 	Email     string  `json:"email"`
 	Role      string  `json:"role"`
+	Status    string  `json:"status"`
 	Avatar    *string `json:"avatar,omitempty"`
 	Tenant    *string `json:"tenant,omitempty"`
 	CreatedAt string  `json:"created_at"`
@@ -59,11 +60,17 @@ func (h *Handler) toResponse(user *entities.User) *Response {
 		name = user.FirstName + " " + user.LastName
 	}
 
+	status := user.Status
+	if status == "" {
+		status = "approved"
+	}
+
 	return &Response{
 		ID:        user.ID.String(),
 		Name:      name,
 		Email:     user.Email,
 		Role:      "ADMIN",
+		Status:    status,
 		Avatar:    user.AvatarURL,
 		CreatedAt: user.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		UpdatedAt: user.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),

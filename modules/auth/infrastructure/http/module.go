@@ -30,6 +30,7 @@ import (
 	orgrepos "github.com/jcsoftdev/pulzifi-back/modules/organization/domain/repositories"
 	orgservices "github.com/jcsoftdev/pulzifi-back/modules/organization/domain/services"
 	"github.com/jcsoftdev/pulzifi-back/shared/config"
+	"github.com/jcsoftdev/pulzifi-back/shared/eventbus"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"github.com/jcsoftdev/pulzifi-back/shared/router"
 	"go.uber.org/zap"
@@ -48,6 +49,7 @@ type Module struct {
 	emailProvider          emailservices.EmailProvider
 	oauthProviders         map[string]oauthproviders.Provider
 	refreshTokenRepo       repositories.RefreshTokenRepository
+	eventBus               *eventbus.EventBus
 	cookieDomain           string
 	cookieSecure           bool
 	frontendURL            string
@@ -68,6 +70,7 @@ type ModuleDeps struct {
 	CookieSecure     bool
 	FrontendURL      string
 	EmailProvider    emailservices.EmailProvider
+	EventBus         *eventbus.EventBus
 	DB               *sql.DB
 }
 
@@ -98,6 +101,7 @@ func NewModule(deps ModuleDeps) router.ModuleRegisterer {
 		authService:           deps.AuthService,
 		userRepo:              deps.UserRepo,
 		emailProvider:         deps.EmailProvider,
+		eventBus:              deps.EventBus,
 		oauthProviders:        oauthProviderMap,
 		refreshTokenRepo:      deps.RefreshTokenRepo,
 		cookieDomain:          deps.CookieDomain,
@@ -118,7 +122,7 @@ func (m *Module) ModuleName() string {
 func (m *Module) RegisterHTTPRoutes(r chi.Router) {
 	r.Route("/auth", func(r chi.Router) {
 		r.Post("/register", m.handleRegister)
-		r.Get("/check-subdomain", m.handleCheckSubdomain)
+		r.Post("/check-subdomain", m.handleCheckSubdomain)
 		r.Post("/login", m.handleLogin)
 		r.Post("/logout", m.handleLogout)
 		r.Post("/refresh", m.handleRefresh)
@@ -132,6 +136,7 @@ func (m *Module) RegisterHTTPRoutes(r chi.Router) {
 		r.Group(func(r chi.Router) {
 			r.Use(m.authMiddleware.Authenticate)
 			r.Get("/me", m.handleGetCurrentUser)
+			r.Delete("/me", m.handleDeleteCurrentUser)
 		})
 	})
 }
@@ -155,13 +160,19 @@ func (m *Module) handleRegister(w http.ResponseWriter, r *http.Request) {
 }
 
 func (m *Module) handleCheckSubdomain(w http.ResponseWriter, r *http.Request) {
-	subdomain := r.URL.Query().Get("subdomain")
-	if subdomain == "" {
+	var req struct {
+		Subdomain string `json:"subdomain"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+	if req.Subdomain == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "subdomain is required"})
 		return
 	}
 
-	response, err := m.checkSubdomainHandler.Handle(r.Context(), subdomain)
+	response, err := m.checkSubdomainHandler.Handle(r.Context(), req.Subdomain)
 	if err != nil {
 		logger.Error("Failed to check subdomain", zap.Error(err))
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to check subdomain"})
@@ -271,6 +282,39 @@ func (m *Module) handleGetCurrentUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, response)
+}
+
+func (m *Module) handleDeleteCurrentUser(w http.ResponseWriter, r *http.Request) {
+	userIDStr, ok := r.Context().Value(authmw.UserIDKey).(string)
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid user id"})
+		return
+	}
+
+	if err := m.userRepo.Delete(r.Context(), userID); err != nil {
+		logger.Error("Failed to delete user", zap.Error(err))
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to delete account"})
+		return
+	}
+
+	// Publish user.deleted event to trigger cascade cleanup (org memberships, etc.)
+	if m.eventBus != nil {
+		payload, _ := json.Marshal(map[string]string{"user_id": userID.String()})
+		if err := m.eventBus.Publish("user.deleted", userID.String(), payload); err != nil {
+			logger.Error("Failed to publish user.deleted event", zap.Error(err))
+		}
+	}
+
+	// Clear auth cookies
+	cookies.ClearAuthCookies(w, r, m.cookieDomain, m.cookieSecure)
+
+	writeJSON(w, http.StatusOK, map[string]string{"message": "account deleted successfully"})
 }
 
 func (m *Module) handleForgotPassword(w http.ResponseWriter, r *http.Request) {

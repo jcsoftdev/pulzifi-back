@@ -85,7 +85,8 @@ func isPublicPath(path string) bool {
 		"/api/v1/swagger",
 		"/api/v1/health",
 		"/api/v1/auth/login",     // Login no requiere tenant
-		"/api/v1/auth/register",  // Register no requiere tenant
+		"/api/v1/auth/register",         // Register no requiere tenant
+		"/api/v1/auth/check-subdomain",  // Subdomain check no requiere tenant
 		"/api/v1/auth/me",        // Current user (uses JWT, not tenant)
 		"/api/v1/auth/refresh",   // Token refresh
 		"/api/v1/auth/providers", // OAuth providers

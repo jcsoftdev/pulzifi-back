@@ -15,4 +15,5 @@ type NotificationPreferenceRepository interface {
 	GetByUserAndPage(ctx context.Context, userID, pageID uuid.UUID) (*entities.NotificationPreference, error)
 	Update(ctx context.Context, pref *entities.NotificationPreference) error
 	DeleteByID(ctx context.Context, id uuid.UUID) error
+	GetEmailEnabledByPage(ctx context.Context, pageID uuid.UUID) ([]*entities.NotificationPreference, error)
 }

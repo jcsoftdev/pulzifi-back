@@ -25,3 +25,5 @@ export type { CreateWorkspaceDto, ListWorkspacesResponse, Workspace } from './wo
 export { WorkspaceApi } from './workspace-api'
 export type { Integration, UpsertIntegrationDto } from './integration-api'
 export { IntegrationApi } from './integration-api'
+export type { CreateReportDto, Report } from './report-api'
+export { ReportApi } from './report-api'

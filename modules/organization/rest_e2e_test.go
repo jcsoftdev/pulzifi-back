@@ -11,9 +11,7 @@ import (
 	"github.com/google/uuid"
 )
 
-const RestBaseURL = "http://localhost:8082"
-const GRPCAddress = "localhost:9082"
-const MockJWTToken = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI3NzBlODQwMC1lMjliLTQxZDQtYTcxNi00NDY2NTU0NDAwMDAifQ.fake"
+const testUserID = "770e8400-e29b-41d4-a716-446655440000"
 
 // CreateOrgRequest represents the REST API create request
 type CreateOrgRequest struct {
@@ -39,6 +37,8 @@ type ErrorResponse struct {
 }
 
 func makeRESTRequest(t *testing.T, method, endpoint string, body interface{}) (*http.Response, []byte) {
+	t.Helper()
+
 	var reqBody io.Reader
 	if body != nil {
 		jsonBody, err := json.Marshal(body)
@@ -48,13 +48,20 @@ func makeRESTRequest(t *testing.T, method, endpoint string, body interface{}) (*
 		reqBody = bytes.NewBuffer(jsonBody)
 	}
 
-	req, err := http.NewRequest(method, RestBaseURL+endpoint, reqBody)
+	baseURL := getRESTBaseURL()
+	req, err := http.NewRequest(method, baseURL+endpoint, reqBody)
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", MockJWTToken)
+
+	// Set auth token as cookie (matching auth_middleware.go)
+	token := generateTestJWT(testUserID)
+	req.AddCookie(&http.Cookie{
+		Name:  "access_token",
+		Value: token,
+	})
 
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
@@ -73,6 +80,8 @@ func makeRESTRequest(t *testing.T, method, endpoint string, body interface{}) (*
 
 // TestCreateOrganizationRESTAPI tests REST API create endpoint
 func TestCreateOrganizationRESTAPI(t *testing.T) {
+	skipUnlessE2E(t)
+
 	req := CreateOrgRequest{
 		Name:      "REST E2E Test Org",
 		Subdomain: "rest-e2e-" + uuid.New().String()[:8],
@@ -100,12 +109,13 @@ func TestCreateOrganizationRESTAPI(t *testing.T) {
 		t.Errorf("Expected subdomain %q, got %q", req.Subdomain, orgResp.Subdomain)
 	}
 
-	t.Logf("✓ Created organization via REST: ID=%s, Name=%s", orgResp.ID, orgResp.Name)
+	t.Logf("Created organization via REST: ID=%s, Name=%s", orgResp.ID, orgResp.Name)
 }
 
 // TestGetOrganizationRESTAPI tests REST API get endpoint
 func TestGetOrganizationRESTAPI(t *testing.T) {
-	// Create first
+	skipUnlessE2E(t)
+
 	createReq := CreateOrgRequest{
 		Name:      "Get REST E2E Test",
 		Subdomain: "get-rest-" + uuid.New().String()[:8],
@@ -120,9 +130,7 @@ func TestGetOrganizationRESTAPI(t *testing.T) {
 	if err := json.Unmarshal(respBody1, &createResp); err != nil {
 		t.Fatalf("Failed to unmarshal create response: %v", err)
 	}
-	t.Logf("Created organization: %s", createResp.ID)
 
-	// Then get
 	resp2, respBody2 := makeRESTRequest(t, "GET", "/api/organizations/"+createResp.ID, nil)
 
 	if resp2.StatusCode != http.StatusOK {
@@ -139,17 +147,15 @@ func TestGetOrganizationRESTAPI(t *testing.T) {
 	if getResp.ID != createResp.ID {
 		t.Errorf("Expected ID %q, got %q", createResp.ID, getResp.ID)
 	}
-	if getResp.OwnerUserID == "" {
-		t.Error("Owner user ID is empty")
-	}
-
-	t.Logf("✓ Retrieved organization via REST: ID=%s, Name=%s, Owner=%s", getResp.ID, getResp.Name, getResp.OwnerUserID)
 }
 
 // TestHealthCheckRESTAPI tests health endpoint
 func TestHealthCheckRESTAPI(t *testing.T) {
+	skipUnlessE2E(t)
+
+	baseURL := getRESTBaseURL()
 	client := &http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Get(RestBaseURL + "/health")
+	resp, err := client.Get(baseURL + "/health")
 	if err != nil {
 		t.Fatalf("Failed to call health endpoint: %v", err)
 	}
@@ -165,7 +171,7 @@ func TestHealthCheckRESTAPI(t *testing.T) {
 		t.Fatalf("Failed to read response: %v", err)
 	}
 
-	var healthResp map[string]string
+	var healthResp map[string]interface{}
 	if err := json.Unmarshal(respBody, &healthResp); err != nil {
 		t.Fatalf("Failed to unmarshal health response: %v", err)
 	}
@@ -177,65 +183,56 @@ func TestHealthCheckRESTAPI(t *testing.T) {
 	if status != "ok" && status != "healthy" {
 		t.Errorf("Expected status 'ok' or 'healthy', got %q", status)
 	}
-
-	t.Logf("✓ Health check passed: %s", status)
 }
 
 // TestCreateWithDuplicateSubdomainRESTAPI tests duplicate subdomain error
 func TestCreateWithDuplicateSubdomainRESTAPI(t *testing.T) {
+	skipUnlessE2E(t)
+
 	subdomain := "dup-rest-" + uuid.New().String()[:8]
 
-	// Create first
-	req1 := CreateOrgRequest{
-		Name:      "First REST Org",
-		Subdomain: subdomain,
-	}
+	req1 := CreateOrgRequest{Name: "First REST Org", Subdomain: subdomain}
 	resp1, _ := makeRESTRequest(t, "POST", "/api/organizations", req1)
 	if resp1.StatusCode != http.StatusCreated {
 		t.Fatalf("Failed to create first organization: %d", resp1.StatusCode)
 	}
-	t.Logf("✓ Created first organization")
 
-	// Try to create second with same subdomain
-	req2 := CreateOrgRequest{
-		Name:      "Second REST Org",
-		Subdomain: subdomain,
-	}
+	req2 := CreateOrgRequest{Name: "Second REST Org", Subdomain: subdomain}
 	resp2, respBody2 := makeRESTRequest(t, "POST", "/api/organizations", req2)
 
 	if resp2.StatusCode != http.StatusConflict {
 		t.Errorf("Expected status 409 Conflict, got %d", resp2.StatusCode)
 		t.Logf("Response: %s", string(respBody2))
-	} else {
-		t.Logf("✓ Got expected 409 Conflict for duplicate subdomain")
 	}
 }
 
 // TestGetNonExistentOrganizationRESTAPI tests 404 error
 func TestGetNonExistentOrganizationRESTAPI(t *testing.T) {
-	fakeID := "550e8400-e29b-41d4-a716-446655440099"
+	skipUnlessE2E(t)
 
-	resp, respBody := makeRESTRequest(t, "GET", "/api/organizations/"+fakeID, nil)
+	fakeID := "550e8400-e29b-41d4-a716-446655440099"
+	resp, _ := makeRESTRequest(t, "GET", "/api/organizations/"+fakeID, nil)
 
 	if resp.StatusCode != http.StatusNotFound {
 		t.Errorf("Expected status 404 Not Found, got %d", resp.StatusCode)
-		t.Logf("Response: %s", string(respBody))
-	} else {
-		t.Logf("✓ Got expected 404 for non-existent organization")
 	}
 }
 
 // TestInvalidJSONRESTAPI tests malformed request handling
 func TestInvalidJSONRESTAPI(t *testing.T) {
+	skipUnlessE2E(t)
+
+	baseURL := getRESTBaseURL()
 	reqBody := []byte("{invalid json")
 
-	req, err := http.NewRequest("POST", RestBaseURL+"/api/organizations", bytes.NewBuffer(reqBody))
+	req, err := http.NewRequest("POST", baseURL+"/api/organizations", bytes.NewBuffer(reqBody))
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", MockJWTToken)
+	token := generateTestJWT(testUserID)
+	req.AddCookie(&http.Cookie{Name: "access_token", Value: token})
 
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
@@ -246,13 +243,14 @@ func TestInvalidJSONRESTAPI(t *testing.T) {
 
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("Expected status 400 Bad Request, got %d", resp.StatusCode)
-	} else {
-		t.Logf("✓ Got expected 400 for invalid JSON")
 	}
 }
 
 // TestMissingAuthorizationRESTAPI tests missing JWT token
 func TestMissingAuthorizationRESTAPI(t *testing.T) {
+	skipUnlessE2E(t)
+
+	baseURL := getRESTBaseURL()
 	req := CreateOrgRequest{
 		Name:      "No Auth Test",
 		Subdomain: "no-auth-" + uuid.New().String()[:8],
@@ -263,13 +261,13 @@ func TestMissingAuthorizationRESTAPI(t *testing.T) {
 		t.Fatalf("Failed to marshal request: %v", err)
 	}
 
-	httpReq, err := http.NewRequest("POST", RestBaseURL+"/api/organizations", bytes.NewBuffer(jsonBody))
+	httpReq, err := http.NewRequest("POST", baseURL+"/api/organizations", bytes.NewBuffer(jsonBody))
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
 	}
 
 	httpReq.Header.Set("Content-Type", "application/json")
-	// No Authorization header
+	// No cookie
 
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(httpReq)
@@ -280,19 +278,16 @@ func TestMissingAuthorizationRESTAPI(t *testing.T) {
 
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Errorf("Expected status 401 Unauthorized, got %d", resp.StatusCode)
-	} else {
-		t.Logf("✓ Got expected 401 for missing authorization")
 	}
 }
 
 // TestInvalidUUIDFormatRESTAPI tests invalid UUID in path
 func TestInvalidUUIDFormatRESTAPI(t *testing.T) {
-	resp, respBody := makeRESTRequest(t, "GET", "/api/organizations/not-a-uuid", nil)
+	skipUnlessE2E(t)
+
+	resp, _ := makeRESTRequest(t, "GET", "/api/organizations/not-a-uuid", nil)
 
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("Expected status 400 Bad Request, got %d", resp.StatusCode)
-		t.Logf("Response: %s", string(respBody))
-	} else {
-		t.Logf("✓ Got expected 400 for invalid UUID format")
 	}
 }

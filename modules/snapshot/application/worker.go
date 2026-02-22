@@ -16,6 +16,10 @@ import (
 	"github.com/google/uuid"
 	alertentities "github.com/jcsoftdev/pulzifi-back/modules/alert/domain/entities"
 	alertPersistence "github.com/jcsoftdev/pulzifi-back/modules/alert/infrastructure/persistence"
+	emailservices "github.com/jcsoftdev/pulzifi-back/modules/email/domain/services"
+	"github.com/jcsoftdev/pulzifi-back/modules/email/infrastructure/templates"
+	integrationPersistence "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/persistence"
+	"github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/webhook"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/domain/entities"
 	monPersistence "github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/persistence"
 	generateinsights "github.com/jcsoftdev/pulzifi-back/modules/insight/application/generate_insights"
@@ -32,14 +36,18 @@ type SnapshotWorker struct {
 	extractorClient *extractor.HTTPClient
 	db              *sql.DB
 	insightHandler  *generateinsights.GenerateInsightsHandler
+	emailProvider   emailservices.EmailProvider
+	frontendURL     string
 }
 
-func NewSnapshotWorker(objectStorage repositories.ObjectStorage, extractorClient *extractor.HTTPClient, db *sql.DB, insightHandler *generateinsights.GenerateInsightsHandler) *SnapshotWorker {
+func NewSnapshotWorker(objectStorage repositories.ObjectStorage, extractorClient *extractor.HTTPClient, db *sql.DB, insightHandler *generateinsights.GenerateInsightsHandler, emailProvider emailservices.EmailProvider, frontendURL string) *SnapshotWorker {
 	return &SnapshotWorker{
 		objectStorage:   objectStorage,
 		extractorClient: extractorClient,
 		db:              db,
 		insightHandler:  insightHandler,
+		emailProvider:   emailProvider,
+		frontendURL:     frontendURL,
 	}
 }
 
@@ -136,7 +144,7 @@ func (s *SnapshotWorker) ExecuteCheck(ctx context.Context, checkID uuid.UUID, ta
 
 			// Only alert if "any_changes" is an enabled alert condition
 			if sliceContains(enabledAlertConditions, "any_changes") {
-				s.createAlert(ctx, schemaName, check)
+				s.createAlert(ctx, schemaName, check, targetURL)
 			}
 
 			// Generate insights for enabled types
@@ -166,7 +174,7 @@ func (s *SnapshotWorker) getPreviousSuccessfulCheck(ctx context.Context, repo *m
 	return check
 }
 
-func (s *SnapshotWorker) createAlert(ctx context.Context, schemaName string, check *entities.Check) {
+func (s *SnapshotWorker) createAlert(ctx context.Context, schemaName string, check *entities.Check, pageURL string) {
 	if _, err := s.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(schemaName)); err != nil {
 		logger.Error("Failed to set search path for alert", zap.Error(err))
 		return
@@ -184,6 +192,85 @@ func (s *SnapshotWorker) createAlert(ctx context.Context, schemaName string, che
 		logger.Error("Failed to create alert", zap.Error(err))
 	} else {
 		logger.Info("Alert created", zap.String("check_id", check.ID.String()))
+	}
+
+	// Send email notifications asynchronously
+	go s.sendAlertEmails(schemaName, check, pageURL)
+
+	// Dispatch webhooks (Slack, Discord, Teams) asynchronously
+	go s.dispatchWebhooks(schemaName, check, pageURL)
+}
+
+// sendAlertEmails queries notification preferences for the page and sends email alerts.
+func (s *SnapshotWorker) sendAlertEmails(schemaName string, check *entities.Check, pageURL string) {
+	if s.emailProvider == nil {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	notifRepo := monPersistence.NewNotificationPreferencePostgresRepository(s.db, schemaName)
+	prefs, err := notifRepo.GetEmailEnabledByPage(ctx, check.PageID)
+	if err != nil {
+		logger.Error("Failed to get email-enabled preferences", zap.Error(err))
+		return
+	}
+
+	if len(prefs) == 0 {
+		return
+	}
+
+	dashboardURL := fmt.Sprintf("%s/workspaces", s.frontendURL)
+	changeType := check.ChangeType
+	if changeType == "" {
+		changeType = "content"
+	}
+	subject, html := templates.AlertNotification(pageURL, changeType, dashboardURL)
+
+	for _, pref := range prefs {
+		// Look up user email
+		var email string
+		if err := s.db.QueryRowContext(ctx, `SELECT email FROM public.users WHERE id = $1`, pref.UserID).Scan(&email); err != nil {
+			logger.Error("Failed to get user email for alert notification", zap.Error(err), zap.String("user_id", pref.UserID.String()))
+			continue
+		}
+		if err := s.emailProvider.Send(ctx, email, subject, html); err != nil {
+			logger.Error("Failed to send alert email", zap.Error(err), zap.String("email", email))
+		}
+	}
+}
+
+// dispatchWebhooks sends webhook notifications to enabled Slack/Discord/Teams integrations.
+func (s *SnapshotWorker) dispatchWebhooks(schemaName string, check *entities.Check, pageURL string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	integrationRepo := integrationPersistence.NewIntegrationPostgresRepository(s.db, schemaName)
+	sender := webhook.NewSender()
+
+	changeType := check.ChangeType
+	if changeType == "" {
+		changeType = "content"
+	}
+
+	for _, serviceType := range []string{"slack", "discord", "teams"} {
+		integrations, err := integrationRepo.ListByServiceType(ctx, serviceType)
+		if err != nil {
+			logger.Error("Failed to list integrations", zap.Error(err), zap.String("service_type", serviceType))
+			continue
+		}
+		for _, integration := range integrations {
+			if !integration.Enabled {
+				continue
+			}
+			if err := sender.Dispatch(ctx, integration, pageURL, changeType); err != nil {
+				logger.Error("Failed to dispatch webhook",
+					zap.Error(err),
+					zap.String("service_type", serviceType),
+					zap.String("integration_id", integration.ID.String()))
+			}
+		}
 	}
 }
 

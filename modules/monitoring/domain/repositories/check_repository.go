@@ -13,4 +13,6 @@ type CheckRepository interface {
 	GetByID(ctx context.Context, id uuid.UUID) (*entities.Check, error)
 	ListByPage(ctx context.Context, pageID uuid.UUID) ([]*entities.Check, error)
 	GetLatestByPage(ctx context.Context, pageID uuid.UUID) (*entities.Check, error)
+	Update(ctx context.Context, check *entities.Check) error
+	GetPreviousSuccessfulByPage(ctx context.Context, pageID, excludeCheckID uuid.UUID) (*entities.Check, error)
 }

@@ -3,6 +3,8 @@
   "compilerOptions": {
     "paths": {
       "@/*": ["./*"],
+      "@workspace/notix": ["../../packages/notix/src/index.ts"],
+      "@workspace/notix/*": ["../../packages/notix/src/*"],
       "@workspace/ui/*": ["../../packages/ui/src/*"],
       "@workspace/services/*": ["../../packages/services/src/*"],
       "@workspace/shared-http/*": ["../../packages/shared-http/src/*"]

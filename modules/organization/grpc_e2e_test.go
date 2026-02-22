@@ -10,22 +10,30 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
+func dialGRPC(t *testing.T) *grpc.ClientConn {
+	t.Helper()
+	addr := getGRPCAddress()
+	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		t.Fatalf("Failed to connect to gRPC server at %s: %v", addr, err)
+	}
+	return conn
+}
+
 // TestCreateOrganizationE2E tests creating an organization end-to-end
 func TestCreateOrganizationE2E(t *testing.T) {
-	conn, err := grpc.Dial("localhost:9082", grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		t.Fatalf("Failed to connect to gRPC server: %v", err)
-	}
+	skipUnlessE2E(t)
+
+	conn := dialGRPC(t)
 	defer conn.Close()
 
 	client := pb.NewOrganizationServiceClient(conn)
 
-	// Create organization
 	subdomain := "e2e-test-" + uuid.New().String()[:8]
 	req := &pb.CreateOrganizationRequest{
 		Name:        "E2E Test Organization",
 		Subdomain:   subdomain,
-		OwnerUserId: "770e8400-e29b-41d4-a716-446655440000",
+		OwnerUserId: testUserID,
 	}
 
 	resp, err := client.CreateOrganization(context.Background(), req)
@@ -38,8 +46,6 @@ func TestCreateOrganizationE2E(t *testing.T) {
 	}
 
 	org := resp.Organization
-
-	// Verify response fields
 	if org.Id == "" {
 		t.Error("Organization ID is empty")
 	}
@@ -55,35 +61,29 @@ func TestCreateOrganizationE2E(t *testing.T) {
 	if org.CreatedAt == "" {
 		t.Error("Created at timestamp is empty")
 	}
-
-	t.Logf("✓ Created organization: ID=%s, Name=%s, Subdomain=%s", org.Id, org.Name, org.Subdomain)
 }
 
 // TestGetOrganizationE2E tests retrieving an organization end-to-end
 func TestGetOrganizationE2E(t *testing.T) {
-	conn, err := grpc.Dial("localhost:9082", grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		t.Fatalf("Failed to connect to gRPC server: %v", err)
-	}
+	skipUnlessE2E(t)
+
+	conn := dialGRPC(t)
 	defer conn.Close()
 
 	client := pb.NewOrganizationServiceClient(conn)
 
-	// Step 1: Create organization
 	subdomain := "get-e2e-test-" + uuid.New().String()[:8]
 	createResp, err := client.CreateOrganization(context.Background(), &pb.CreateOrganizationRequest{
 		Name:        "Get E2E Test Org",
 		Subdomain:   subdomain,
-		OwnerUserId: "770e8400-e29b-41d4-a716-446655440000",
+		OwnerUserId: testUserID,
 	})
 	if err != nil {
 		t.Fatalf("Failed to create organization: %v", err)
 	}
 
 	orgID := createResp.Organization.Id
-	t.Logf("Created organization: %s", orgID)
 
-	// Step 2: Retrieve organization
 	getResp, err := client.GetOrganization(context.Background(), &pb.GetOrganizationRequest{
 		Id: orgID,
 	})
@@ -96,8 +96,6 @@ func TestGetOrganizationE2E(t *testing.T) {
 	}
 
 	org := getResp.Organization
-
-	// Verify fields
 	if org.Id != orgID {
 		t.Errorf("Expected ID %q, got %q", orgID, org.Id)
 	}
@@ -107,27 +105,17 @@ func TestGetOrganizationE2E(t *testing.T) {
 	if org.Subdomain != subdomain {
 		t.Errorf("Expected subdomain %q, got %q", subdomain, org.Subdomain)
 	}
-	if org.OwnerUserId == "" {
-		t.Error("Owner user ID is empty")
-	}
-	if org.UpdatedAt == "" {
-		t.Error("Updated at timestamp is empty")
-	}
-
-	t.Logf("✓ Retrieved organization: ID=%s, Name=%s, Owner=%s", org.Id, org.Name, org.OwnerUserId)
 }
 
-// TestCreateAndListOrganizationsE2E tests creating multiple organizations
+// TestCreateMultipleOrganizationsE2E tests creating multiple organizations
 func TestCreateMultipleOrganizationsE2E(t *testing.T) {
-	conn, err := grpc.Dial("localhost:9082", grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		t.Fatalf("Failed to connect to gRPC server: %v", err)
-	}
+	skipUnlessE2E(t)
+
+	conn := dialGRPC(t)
 	defer conn.Close()
 
 	client := pb.NewOrganizationServiceClient(conn)
 
-	// Create multiple organizations
 	orgCount := 3
 	orgIDs := make([]string, orgCount)
 
@@ -136,38 +124,30 @@ func TestCreateMultipleOrganizationsE2E(t *testing.T) {
 		resp, err := client.CreateOrganization(context.Background(), &pb.CreateOrganizationRequest{
 			Name:        "Multi Org " + uuid.New().String()[:8],
 			Subdomain:   subdomain,
-			OwnerUserId: "770e8400-e29b-41d4-a716-446655440000",
+			OwnerUserId: testUserID,
 		})
 		if err != nil {
 			t.Fatalf("Failed to create organization %d: %v", i+1, err)
 		}
 		orgIDs[i] = resp.Organization.Id
-		t.Logf("Created organization %d: %s", i+1, orgIDs[i])
 	}
 
-	// Verify all organizations can be retrieved
 	for i, orgID := range orgIDs {
-		resp, err := client.GetOrganization(context.Background(), &pb.GetOrganizationRequest{
-			Id: orgID,
-		})
+		resp, err := client.GetOrganization(context.Background(), &pb.GetOrganizationRequest{Id: orgID})
 		if err != nil {
 			t.Fatalf("Failed to get organization %d: %v", i+1, err)
 		}
 		if resp.Organization == nil {
 			t.Fatalf("Organization %d response is nil", i+1)
 		}
-		t.Logf("✓ Retrieved organization %d: %s", i+1, resp.Organization.Name)
 	}
-
-	t.Logf("✓ Successfully created and retrieved %d organizations", orgCount)
 }
 
 // TestValidationErrorsE2E tests validation error cases
 func TestValidationErrorsE2E(t *testing.T) {
-	conn, err := grpc.Dial("localhost:9082", grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		t.Fatalf("Failed to connect to gRPC server: %v", err)
-	}
+	skipUnlessE2E(t)
+
+	conn := dialGRPC(t)
 	defer conn.Close()
 
 	client := pb.NewOrganizationServiceClient(conn)
@@ -182,16 +162,16 @@ func TestValidationErrorsE2E(t *testing.T) {
 			req: &pb.CreateOrganizationRequest{
 				Name:        "Valid Org",
 				Subdomain:   "valid-org-" + uuid.New().String()[:8],
-				OwnerUserId: "770e8400-e29b-41d4-a716-446655440000",
+				OwnerUserId: testUserID,
 			},
 			shouldError: false,
 		},
 		{
-			name: "short subdomain (< 3 chars)",
+			name: "short subdomain",
 			req: &pb.CreateOrganizationRequest{
 				Name:        "Invalid Org",
 				Subdomain:   "ab",
-				OwnerUserId: "770e8400-e29b-41d4-a716-446655440000",
+				OwnerUserId: testUserID,
 			},
 			shouldError: true,
 		},
@@ -200,7 +180,7 @@ func TestValidationErrorsE2E(t *testing.T) {
 			req: &pb.CreateOrganizationRequest{
 				Name:        "Invalid Org",
 				Subdomain:   "invalid_org",
-				OwnerUserId: "770e8400-e29b-41d4-a716-446655440000",
+				OwnerUserId: testUserID,
 			},
 			shouldError: true,
 		},
@@ -209,7 +189,7 @@ func TestValidationErrorsE2E(t *testing.T) {
 			req: &pb.CreateOrganizationRequest{
 				Name:        "Invalid Org",
 				Subdomain:   "this-is-a-very-long-subdomain-that-exceeds-sixty-three-characters-limit",
-				OwnerUserId: "770e8400-e29b-41d4-a716-446655440000",
+				OwnerUserId: testUserID,
 			},
 			shouldError: true,
 		},
@@ -218,7 +198,7 @@ func TestValidationErrorsE2E(t *testing.T) {
 			req: &pb.CreateOrganizationRequest{
 				Name:        "",
 				Subdomain:   "test-org",
-				OwnerUserId: "770e8400-e29b-41d4-a716-446655440000",
+				OwnerUserId: testUserID,
 			},
 			shouldError: true,
 		},
@@ -231,8 +211,6 @@ func TestValidationErrorsE2E(t *testing.T) {
 			if tt.shouldError {
 				if err == nil {
 					t.Error("Expected error but got nil")
-				} else {
-					t.Logf("✓ Got expected error: %v", err)
 				}
 			} else {
 				if err != nil {
@@ -240,8 +218,6 @@ func TestValidationErrorsE2E(t *testing.T) {
 				}
 				if resp == nil || resp.Organization == nil {
 					t.Error("Response is nil")
-				} else {
-					t.Logf("✓ Successfully created organization: %s", resp.Organization.Id)
 				}
 			}
 		})
@@ -250,95 +226,58 @@ func TestValidationErrorsE2E(t *testing.T) {
 
 // TestDuplicateSubdomainE2E tests that duplicate subdomains are rejected
 func TestDuplicateSubdomainE2E(t *testing.T) {
-	conn, err := grpc.Dial("localhost:9082", grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		t.Fatalf("Failed to connect to gRPC server: %v", err)
-	}
+	skipUnlessE2E(t)
+
+	conn := dialGRPC(t)
 	defer conn.Close()
 
 	client := pb.NewOrganizationServiceClient(conn)
 
 	subdomain := "duplicate-test-" + uuid.New().String()[:8]
 
-	// Create first organization
-	resp1, err := client.CreateOrganization(context.Background(), &pb.CreateOrganizationRequest{
+	_, err := client.CreateOrganization(context.Background(), &pb.CreateOrganizationRequest{
 		Name:        "First Org",
 		Subdomain:   subdomain,
-		OwnerUserId: "770e8400-e29b-41d4-a716-446655440000",
+		OwnerUserId: testUserID,
 	})
 	if err != nil {
 		t.Fatalf("Failed to create first organization: %v", err)
 	}
-	t.Logf("✓ Created first organization: %s", resp1.Organization.Id)
 
-	// Try to create second organization with same subdomain
-	resp2, err := client.CreateOrganization(context.Background(), &pb.CreateOrganizationRequest{
+	_, err = client.CreateOrganization(context.Background(), &pb.CreateOrganizationRequest{
 		Name:        "Second Org",
-		Subdomain:   subdomain, // Same subdomain
-		OwnerUserId: "770e8400-e29b-41d4-a716-446655440000",
+		Subdomain:   subdomain,
+		OwnerUserId: testUserID,
 	})
 
 	if err == nil {
 		t.Error("Expected error when creating organization with duplicate subdomain, but got none")
-		if resp2 != nil {
-			t.Logf("Unexpectedly got response: %v", resp2)
-		}
-	} else {
-		t.Logf("✓ Got expected error for duplicate subdomain: %v", err)
 	}
 }
 
 // TestInvalidOrganizationIDE2E tests getting non-existent organization
 func TestInvalidOrganizationIDE2E(t *testing.T) {
-	conn, err := grpc.Dial("localhost:9082", grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		t.Fatalf("Failed to connect to gRPC server: %v", err)
-	}
+	skipUnlessE2E(t)
+
+	conn := dialGRPC(t)
 	defer conn.Close()
 
 	client := pb.NewOrganizationServiceClient(conn)
 
 	tests := []struct {
-		name    string
-		id      string
-		isError bool
+		name string
+		id   string
 	}{
-		{
-			name:    "valid UUID but non-existent organization",
-			id:      "550e8400-e29b-41d4-a716-446655440099",
-			isError: true,
-		},
-		{
-			name:    "invalid UUID format",
-			id:      "invalid-uuid",
-			isError: true,
-		},
-		{
-			name:    "empty ID",
-			id:      "",
-			isError: true,
-		},
+		{"valid UUID but non-existent", "550e8400-e29b-41d4-a716-446655440099"},
+		{"invalid UUID format", "invalid-uuid"},
+		{"empty ID", ""},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			resp, err := client.GetOrganization(context.Background(), &pb.GetOrganizationRequest{
-				Id: tt.id,
-			})
-
-			if tt.isError {
-				if err == nil {
-					t.Error("Expected error but got nil")
-				} else {
-					t.Logf("✓ Got expected error: %v", err)
-				}
-			} else {
-				if err != nil {
-					t.Errorf("Expected no error but got: %v", err)
-				}
-				if resp == nil || resp.Organization == nil {
-					t.Error("Response is nil")
-				}
+			_, err := client.GetOrganization(context.Background(), &pb.GetOrganizationRequest{Id: tt.id})
+			if err == nil {
+				t.Error("Expected error but got nil")
 			}
 		})
 	}

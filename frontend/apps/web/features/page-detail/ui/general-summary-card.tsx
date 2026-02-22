@@ -1,6 +1,7 @@
 'use client'
 
 import { type MonitoringConfig, type Page, PageApi } from '@workspace/services/page-api'
+import { notification } from '@/lib/notification'
 import { Badge } from '@workspace/ui/components/atoms/badge'
 import { Button } from '@workspace/ui/components/atoms/button'
 import { Input } from '@workspace/ui/components/atoms/input'
@@ -31,8 +32,10 @@ export function GeneralSummaryCard({ page, config }: Readonly<GeneralSummaryCard
       try {
         await PageApi.updateMonitoringConfig(page.id, updates)
         router.refresh()
+        notification.success({ title: 'Settings saved' })
       } catch (error) {
         console.error('Failed to update config', error)
+        notification.error({ title: 'Failed to save settings', description: error instanceof Error ? error.message : 'Please try again.' })
       }
     })
   }
@@ -47,8 +50,10 @@ export function GeneralSummaryCard({ page, config }: Readonly<GeneralSummaryCard
         await PageApi.updatePage(page.id, updates)
         router.refresh()
         setIsEditingTags(false)
+        notification.success({ title: 'Page updated' })
       } catch (error) {
         console.error('Failed to update page', error)
+        notification.error({ title: 'Failed to update page', description: error instanceof Error ? error.message : 'Please try again.' })
       }
     })
   }

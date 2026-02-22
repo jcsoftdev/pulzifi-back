@@ -3,6 +3,7 @@
 import { type Page, PageApi } from '@workspace/services/page-api'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
+import { notification } from '@/lib/notification'
 import { DeletePageDialog } from '@/features/page/ui/delete-page-dialog'
 import { EditPageDialog } from '@/features/page/ui/edit-page-dialog'
 import { PageInfoCard } from './page-info-card'
@@ -34,9 +35,11 @@ export function PageInfoWithActions({
       const updated = await PageApi.updatePage(id, data)
       setPage(updated)
       setIsEditOpen(false)
-      router.refresh() // Refresh server components to update other parts if needed
+      router.refresh()
+      notification.action({ title: 'Page updated', description: `"${updated.name}" has been updated.` })
     } catch (err) {
       console.error('Failed to update page:', err)
+      notification.error({ title: 'Failed to update page', description: err instanceof Error ? err.message : 'Please try again.' })
     } finally {
       setIsActionLoading(false)
     }
@@ -46,9 +49,11 @@ export function PageInfoWithActions({
     setIsActionLoading(true)
     try {
       await PageApi.deletePage(page.id)
+      notification.success({ title: 'Page deleted' })
       router.push(`/workspaces/${workspaceId}`)
     } catch (err) {
       console.error('Failed to delete page:', err)
+      notification.error({ title: 'Failed to delete page', description: err instanceof Error ? err.message : 'Please try again.' })
       setIsActionLoading(false)
     }
   }

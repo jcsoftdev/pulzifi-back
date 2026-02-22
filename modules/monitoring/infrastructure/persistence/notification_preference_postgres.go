@@ -112,3 +112,29 @@ func (r *NotificationPreferencePostgresRepository) DeleteByID(ctx context.Contex
 	_, err := r.db.ExecContext(ctx, q, id)
 	return err
 }
+
+func (r *NotificationPreferencePostgresRepository) GetEmailEnabledByPage(ctx context.Context, pageID uuid.UUID) ([]*entities.NotificationPreference, error) {
+	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
+		return nil, err
+	}
+
+	q := `SELECT id, user_id, workspace_id, page_id, email_enabled, change_types, created_at, updated_at
+		  FROM notification_preferences WHERE page_id = $1 AND email_enabled = true`
+	rows, err := r.db.QueryContext(ctx, q, pageID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var prefs []*entities.NotificationPreference
+	for rows.Next() {
+		var p entities.NotificationPreference
+		var changeTypes pq.StringArray
+		if err := rows.Scan(&p.ID, &p.UserID, &p.WorkspaceID, &p.PageID, &p.EmailEnabled, &changeTypes, &p.CreatedAt, &p.UpdatedAt); err != nil {
+			return nil, err
+		}
+		p.ChangeTypes = changeTypes
+		prefs = append(prefs, &p)
+	}
+	return prefs, nil
+}

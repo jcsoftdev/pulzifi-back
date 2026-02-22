@@ -4,6 +4,7 @@ import { Button } from '@workspace/ui/components/atoms/button'
 import { SquarePlus } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useMemo, useState } from 'react'
+import { notification } from '@/lib/notification'
 import { useWorkspaces } from './application/hooks/use-workspaces'
 import type { Workspace } from './domain/types'
 import { CreateWorkspaceDialog } from './ui/create-workspace-dialog'
@@ -68,9 +69,11 @@ export function WorkspaceFeature({
           setWorkspaces((prev) => prev.map((ws) => (ws.id === editingWorkspace.id ? result : ws)))
           setIsCreateDialogOpen(false)
           router.refresh()
+          notification.success({ title: 'Workspace updated', description: `"${result.name}" has been updated.` })
         }
       } catch (err) {
         console.error('Failed to update workspace:', err)
+        notification.error({ title: 'Failed to update workspace', description: err instanceof Error ? err.message : 'Please try again.' })
       }
     } else {
       try {
@@ -82,9 +85,11 @@ export function WorkspaceFeature({
           ])
           setIsCreateDialogOpen(false)
           router.refresh()
+          notification.success({ title: 'Workspace created', description: `"${result.name}" is ready.` })
         }
       } catch (err) {
         console.error('Failed to create workspace:', err)
+        notification.error({ title: 'Failed to create workspace', description: err instanceof Error ? err.message : 'Please try again.' })
       }
     }
   }
@@ -102,8 +107,10 @@ export function WorkspaceFeature({
       await deleteWorkspace(deletingWorkspace.id)
       setWorkspaces((prev) => prev.filter((ws) => ws.id !== deletingWorkspace.id))
       setDeletingWorkspace(null)
+      notification.success({ title: 'Workspace deleted' })
     } catch (err) {
       console.error('Failed to delete workspace:', err)
+      notification.error({ title: 'Failed to delete workspace', description: err instanceof Error ? err.message : 'Please try again.' })
     }
   }
 

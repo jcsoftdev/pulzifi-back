@@ -8,6 +8,7 @@
   ],
   "scripts": {
     "dev": "turbo dev",
+    "dev:https": "turbo dev:https",
     "build": "turbo build",
     "start": "turbo start",
     "check": "biome check --write .",

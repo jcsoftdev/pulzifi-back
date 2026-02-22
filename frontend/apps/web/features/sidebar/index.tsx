@@ -3,7 +3,6 @@ import Link from 'next/link'
 import { NavigationService } from './domain/navigation-service'
 import { getBottomRoutes, getMainRoutes } from './domain/routes'
 import type { Organization, User, Workspace } from './domain/types'
-import { LogoutButton } from './ui/logout-button'
 import { NavigationLink } from './ui/navigation-link'
 import { OrganizationSelector } from './ui/organization-selector'
 import { ProfileFooter } from './ui/profile-footer'
@@ -33,7 +32,7 @@ export async function SidebarFeature({
   ])
 
   const mainRoutes = getMainRoutes()
-  const bottomRoutes = getBottomRoutes()
+  const bottomRoutes = getBottomRoutes(user?.role)
 
   // Split main routes by order - workspaces go after order 1 (Home) and before order 3 (Team)
   const topRoutes = mainRoutes.filter((r) => r.order < 2)
@@ -78,9 +77,6 @@ export async function SidebarFeature({
         {bottomRoutes.map((route) => (
           <NavigationLink key={route.id} route={route} />
         ))}
-
-        {/* Logout Button */}
-        <LogoutButton />
 
         {/* Profile Footer - only if user exists */}
         {user && <ProfileFooter user={user} />}

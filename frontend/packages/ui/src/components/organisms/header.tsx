@@ -16,6 +16,7 @@ export interface HeaderProps extends React.HTMLAttributes<HTMLElement> {
   onNotificationClick?: () => void
   hasNotifications?: boolean
   notificationCount?: number
+  notificationSlot?: React.ReactNode
   breadcrumbs?: BreadcrumbItem[]
 }
 
@@ -26,6 +27,7 @@ const Header = React.forwardRef<HTMLElement, HeaderProps>(
       onNotificationClick,
       hasNotifications,
       notificationCount,
+      notificationSlot,
       breadcrumbs,
       children,
       className,
@@ -54,11 +56,13 @@ const Header = React.forwardRef<HTMLElement, HeaderProps>(
                 />
               </div>
             )}
-            <NotificationButton
-              onClick={onNotificationClick}
-              hasNotifications={hasNotifications}
-              notificationCount={notificationCount}
-            />
+            {notificationSlot ?? (
+              <NotificationButton
+                onClick={onNotificationClick}
+                hasNotifications={hasNotifications}
+                notificationCount={notificationCount}
+              />
+            )}
           </div>
         </div>
       </header>

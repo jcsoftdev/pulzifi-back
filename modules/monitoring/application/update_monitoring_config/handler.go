@@ -202,18 +202,28 @@ func normalizeCheckFrequency(input string) string {
 	switch normalized {
 	case "off", "disabled", "none":
 		return "Off"
-	case "30m", "30 min", "30 mins", "every 30 minutes", "every 30m", "every 30 min":
-		return "Every 30 minutes"
+	case "5m", "5 min", "5 mins", "every 5 minutes", "every 5m":
+		return "5m"
+	case "10m", "10 min", "10 mins", "every 10 minutes", "every 10m":
+		return "10m"
+	case "15m", "15 min", "15 mins", "every 15 minutes", "every 15m":
+		return "15m"
+	case "30m", "30 min", "30 mins", "every 30 minutes", "every 30m":
+		return "30m"
 	case "1h", "1 hr", "1 hour", "every hour", "every 1 hour", "every 1hr":
-		return "Every 1 hour"
+		return "1h"
 	case "2h", "2 hr", "2 hours", "every 2 hours", "every 2hr":
-		return "Every 2 hours"
-	case "8h", "8 hr", "8 hours", "every 8 hours", "every 8hr":
-		return "Every 8 hours"
+		return "2h"
+	case "4h", "4 hr", "4 hours", "every 4 hours", "every 4hr":
+		return "4h"
+	case "6h", "6 hr", "6 hours", "every 6 hours", "every 6hr":
+		return "6h"
+	case "12h", "12 hr", "12 hours", "every 12 hours", "every 12hr":
+		return "12h"
 	case "24h", "24 hr", "1d", "1 day", "daily", "every day":
-		return "Every day"
-	case "48h", "48 hr", "2d", "2 days", "every 48 hours":
-		return "Every 48 hours"
+		return "24h"
+	case "168h", "7d", "7 days", "weekly", "every week":
+		return "168h"
 	default:
 		return input
 	}

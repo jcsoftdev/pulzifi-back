@@ -4,6 +4,7 @@ import { type MonitoringConfig, PageApi } from '@workspace/services/page-api'
 import { Check } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useTransition } from 'react'
+import { notification } from '@/lib/notification'
 
 const INSIGHT_TYPES = [
   { id: 'marketing', label: 'Marketing Lens' },
@@ -40,8 +41,10 @@ export function IntelligentInsightsCard({
       try {
         await PageApi.updateMonitoringConfig(pageId, updates)
         router.refresh()
+        notification.success({ title: 'Preferences saved' })
       } catch (error) {
         console.error('Failed to update insight preferences', error)
+        notification.error({ title: 'Failed to save preferences', description: error instanceof Error ? error.message : 'Please try again.' })
       }
     })
   }

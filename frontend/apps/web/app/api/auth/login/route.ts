@@ -60,9 +60,6 @@ export async function POST(request: NextRequest) {
 
     const isSecure = request.nextUrl.protocol === 'https:'
 
-    // Also set cookies directly on this response (no Domain attribute).
-    // If the user is already on the tenant subdomain (tenant.localhost:3000)
-    // these cookies are immediately valid — no callback redirect needed.
     nextResponse.cookies.set('access_token', access_token, {
       path: '/',
       httpOnly: true,

@@ -141,3 +141,7 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* ── Notix toast styles ─────────────────────────────────────────────────── */
+@import "@workspace/notix/styles.css";
+

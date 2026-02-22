@@ -25,6 +25,8 @@ export default function LoginPage() {
     const errorParam = searchParams.get('error')
     if (errorParam === 'SessionExpired') {
       setError('Your session has expired. Please sign in again.')
+    } else if (errorParam === 'PendingApproval') {
+      setInfoBanner('Your account is pending approval by an administrator. Please check back later.')
     }
 
     if (searchParams.get('registered') === 'true') {

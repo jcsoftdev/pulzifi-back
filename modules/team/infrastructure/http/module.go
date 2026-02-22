@@ -3,6 +3,7 @@ package http
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -89,7 +90,7 @@ func (m *Module) handleInviteMember(w http.ResponseWriter, r *http.Request) {
 	}
 
 	repo := persistence.NewTeamMemberPostgresRepository(m.db)
-	handler := invitemember.NewInviteMemberHandler(repo)
+	handler := invitemember.NewInviteMemberHandler(repo, m.db)
 
 	resp, err := handler.Handle(r.Context(), subdomain, inviterID, &req)
 	if err != nil {
@@ -113,7 +114,11 @@ func (m *Module) handleInviteMember(w http.ResponseWriter, r *http.Request) {
 		if inviterEmail == "" {
 			inviterEmail = "A team member"
 		}
-		subject, html := templates.TeamInvite(inviterEmail, subdomain, m.frontendURL)
+		loginURL := m.frontendURL
+		if resp.IsNewUser && resp.SetPasswordToken != "" {
+			loginURL = fmt.Sprintf("%s/invite/accept?token=%s", m.frontendURL, resp.SetPasswordToken)
+		}
+		subject, html := templates.TeamInvite(inviterEmail, subdomain, loginURL)
 		if sendErr := m.emailProvider.Send(r.Context(), req.Email, subject, html); sendErr != nil {
 			logger.Error("Failed to send invite email", zap.Error(sendErr))
 		}

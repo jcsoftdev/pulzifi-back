@@ -21,6 +21,7 @@ import (
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/scheduler"
 	generateinsights "github.com/jcsoftdev/pulzifi-back/modules/insight/application/generate_insights"
 	insightAI "github.com/jcsoftdev/pulzifi-back/modules/insight/infrastructure/ai"
+	emailservices "github.com/jcsoftdev/pulzifi-back/modules/email/domain/services"
 	snapshotapp "github.com/jcsoftdev/pulzifi-back/modules/snapshot/application"
 	snapshotextractor "github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/extractor"
 	snapshotstorage "github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/storage"
@@ -47,7 +48,7 @@ func NewModule() router.ModuleRegisterer {
 }
 
 // NewModuleWithDB creates a new instance with database connection
-func NewModuleWithDB(db *sql.DB, eventBus *eventbus.EventBus) router.ModuleRegisterer {
+func NewModuleWithDB(db *sql.DB, eventBus *eventbus.EventBus, emailProvider emailservices.EmailProvider, frontendURL string) router.ModuleRegisterer {
 	m := &Module{
 		db:       db,
 		eventBus: eventBus,
@@ -75,7 +76,7 @@ func NewModuleWithDB(db *sql.DB, eventBus *eventbus.EventBus) router.ModuleRegis
 		insightHandler = generateinsights.NewGenerateInsightsHandler(generator, m.db)
 	}
 
-	snapshotWorker := snapshotapp.NewSnapshotWorker(objectStorage, extractorClient, m.db, insightHandler)
+	snapshotWorker := snapshotapp.NewSnapshotWorker(objectStorage, extractorClient, m.db, insightHandler, emailProvider, frontendURL)
 
 	// Create WorkerPool
 	m.workerPool = workers.NewWorkerPool(snapshotWorker, 100)

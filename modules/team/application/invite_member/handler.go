@@ -3,20 +3,26 @@ package invitemember
 import (
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"encoding/base64"
+	"encoding/hex"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jcsoftdev/pulzifi-back/modules/team/domain/repositories"
+	"github.com/jcsoftdev/pulzifi-back/shared/logger"
+	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 )
 
 type InviteMemberHandler struct {
 	repo repositories.TeamMemberRepository
+	db   *sql.DB
 }
 
-func NewInviteMemberHandler(repo repositories.TeamMemberRepository) *InviteMemberHandler {
-	return &InviteMemberHandler{repo: repo}
+func NewInviteMemberHandler(repo repositories.TeamMemberRepository, db *sql.DB) *InviteMemberHandler {
+	return &InviteMemberHandler{repo: repo, db: db}
 }
 
 func (h *InviteMemberHandler) Handle(ctx context.Context, subdomain string, inviterID uuid.UUID, req *InviteMemberRequest) (*InviteMemberResponse, error) {
@@ -37,6 +43,7 @@ func (h *InviteMemberHandler) Handle(ctx context.Context, subdomain string, invi
 	}
 
 	var userID uuid.UUID
+	isNewUser := false
 	if user == nil {
 		// Auto-create user with a random temporary password
 		tmpPass, hashErr := generateTemporaryPassword()
@@ -47,6 +54,7 @@ func (h *InviteMemberHandler) Handle(ctx context.Context, subdomain string, invi
 		if err != nil {
 			return nil, err
 		}
+		isNewUser = true
 	} else {
 		userID = user.UserID
 	}
@@ -63,7 +71,7 @@ func (h *InviteMemberHandler) Handle(ctx context.Context, subdomain string, invi
 		return nil, err
 	}
 
-	return &InviteMemberResponse{
+	resp := &InviteMemberResponse{
 		ID:        member.ID,
 		UserID:    member.UserID,
 		Role:      member.Role,
@@ -71,7 +79,39 @@ func (h *InviteMemberHandler) Handle(ctx context.Context, subdomain string, invi
 		LastName:  member.LastName,
 		Email:     member.Email,
 		JoinedAt:  member.JoinedAt,
-	}, nil
+		IsNewUser: isNewUser,
+	}
+
+	// Generate a password reset token for new users so they can set their own password
+	if isNewUser && h.db != nil {
+		token, err := generateResetToken(ctx, h.db, userID)
+		if err != nil {
+			logger.Error("Failed to generate set-password token for invited user", zap.Error(err))
+		} else {
+			resp.SetPasswordToken = token
+		}
+	}
+
+	return resp, nil
+}
+
+// generateResetToken creates a password reset token and stores it in public.password_resets.
+func generateResetToken(ctx context.Context, db *sql.DB, userID uuid.UUID) (string, error) {
+	tokenBytes := make([]byte, 32)
+	if _, err := rand.Read(tokenBytes); err != nil {
+		return "", err
+	}
+	token := hex.EncodeToString(tokenBytes)
+	expiresAt := time.Now().Add(72 * time.Hour) // 3 days for invite tokens
+
+	_, err := db.ExecContext(ctx,
+		`INSERT INTO public.password_resets (id, user_id, token, expires_at, created_at) VALUES ($1, $2, $3, $4, NOW())`,
+		uuid.New(), userID, token, expiresAt,
+	)
+	if err != nil {
+		return "", err
+	}
+	return token, nil
 }
 
 // generateTemporaryPassword creates a random password hash for new invited users.

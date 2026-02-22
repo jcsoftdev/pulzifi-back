@@ -47,6 +47,18 @@ func TeamInvite(inviterName, orgName, loginURL string) (subject, html string) {
 	return
 }
 
+// AlertNotification generates an alert notification email for page changes.
+func AlertNotification(pageURL, changeType, dashboardURL string) (subject, html string) {
+	subject = "Pulzifi Alert: Change detected on your monitored page"
+	html = wrap(subject, fmt.Sprintf(`
+<h2>Change Detected</h2>
+<p>A <strong>%s</strong> change was detected on the page you're monitoring:</p>
+<p><a href="%s">%s</a></p>
+<p><a href="%s" style="display:inline-block;background:#4F46E5;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;">View Dashboard</a></p>
+`, changeType, pageURL, pageURL, dashboardURL))
+	return
+}
+
 // PasswordReset generates the password reset email.
 func PasswordReset(firstName, resetURL string) (subject, html string) {
 	subject = "Reset your Pulzifi password"

@@ -64,7 +64,6 @@ export async function POST(request: NextRequest) {
   const isSecure = request.nextUrl.protocol === 'https:'
   const response = NextResponse.json({ success: true }, { status: 200 })
 
-  // Set cookies host-only (no Domain attribute), matching the login route pattern
   response.cookies.set('access_token', newAccessToken, {
     path: '/',
     httpOnly: true,

@@ -1,6 +1,7 @@
 'use client'
 
 import { type PendingUser, SuperAdminApi } from '@workspace/services'
+import { notification } from '@/lib/notification'
 import {
   Badge,
   Button,
@@ -44,8 +45,10 @@ export function UserApprovals({ onUserApproved }: UserApprovalsProps) {
         await SuperAdminApi.approveUser(requestId)
         await loadData()
         onUserApproved?.()
+        notification.success({ title: 'User approved' })
       } catch {
         setError('Failed to approve user.')
+        notification.error({ title: 'Failed to approve user', description: 'Please try again.' })
       }
     })
   }
@@ -55,8 +58,10 @@ export function UserApprovals({ onUserApproved }: UserApprovalsProps) {
       try {
         await SuperAdminApi.rejectUser(requestId)
         await loadData()
+        notification.success({ title: 'User rejected' })
       } catch {
         setError('Failed to reject user.')
+        notification.error({ title: 'Failed to reject user', description: 'Please try again.' })
       }
     })
   }

@@ -1,6 +1,7 @@
 export { AxiosHttpClient } from './axios-client'
 export { env } from './env'
 export {
+  createBffHttpClient,
   createBrowserHttpClient,
   createServerHttpClient,
   getHttpClient,

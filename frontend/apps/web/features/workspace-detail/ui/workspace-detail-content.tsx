@@ -1,9 +1,10 @@
 'use client'
+import { notification } from '@/lib/notification'
 import { PageApi } from '@workspace/services/page-api'
 import { Badge } from '@workspace/ui/components/atoms/badge'
 import { Button } from '@workspace/ui/components/atoms/button'
 import { Input } from '@workspace/ui/components/atoms/input'
-import { Settings, SquarePlus, Trash2 } from 'lucide-react'
+import { FileText, Settings, SquarePlus, Trash2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
 import { useState } from 'react'
@@ -58,8 +59,10 @@ export function WorkspaceDetailContent({
         ...prev,
       ])
       setIsAddPageOpen(false)
+      notification.success({ title: 'Page added', description: `"${newPage.name}" has been added.` })
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to add page'))
+      notification.error({ title: 'Failed to add page', description: err instanceof Error ? err.message : 'Please try again.' })
     } finally {
       setIsLoading(false)
     }
@@ -88,8 +91,10 @@ export function WorkspaceDetailContent({
       setPages((prev) => prev.map((p) => (p.id === pageId ? updatedPage : p)))
       setIsEditPageOpen(false)
       setSelectedPage(null)
+      notification.success({ title: 'Page updated', description: `"${updatedPage.name}" has been updated.` })
     } catch (err) {
       console.error('Failed to update page:', err)
+      notification.error({ title: 'Failed to update page', description: err instanceof Error ? err.message : 'Please try again.' })
     } finally {
       setIsLoading(false)
     }
@@ -103,8 +108,10 @@ export function WorkspaceDetailContent({
       setPages((prev) => prev.filter((p) => p.id !== selectedPage.id))
       setIsDeletePageOpen(false)
       setSelectedPage(null)
+      notification.success({ title: 'Page deleted' })
     } catch (err) {
       console.error('Failed to delete page:', err)
+      notification.error({ title: 'Failed to delete page', description: err instanceof Error ? err.message : 'Please try again.' })
     } finally {
       setIsLoading(false)
     }
@@ -124,18 +131,22 @@ export function WorkspaceDetailContent({
         setWorkspace(updated)
         setIsEditWorkspaceOpen(false)
         router.refresh()
+        notification.success({ title: 'Workspace updated', description: `"${updated.name}" has been updated.` })
       }
     } catch (err) {
       console.error('Failed to update workspace:', err)
+      notification.error({ title: 'Failed to update workspace', description: err instanceof Error ? err.message : 'Please try again.' })
     }
   }
 
   const handleDeleteWorkspace = async () => {
     try {
       await deleteWorkspace(workspace.id)
+      notification.success({ title: 'Workspace deleted' })
       router.push('/workspaces')
     } catch (err) {
       console.error('Failed to delete workspace:', err)
+      notification.error({ title: 'Failed to delete workspace', description: err instanceof Error ? err.message : 'Please try again.' })
     }
   }
 
@@ -163,9 +174,11 @@ export function WorkspaceDetailContent({
       await PageApi.updateMonitoringConfig(pageId, {
         checkFrequency: frequency,
       })
+      notification.success({ title: 'Check frequency updated' })
     } catch (err) {
       setPages(initialPages)
       console.error('Failed to update check frequency:', err)
+      notification.error({ title: 'Failed to update check frequency', description: err instanceof Error ? err.message : 'Please try again.' })
     }
   }
 
@@ -195,6 +208,14 @@ export function WorkspaceDetailContent({
         </div>
 
         <div className="flex items-center gap-2 w-full md:w-auto">
+          <Button
+            variant="outline"
+            onClick={() => router.push(`/workspaces/${workspace.id}/reports`)}
+            className="gap-2 flex-1 md:flex-none"
+          >
+            <FileText className="w-4 h-4" />
+            Reports
+          </Button>
           <Button
             variant="outline"
             onClick={() => setIsEditWorkspaceOpen(true)}

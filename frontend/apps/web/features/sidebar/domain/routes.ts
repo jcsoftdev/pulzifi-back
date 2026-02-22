@@ -80,7 +80,7 @@ export const BOTTOM_ROUTES: RouteConfig[] = [
     href: '/resources',
     icon: 'Shapes',
     position: 'bottom',
-    order: 1,
+    order: 2,
   },
   {
     id: 'settings',
@@ -88,7 +88,7 @@ export const BOTTOM_ROUTES: RouteConfig[] = [
     href: '/settings',
     icon: 'Settings',
     position: 'bottom',
-    order: 2,
+    order: 3,
   },
 ]
 
@@ -101,10 +101,12 @@ export function getMainRoutes(): RouteConfig[] {
   ].sort((a, b) => a.order - b.order)
 }
 
-export function getBottomRoutes(): RouteConfig[] {
+export function getBottomRoutes(userRole?: string): RouteConfig[] {
   return [
     ...BOTTOM_ROUTES,
-  ].sort((a, b) => a.order - b.order)
+  ]
+    .filter((route) => route.id !== 'admin' || userRole === 'SUPER_ADMIN')
+    .sort((a, b) => a.order - b.order)
 }
 
 /**

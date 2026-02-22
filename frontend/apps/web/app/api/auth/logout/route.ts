@@ -20,7 +20,6 @@ function getBackendOrigin(): string {
 export async function GET(request: NextRequest) {
   const redirectTo = request.nextUrl.searchParams.get('redirectTo') || '/login'
   const response = NextResponse.redirect(new URL(redirectTo, request.url))
-
   response.cookies.set('access_token', '', { path: '/', httpOnly: true, maxAge: 0 })
   response.cookies.set('refresh_token', '', { path: '/', httpOnly: true, maxAge: 0 })
   response.cookies.set('tenant_hint', '', { path: '/', httpOnly: true, maxAge: 0 })
@@ -40,8 +39,6 @@ export async function POST(request: NextRequest) {
 
     const nextResponse = NextResponse.json({ success: true })
 
-    // Cookies are set host-only (no Domain attribute) by the BFF login/callback
-    // routes, so clearing without Domain is the correct match.
     nextResponse.cookies.set('access_token', '', { path: '/', httpOnly: true, maxAge: 0 })
     nextResponse.cookies.set('refresh_token', '', { path: '/', httpOnly: true, maxAge: 0 })
     nextResponse.cookies.set('tenant_hint', '', { path: '/', httpOnly: true, maxAge: 0 })

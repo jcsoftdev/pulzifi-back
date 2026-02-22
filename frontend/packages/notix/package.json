@@ -1,0 +1,28 @@
+{
+  "name": "@workspace/notix",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "sideEffects": false,
+  "scripts": {
+    "type-check": "tsc --noEmit",
+    "format": "biome format ../../ --write"
+  },
+  "dependencies": {
+    "motion": "^12.34.0"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@workspace/typescript-config": "workspace:*",
+    "typescript": "^5.9.3"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./styles.css": "./src/infrastructure/styles/notix.css"
+  }
+}

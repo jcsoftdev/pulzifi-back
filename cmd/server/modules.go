@@ -79,6 +79,7 @@ func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus 
 		CookieSecure:     cookieSecure,
 		FrontendURL:      cfg.FrontendURL,
 		EmailProvider:    emailProvider,
+		EventBus:         eventBus,
 		DB:               db,
 	})
 	authMiddleware := authModule.(*auth.Module).AuthMiddleware()
@@ -107,7 +108,7 @@ func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus 
 		{"Workspace", workspace.NewModuleWithDB(db)},
 		{"Page", page.NewModuleWithDB(db)},
 		{"Alert", alert.NewModuleWithDB(db)},
-		{"Monitoring", monitoring.NewModuleWithDB(db, eventBus)},
+		{"Monitoring", monitoring.NewModuleWithDB(db, eventBus, emailProvider, cfg.FrontendURL)},
 		{"Integration", integration.NewModuleWithDB(db)},
 		{"Insight", insight.NewModuleWithDB(db, pubsub.NewInsightBroker())},
 		{"Report", report.NewModuleWithDB(db)},

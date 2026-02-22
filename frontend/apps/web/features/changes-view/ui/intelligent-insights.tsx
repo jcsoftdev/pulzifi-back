@@ -2,6 +2,7 @@
 
 import type { Check, Insight } from '@workspace/services/page-api'
 import { PageApi } from '@workspace/services/page-api'
+import { notification } from '@/lib/notification'
 import { Button } from '@workspace/ui/components/atoms/button'
 import { formatDateTime } from '@workspace/ui'
 import { Copy, Loader2, Settings, Zap } from 'lucide-react'
@@ -105,6 +106,7 @@ export function IntelligentInsights({
       document.execCommand('copy')
       document.body.removeChild(el)
     }
+    notification.success({ title: 'Copied to clipboard' })
   }
 
   const handleGenerate = async () => {
@@ -119,11 +121,14 @@ export function IntelligentInsights({
       if (results.length > 0) {
         setInsights(sortInsights(results))
         onInsightsGenerated?.(results)
+        notification.success({ title: 'Insights generated', description: `${results.length} insight${results.length > 1 ? 's' : ''} ready.` })
       } else {
         setError('Insights are still being generated. Please refresh the page.')
+        notification.warning({ title: 'Still generating', description: 'Please refresh the page in a moment.' })
       }
     } catch {
       setError('Failed to generate insights. Please try again.')
+      notification.error({ title: 'Failed to generate insights', description: 'Please try again.' })
     } finally {
       setGenerating(false)
     }

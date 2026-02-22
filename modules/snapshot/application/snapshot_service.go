@@ -24,7 +24,7 @@ type SnapshotService struct {
 
 func NewSnapshotService(objectStorage repositories.ObjectStorage, extractorClient *extractor.HTTPClient, db *sql.DB, insightHandler *generateinsights.GenerateInsightsHandler) *SnapshotService {
 	return &SnapshotService{
-		worker: NewSnapshotWorker(objectStorage, extractorClient, db, insightHandler),
+		worker: NewSnapshotWorker(objectStorage, extractorClient, db, insightHandler, nil, ""),
 		db:     db,
 	}
 }

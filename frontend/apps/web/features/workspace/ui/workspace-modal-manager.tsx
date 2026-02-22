@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { notification } from '@/lib/notification'
 import { useWorkspaces } from '@/features/workspace/application/hooks/use-workspaces'
 import type { Workspace } from '@/features/workspace/domain/types'
 import { CreateWorkspaceDialog } from './create-workspace-dialog'
@@ -27,9 +28,11 @@ export function WorkspaceModalManager({
       if (result) {
         setIsCreateDialogOpen(false)
         onWorkspaceCreated?.(result)
+        notification.success({ title: 'Workspace created', description: `"${result.name}" is ready.` })
       }
     } catch (err) {
       console.error('Failed to create workspace:', err)
+      notification.error({ title: 'Failed to create workspace', description: err instanceof Error ? err.message : 'Please try again.' })
     }
   }
 
@@ -43,9 +46,11 @@ export function WorkspaceModalManager({
       if (result) {
         setEditingWorkspace(null)
         onWorkspaceUpdated?.(result)
+        notification.success({ title: 'Workspace updated', description: `"${result.name}" has been updated.` })
       }
     } catch (err) {
       console.error('Failed to update workspace:', err)
+      notification.error({ title: 'Failed to update workspace', description: err instanceof Error ? err.message : 'Please try again.' })
     }
   }
 

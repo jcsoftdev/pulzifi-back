@@ -16,7 +16,7 @@ const NotificationButton = React.forwardRef<HTMLButtonElement, NotificationButto
       <Button
         ref={ref}
         className={cn(
-          'relative w-8 h-8 rounded-md flex items-center justify-center bg-background hover:bg-muted border border-border transition-colors',
+          'relative w-16 h-8 rounded-md flex items-center justify-center bg-background hover:bg-muted border border-border transition-colors',
           className
         )}
         {...props}

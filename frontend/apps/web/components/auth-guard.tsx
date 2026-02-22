@@ -16,7 +16,10 @@ interface AuthGuardProps {
  */
 export async function AuthGuard({ children }: AuthGuardProps) {
   try {
-    await AuthApi.getCurrentUser()
+    const user = await AuthApi.getCurrentUser()
+    if (user.status && user.status !== 'approved') {
+      redirect('/login?error=PendingApproval')
+    }
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       redirect('/login')
