@@ -32,8 +32,8 @@ export function ToastItem({
 	const ref = useRef<HTMLDivElement>(null);
 	const [isExpanded, setIsExpanded] = useState(false);
 	const pointerStartX = useRef(0);
-	const autoExpandTimer = useRef<number>(undefined);
-	const autoCollapseTimer = useRef<number>(undefined);
+	const autoExpandTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+	const autoCollapseTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
 	const toggle = useCallback(() => {
 		setIsExpanded((prev) => !prev);

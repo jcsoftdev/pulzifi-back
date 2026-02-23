@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 import { AuthApi } from '@workspace/services'
 import { extractTenantFromHostname } from '@workspace/shared-http'
 import { env } from '@/lib/env'

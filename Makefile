@@ -2,7 +2,7 @@
 # Makefile for Pulzifi Backend
 # ============================================================
 
-.PHONY: help dev down logs build swagger clean
+.PHONY: help dev down logs build swagger clean migrate
 
 .DEFAULT_GOAL := help
 
@@ -21,6 +21,9 @@ help: ## Show this help message
 	@echo "  $(YELLOW)make dev$(NC)      - Start local dev environment (postgres + extractor + hot reload)"
 	@echo "  $(YELLOW)make down$(NC)     - Stop local dev environment"
 	@echo "  $(YELLOW)make logs$(NC)     - View logs (use: make logs service=monolith)"
+	@echo ""
+	@echo "$(GREEN)DATABASE:$(NC)"
+	@echo "  $(YELLOW)make migrate$(NC)  - Run migrations from .env (make migrate cmd=up|down|version)"
 	@echo ""
 	@echo "$(GREEN)BUILD:$(NC)"
 	@echo "  $(YELLOW)make build$(NC)    - Build API binary locally"
@@ -46,6 +49,16 @@ down: ## Stop local dev environment
 
 logs: ## View logs (use: make logs service=monolith)
 	@docker-compose -f docker-compose.monolith.yml logs -f $(service)
+
+# ============================================================
+# DATABASE
+# ============================================================
+
+migrate: check-env ## Run database migrations from .env (use: make migrate cmd=up|down|version)
+	@export $(shell grep -v '^#' $(ENV_FILE) | xargs) && \
+	go run ./cmd/migrate \
+		-db "postgres://$${DB_USER}:$${DB_PASSWORD}@$${DB_HOST}:$${DB_PORT}/$${DB_NAME}?sslmode=disable" \
+		-cmd $(or $(cmd),up)
 
 # ============================================================
 # BUILD
