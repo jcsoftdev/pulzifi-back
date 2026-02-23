@@ -109,7 +109,7 @@ func Load() *Config {
 		RedisHost:             getEnv("REDIS_HOST", "localhost"),
 		RedisPort:             getEnv("REDIS_PORT", "6379"),
 		RedisPassword:         getEnv("REDIS_PASSWORD", ""),
-		HTTPPort:              getEnv("HTTP_PORT", "9090"),
+		HTTPPort:              getEnvFallback("HTTP_PORT", "PORT", "9090"),
 		GRPCPort:              getEnv("GRPC_PORT", "9000"),
 		Environment:           env,
 		LogLevel:              getEnv("LOG_LEVEL", "info"),
@@ -153,6 +153,19 @@ func Load() *Config {
 func getEnv(key, defaultValue string) string {
 	if value, exists := os.LookupEnv(key); exists {
 		return value
+	}
+	return defaultValue
+}
+
+// getEnvFallback returns the first env var that is set, falling back to defaultValue.
+// Useful for Railway which injects PORT instead of HTTP_PORT.
+func getEnvFallback(keys ...string) string {
+	// Last element is the default value, all others are env var keys
+	defaultValue := keys[len(keys)-1]
+	for _, key := range keys[:len(keys)-1] {
+		if value, exists := os.LookupEnv(key); exists && value != "" {
+			return value
+		}
 	}
 	return defaultValue
 }
