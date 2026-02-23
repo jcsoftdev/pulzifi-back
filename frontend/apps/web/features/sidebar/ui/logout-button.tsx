@@ -4,9 +4,15 @@ import { AuthApi } from '@workspace/services'
 import { Button } from '@workspace/ui/components/atoms/button'
 import { LogOut } from 'lucide-react'
 import { env } from '@/lib/env'
+import { useState } from 'react'
 
 export function LogoutButton() {
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
+
   const handleLogout = async () => {
+    if (isLoggingOut) return
+    setIsLoggingOut(true)
+
     // Best-effort: clear subdomain cookies via the BFF. Even if this fails,
     // the main-domain redirect below will still clear those cookies.
     try {
@@ -15,17 +21,19 @@ export function LogoutButton() {
       // continue to cross-domain logout regardless
     }
 
-    const host = window.location.host
-    const hostname = window.location.hostname
-    const protocol = window.location.protocol
+    const hostname = globalThis.location.hostname
+    const protocol = globalThis.location.protocol
+    const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname.endsWith('.localhost')
     const appDomain = env.NEXT_PUBLIC_APP_DOMAIN
 
-    const port = host.includes(':') ? `:${host.split(':')[1]}` : ''
+    const port = globalThis.location.port ? `:${globalThis.location.port}` : ''
 
     let baseDomainHost: string
-    if (appDomain) {
+    // Ignore NEXT_PUBLIC_APP_DOMAIN=localhost when not actually on localhost
+    // (prevents stale build-time value from sending users to localhost in production)
+    if (appDomain && !(appDomain === 'localhost' && !isLocalhost)) {
       baseDomainHost = `${appDomain}${port}`
-    } else if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.endsWith('.localhost')) {
+    } else if (isLocalhost) {
       baseDomainHost = `localhost${port}`
     } else {
       const parts = hostname.split('.')
@@ -35,7 +43,7 @@ export function LogoutButton() {
 
     // Always bounce through the main-domain logout endpoint so its cookies
     // (access_token, refresh_token, tenant_hint) are cleared too.
-    window.location.href = `${protocol}//${baseDomainHost}/api/auth/logout?redirectTo=/login`
+    globalThis.location.href = `${protocol}//${baseDomainHost}/api/auth/logout?redirectTo=/login`
   }
 
   return (
@@ -43,9 +51,10 @@ export function LogoutButton() {
       variant="ghost"
       className="w-full justify-start gap-3 px-2 py-1.5 h-auto text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent"
       onClick={handleLogout}
+      disabled={isLoggingOut}
     >
       <LogOut className="h-4 w-4" />
-      <span>Logout</span>
+      <span>{isLoggingOut ? 'Signing out...' : 'Logout'}</span>
     </Button>
   )
 }

@@ -392,8 +392,14 @@
 }
 
 /* Tone + tone-bg via color-mix (same approach as sileo) */
-:is([data-notix-badge], [data-notix-title])[data-state] {
+[data-notix-badge][data-state] {
 	--notix-tone: var(--_c);
+	--notix-tone-bg: color-mix(in oklch, var(--_c) 20%, transparent);
+}
+
+/* Title uses a darkened tone for better contrast on the white pill */
+[data-notix-title][data-state] {
+	--notix-tone: color-mix(in oklch, var(--_c) 65%, black);
 	--notix-tone-bg: color-mix(in oklch, var(--_c) 20%, transparent);
 }
 
