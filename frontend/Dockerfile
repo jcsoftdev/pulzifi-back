@@ -1,6 +1,6 @@
 # ============================================================
 # Dockerfile - Frontend (Next.js bun workspace monorepo)
-# Build context: frontend/ (set Railway root dir to "frontend")
+# Build context: repo root (Railway resolves dockerfilePath from repo root)
 # ============================================================
 
 FROM oven/bun:1 AS builder
@@ -8,21 +8,21 @@ FROM oven/bun:1 AS builder
 WORKDIR /app
 
 # Copy workspace root manifests first for layer caching
-COPY package.json bun.lockb turbo.json ./
+COPY frontend/package.json frontend/bun.lockb frontend/turbo.json ./
 
 # Copy all package manifests before install
-COPY apps/web/package.json ./apps/web/
-COPY packages/ui/package.json ./packages/ui/
-COPY packages/services/package.json ./packages/services/
-COPY packages/shared-http/package.json ./packages/shared-http/
-COPY packages/notix/package.json ./packages/notix/
-COPY packages/typescript-config/package.json ./packages/typescript-config/
+COPY frontend/apps/web/package.json ./apps/web/
+COPY frontend/packages/ui/package.json ./packages/ui/
+COPY frontend/packages/services/package.json ./packages/services/
+COPY frontend/packages/shared-http/package.json ./packages/shared-http/
+COPY frontend/packages/notix/package.json ./packages/notix/
+COPY frontend/packages/typescript-config/package.json ./packages/typescript-config/
 
 RUN bun install --frozen-lockfile
 
 # Copy source
-COPY apps/ ./apps/
-COPY packages/ ./packages/
+COPY frontend/apps/ ./apps/
+COPY frontend/packages/ ./packages/
 
 ENV NODE_ENV=production
 
