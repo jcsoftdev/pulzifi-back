@@ -9,8 +9,8 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY package.json .
-COPY bun.lockb .
+COPY modules/infra/extractor/package.json .
+COPY modules/infra/extractor/bun.lockb .
 
 # Install node dependencies
 RUN bun install
@@ -21,7 +21,7 @@ RUN ./node_modules/.bin/playwright install-deps
 # Install chromium browser binary
 RUN ./node_modules/.bin/playwright install chromium
 
-COPY index.ts .
+COPY modules/infra/extractor/index.ts .
 
 EXPOSE 3000
 
