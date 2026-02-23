@@ -11,9 +11,9 @@ import { NextResponse } from 'next/server'
  */
 async function forward(
   request: NextRequest,
-  params: Promise<{ path: string[] }>
+  context: { params: Promise<{ path: string[] }> }
 ): Promise<Response> {
-  const { path } = await params
+  const { path } = await context.params
   const backend = getBackendOrigin()
   const search = request.nextUrl.search
   const url = `${backend}/api/v1/${path.join('/')}${search}`
