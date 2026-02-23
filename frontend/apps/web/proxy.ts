@@ -1,7 +1,7 @@
-import { extractTenantFromHostname } from '@workspace/shared-http'
+import { extractTenantFromHostname } from '@workspace/shared-http/tenant-utils'
+import { env } from '@workspace/shared-http/env'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
-import { env } from '@/lib/env'
 
 function parseTokenFromSetCookies(setCookieHeaders: string[], cookieName: string): string | null {
   for (const header of setCookieHeaders) {
