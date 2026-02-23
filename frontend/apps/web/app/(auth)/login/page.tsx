@@ -55,11 +55,12 @@ export default function LoginPage() {
       const hostname = globalThis.location.hostname
 
       const appDomain = env.NEXT_PUBLIC_APP_DOMAIN
-      let baseDomain = appDomain
+      const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname.endsWith('.localhost')
+      // Ignore NEXT_PUBLIC_APP_DOMAIN=localhost when not actually on localhost
+      // (prevents stale build-time value from breaking production redirects)
+      let baseDomain = (appDomain === 'localhost' && !isLocalhost) ? undefined : appDomain
       if (!baseDomain) {
-        if (hostname === 'localhost' || hostname === '127.0.0.1') {
-          baseDomain = 'localhost'
-        } else if (hostname.endsWith('.localhost')) {
+        if (isLocalhost) {
           baseDomain = 'localhost'
         } else {
           baseDomain = hostname.split('.').slice(-2).join('.')

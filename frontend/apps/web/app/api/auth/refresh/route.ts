@@ -62,14 +62,17 @@ export async function POST(request: NextRequest) {
   }
 
   const isSecure = request.nextUrl.protocol === 'https:'
+  const cookieDomain = env.COOKIE_DOMAIN || undefined
+  const sameSite = isSecure ? 'none' : 'lax'
   const response = NextResponse.json({ success: true }, { status: 200 })
 
   response.cookies.set('access_token', newAccessToken, {
     path: '/',
     httpOnly: true,
     secure: isSecure,
-    sameSite: 'lax',
+    sameSite,
     maxAge: expiresIn,
+    ...(cookieDomain ? { domain: cookieDomain } : {}),
   })
 
   if (newRefreshToken) {
@@ -77,8 +80,9 @@ export async function POST(request: NextRequest) {
       path: '/',
       httpOnly: true,
       secure: isSecure,
-      sameSite: 'lax',
+      sameSite,
       maxAge: 7 * 24 * 60 * 60,
+      ...(cookieDomain ? { domain: cookieDomain } : {}),
     })
   }
 

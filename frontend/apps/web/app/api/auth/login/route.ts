@@ -59,21 +59,28 @@ export async function POST(request: NextRequest) {
     )
 
     const isSecure = request.nextUrl.protocol === 'https:'
+    const cookieDomain = env.COOKIE_DOMAIN || undefined
+    // SameSite=None is required for cross-site credentialed requests (e.g. frontend on
+    // app.railway.app calling backend on api.railway.app). Requires Secure=true.
+    // On plain HTTP (local dev) fall back to Lax.
+    const sameSite = isSecure ? 'none' : 'lax'
 
     nextResponse.cookies.set('access_token', access_token, {
       path: '/',
       httpOnly: true,
       secure: isSecure,
-      sameSite: 'lax',
+      sameSite,
       maxAge: expires_in,
+      ...(cookieDomain ? { domain: cookieDomain } : {}),
     })
 
     nextResponse.cookies.set('refresh_token', refresh_token, {
       path: '/',
       httpOnly: true,
       secure: isSecure,
-      sameSite: 'lax',
+      sameSite,
       maxAge: 7 * 24 * 60 * 60,
+      ...(cookieDomain ? { domain: cookieDomain } : {}),
     })
 
     return nextResponse

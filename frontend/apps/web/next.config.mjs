@@ -38,6 +38,8 @@ const nextConfig = {
     '*.pulzifi.local:3000',
     '*.local',
     '*.local:3000',
+    'pulzifi.com',
+    '*.pulzifi.com',
   ],
 }
 

@@ -106,11 +106,19 @@ function getBaseDomainLoginUrl(request: NextRequest, callbackPath?: string): URL
   const protocol = request.nextUrl.protocol // "http:" or "https:"
   const appDomain = env.NEXT_PUBLIC_APP_DOMAIN
 
+
+  console.log('[getBaseDomainLoginUrl] host:', host)
+  console.log('[getBaseDomainLoginUrl] appDomain from env:', appDomain)
+  const hostWithoutPortCheck = host.split(':')[0] || ''
+  const isLocalhostRequest = hostWithoutPortCheck === 'localhost' || hostWithoutPortCheck === '127.0.0.1' || hostWithoutPortCheck.endsWith('.localhost')
+  // Ignore NEXT_PUBLIC_APP_DOMAIN=localhost when not actually on localhost
+  const effectiveAppDomain = (appDomain === 'localhost' && !isLocalhostRequest) ? undefined : appDomain
+
   let baseDomainHost: string
-  if (appDomain) {
+  if (effectiveAppDomain) {
     // Use configured app domain, preserving the port from the current host
     const port = host.includes(':') ? `:${host.split(':')[1]}` : ''
-    baseDomainHost = `${appDomain}${port}`
+    baseDomainHost = `${effectiveAppDomain}${port}`
   } else {
     // Fallback: strip the tenant subdomain from the current host
     const hostWithoutPort = host.split(':')[0] || ''
