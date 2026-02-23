@@ -5,6 +5,7 @@ import type { HttpResponse, IHttpClient, RequestConfig } from './types'
 
 // Shared refresh state — ensures only one refresh call is in-flight at a time
 let isRefreshing = false
+let isRedirectingToLogin = false
 let refreshSubscribers: ((success: boolean) => void)[] = []
 
 function subscribeTokenRefresh(cb: (success: boolean) => void) {
@@ -54,7 +55,7 @@ export class AxiosHttpClient implements IHttpClient {
       (response) => response,
       async (error: AxiosError) => {
         const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean }
-        if (error.response?.status === 401 && !originalRequest._retry) {
+        if (error.response?.status === 401 && !originalRequest._retry && !isRedirectingToLogin) {
           return this.handleUnauthorized(error, originalRequest)
         }
         throw error
@@ -104,7 +105,10 @@ export class AxiosHttpClient implements IHttpClient {
       return this.client(originalRequest)
     } catch {
       notifyRefreshSubscribers(false)
-      this.redirectToLogin()
+      if (!isRedirectingToLogin) {
+        isRedirectingToLogin = true
+        this.redirectToLogin()
+      }
       throw error
     } finally {
       isRefreshing = false

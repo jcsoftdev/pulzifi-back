@@ -2,7 +2,7 @@
 # Makefile for Pulzifi Backend
 # ============================================================
 
-.PHONY: help dev down logs build swagger clean migrate
+.PHONY: help dev dev-web down logs build swagger clean migrate
 
 .DEFAULT_GOAL := help
 
@@ -19,6 +19,7 @@ help: ## Show this help message
 	@echo ""
 	@echo "$(GREEN)DEVELOPMENT:$(NC)"
 	@echo "  $(YELLOW)make dev$(NC)      - Start local dev environment (postgres + extractor + hot reload)"
+	@echo "  $(YELLOW)make dev-web$(NC)  - Start Caddy proxy + Next.js (direct API calls, no proxy overhead)"
 	@echo "  $(YELLOW)make down$(NC)     - Stop local dev environment"
 	@echo "  $(YELLOW)make logs$(NC)     - View logs (use: make logs service=monolith)"
 	@echo ""
@@ -43,6 +44,15 @@ check-env:
 dev: check-env ## Start local dev (postgres + extractor + API + worker with hot reload)
 	@echo "$(GREEN)Starting local dev environment...$(NC)"
 	@docker-compose -f docker-compose.monolith.yml up
+
+dev-web: ## Start Caddy proxy (:3000) + Next.js (:3001) for local frontend dev
+	@command -v caddy >/dev/null 2>&1 || { echo "$(YELLOW)caddy not found — install with: brew install caddy$(NC)"; exit 1; }
+	@echo "$(GREEN)Starting Caddy on :3000 and Next.js on :3001...$(NC)"
+	@echo "$(YELLOW)Access the app at http://<tenant>.localhost:3000$(NC)"
+	@trap 'kill 0' INT; \
+		caddy run --config Caddyfile & \
+		(cd frontend/apps/web && PORT=3001 bun dev) & \
+		wait
 
 down: ## Stop local dev environment
 	@docker-compose -f docker-compose.monolith.yml down -v

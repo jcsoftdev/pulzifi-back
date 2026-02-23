@@ -100,13 +100,13 @@ func Load() *Config {
 	}
 
 	return &Config{
-		DBHost:                getEnv("DB_HOST", "localhost"),
-		DBPort:                getEnv("DB_PORT", "5434"),
-		DBName:                getEnv("DB_NAME", "pulzifi"),
-		DBUser:                getEnv("DB_USER", "pulzifi_user"),
-		DBPassword:            getEnv("DB_PASSWORD", "pulzifi_password"),
+		DBHost:                mustGetEnv("DB_HOST"),
+		DBPort:                mustGetEnv("DB_PORT"),
+		DBName:                mustGetEnv("DB_NAME"),
+		DBUser:                mustGetEnv("DB_USER"),
+		DBPassword:            mustGetEnv("DB_PASSWORD"),
 		DBMaxConnections:      25,
-		RedisHost:             getEnv("REDIS_HOST", "localhost"),
+		RedisHost:             getEnv("REDIS_HOST", ""),
 		RedisPort:             getEnv("REDIS_PORT", "6379"),
 		RedisPassword:         getEnv("REDIS_PASSWORD", ""),
 		HTTPPort:              getEnvFallback("HTTP_PORT", "PORT", "9090"),
@@ -119,32 +119,32 @@ func Load() *Config {
 		CookieDomain:          getEnv("COOKIE_DOMAIN", ""),
 		FrontendURL:           getEnv("FRONTEND_URL", ""),
 		StaticDir:             getEnv("STATIC_DIR", "./frontend/dist"),
-		CORSAllowedOrigins:    getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:9090,http://*.localhost:9090"),
+		CORSAllowedOrigins:    mustGetEnv("CORS_ALLOWED_ORIGINS"),
 		CORSAllowedMethods:    getEnv("CORS_ALLOWED_METHODS", "GET,POST,PUT,DELETE,OPTIONS,PATCH"),
 		CORSAllowedHeaders:    getEnv("CORS_ALLOWED_HEADERS", "Content-Type,Authorization,X-Tenant"),
 		ModuleName:            getEnv("MODULE_NAME", "unknown"),
-		MinIOEndpoint:         getEnv("MINIO_ENDPOINT", "localhost:9000"),
-		MinIOAccessKey:        getEnv("MINIO_ACCESS_KEY", "minioadmin"),
-		MinIOSecretKey:        getEnv("MINIO_SECRET_KEY", "minioadmin"),
-		MinIOBucket:           getEnv("MINIO_BUCKET", "pulzifi-snapshots"),
+		MinIOEndpoint:         getEnv("MINIO_ENDPOINT", ""),
+		MinIOAccessKey:        getEnv("MINIO_ACCESS_KEY", ""),
+		MinIOSecretKey:        getEnv("MINIO_SECRET_KEY", ""),
+		MinIOBucket:           getEnv("MINIO_BUCKET", ""),
 		MinIOUseSSL:           getEnvBool("MINIO_USE_SSL", false),
-		MinIOPublicURL:        getEnv("MINIO_PUBLIC_URL", "http://localhost:9000"),
+		MinIOPublicURL:        getEnv("MINIO_PUBLIC_URL", ""),
 		ObjectStorageProvider: getEnv("OBJECT_STORAGE_PROVIDER", "minio"),
 		CloudinaryCloudName:   getEnv("CLOUDINARY_CLOUD_NAME", ""),
 		CloudinaryAPIKey:      getEnv("CLOUDINARY_API_KEY", ""),
 		CloudinaryAPISecret:   getEnv("CLOUDINARY_API_SECRET", ""),
-		CloudinaryFolder:      getEnv("CLOUDINARY_FOLDER", "pulzifi"),
-		ExtractorURL:          getEnv("EXTRACTOR_URL", "http://localhost:3000"),
+		CloudinaryFolder:      getEnv("CLOUDINARY_FOLDER", ""),
+		ExtractorURL:          mustGetEnv("EXTRACTOR_URL"),
 		OpenRouterAPIKey:      getEnv("OPENROUTER_API_KEY", ""),
 		OpenRouterModel:       getEnv("OPENROUTER_MODEL", "mistralai/mistral-7b-instruct:free"),
 		ResendAPIKey:          getEnv("RESEND_API_KEY", ""),
-		EmailFromAddress:      getEnv("EMAIL_FROM_ADDRESS", "noreply@pulzifi.com"),
-		EmailFromName:         getEnv("EMAIL_FROM_NAME", "Pulzifi"),
+		EmailFromAddress:      getEnv("EMAIL_FROM_ADDRESS", ""),
+		EmailFromName:         getEnv("EMAIL_FROM_NAME", ""),
 		GoogleClientID:        getEnv("GOOGLE_CLIENT_ID", ""),
 		GoogleClientSecret:    getEnv("GOOGLE_CLIENT_SECRET", ""),
 		GitHubClientID:        getEnv("GITHUB_CLIENT_ID", ""),
 		GitHubClientSecret:    getEnv("GITHUB_CLIENT_SECRET", ""),
-		OAuthRedirectBaseURL:  getEnv("OAUTH_REDIRECT_BASE_URL", "http://localhost:9090"),
+		OAuthRedirectBaseURL:  getEnv("OAUTH_REDIRECT_BASE_URL", ""),
 		RateLimitRequests:     getEnvInt("RATE_LIMIT_REQUESTS", 500),
 		RateLimitWindow:       getEnvDuration("RATE_LIMIT_WINDOW", 60*time.Second),
 	}
@@ -155,6 +155,14 @@ func getEnv(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+func mustGetEnv(key string) string {
+	value, exists := os.LookupEnv(key)
+	if !exists || value == "" {
+		log.Fatalf("FATAL: required environment variable %q is not set — refusing to start", key)
+	}
+	return value
 }
 
 // getEnvFallback returns the first env var that is set, falling back to defaultValue.

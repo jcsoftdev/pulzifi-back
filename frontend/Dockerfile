@@ -31,6 +31,9 @@ ENV NODE_ENV=production
 ARG NEXT_PUBLIC_APP_DOMAIN
 ENV NEXT_PUBLIC_APP_DOMAIN=$NEXT_PUBLIC_APP_DOMAIN
 
+ARG SERVER_API_URL
+ENV SERVER_API_URL=$SERVER_API_URL
+
 RUN bun run build
 
 # ============================================================

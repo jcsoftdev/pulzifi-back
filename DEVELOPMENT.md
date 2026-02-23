@@ -81,7 +81,6 @@ Frontend corre en `http://localhost:3000`
 **Frontend** (`.env.local`):
 ```bash
 NEXT_PUBLIC_APP_DOMAIN=localhost
-NEXT_PUBLIC_API_URL=http://localhost:9090/api/v1
 SERVER_API_URL=http://localhost:9090
 ```
 

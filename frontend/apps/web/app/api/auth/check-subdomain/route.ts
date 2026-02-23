@@ -1,15 +1,6 @@
-import { env } from '@/lib/env'
+import { getBackendOrigin } from '@/lib/server-config'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
-
-function getBackendOrigin(): string {
-  const apiBase = env.SERVER_API_URL ?? 'http://localhost:9090'
-  try {
-    return new URL(apiBase).origin
-  } catch {
-    return 'http://localhost:9090'
-  }
-}
 
 export async function POST(request: NextRequest) {
   try {

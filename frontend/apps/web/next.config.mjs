@@ -3,15 +3,9 @@
  */
 
 function getBackendOrigin() {
-  const apiBase =
-    process.env.SERVER_API_URL ??
-    process.env.NEXT_PUBLIC_API_URL ??
-    'http://localhost:9090'
-  try {
-    return new URL(apiBase).origin
-  } catch {
-    return 'http://localhost:9090'
-  }
+  const apiBase = process.env.SERVER_API_URL
+  if (!apiBase) throw new Error('SERVER_API_URL is not configured')
+  return new URL(apiBase).origin
 }
 
 const nextConfig = {

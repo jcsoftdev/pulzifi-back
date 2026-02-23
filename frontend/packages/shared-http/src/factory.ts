@@ -4,47 +4,23 @@ import { FetchHttpClient } from './fetch-client'
 import { extractTenantFromHostname, getTenantFromWindow } from './tenant-utils'
 import type { IHttpClient } from './types'
 
-// Client-side: call the backend directly when NEXT_PUBLIC_API_URL is set,
-// bypassing the Next.js rewrite proxy. Falls back to same-origin (proxy) otherwise.
+// Browser API calls always use the current page origin so cookies are sent as
+// same-origin requests. Locally, Caddy on :3000 routes /api/v1/* straight to
+// the Go backend. In production the Next.js rewrite proxy handles it.
 const getClientApiUrl = (): string => {
-  if (env.NEXT_PUBLIC_API_URL) {
-    return env.NEXT_PUBLIC_API_URL
-  }
-  if (globalThis.window !== undefined) {
-    return globalThis.window.location.origin
-  }
-  return 'http://localhost:3000'
+  return globalThis.window.location.origin
 }
 
-// BFF routes (/api/auth/...) must always go through the Next.js server.
-const getBffBaseUrl = (): string => {
-  if (globalThis.window !== undefined) {
-    return globalThis.window.location.origin
-  }
-  return 'http://localhost:3000'
-}
-
-/**
- * Build server API URL - simplified without dynamic imports
- */
 function getServerApiUrl(): string {
   const configuredApiUrl = env.SERVER_API_URL
-  console.log('[HTTP Factory] Configured SERVER_API_URL:', configuredApiUrl)
-  if (configuredApiUrl) {
-    try {
-      return new URL(configuredApiUrl).origin
-    } catch {
-      try {
-        return new URL(`http://${configuredApiUrl}`).origin
-      } catch {
-        // fall through to default
-      }
-    }
+  if (!configuredApiUrl) {
+    throw new Error('SERVER_API_URL is not configured')
   }
-
-  // Default backend gateway for local development
-  console.warn('[HTTP Factory] Invalid or missing SERVER_API_URL. Defaulting to http://localhost:9090')
-  return 'http://localhost:9090'
+  try {
+    return new URL(configuredApiUrl).origin
+  } catch {
+    throw new Error(`SERVER_API_URL is invalid: "${configuredApiUrl}"`)
+  }
 }
 
 async function getServerForwardHeaders(): Promise<Record<string, string>> {
@@ -86,7 +62,6 @@ export async function createServerHttpClient(): Promise<IHttpClient> {
 
 /**
  * Create HTTP client for Next.js BFF routes (/api/auth/...).
- * Always routes through the Next.js server regardless of NEXT_PUBLIC_API_URL.
  */
 export async function createBffHttpClient(): Promise<IHttpClient> {
   const headers: Record<string, string> = {}
@@ -94,13 +69,12 @@ export async function createBffHttpClient(): Promise<IHttpClient> {
   if (tenant) {
     headers['X-Tenant'] = tenant
   }
-  return new AxiosHttpClient(getBffBaseUrl(), headers)
+  return new AxiosHttpClient(getClientApiUrl(), headers)
 }
 
 /**
- * Create HTTP client for browser usage (Client Components, useEffect, event handlers)
- * Uses AxiosHttpClient with automatic tenant extraction from subdomain
- * Communicates with backend directly via NEXT_PUBLIC_API_URL
+ * Create HTTP client for browser usage (Client Components, useEffect, event handlers).
+ * Uses same-origin so cookies are always included without cross-origin restrictions.
  */
 export async function createBrowserHttpClient(): Promise<IHttpClient> {
   const headers: Record<string, string> = {}

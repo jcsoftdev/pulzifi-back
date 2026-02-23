@@ -1,5 +1,5 @@
 import { consumeNonce } from '@/lib/auth-nonce-store'
-import { env } from '@/lib/env'
+import { authCookieOptions } from '@/lib/cookie-options'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 
@@ -26,9 +26,7 @@ export async function GET(request: NextRequest) {
 
   const redirectTo = request.nextUrl.searchParams.get('redirectTo') || '/'
   const response = NextResponse.redirect(new URL(redirectTo, request.url))
-  const isSecure = request.nextUrl.protocol === 'https:'
-  const cookieDomain = env.COOKIE_DOMAIN || undefined
-  const sameSite = isSecure ? 'none' : 'lax'
+  const { isSecure, cookieDomain, sameSite } = authCookieOptions(request)
 
   response.cookies.set('access_token', tokens.accessToken, {
     path: '/',

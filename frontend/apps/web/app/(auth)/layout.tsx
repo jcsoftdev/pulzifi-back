@@ -16,59 +16,68 @@ function buildTenantRedirectUrl(
   protocol: string,
   tenant: string
 ): string {
-  const hostWithoutPort = host.split(':')[0] || ''
-  const port = host.includes(':') ? `:${host.split(':')?.[1] ?? ''}` : ''
-
-  const appDomain = env.NEXT_PUBLIC_APP_DOMAIN
-  let baseDomain = appDomain
-  if (!baseDomain) {
-    if (
-      hostWithoutPort === 'localhost' ||
-      hostWithoutPort === '127.0.0.1'
-    ) {
-      baseDomain = 'localhost'
-    } else {
-      baseDomain = hostWithoutPort.split('.').slice(-2).join('.')
-    }
+  // NEXT_PUBLIC_APP_BASE_URL overrides everything — use it when set.
+  // Required when running behind a local HTTPS proxy where the host header
+  // and browser location.port don't reflect the real port (e.g. proxy on 443
+  // forwarding to Next.js on 3000).
+  // Example .env.local: NEXT_PUBLIC_APP_BASE_URL=https://localhost:3000
+  if (env.NEXT_PUBLIC_APP_BASE_URL) {
+    const base = new URL(env.NEXT_PUBLIC_APP_BASE_URL)
+    const portSuffix = base.port ? `:${base.port}` : ''
+    return `${base.protocol}//${tenant}.${base.hostname}${portSuffix}/`
   }
 
-  return `${protocol}//${tenant}.${baseDomain}${port}/`
+  const appDomain = env.NEXT_PUBLIC_APP_DOMAIN
+  const hostWithoutPort = host.split(':')[0] || ''
+  const hostPort = host.includes(':') ? `:${host.split(':')?.[1] ?? ''}` : ''
+
+  let baseDomain: string
+  if (appDomain) {
+    baseDomain = appDomain
+  } else if (hostWithoutPort === 'localhost' || hostWithoutPort === '127.0.0.1') {
+    baseDomain = 'localhost'
+  } else {
+    baseDomain = hostWithoutPort.split('.').slice(-2).join('.')
+  }
+
+  // Include port only for localhost (dev). Production domains use standard ports.
+  const isLocalDomain = baseDomain === 'localhost' || baseDomain === '127.0.0.1'
+  const portSuffix = isLocalDomain ? hostPort : ''
+
+  return `${protocol}//${tenant}.${baseDomain}${portSuffix}/`
 }
 
 export default async function AuthLayout({ children }: { children: React.ReactNode }) {
   const incomingHeaders = await headers()
-  const host = incomingHeaders.get('host') || ''
+  // Prefer x-forwarded-host (set by Railway/proxies to the public domain) over
+  // the raw host header (which may be the internal service address, e.g. localhost:8080).
+  const host = incomingHeaders.get('x-forwarded-host') || incomingHeaders.get('host') || ''
   const tenant = extractTenantFromHostname(host)
 
-  if (!tenant) {
-    // Base domain (e.g. localhost:3000/login) — check if user already has a
-    // valid session. If so, redirect to their tenant subdomain.
-    const protocol = incomingHeaders.get('x-forwarded-proto')
-      ? `${incomingHeaders.get('x-forwarded-proto')}:`
-      : 'http:'
+  const protocol = (() => {
+    const p = incomingHeaders.get('x-forwarded-proto')
+    return p ? `${p}:` : 'http:'
+  })()
 
+  async function tryRedirectFromUserOrCookie() {
     try {
       const user = await AuthApi.getCurrentUser()
       if (user.tenant) {
-        const url = buildTenantRedirectUrl(host, protocol, user.tenant)
-        redirect(url)
+        redirect(buildTenantRedirectUrl(host, protocol, user.tenant))
       }
     } catch (error: unknown) {
-      // Re-throw Next.js redirect (it uses throw internally)
-      if (isRedirectError(error)) {
-        throw error
-      }
-      // getCurrentUser() may fail when there is no X-Tenant context at the
-      // base domain. Fall back to the tenant_hint cookie set by
-      // /api/auth/set-base-session when the user logged in from a subdomain.
+      if (isRedirectError(error)) throw error
       const cookieStore = await cookies()
       const tenantHint = cookieStore.get('tenant_hint')?.value
       if (tenantHint) {
-        const url = buildTenantRedirectUrl(host, protocol, tenantHint)
-        redirect(url)
+        redirect(buildTenantRedirectUrl(host, protocol, tenantHint))
       }
     }
+  }
 
+  if (!tenant) {
+    // Base domain — attempt to redirect an already-authenticated user to their tenant
+    await tryRedirectFromUserOrCookie()
     return <AuthProvider>{children}</AuthProvider>
   }
 
@@ -76,10 +85,7 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
     await AuthApi.getCurrentUser()
     redirect('/')
   } catch (error: unknown) {
-    // Re-throw Next.js redirect
-    if (isRedirectError(error)) {
-      throw error
-    }
+    if (isRedirectError(error)) throw error
     // Any other error (401, etc.) — allow auth pages to render
   }
 
