@@ -111,7 +111,7 @@ export const DefaultToast = memo(function DefaultToast({
 	const headerRef = useRef<HTMLDivElement>(null);
 	const contentRef = useRef<HTMLDivElement>(null);
 	const innerRef = useRef<HTMLDivElement>(null);
-	const headerExitRef = useRef<number | null>(null);
+	const headerExitRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const swapTimerRef = useRef<number | null>(null);
 	const pendingRef = useRef<{ payload: View } | null>(null);
 
