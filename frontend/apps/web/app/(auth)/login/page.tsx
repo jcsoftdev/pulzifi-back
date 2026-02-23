@@ -50,7 +50,7 @@ export default function LoginPage() {
     if (base) {
       protocol = base.protocol
     } else {
-      protocol = isLocalhost ? 'http:' : globalThis.location.protocol
+      protocol = globalThis.location.protocol
     }
 
     let port: string | undefined
