@@ -29,7 +29,7 @@ const getBffBaseUrl = (): string => {
  */
 function getServerApiUrl(): string {
   const configuredApiUrl = env.SERVER_API_URL
-
+  console.log('[HTTP Factory] Configured SERVER_API_URL:', configuredApiUrl)
   if (configuredApiUrl) {
     try {
       return new URL(configuredApiUrl).origin
@@ -43,6 +43,7 @@ function getServerApiUrl(): string {
   }
 
   // Default backend gateway for local development
+  console.warn('[HTTP Factory] Invalid or missing SERVER_API_URL. Defaulting to http://localhost:9090')
   return 'http://localhost:9090'
 }
 
