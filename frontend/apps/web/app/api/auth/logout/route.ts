@@ -20,7 +20,9 @@ export async function GET(request: NextRequest) {
     sameSite,
     ...(cookieDomain ? { domain: cookieDomain } : {}),
   }
-  const response = NextResponse.redirect(new URL(redirectTo, request.url))
+  // Use request.nextUrl (not request.url) so the redirect uses the public-facing
+  // origin from x-forwarded-host/x-forwarded-proto, not the internal localhost URL.
+  const response = NextResponse.redirect(new URL(redirectTo, request.nextUrl.origin))
   response.cookies.set('access_token', '', cookieOpts)
   response.cookies.set('refresh_token', '', cookieOpts)
   response.cookies.set('tenant_hint', '', cookieOpts)

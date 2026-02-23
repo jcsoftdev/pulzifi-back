@@ -31,6 +31,11 @@ ENV NODE_ENV=production
 ARG NEXT_PUBLIC_APP_DOMAIN
 ENV NEXT_PUBLIC_APP_DOMAIN=$NEXT_PUBLIC_APP_DOMAIN
 
+# Full frontend base URL (e.g. https://yourdomain.com). Used to build correct
+# cross-subdomain redirect URLs in environments accessed via localhost (SSH tunnel etc.).
+ARG NEXT_PUBLIC_APP_BASE_URL
+ENV NEXT_PUBLIC_APP_BASE_URL=$NEXT_PUBLIC_APP_BASE_URL
+
 ARG SERVER_API_URL
 ENV SERVER_API_URL=$SERVER_API_URL
 
