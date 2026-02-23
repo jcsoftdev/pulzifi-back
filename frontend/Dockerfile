@@ -26,6 +26,11 @@ COPY frontend/packages/ ./packages/
 
 ENV NODE_ENV=production
 
+# NEXT_PUBLIC_* vars are baked into the client bundle at build time.
+# Set NEXT_PUBLIC_APP_DOMAIN as a build variable in Railway (e.g. pulzifi.com).
+ARG NEXT_PUBLIC_APP_DOMAIN
+ENV NEXT_PUBLIC_APP_DOMAIN=$NEXT_PUBLIC_APP_DOMAIN
+
 RUN bun run build
 
 # ============================================================
