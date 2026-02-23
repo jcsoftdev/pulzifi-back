@@ -13,19 +13,35 @@ import (
 	"github.com/golang-migrate/migrate/v4/database"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/joho/godotenv"
 	"github.com/lib/pq"
 )
 
-const (
-	defaultDBURL      = "postgres://pulzifi_user:pulzifi_password@localhost:5434/pulzifi?sslmode=disable"
-	migrationsBaseDir = "shared/database/migrations"
-)
+const migrationsBaseDir = "shared/database/migrations"
+
+func defaultDBURL() string {
+	_ = godotenv.Load()
+	host := getenv("DB_HOST", "localhost")
+	port := getenv("DB_PORT", "5434")
+	user := getenv("DB_USER", "pulzifi_user")
+	password := getenv("DB_PASSWORD", "pulzifi_password")
+	name := getenv("DB_NAME", "pulzifi")
+	sslmode := getenv("DB_SSLMODE", "disable")
+	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s", user, password, host, port, name, sslmode)
+}
+
+func getenv(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
+}
 
 var validSchemaName = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
 
 func main() {
 	var (
-		dbURL    = flag.String("db", defaultDBURL, "Database URL")
+		dbURL    = flag.String("db", defaultDBURL(), "Database URL")
 		cmd      = flag.String("cmd", "up", "Command to run: up, down, version")
 		steps    = flag.Int("steps", 0, "Number of steps to migrate (optional)")
 		scope    = flag.String("scope", "all", "Scope of migration: all, public, tenant")
