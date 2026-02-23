@@ -24,7 +24,6 @@
 .exe
 
 # Go
-go.sum
 go.mod.lock
 
 # Logs
