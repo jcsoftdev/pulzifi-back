@@ -18,6 +18,7 @@ const nextConfig = {
 
   async rewrites() {
     const backend = getBackendOrigin()
+    console.log(`[next.config] SERVER_API_URL=${process.env.SERVER_API_URL}: backend origin=${backend}`)
     if (!backend) return []
     console.log(`[next.config] Rewrite /api/v1/* → ${backend}/api/v1/*`)
     return [
