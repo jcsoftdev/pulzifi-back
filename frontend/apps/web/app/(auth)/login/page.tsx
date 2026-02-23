@@ -36,6 +36,68 @@ export default function LoginPage() {
     searchParams,
   ])
 
+  const getHostInfo = () => {
+    const hostname = globalThis.location.hostname
+    const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname.endsWith('.localhost')
+
+    // NEXT_PUBLIC_APP_BASE_URL is the most reliable source — set it explicitly
+    // in .env.local when behind an HTTPS proxy on localhost to avoid wrong
+    // protocol / missing port issues.
+    const appBaseUrl = env.NEXT_PUBLIC_APP_BASE_URL
+    const base = appBaseUrl ? new URL(appBaseUrl) : null
+
+    let protocol: string
+    if (base) {
+      protocol = base.protocol
+    } else {
+      protocol = isLocalhost ? 'http:' : globalThis.location.protocol
+    }
+
+    let port: string | undefined
+    if (base) {
+      port = base.port
+    } else if (isLocalhost) {
+      port = globalThis.location.port || '3000'
+    } else {
+      port = globalThis.location.port
+    }
+
+    const appDomain = env.NEXT_PUBLIC_APP_DOMAIN
+    // Ignore NEXT_PUBLIC_APP_DOMAIN=localhost when not actually on localhost
+    // (prevents stale build-time value from breaking production redirects)
+    let baseDomain = (appDomain === 'localhost' && !isLocalhost) ? undefined : appDomain
+    if (!baseDomain) {
+      if (base) {
+        baseDomain = base.hostname.split('.').slice(-2).join('.')
+      } else if (isLocalhost) {
+        baseDomain = 'localhost'
+      } else {
+        baseDomain = hostname.split('.').slice(-2).join('.')
+      }
+    }
+
+    return { hostname, isLocalhost, protocol, port, baseDomain, base }
+  }
+
+  const buildTenantCallbackUrl = (protocol: string, targetHost: string, port?: string, nonce?: string | null, redirectTo = '/') => {
+    const portSuffix = port ? `:${port}` : ''
+    const tenantCallbackUrl = new URL(`${protocol}//${targetHost}${portSuffix}/api/auth/callback`)
+    if (nonce) {
+      tenantCallbackUrl.searchParams.set('nonce', nonce)
+    }
+    tenantCallbackUrl.searchParams.set('redirectTo', redirectTo)
+    return tenantCallbackUrl
+  }
+
+  const buildBaseSessionUrl = (protocol: string, baseDomain: string, port?: string, nonce?: string | null, tenant?: string, returnTo?: string) => {
+    const portSuffix = port ? `:${port}` : ''
+    const baseSessionUrl = new URL(`${protocol}//${baseDomain}${portSuffix}/api/auth/set-base-session`)
+    if (nonce) baseSessionUrl.searchParams.set('nonce', nonce)
+    if (tenant) baseSessionUrl.searchParams.set('tenant', tenant)
+    if (returnTo) baseSessionUrl.searchParams.set('returnTo', returnTo)
+    return baseSessionUrl
+  }
+
   const handleLogin = async (credentials: { email: string; password: string }) => {
     setIsLoading(true)
     setError(undefined)
@@ -50,42 +112,18 @@ export default function LoginPage() {
         return
       }
 
-      const protocol = globalThis.location.protocol
-      const port = globalThis.location.port
-      const hostname = globalThis.location.hostname
-
-      const appDomain = env.NEXT_PUBLIC_APP_DOMAIN
-      const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname.endsWith('.localhost')
-      // Ignore NEXT_PUBLIC_APP_DOMAIN=localhost when not actually on localhost
-      // (prevents stale build-time value from breaking production redirects)
-      let baseDomain = (appDomain === 'localhost' && !isLocalhost) ? undefined : appDomain
-      if (!baseDomain) {
-        if (isLocalhost) {
-          baseDomain = 'localhost'
-        } else {
-          baseDomain = hostname.split('.').slice(-2).join('.')
-        }
-      }
-
+      const { hostname, protocol, port, baseDomain, isLocalhost } = getHostInfo()
       const targetHost = `${tenant}.${baseDomain}`
-      const portSuffix = port ? `:${port}` : ''
       const redirectTo = searchParams.get('callbackUrl') || '/'
 
-      const tenantCallbackUrl = new URL(`${protocol}//${targetHost}${portSuffix}/api/auth/callback`)
-      if (loginResponse.nonce) {
-        tenantCallbackUrl.searchParams.set('nonce', loginResponse.nonce)
-      }
-      tenantCallbackUrl.searchParams.set('redirectTo', redirectTo)
+      const tenantCallbackUrl = buildTenantCallbackUrl(protocol, targetHost, port, loginResponse.nonce, redirectTo)
 
       // When logging in from a tenant subdomain we also need to set cookies at
       // the base domain so the main domain recognises the session.
       // Redirect chain: base/set-base-session → tenant/callback → app
       const isOnSubdomain = hostname !== baseDomain
       if (isOnSubdomain && loginResponse.nonce) {
-        const baseSessionUrl = new URL(`${protocol}//${baseDomain}${portSuffix}/api/auth/set-base-session`)
-        baseSessionUrl.searchParams.set('nonce', loginResponse.nonce)
-        baseSessionUrl.searchParams.set('tenant', tenant)
-        baseSessionUrl.searchParams.set('returnTo', tenantCallbackUrl.toString())
+        const baseSessionUrl = buildBaseSessionUrl(protocol, baseDomain, port, loginResponse.nonce, tenant, tenantCallbackUrl.toString())
         globalThis.location.href = baseSessionUrl.toString()
       } else {
         globalThis.location.href = tenantCallbackUrl.toString()

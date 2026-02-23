@@ -1,0 +1,30 @@
+# Local dev reverse proxy — sits on :3000 in front of both services.
+#
+# Why: cookies are set on jcsoftdev-inc.localhost:3000 (the browser origin).
+# API calls to jcsoftdev-inc.localhost:3000/api/v1/* also go to :3000, so the
+# browser sends cookies as same-origin requests. Caddy forwards them to the Go
+# backend directly — Next.js is never involved in the hot path.
+#
+# Next.js runs on :3001 (PORT=3001 bun dev).
+# Go backend runs on :9090 (make dev / docker-compose).
+#
+# Usage:
+#   caddy run --config Caddyfile
+#   brew install caddy  (if not installed)
+
+{
+  auto_https off
+}
+
+http://*.localhost:3000, http://localhost:3000 {
+  # API calls go straight to the Go backend — no Next.js overhead
+  @backend path /api/v1/*
+  handle @backend {
+    reverse_proxy localhost:9090
+  }
+
+  # Everything else (pages + BFF auth routes) goes through Next.js
+  handle {
+    reverse_proxy localhost:3001
+  }
+}

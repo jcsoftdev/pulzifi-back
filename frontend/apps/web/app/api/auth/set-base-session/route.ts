@@ -1,4 +1,5 @@
 import { peekNonce } from '@/lib/auth-nonce-store'
+import { authCookieOptions } from '@/lib/cookie-options'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 
@@ -31,22 +32,24 @@ export async function GET(request: NextRequest) {
   }
 
   const response = NextResponse.redirect(returnTo)
-  const isSecure = request.nextUrl.protocol === 'https:'
+  const { isSecure, cookieDomain, sameSite } = authCookieOptions(request)
 
   response.cookies.set('access_token', tokens.accessToken, {
     path: '/',
     httpOnly: true,
     secure: isSecure,
-    sameSite: 'lax',
+    sameSite,
     maxAge: tokens.expiresIn,
+    ...(cookieDomain ? { domain: cookieDomain } : {}),
   })
 
   response.cookies.set('refresh_token', tokens.refreshToken, {
     path: '/',
     httpOnly: true,
     secure: isSecure,
-    sameSite: 'lax',
+    sameSite,
     maxAge: 7 * 24 * 60 * 60,
+    ...(cookieDomain ? { domain: cookieDomain } : {}),
   })
 
   if (tenant) {
@@ -54,8 +57,9 @@ export async function GET(request: NextRequest) {
       path: '/',
       httpOnly: true,
       secure: isSecure,
-      sameSite: 'lax',
+      sameSite,
       maxAge: 7 * 24 * 60 * 60,
+      ...(cookieDomain ? { domain: cookieDomain } : {}),
     })
   }
 

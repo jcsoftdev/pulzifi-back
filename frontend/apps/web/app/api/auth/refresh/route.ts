@@ -1,15 +1,8 @@
+import { extractTenantFromHostname } from '@workspace/shared-http'
+import { authCookieOptions } from '@/lib/cookie-options'
+import { getBackendOrigin } from '@/lib/server-config'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
-import { env } from '@/lib/env'
-
-function getBackendOrigin(): string {
-  const apiBase = env.SERVER_API_URL ?? 'http://localhost:9090'
-  try {
-    return new URL(apiBase).origin
-  } catch {
-    return 'http://localhost:9090'
-  }
-}
 
 function parseTokenFromSetCookies(setCookieHeaders: string[], cookieName: string): string | null {
   for (const header of setCookieHeaders) {
@@ -26,15 +19,22 @@ function parseTokenFromSetCookies(setCookieHeaders: string[], cookieName: string
 
 export async function POST(request: NextRequest) {
   const cookie = request.headers.get('cookie') ?? ''
+  const host = request.headers.get('host') ?? ''
+  const tenant = extractTenantFromHostname(host)
+
+  const backendHeaders: Record<string, string> = {
+    Cookie: cookie,
+    'Content-Type': 'application/json',
+  }
+  if (tenant) {
+    backendHeaders['X-Tenant'] = tenant
+  }
 
   let backendResponse: Response
   try {
     backendResponse = await fetch(`${getBackendOrigin()}/api/v1/auth/refresh`, {
       method: 'POST',
-      headers: {
-        Cookie: cookie,
-        'Content-Type': 'application/json',
-      },
+      headers: backendHeaders,
       cache: 'no-store',
     })
   } catch {
@@ -61,9 +61,7 @@ export async function POST(request: NextRequest) {
     // Use default
   }
 
-  const isSecure = request.nextUrl.protocol === 'https:'
-  const cookieDomain = env.COOKIE_DOMAIN || undefined
-  const sameSite = isSecure ? 'none' : 'lax'
+  const { isSecure, cookieDomain, sameSite } = authCookieOptions(request)
   const response = NextResponse.json({ success: true }, { status: 200 })
 
   response.cookies.set('access_token', newAccessToken, {

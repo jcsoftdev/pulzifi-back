@@ -1,17 +1,9 @@
 import { saveNonce } from '@/lib/auth-nonce-store'
+import { authCookieOptions } from '@/lib/cookie-options'
+import { getBackendOrigin } from '@/lib/server-config'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
-import { env } from '@/lib/env'
 import { randomUUID } from 'crypto'
-
-function getBackendOrigin(): string {
-  const apiBase = env.SERVER_API_URL ?? 'http://localhost:9090'
-  try {
-    return new URL(apiBase).origin
-  } catch {
-    return 'http://localhost:9090'
-  }
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -58,12 +50,7 @@ export async function POST(request: NextRequest) {
       { status: 200 }
     )
 
-    const isSecure = request.nextUrl.protocol === 'https:'
-    const cookieDomain = env.COOKIE_DOMAIN || undefined
-    // SameSite=None is required for cross-site credentialed requests (e.g. frontend on
-    // app.railway.app calling backend on api.railway.app). Requires Secure=true.
-    // On plain HTTP (local dev) fall back to Lax.
-    const sameSite = isSecure ? 'none' : 'lax'
+    const { isSecure, cookieDomain, sameSite } = authCookieOptions(request)
 
     nextResponse.cookies.set('access_token', access_token, {
       path: '/',

@@ -1,15 +1,7 @@
+import { authCookieOptions } from '@/lib/cookie-options'
+import { getBackendOrigin } from '@/lib/server-config'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
-import { env } from '@/lib/env'
-
-function getBackendOrigin(): string {
-  const apiBase = env.SERVER_API_URL ?? 'http://localhost:9090'
-  try {
-    return new URL(apiBase).origin
-  } catch {
-    return 'http://localhost:9090'
-  }
-}
 
 /**
  * GET /api/auth/logout?redirectTo=/login
@@ -19,14 +11,13 @@ function getBackendOrigin(): string {
  */
 export async function GET(request: NextRequest) {
   const redirectTo = request.nextUrl.searchParams.get('redirectTo') || '/login'
-  const isSecure = request.nextUrl.protocol === 'https:'
-  const cookieDomain = env.COOKIE_DOMAIN || undefined
+  const { isSecure, cookieDomain, sameSite } = authCookieOptions(request)
   const cookieOpts = {
     path: '/',
     httpOnly: true,
     maxAge: 0,
     secure: isSecure,
-    sameSite: isSecure ? 'none' as const : 'lax' as const,
+    sameSite,
     ...(cookieDomain ? { domain: cookieDomain } : {}),
   }
   const response = NextResponse.redirect(new URL(redirectTo, request.url))
@@ -47,14 +38,13 @@ export async function POST(request: NextRequest) {
       cache: 'no-store',
     })
 
-    const isSecure = request.nextUrl.protocol === 'https:'
-    const cookieDomain = env.COOKIE_DOMAIN || undefined
+    const { isSecure, cookieDomain, sameSite } = authCookieOptions(request)
     const cookieOpts = {
       path: '/',
       httpOnly: true,
       maxAge: 0,
       secure: isSecure,
-      sameSite: isSecure ? 'none' as const : 'lax' as const,
+      sameSite,
       ...(cookieDomain ? { domain: cookieDomain } : {}),
     }
     const nextResponse = NextResponse.json({ success: true })
