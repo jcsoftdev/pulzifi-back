@@ -65,7 +65,7 @@ export class AxiosHttpClient implements IHttpClient {
   private redirectToLogin(): void {
     if (globalThis.window === undefined) return
     const { protocol, host } = globalThis.window.location
-    const hostWithoutPort = host.split(':')[0]
+    const hostWithoutPort = host.split(':')[0] ?? host
     const port = host.includes(':') ? `:${host.split(':')[1]}` : ''
     let baseDomainHost = host
     if (hostWithoutPort.endsWith('.localhost')) {

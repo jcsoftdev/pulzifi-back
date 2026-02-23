@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 import { AppShell } from '@/components/app-shell'
 import { AuthGuard } from '@/components/auth-guard'
 import { NotificationService } from '@/features/notifications/domain/services/notification-service'
