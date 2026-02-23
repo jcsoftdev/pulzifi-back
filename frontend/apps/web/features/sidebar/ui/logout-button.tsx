@@ -22,23 +22,39 @@ export function LogoutButton() {
     }
 
     const hostname = globalThis.location.hostname
-    const protocol = globalThis.location.protocol
     const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname.endsWith('.localhost')
     const appDomain = env.NEXT_PUBLIC_APP_DOMAIN
+    const appBaseUrl = env.NEXT_PUBLIC_APP_BASE_URL
 
-    const port = globalThis.location.port ? `:${globalThis.location.port}` : ''
+    // NEXT_PUBLIC_APP_BASE_URL is the explicit frontend base URL (set in Railway/production).
+    // Use it only on localhost so stale build-time values never override a real production URL.
+    const base = (isLocalhost && appBaseUrl) ? new URL(appBaseUrl) : null
+
+    // Protocol: prefer NEXT_PUBLIC_APP_BASE_URL when on localhost (e.g. SSH tunnel)
+    const protocol = base ? base.protocol : globalThis.location.protocol
 
     let baseDomainHost: string
-    // Ignore NEXT_PUBLIC_APP_DOMAIN=localhost when not actually on localhost
-    // (prevents stale build-time value from sending users to localhost in production)
     if (appDomain && !(appDomain === 'localhost' && !isLocalhost)) {
-      baseDomainHost = `${appDomain}${port}`
-    } else if (isLocalhost) {
-      baseDomainHost = `localhost${port}`
+      // appDomain explicitly set — use it without the browser's port.
+      // Port comes from NEXT_PUBLIC_APP_BASE_URL if set, otherwise omitted (standard HTTPS).
+      const domainPort = base?.port ? `:${base.port}` : ''
+      baseDomainHost = `${appDomain}${domainPort}`
+    } else if (base) {
+      // On localhost with NEXT_PUBLIC_APP_BASE_URL — derive base domain and port from it.
+      const basePort = base.port ? `:${base.port}` : ''
+      const parts = base.hostname.split('.')
+      const baseParts = parts.length > 2 ? parts.slice(-2) : parts
+      baseDomainHost = `${baseParts.join('.')}${basePort}`
     } else {
-      const parts = hostname.split('.')
-      const baseParts = parts.length > 2 ? parts.slice(1) : parts
-      baseDomainHost = `${baseParts.join('.')}${port}`
+      // Derive everything from the current browser URL.
+      const port = globalThis.location.port ? `:${globalThis.location.port}` : ''
+      if (isLocalhost) {
+        baseDomainHost = `localhost${port}`
+      } else {
+        const parts = hostname.split('.')
+        const baseParts = parts.length > 2 ? parts.slice(1) : parts
+        baseDomainHost = `${baseParts.join('.')}${port}`
+      }
     }
 
     // Always bounce through the main-domain logout endpoint so its cookies
