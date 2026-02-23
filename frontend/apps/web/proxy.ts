@@ -154,6 +154,7 @@ export async function proxy(request: NextRequest) {
 
   const apiBase = env.SERVER_API_URL
   if (!apiBase) {
+    console.error('[proxy] SERVER_API_URL is not set — redirecting to login')
     return NextResponse.redirect(getBaseDomainLoginUrl(request))
   }
   const backendOrigin = new URL(apiBase).origin
@@ -162,7 +163,10 @@ export async function proxy(request: NextRequest) {
   const tenant = extractTenantFromHostname(host)
   const cookie = request.headers.get('cookie') || ''
 
+  console.log(`[proxy] ${request.method} ${path} | host=${host} tenant=${tenant ?? 'none'} backend=${backendOrigin}`)
+
   if (!tenant) {
+    console.log(`[proxy] No tenant on host=${host}, redirecting to base login`)
     return NextResponse.redirect(getBaseDomainLoginUrl(request, path))
   }
 
@@ -177,9 +181,16 @@ export async function proxy(request: NextRequest) {
     cache: 'no-store',
   })
 
+  console.log(`[proxy] /auth/me → ${meResponse.status} for tenant=${tenant}`)
+
   if (meResponse.status === 401 || meResponse.status === 403) {
+    console.log(`[proxy] Auth failed (${meResponse.status}), attempting refresh for tenant=${tenant}`)
     const refreshed = await attemptTokenRefresh(request, backendOrigin, cookie, tenant)
-    if (refreshed) return refreshed
+    if (refreshed) {
+      console.log(`[proxy] Token refresh succeeded for tenant=${tenant}`)
+      return refreshed
+    }
+    console.log(`[proxy] Token refresh failed, redirecting to login`)
     return NextResponse.redirect(getBaseDomainLoginUrl(request, path))
   }
 

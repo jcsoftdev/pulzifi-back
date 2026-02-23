@@ -40,11 +40,11 @@ export default function LoginPage() {
     const hostname = globalThis.location.hostname
     const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname.endsWith('.localhost')
 
-    // NEXT_PUBLIC_APP_BASE_URL is the most reliable source — set it explicitly
-    // in .env.local when behind an HTTPS proxy on localhost to avoid wrong
-    // protocol / missing port issues.
+    // NEXT_PUBLIC_APP_BASE_URL is only for local dev (e.g. behind an HTTPS proxy).
+    // In production we always derive protocol/port from the actual browser URL to
+    // avoid a stale build-time value sending users to localhost:PORT.
     const appBaseUrl = env.NEXT_PUBLIC_APP_BASE_URL
-    const base = appBaseUrl ? new URL(appBaseUrl) : null
+    const base = (isLocalhost && appBaseUrl) ? new URL(appBaseUrl) : null
 
     let protocol: string
     if (base) {
