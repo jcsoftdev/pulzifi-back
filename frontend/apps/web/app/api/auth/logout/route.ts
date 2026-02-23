@@ -19,10 +19,20 @@ function getBackendOrigin(): string {
  */
 export async function GET(request: NextRequest) {
   const redirectTo = request.nextUrl.searchParams.get('redirectTo') || '/login'
+  const isSecure = request.nextUrl.protocol === 'https:'
+  const cookieDomain = env.COOKIE_DOMAIN || undefined
+  const cookieOpts = {
+    path: '/',
+    httpOnly: true,
+    maxAge: 0,
+    secure: isSecure,
+    sameSite: isSecure ? 'none' as const : 'lax' as const,
+    ...(cookieDomain ? { domain: cookieDomain } : {}),
+  }
   const response = NextResponse.redirect(new URL(redirectTo, request.url))
-  response.cookies.set('access_token', '', { path: '/', httpOnly: true, maxAge: 0 })
-  response.cookies.set('refresh_token', '', { path: '/', httpOnly: true, maxAge: 0 })
-  response.cookies.set('tenant_hint', '', { path: '/', httpOnly: true, maxAge: 0 })
+  response.cookies.set('access_token', '', cookieOpts)
+  response.cookies.set('refresh_token', '', cookieOpts)
+  response.cookies.set('tenant_hint', '', cookieOpts)
 
   return response
 }
@@ -37,11 +47,21 @@ export async function POST(request: NextRequest) {
       cache: 'no-store',
     })
 
+    const isSecure = request.nextUrl.protocol === 'https:'
+    const cookieDomain = env.COOKIE_DOMAIN || undefined
+    const cookieOpts = {
+      path: '/',
+      httpOnly: true,
+      maxAge: 0,
+      secure: isSecure,
+      sameSite: isSecure ? 'none' as const : 'lax' as const,
+      ...(cookieDomain ? { domain: cookieDomain } : {}),
+    }
     const nextResponse = NextResponse.json({ success: true })
 
-    nextResponse.cookies.set('access_token', '', { path: '/', httpOnly: true, maxAge: 0 })
-    nextResponse.cookies.set('refresh_token', '', { path: '/', httpOnly: true, maxAge: 0 })
-    nextResponse.cookies.set('tenant_hint', '', { path: '/', httpOnly: true, maxAge: 0 })
+    nextResponse.cookies.set('access_token', '', cookieOpts)
+    nextResponse.cookies.set('refresh_token', '', cookieOpts)
+    nextResponse.cookies.set('tenant_hint', '', cookieOpts)
 
     return nextResponse
   } catch (error) {
