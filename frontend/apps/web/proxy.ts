@@ -103,33 +103,25 @@ async function attemptTokenRefresh(
  */
 function getBaseDomainLoginUrl(request: NextRequest, callbackPath?: string): URL {
   const host = request.headers.get('host') || ''
-  const protocol = request.nextUrl.protocol // "http:" or "https:"
+  const protocol = request.nextUrl.protocol
   const appDomain = env.NEXT_PUBLIC_APP_DOMAIN
 
-
-  console.log('[getBaseDomainLoginUrl] host:', host)
-  console.log('[getBaseDomainLoginUrl] appDomain from env:', appDomain)
   const hostWithoutPortCheck = host.split(':')[0] || ''
   const isLocalhostRequest = hostWithoutPortCheck === 'localhost' || hostWithoutPortCheck === '127.0.0.1' || hostWithoutPortCheck.endsWith('.localhost')
-  // Ignore NEXT_PUBLIC_APP_DOMAIN=localhost when not actually on localhost
   const effectiveAppDomain = (appDomain === 'localhost' && !isLocalhostRequest) ? undefined : appDomain
 
   let baseDomainHost: string
   if (effectiveAppDomain) {
-    // Use configured app domain, preserving the port from the current host
     const port = host.includes(':') ? `:${host.split(':')[1]}` : ''
     baseDomainHost = `${effectiveAppDomain}${port}`
   } else {
-    // Fallback: strip the tenant subdomain from the current host
     const hostWithoutPort = host.split(':')[0] || ''
     const port = host.includes(':') ? `:${host.split(':')[1]}` : ''
 
     if (hostWithoutPort.endsWith('.localhost')) {
-      // e.g. acme.localhost → localhost
       baseDomainHost = `localhost${port}`
     } else {
       const parts = hostWithoutPort.split('.')
-      // Remove the first part (tenant) if there are enough parts
       const baseParts = parts.length > 2 ? parts.slice(1) : parts
       baseDomainHost = `${baseParts.join('.')}${port}`
     }
@@ -142,13 +134,9 @@ function getBaseDomainLoginUrl(request: NextRequest, callbackPath?: string): URL
   return loginUrl
 }
 
-/**
- * Auth Proxy - Handles authentication and tenant validation
- */
 export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname
 
-  // Public pages that don't require tenant validation
   const publicPaths = [
     '/login',
     '/register',
@@ -164,14 +152,16 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next()
   }
 
-  const apiBase = env.SERVER_API_URL ?? ''
+  const apiBase = env.SERVER_API_URL
+  if (!apiBase) {
+    return NextResponse.redirect(getBaseDomainLoginUrl(request))
+  }
   const backendOrigin = new URL(apiBase).origin
 
   const host = request.headers.get('host') || ''
   const tenant = extractTenantFromHostname(host)
   const cookie = request.headers.get('cookie') || ''
 
-  // No tenant subdomain → redirect to base domain login
   if (!tenant) {
     return NextResponse.redirect(getBaseDomainLoginUrl(request, path))
   }
@@ -187,10 +177,7 @@ export async function proxy(request: NextRequest) {
     cache: 'no-store',
   })
 
-  console.log({meResponse})
-
   if (meResponse.status === 401 || meResponse.status === 403) {
-    // Try to refresh the token before redirecting to login
     const refreshed = await attemptTokenRefresh(request, backendOrigin, cookie, tenant)
     if (refreshed) return refreshed
     return NextResponse.redirect(getBaseDomainLoginUrl(request, path))
