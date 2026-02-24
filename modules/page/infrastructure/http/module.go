@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	createpage "github.com/jcsoftdev/pulzifi-back/modules/page/application/create_page"
+	bulkdeletepages "github.com/jcsoftdev/pulzifi-back/modules/page/application/bulk_delete_pages"
 	deletepage "github.com/jcsoftdev/pulzifi-back/modules/page/application/delete_page"
 	getpage "github.com/jcsoftdev/pulzifi-back/modules/page/application/get_page"
 	listpages "github.com/jcsoftdev/pulzifi-back/modules/page/application/list_pages"
@@ -45,6 +46,7 @@ func (m *Module) RegisterHTTPRoutes(router chi.Router) {
 		r.Use(middleware.OrgMiddleware.RequireOrganizationMembership)
 		r.Use(middleware.RequireTenant)
 		r.Post("/", m.handleCreatePage)
+		r.Post("/bulk-delete", m.handleBulkDeletePages)
 		r.Get("/", m.handleListPages)
 		r.Get("/{id}", m.handleGetPage)
 		r.Put("/{id}", m.handleUpdatePage)
@@ -177,5 +179,26 @@ func (m *Module) handleDeletePage(w http.ResponseWriter, r *http.Request) {
 	tenant := middleware.GetTenantFromContext(r.Context())
 	repo := persistence.NewPagePostgresRepository(m.db, tenant)
 	handler := deletepage.NewDeletePageHandler(repo)
+	handler.HandleHTTP(w, r)
+}
+
+// handleBulkDeletePages deletes multiple pages at once
+// @Summary Bulk Delete Pages
+// @Description Delete multiple pages by ID
+// @Tags pages
+// @Security BearerAuth
+// @Accept json
+// @Param request body bulkdeletepages.BulkDeletePagesRequest true "Bulk Delete Request"
+// @Success 204
+// @Router /pages/bulk-delete [post]
+func (m *Module) handleBulkDeletePages(w http.ResponseWriter, r *http.Request) {
+	if m.db == nil {
+		http.Error(w, "Database not initialized", http.StatusInternalServerError)
+		return
+	}
+
+	tenant := middleware.GetTenantFromContext(r.Context())
+	repo := persistence.NewPagePostgresRepository(m.db, tenant)
+	handler := bulkdeletepages.NewBulkDeletePagesHandler(repo)
 	handler.HandleHTTP(w, r)
 }

@@ -542,10 +542,15 @@
 	height: 3px;
 	border-radius: 0 0 var(--notix-roundness) var(--notix-roundness);
 	background-color: var(--_c, var(--notix-state-info));
-	opacity: 0.5;
+	opacity: 0;
 	transform-origin: left;
 	animation: notix-progress var(--notix-progress-duration, 6000ms) linear forwards;
 	pointer-events: none;
+	transition: opacity 200ms ease;
+}
+
+[data-notix-default][data-expanded="true"] [data-notix-progress] {
+	opacity: 0.5;
 }
 
 [data-notix-toast]:hover [data-notix-progress],

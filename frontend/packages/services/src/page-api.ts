@@ -244,6 +244,19 @@ export const PageApi = {
     await http.delete(`/api/v1/pages/${id}`)
   },
 
+  async bulkDeletePages(ids: string[]): Promise<void> {
+    const http = await getHttpClient()
+    await http.post('/api/v1/pages/bulk-delete', { ids })
+  },
+
+  async bulkUpdateFrequency(pageIds: string[], checkFrequency: string): Promise<void> {
+    const http = await getHttpClient()
+    await http.put('/api/v1/monitoring/configs/bulk', {
+      page_ids: pageIds,
+      check_frequency: checkFrequency,
+    })
+  },
+
   async getMonitoringConfig(pageId: string): Promise<MonitoringConfig | null> {
     const http = await getHttpClient()
     try {

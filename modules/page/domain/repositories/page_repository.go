@@ -13,4 +13,5 @@ GetByID(ctx context.Context, id uuid.UUID) (*entities.Page, error)
 ListByWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]*entities.Page, error)
 Update(ctx context.Context, page *entities.Page) error
 Delete(ctx context.Context, id uuid.UUID) error
+BulkDelete(ctx context.Context, ids []uuid.UUID) error
 }

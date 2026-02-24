@@ -16,7 +16,7 @@ import {
   DropdownMenuTrigger,
 } from '@workspace/ui/components/molecules/dropdown-menu'
 import { cn } from '@workspace/ui/lib/utils'
-import { ChevronDown, Clock, RefreshCcw } from 'lucide-react'
+import { ChevronDown, Clock, RefreshCcw, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import type { Page } from '../domain/types'
 
@@ -36,6 +36,8 @@ export interface PagesTableProps {
   onCheckFrequencyChange?: (pageId: string, frequency: string) => void
   onEdit?: (page: Page) => void
   onDelete?: (page: Page) => void
+  onBulkDelete?: (pageIds: string[]) => void
+  onBulkFrequencyChange?: (pageIds: string[], frequency: string) => void
 }
 
 export function PagesTable({
@@ -45,6 +47,8 @@ export function PagesTable({
   onCheckFrequencyChange,
   onEdit,
   onDelete,
+  onBulkDelete,
+  onBulkFrequencyChange,
 }: Readonly<PagesTableProps>) {
   const [selectedPages, setSelectedPages] = useState<Set<string>>(new Set())
 
@@ -91,8 +95,41 @@ export function PagesTable({
     }
   }
 
+  const selectedCount = selectedPages.size
+  const selectedIds = Array.from(selectedPages)
+
   return (
     <div className="bg-card border border-border rounded-lg overflow-hidden">
+      {selectedCount > 0 && (
+        <div className="flex items-center gap-3 px-4 py-2 bg-muted/60 border-b border-border">
+          <span className="text-sm font-medium text-foreground">
+            {selectedCount} page{selectedCount > 1 ? 's' : ''} selected
+          </span>
+          <div className="flex items-center gap-2 ml-auto">
+            <Select onValueChange={(freq) => onBulkFrequencyChange?.(selectedIds, freq)}>
+              <SelectTrigger className="h-8 text-sm w-44">
+                <SelectValue placeholder="Set frequency…" />
+              </SelectTrigger>
+              <SelectContent>
+                {CHECK_FREQUENCIES.map((freq) => (
+                  <SelectItem key={freq} value={freq}>
+                    {freq}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              variant="destructive"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => onBulkDelete?.(selectedIds)}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Delete {selectedCount}
+            </Button>
+          </div>
+        </div>
+      )}
       <div className="overflow-x-auto">
         <div className="min-w-[1000px]">
           {/* Table Header */}
