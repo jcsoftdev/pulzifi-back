@@ -1,5 +1,10 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
+import { useState } from 'react'
+import { notification } from '@/lib/notification'
+import { useWorkspaces } from '@/features/workspace/application/hooks/use-workspaces'
+import { CreateWorkspaceDialog } from '@/features/workspace/ui/create-workspace-dialog'
 import { useDashboardStats } from './application/use-dashboard-stats'
 import type {
   DashboardStats,
@@ -9,6 +14,13 @@ import type {
 } from './domain/types'
 import { DashboardHeader } from './ui/dashboard-header'
 import { EmptyStateCard } from './ui/empty-state-card'
+
+export interface DashboardFeatureProps {
+  userName?: string
+  monthlyChecks?: number
+  maxMonthlyChecks?: number
+  usagePercent?: number
+}
 
 function formatDate(isoString: string): string {
   const date = new Date(isoString)
@@ -145,8 +157,17 @@ function LoadingPlaceholder() {
   )
 }
 
-export function DashboardFeature() {
-  const { stats, loading } = useDashboardStats()
+export function DashboardFeature({
+  userName = '',
+  monthlyChecks = 0,
+  maxMonthlyChecks = 2000,
+  usagePercent = 0,
+}: Readonly<DashboardFeatureProps>) {
+  const router = useRouter()
+  const { stats, loading, refetch } = useDashboardStats()
+  const { isLoading: isCreatingWorkspace, error: createWorkspaceError, createWorkspace } =
+    useWorkspaces()
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
 
   const headerStats: DashboardStats = {
     workplaces: stats?.workspacesCount ?? 0,
@@ -154,9 +175,9 @@ export function DashboardFeature() {
     pages: stats?.pagesCount ?? 0,
     maxPages: 200,
     todayChecks: stats?.todayChecksCount ?? 0,
-    monthlyChecks: 0,
-    maxMonthlyChecks: 2000,
-    usagePercent: 0,
+    monthlyChecks,
+    maxMonthlyChecks,
+    usagePercent,
   }
 
   const isEmpty =
@@ -166,13 +187,45 @@ export function DashboardFeature() {
         stats.pagesCount === 0 &&
         stats.recentInsights.length === 0))
 
+  const handleCreateWorkspaceSubmit = async (data: {
+    name: string
+    type: 'Personal' | 'Team' | 'Competitor'
+    tags: string[]
+  }) => {
+    try {
+      const result = await createWorkspace(data)
+      if (result) {
+        setIsCreateDialogOpen(false)
+        notification.success({
+          title: 'Workspace created',
+          description: `"${result.name}" is ready.`,
+        })
+        refetch()
+      }
+    } catch (err) {
+      notification.error({
+        title: 'Failed to create workspace',
+        description: err instanceof Error ? err.message : 'Please try again.',
+      })
+    }
+  }
+
   return (
     <div className="flex-1 flex flex-col">
+      <CreateWorkspaceDialog
+        open={isCreateDialogOpen}
+        onOpenChange={setIsCreateDialogOpen}
+        onSubmit={handleCreateWorkspaceSubmit}
+        isLoading={isCreatingWorkspace}
+        error={createWorkspaceError}
+        mode="create"
+      />
+
       <DashboardHeader
-        userName=""
+        userName={userName}
         stats={headerStats}
-        onCreateWorkspace={() => console.log('Create workspace')}
-        onAddPage={() => console.log('Add new page')}
+        onCreateWorkspace={() => setIsCreateDialogOpen(true)}
+        onAddPage={() => router.push('/workspaces')}
       />
 
       {isEmpty ? (
@@ -182,20 +235,20 @@ export function DashboardFeature() {
               title="No Workspaces Yet"
               description="Start tracking websites and monitoring changes by creating your first workspaces."
               buttonText="Create workspace"
-              onButtonClick={() => console.log('Create workspace')}
+              onButtonClick={() => setIsCreateDialogOpen(true)}
             />
             <EmptyStateCard
               title="No Pages Yet"
               description="Add a page link to your workspace to start monitoring updates and tracking changes in real time."
               buttonText="+ Add new page"
-              onButtonClick={() => console.log('Add new page')}
+              onButtonClick={() => router.push('/workspaces')}
             />
           </div>
           <EmptyStateCard
             title="No Insights Yet"
             description="You'll see AI insights once an alert is detected."
             buttonText="Go to Settings"
-            onButtonClick={() => console.log('Go to settings')}
+            onButtonClick={() => router.push('/settings')}
           />
         </div>
       ) : (
@@ -235,6 +288,7 @@ export function DashboardFeature() {
                 </div>
                 <button
                   type="button"
+                  onClick={() => router.push('/workspaces')}
                   className="px-4 py-2 border border-border rounded-md text-sm text-foreground hover:bg-muted transition-colors"
                 >
                   View All
