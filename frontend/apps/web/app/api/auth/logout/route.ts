@@ -1,4 +1,5 @@
 import { authCookieOptions } from '@/lib/cookie-options'
+import { getPublicOrigin } from '@/lib/public-origin'
 import { getBackendOrigin } from '@/lib/server-config'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
@@ -20,9 +21,8 @@ export async function GET(request: NextRequest) {
     sameSite,
     ...(cookieDomain ? { domain: cookieDomain } : {}),
   }
-  // Use request.nextUrl (not request.url) so the redirect uses the public-facing
-  // origin from x-forwarded-host/x-forwarded-proto, not the internal localhost URL.
-  const response = NextResponse.redirect(new URL(redirectTo, request.nextUrl.origin))
+  const origin = getPublicOrigin(request)
+  const response = NextResponse.redirect(new URL(redirectTo, origin))
   response.cookies.set('access_token', '', cookieOpts)
   response.cookies.set('refresh_token', '', cookieOpts)
   response.cookies.set('tenant_hint', '', cookieOpts)

@@ -1,5 +1,6 @@
 import { peekNonce } from '@/lib/auth-nonce-store'
 import { authCookieOptions } from '@/lib/cookie-options'
+import { getPublicOrigin } from '@/lib/public-origin'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 
@@ -21,14 +22,16 @@ export async function GET(request: NextRequest) {
   const tenant = request.nextUrl.searchParams.get('tenant')
   const returnTo = request.nextUrl.searchParams.get('returnTo')
 
+  const origin = getPublicOrigin(request)
+
   if (!nonce || !returnTo) {
-    return NextResponse.redirect(new URL('/login', request.url))
+    return NextResponse.redirect(new URL('/login', origin))
   }
 
   const tokens = peekNonce(nonce)
 
   if (!tokens) {
-    return NextResponse.redirect(new URL('/login?error=SessionExpired', request.url))
+    return NextResponse.redirect(new URL('/login?error=SessionExpired', origin))
   }
 
   const response = NextResponse.redirect(returnTo)
