@@ -40,28 +40,32 @@ function extractDomain(url: string): string {
 function ChangesChart({ workspaces }: { workspaces: WorkspaceChanges[] }) {
   const max = Math.max(...workspaces.map((w) => w.detectedChanges), 1)
   const colors = [
-    'bg-blue-700',
     'bg-cyan-700',
-    'bg-orange-700',
+    'bg-blue-700',
+    'bg-orange-600',
     'bg-violet-700',
     'bg-emerald-700',
   ]
 
   return (
-    <div className="h-72 flex items-end gap-2">
+    <div className="space-y-3">
       {workspaces.map((ws, i) => {
-        const heightPercent = Math.max((ws.detectedChanges / max) * 100, 4)
+        const widthPercent = Math.max((ws.detectedChanges / max) * 100, 8)
         return (
-          <div key={ws.workspaceName} className="flex-1 flex flex-col items-center gap-2">
-            <div
-              className={`w-full ${colors[i % colors.length]} rounded flex items-center justify-center`}
-              style={{ height: `${heightPercent}%` }}
-            >
-              <span className="text-primary-foreground text-xs font-semibold truncate px-1">
-                {ws.workspaceName}
-              </span>
+          <div key={ws.workspaceName} className="flex items-center gap-3">
+            <div className="flex-1 min-w-0">
+              <div
+                className={`${colors[i % colors.length]} rounded h-9 flex items-center px-3`}
+                style={{ width: `${widthPercent}%` }}
+              >
+                <span className="text-white text-sm font-semibold truncate">
+                  {ws.workspaceName}
+                </span>
+              </div>
             </div>
-            <span className="text-sm font-semibold text-foreground">{ws.detectedChanges}</span>
+            <span className="text-sm font-semibold text-foreground shrink-0 w-8 text-right">
+              {ws.detectedChanges}
+            </span>
           </div>
         )
       })}
@@ -195,8 +199,9 @@ export function DashboardFeature() {
           />
         </div>
       ) : (
-        <div className="px-4 md:px-8 lg:px-24 py-8 bg-background">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="px-4 md:px-8 lg:px-24 py-8 bg-background space-y-6">
+          {/* Top row: Found Changes + Recent Alerts */}
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
             {/* Found Changes Chart */}
             <div className="col-span-1 lg:col-span-2 bg-card border border-border rounded-lg p-6">
               <div className="space-y-4">
@@ -212,77 +217,75 @@ export function DashboardFeature() {
                 ) : stats && stats.changesPerWorkspace.length > 0 ? (
                   <ChangesChart workspaces={stats.changesPerWorkspace} />
                 ) : (
-                  <div className="h-72 flex items-center justify-center text-muted-foreground text-sm">
+                  <div className="h-48 flex items-center justify-center text-muted-foreground text-sm">
                     No workspaces with changes yet.
                   </div>
                 )}
               </div>
             </div>
 
-            {/* AI Summary Insights */}
-            <div className="bg-card border border-border rounded-lg p-6">
-              <div className="space-y-4">
+            {/* Recent Alerts Table */}
+            <div className="col-span-1 lg:col-span-3 bg-card border border-border rounded-lg p-6">
+              <div className="flex justify-between items-center mb-4">
                 <div>
-                  <h3 className="text-xl font-semibold text-foreground mb-1">
-                    AI Summary Insights
-                  </h3>
+                  <h3 className="text-xl font-semibold text-foreground mb-1">Recent Alerts</h3>
                   <p className="text-sm text-muted-foreground">
-                    Quick check of your last recommendations
+                    Quick overview about the last changes
                   </p>
                 </div>
-                <div className="space-y-4 max-h-96 overflow-y-auto py-2">
-                  {loading ? (
-                    <div className="animate-pulse space-y-3">
-                      {[1, 2, 3].map((n) => (
-                        <div key={n} className="h-24 bg-muted rounded-lg" />
-                      ))}
-                    </div>
-                  ) : stats && stats.recentInsights.length > 0 ? (
-                    stats.recentInsights.map((insight, i) => (
-                      <InsightCard
-                        key={insight.createdAt + insight.pageUrl}
-                        insight={insight}
-                        highlighted={i === 1}
-                      />
-                    ))
-                  ) : (
-                    <p className="text-sm text-muted-foreground">No insights generated yet.</p>
-                  )}
-                </div>
+                <button
+                  type="button"
+                  className="px-4 py-2 border border-border rounded-md text-sm text-foreground hover:bg-muted transition-colors"
+                >
+                  View All
+                </button>
               </div>
+
+              {loading ? (
+                <div className="animate-pulse space-y-2">
+                  {[1, 2, 3, 4].map((n) => (
+                    <div key={n} className="h-12 bg-muted rounded" />
+                  ))}
+                </div>
+              ) : stats && stats.recentAlerts.length > 0 ? (
+                <AlertsTable alerts={stats.recentAlerts} />
+              ) : (
+                <p className="text-sm text-muted-foreground py-4 text-center">
+                  No changes detected yet.
+                </p>
+              )}
             </div>
           </div>
 
-          {/* Recent Alerts Table */}
-          <div className="mt-6 bg-card border border-border rounded-lg p-6">
-            <div className="flex justify-between items-center mb-4">
+          {/* AI Summary Insights - full width */}
+          <div className="bg-card border border-border rounded-lg p-6">
+            <div className="space-y-4">
               <div>
-                <h3 className="text-xl font-semibold text-foreground mb-1">Recent Alerts</h3>
+                <h3 className="text-xl font-semibold text-foreground mb-1">AI Summary Insights</h3>
                 <p className="text-sm text-muted-foreground">
-                  Quick overview about the last changes
+                  Quick check of your last recommendations
                 </p>
               </div>
-              <button
-                type="button"
-                className="px-4 py-2 border border-border rounded-md text-sm text-foreground hover:bg-muted transition-colors"
-              >
-                View All
-              </button>
-            </div>
-
-            {loading ? (
-              <div className="animate-pulse space-y-2">
-                {[1, 2, 3, 4].map((n) => (
-                  <div key={n} className="h-12 bg-muted rounded" />
-                ))}
+              <div className="space-y-4">
+                {loading ? (
+                  <div className="animate-pulse space-y-3">
+                    {[1, 2, 3].map((n) => (
+                      <div key={n} className="h-24 bg-muted rounded-lg" />
+                    ))}
+                  </div>
+                ) : stats && stats.recentInsights.length > 0 ? (
+                  stats.recentInsights.map((insight, i) => (
+                    <InsightCard
+                      key={insight.createdAt + insight.pageUrl}
+                      insight={insight}
+                      highlighted={i === 1}
+                    />
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground">No insights generated yet.</p>
+                )}
               </div>
-            ) : stats && stats.recentAlerts.length > 0 ? (
-              <AlertsTable alerts={stats.recentAlerts} />
-            ) : (
-              <p className="text-sm text-muted-foreground py-4 text-center">
-                No changes detected yet.
-              </p>
-            )}
+            </div>
           </div>
         </div>
       )}

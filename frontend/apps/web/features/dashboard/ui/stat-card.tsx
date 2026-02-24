@@ -1,11 +1,14 @@
 'use client'
 
+import type * as React from 'react'
+
 export interface StatCardProps {
   value: string
   label: string
   max?: string
   tag?: string
   tagColor?: string
+  icon?: React.ReactNode
 }
 
 export function StatCard({
@@ -14,6 +17,7 @@ export function StatCard({
   max,
   tag,
   tagColor = 'bg-blue-100 text-blue-700',
+  icon,
 }: Readonly<StatCardProps>) {
   return (
     <div className="bg-card rounded-lg border border-border p-3 shadow-sm relative">
@@ -30,6 +34,9 @@ export function StatCard({
         <div className="absolute top-3.5 right-4">
           <span className={`text-xs px-2 py-0.5 rounded font-normal ${tagColor}`}>{tag}</span>
         </div>
+      )}
+      {icon && !tag && (
+        <div className="absolute top-3.5 right-4 text-muted-foreground/50">{icon}</div>
       )}
     </div>
   )

@@ -146,7 +146,7 @@ export async function proxy(request: NextRequest) {
     '/api/auth/callback',
     '/api/auth/set-base-session',
   ]
-  const isPublicPath = publicPaths.some((p) => path.startsWith(p))
+  const isPublicPath = path === '/' || publicPaths.some((p) => path.startsWith(p))
 
   if (isPublicPath) {
     return NextResponse.next()

@@ -276,7 +276,9 @@ func (m *Module) handleGetCurrentUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response, err := m.getCurrentUserHandler.Handle(context.Background(), userID)
+	roles, _ := r.Context().Value(authmw.UserRolesKey).([]string)
+
+	response, err := m.getCurrentUserHandler.Handle(r.Context(), userID, roles)
 	if err != nil {
 		logger.Error("Failed to get current user", zap.Error(err))
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to get user"})
