@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -233,5 +235,22 @@ func (r *PagePostgresRepository) Update(ctx context.Context, page *entities.Page
 func (r *PagePostgresRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	q := `UPDATE ` + r.table("pages") + ` SET deleted_at = $1 WHERE id = $2 AND deleted_at IS NULL`
 	_, err := r.db.ExecContext(ctx, q, time.Now(), id)
+	return err
+}
+
+func (r *PagePostgresRepository) BulkDelete(ctx context.Context, ids []uuid.UUID) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	now := time.Now()
+	placeholders := make([]string, len(ids))
+	args := make([]interface{}, len(ids)+1)
+	args[0] = now
+	for i, id := range ids {
+		placeholders[i] = fmt.Sprintf("$%d", i+2)
+		args[i+1] = id
+	}
+	q := `UPDATE ` + r.table("pages") + ` SET deleted_at = $1 WHERE id IN (` + strings.Join(placeholders, ", ") + `) AND deleted_at IS NULL`
+	_, err := r.db.ExecContext(ctx, q, args...)
 	return err
 }

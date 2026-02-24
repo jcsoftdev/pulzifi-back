@@ -10,6 +10,8 @@ import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import type { CreatePageDto, Page } from '@/features/page/domain/types'
 import { AddPageDialog } from '@/features/page/ui/add-page-dialog'
+import { BulkDeletePagesDialog } from '@/features/page/ui/bulk-delete-pages-dialog'
+import { BulkFrequencyChangeDialog } from '@/features/page/ui/bulk-frequency-change-dialog'
 import { DeletePageDialog } from '@/features/page/ui/delete-page-dialog'
 import { EditPageDialog } from '@/features/page/ui/edit-page-dialog'
 import { PagesTable } from '@/features/page/ui/pages-table'
@@ -42,6 +44,12 @@ export function WorkspaceDetailContent({
   const [isEditPageOpen, setIsEditPageOpen] = useState(false)
   const [isDeletePageOpen, setIsDeletePageOpen] = useState(false)
   const [selectedPage, setSelectedPage] = useState<Page | null>(null)
+
+  const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false)
+  const [pendingBulkDeleteIds, setPendingBulkDeleteIds] = useState<string[]>([])
+
+  const [isBulkFrequencyOpen, setIsBulkFrequencyOpen] = useState(false)
+  const [pendingBulkFrequency, setPendingBulkFrequency] = useState<{ ids: string[]; frequency: string } | null>(null)
 
   const handleAddPage = async (data: CreatePageDto) => {
     setIsLoading(true)
@@ -182,6 +190,47 @@ export function WorkspaceDetailContent({
     }
   }
 
+  const handleBulkDelete = (pageIds: string[]) => {
+    setPendingBulkDeleteIds(pageIds)
+    setIsBulkDeleteOpen(true)
+  }
+
+  const handleBulkDeleteConfirm = async () => {
+    try {
+      await PageApi.bulkDeletePages(pendingBulkDeleteIds)
+      setPages((prev) => prev.filter((p) => !pendingBulkDeleteIds.includes(p.id)))
+      notification.success({ title: `${pendingBulkDeleteIds.length} page${pendingBulkDeleteIds.length > 1 ? 's' : ''} deleted` })
+    } catch (err) {
+      console.error('Failed to bulk delete pages:', err)
+      notification.error({ title: 'Failed to delete pages', description: err instanceof Error ? err.message : 'Please try again.' })
+    } finally {
+      setPendingBulkDeleteIds([])
+    }
+  }
+
+  const handleBulkFrequencyChange = (pageIds: string[], frequency: string) => {
+    setPendingBulkFrequency({ ids: pageIds, frequency })
+    setIsBulkFrequencyOpen(true)
+  }
+
+  const handleBulkFrequencyConfirm = async () => {
+    if (!pendingBulkFrequency) return
+    const { ids, frequency } = pendingBulkFrequency
+    setPages((prev) =>
+      prev.map((page) => (ids.includes(page.id) ? { ...page, checkFrequency: frequency } : page))
+    )
+    try {
+      await PageApi.bulkUpdateFrequency(ids, frequency)
+      notification.success({ title: 'Check frequency updated for selected pages' })
+    } catch (err) {
+      setPages(initialPages)
+      console.error('Failed to bulk update check frequency:', err)
+      notification.error({ title: 'Failed to update check frequency', description: err instanceof Error ? err.message : 'Please try again.' })
+    } finally {
+      setPendingBulkFrequency(null)
+    }
+  }
+
   const filteredPages = pages.filter((page) =>
     page.name.toLowerCase().includes(searchQuery.toLowerCase())
   )
@@ -289,6 +338,8 @@ export function WorkspaceDetailContent({
           onCheckFrequencyChange={handleCheckFrequencyChange}
           onEdit={handleEditPageClick}
           onDelete={handleDeletePageClick}
+          onBulkDelete={handleBulkDelete}
+          onBulkFrequencyChange={handleBulkFrequencyChange}
         />
       </div>
 
@@ -314,6 +365,23 @@ export function WorkspaceDetailContent({
         onOpenChange={setIsDeletePageOpen}
         onConfirm={handleDeletePage}
         pageName={selectedPage?.name ?? ''}
+        isLoading={isLoading}
+      />
+
+      <BulkDeletePagesDialog
+        open={isBulkDeleteOpen}
+        onOpenChange={setIsBulkDeleteOpen}
+        onConfirm={handleBulkDeleteConfirm}
+        count={pendingBulkDeleteIds.length}
+        isLoading={isLoading}
+      />
+
+      <BulkFrequencyChangeDialog
+        open={isBulkFrequencyOpen}
+        onOpenChange={setIsBulkFrequencyOpen}
+        onConfirm={handleBulkFrequencyConfirm}
+        count={pendingBulkFrequency?.ids.length ?? 0}
+        frequency={pendingBulkFrequency?.frequency ?? ''}
         isLoading={isLoading}
       />
 

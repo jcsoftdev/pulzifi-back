@@ -4,12 +4,7 @@ import { redirect } from 'next/navigation'
 import { extractTenantFromHostname } from '@workspace/shared-http'
 import Link from 'next/link'
 
-const metadataBase = process.env.NEXT_PUBLIC_APP_BASE_URL
-  ? new URL(process.env.NEXT_PUBLIC_APP_BASE_URL)
-  : new URL('https://pulzifi.com')
-
 export const metadata: Metadata = {
-  metadataBase,
   title: 'Pulzifi — AI-Powered Competitive Intelligence',
   description:
     'Monitor any website for changes and instantly get AI-powered strategic insights. Track competitor moves, pricing changes, and market shifts — automatically, 24/7.',
@@ -26,38 +21,14 @@ export const metadata: Metadata = {
   authors: [{ name: 'Pulzifi' }],
   creator: 'Pulzifi',
   openGraph: {
-    type: 'website',
-    locale: 'en_US',
-    url: metadataBase.toString(),
-    siteName: 'Pulzifi',
     title: 'Pulzifi — AI-Powered Competitive Intelligence',
     description:
       'Monitor any website for changes and instantly get AI-powered strategic insights. Track competitor moves, pricing changes, and market shifts — automatically, 24/7.',
-    images: [
-      {
-        url: '/opengraph-image',
-        width: 1200,
-        height: 630,
-        alt: 'Pulzifi — AI-Powered Competitive Intelligence',
-      },
-    ],
   },
   twitter: {
-    card: 'summary_large_image',
     title: 'Pulzifi — AI-Powered Competitive Intelligence',
     description:
       'Monitor any website for changes and get AI-powered strategic insights. Know what competitors do before it impacts your business.',
-    images: ['/opengraph-image'],
-  },
-  robots: {
-    index: true,
-    follow: true,
-    googleBot: {
-      index: true,
-      follow: true,
-      'max-image-preview': 'large',
-      'max-snippet': -1,
-    },
   },
 }
 import {

@@ -12,6 +12,7 @@ import (
 	createcheck "github.com/jcsoftdev/pulzifi-back/modules/monitoring/application/create_check"
 	createmonitoringconfig "github.com/jcsoftdev/pulzifi-back/modules/monitoring/application/create_monitoring_config"
 	createnotificationpreference "github.com/jcsoftdev/pulzifi-back/modules/monitoring/application/create_notification_preference"
+	bulkupdatemonitoringconfig "github.com/jcsoftdev/pulzifi-back/modules/monitoring/application/bulk_update_monitoring_config"
 	getmonitoringconfig "github.com/jcsoftdev/pulzifi-back/modules/monitoring/application/get_monitoring_config"
 	listchecks "github.com/jcsoftdev/pulzifi-back/modules/monitoring/application/list_checks"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/application/orchestrator"
@@ -132,6 +133,7 @@ func (m *Module) RegisterHTTPRoutes(router chi.Router) {
 		})
 		r.Route("/configs", func(cr chi.Router) {
 			cr.Post("/", m.handleCreateMonitoringConfig)
+			cr.Put("/bulk", m.handleBulkUpdateMonitoringConfig)
 			cr.Get("/{pageId}", m.handleGetMonitoringConfig)
 			cr.Put("/{pageId}", m.handleUpdateMonitoringConfig)
 		})
@@ -366,6 +368,27 @@ func (m *Module) handleUpdateMonitoringConfig(w http.ResponseWriter, r *http.Req
 
 	// Use real handler
 	handler := updatemonitoringconfig.NewUpdateMonitoringConfigHandler(repo, m.eventBus, tenant, m.scheduler)
+	handler.HandleHTTP(w, r)
+}
+
+// handleBulkUpdateMonitoringConfig updates check frequency for multiple pages at once
+// @Summary Bulk Update Monitoring Config
+// @Description Update check frequency for multiple pages
+// @Tags monitoring
+// @Security BearerAuth
+// @Accept json
+// @Param request body bulkupdatemonitoringconfig.BulkUpdateMonitoringConfigRequest true "Bulk Update Request"
+// @Success 204
+// @Router /monitoring/configs/bulk [put]
+func (m *Module) handleBulkUpdateMonitoringConfig(w http.ResponseWriter, r *http.Request) {
+	if m.db == nil {
+		http.Error(w, "Database not initialized", http.StatusInternalServerError)
+		return
+	}
+
+	tenant := middleware.GetTenantFromContext(r.Context())
+	repo := persistence.NewMonitoringConfigPostgresRepository(m.db, tenant)
+	handler := bulkupdatemonitoringconfig.NewBulkUpdateMonitoringConfigHandler(repo)
 	handler.HandleHTTP(w, r)
 }
 

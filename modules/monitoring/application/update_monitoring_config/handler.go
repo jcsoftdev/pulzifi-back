@@ -193,6 +193,11 @@ func (h *UpdateMonitoringConfigHandler) Handle(ctx context.Context, pageID uuid.
 	}, nil
 }
 
+// NormalizeCheckFrequency converts various frequency input formats to a canonical form.
+func NormalizeCheckFrequency(input string) string {
+	return normalizeCheckFrequency(input)
+}
+
 func normalizeCheckFrequency(input string) string {
 	normalized := strings.ToLower(strings.TrimSpace(input))
 	normalized = strings.ReplaceAll(normalized, "_", " ")

@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -102,6 +104,27 @@ func (r *MonitoringConfigPostgresRepository) Update(ctx context.Context, config 
 		string(insightTypesJSON), string(alertConditionsJSON), config.CustomAlertCondition,
 		config.UpdatedAt, config.ID,
 	)
+	return err
+}
+
+func (r *MonitoringConfigPostgresRepository) BulkUpdateFrequency(ctx context.Context, pageIDs []uuid.UUID, frequency string) error {
+	if len(pageIDs) == 0 {
+		return nil
+	}
+	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
+		return err
+	}
+	now := time.Now()
+	placeholders := make([]string, len(pageIDs))
+	args := make([]interface{}, len(pageIDs)+2)
+	args[0] = frequency
+	args[1] = now
+	for i, id := range pageIDs {
+		placeholders[i] = fmt.Sprintf("$%d", i+3)
+		args[i+2] = id
+	}
+	q := `UPDATE monitoring_configs SET check_frequency = $1, updated_at = $2 WHERE page_id IN (` + strings.Join(placeholders, ", ") + `) AND deleted_at IS NULL`
+	_, err := r.db.ExecContext(ctx, q, args...)
 	return err
 }
 
