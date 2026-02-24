@@ -16,7 +16,8 @@ export function authCookieOptions(request: NextRequest) {
   const forwardedProto = request.headers.get('x-forwarded-proto')
   const isSecure = forwardedProto ? forwardedProto === 'https' : request.nextUrl.protocol === 'https:'
 
-  const hostname = request.nextUrl.hostname
+  const forwardedHost = request.headers.get('x-forwarded-host')
+  const hostname = forwardedHost?.split(':')[0] || request.nextUrl.hostname
   const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname.endsWith('.localhost')
 
   const cookieDomain = (!isLocalhost && env.COOKIE_DOMAIN) ? env.COOKIE_DOMAIN : undefined

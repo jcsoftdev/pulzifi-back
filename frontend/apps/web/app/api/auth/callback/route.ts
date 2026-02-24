@@ -1,5 +1,6 @@
 import { consumeNonce } from '@/lib/auth-nonce-store'
 import { authCookieOptions } from '@/lib/cookie-options'
+import { getPublicOrigin } from '@/lib/public-origin'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 
@@ -14,18 +15,20 @@ import { NextResponse } from 'next/server'
 export async function GET(request: NextRequest) {
   const nonce = request.nextUrl.searchParams.get('nonce')
 
+  const origin = getPublicOrigin(request)
+
   if (!nonce) {
-    return NextResponse.redirect(new URL('/login', request.url))
+    return NextResponse.redirect(new URL('/login', origin))
   }
 
   const tokens = consumeNonce(nonce)
 
   if (!tokens) {
-    return NextResponse.redirect(new URL('/login?error=SessionExpired', request.url))
+    return NextResponse.redirect(new URL('/login?error=SessionExpired', origin))
   }
 
   const redirectTo = request.nextUrl.searchParams.get('redirectTo') || '/'
-  const response = NextResponse.redirect(new URL(redirectTo, request.url))
+  const response = NextResponse.redirect(new URL(redirectTo, origin))
   const { isSecure, cookieDomain, sameSite } = authCookieOptions(request)
 
   response.cookies.set('access_token', tokens.accessToken, {
