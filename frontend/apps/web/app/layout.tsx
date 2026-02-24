@@ -1,8 +1,18 @@
+import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 
 import '@workspace/ui/globals.css'
 import { NotificationProvider } from '@/lib/notification'
 import { Providers } from '@/components/providers'
+
+export const metadata: Metadata = {
+  title: {
+    template: '%s | Pulzifi',
+    default: 'Pulzifi — AI-Powered Competitive Intelligence',
+  },
+  description:
+    'Monitor any website for changes and get AI-powered strategic insights. Track competitor moves automatically.',
+}
 
 const fontSans = Geist({
   subsets: [

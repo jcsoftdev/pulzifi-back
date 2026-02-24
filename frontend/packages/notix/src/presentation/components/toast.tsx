@@ -102,7 +102,7 @@ export function ToastItem({
 
 	const handleKeyDown = useCallback(
 		(e: React.KeyboardEvent<HTMLDivElement>) => {
-			if (e.key === "Enter" || e.key === " ") {
+			if (e.key === "Enter" || e.key === " " || e.key === "Escape") {
 				e.preventDefault();
 				dismiss();
 			}
@@ -119,12 +119,18 @@ export function ToastItem({
 
 	const align = getAlign();
 
+	const ariaRole = toast.state === "error" ? "alert" : "status";
+	const ariaLabel = `${toast.state}: ${toast.title}`;
+
 	// Headless render
 	if (toast.render) {
 		return (
 			<div
 				ref={ref}
-				role="button"
+				role={ariaRole}
+				aria-label={ariaLabel}
+				aria-live={toast.state === "error" ? "assertive" : "polite"}
+				aria-atomic="true"
 				tabIndex={0}
 				data-notix-toast
 				data-state={toast.state}
@@ -149,7 +155,11 @@ export function ToastItem({
 	return (
 		<div
 			ref={ref}
-			role="button"
+			role={ariaRole}
+			aria-label={ariaLabel}
+			aria-live={toast.state === "error" ? "assertive" : "polite"}
+			aria-atomic="true"
+			aria-expanded={toast.description ? isExpanded : undefined}
 			tabIndex={0}
 			data-notix-toast
 			data-state={toast.state}
@@ -168,6 +178,8 @@ export function ToastItem({
 				align={align}
 				exiting={toast.exiting}
 				canExpand={canExpand}
+				onDismiss={dismiss}
+				duration={toast.duration}
 			/>
 		</div>
 	);

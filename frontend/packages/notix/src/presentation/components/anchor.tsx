@@ -155,6 +155,19 @@ export function NotixAnchor<C extends ComponentType<any>>({
   }, [open])
 
   const handleClick = useCallback(() => setOpen((p) => !p), [])
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        setOpen(false)
+      }
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault()
+        setOpen((p) => !p)
+      }
+    },
+    [],
+  )
 
   /* ─── Derived sizes ─── */
   const pillW = pillSize.w || 40
@@ -234,8 +247,11 @@ export function NotixAnchor<C extends ComponentType<any>>({
       data-state={state}
       data-open={open || undefined}
       onClick={handleClick}
+      onKeyDown={handleKeyDown}
       role="button"
       tabIndex={0}
+      aria-expanded={hasContent ? open : undefined}
+      aria-label={title ? `${state}: ${title}` : undefined}
       style={rootStyle}
       className={classNames?.root}
     >

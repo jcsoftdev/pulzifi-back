@@ -4,8 +4,11 @@ import { Button } from '@workspace/ui/components/atoms/button'
 import { cn } from '@workspace/ui/lib/utils'
 import { ChevronDown, SquarePlus } from 'lucide-react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { memo, useCallback, useEffect, useState } from 'react'
+import { notification } from '@/lib/notification'
+import { useWorkspaces } from '@/features/workspace/application/hooks/use-workspaces'
+import { CreateWorkspaceDialog } from '@/features/workspace/ui/create-workspace-dialog'
 import { ICON_MAP, isWorkspaceActive, WORKSPACES_ROUTE } from '../domain/routes'
 import type { Workspace } from '../domain/types'
 
@@ -40,10 +43,13 @@ const WorkspaceItem = memo(function WorkspaceItem({
 
 export function WorkspacesSection({ workspaces }: Readonly<WorkspacesSectionClientProps>) {
   const pathname = usePathname()
+  const router = useRouter()
   const Icon = ICON_MAP[WORKSPACES_ROUTE.icon]
 
   const isOnWorkspacePath = pathname?.startsWith('/workspaces')
   const [isOpen, setIsOpen] = useState<boolean>(isOnWorkspacePath ?? false)
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
+  const { isLoading, error, createWorkspace } = useWorkspaces()
 
   const listId = 'workspaces-list'
 
@@ -64,11 +70,43 @@ export function WorkspacesSection({ workspaces }: Readonly<WorkspacesSectionClie
   const handleCreateWorkspace = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    console.log('Create workspace clicked')
+    setIsCreateDialogOpen(true)
   }, [])
+
+  const handleCreateSubmit = async (data: {
+    name: string
+    type: 'Personal' | 'Team' | 'Competitor'
+    tags: string[]
+  }) => {
+    try {
+      const result = await createWorkspace(data)
+      if (result) {
+        setIsCreateDialogOpen(false)
+        notification.success({
+          title: 'Workspace created',
+          description: `"${result.name}" is ready.`,
+        })
+        router.refresh()
+      }
+    } catch (err) {
+      notification.error({
+        title: 'Failed to create workspace',
+        description: err instanceof Error ? err.message : 'Please try again.',
+      })
+    }
+  }
 
   return (
     <div className="mt-2">
+      <CreateWorkspaceDialog
+        open={isCreateDialogOpen}
+        onOpenChange={setIsCreateDialogOpen}
+        onSubmit={handleCreateSubmit}
+        isLoading={isLoading}
+        error={error}
+        mode="create"
+      />
+
       <div
         className={cn(
           'w-full px-4 py-2.5 rounded-lg flex items-center justify-between transition-colors',

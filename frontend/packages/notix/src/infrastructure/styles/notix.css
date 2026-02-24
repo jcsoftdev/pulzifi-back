@@ -104,6 +104,14 @@
 	pointer-events: auto;
 	contain: layout style;
 	width: var(--notix-width);
+	outline: none;
+	border-radius: var(--notix-roundness);
+}
+
+[data-notix-toast]:focus-visible {
+	outline: 2px solid var(--notix-state-info);
+	outline-offset: 2px;
+	border-radius: var(--notix-roundness);
 }
 
 /* ============================== Anchor (SVG Morph) ========================= */
@@ -124,8 +132,8 @@
 
 /* ─── Open state: unified drop-shadow over pill + body ─── */
 [data-notix-anchor][data-open] {
-	filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.3))
-		drop-shadow(0 2px 6px rgba(0, 0, 0, 0.15));
+	filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.12))
+		drop-shadow(0 1px 3px rgba(0, 0, 0, 0.08));
 }
 
 /* ─── Canvas: right-aligned so the SVG body rect aligns with the content panel ─── */
@@ -193,8 +201,8 @@
 	height: var(--_h, var(--notix-height));
 	overflow: visible;
 	contain: layout style;
-	filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.3))
-		drop-shadow(0 2px 6px rgba(0, 0, 0, 0.15));
+	filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.12))
+		drop-shadow(0 1px 3px rgba(0, 0, 0, 0.08));
 }
 
 /* Entry: initially hidden */
@@ -391,6 +399,15 @@
 	--_c: var(--notix-state-action);
 }
 
+/* Progress bar state colors */
+[data-notix-progress][data-state] { --_c: var(--notix-state-success); }
+[data-notix-progress][data-state="success"] { --_c: var(--notix-state-success); }
+[data-notix-progress][data-state="error"] { --_c: var(--notix-state-error); }
+[data-notix-progress][data-state="warning"] { --_c: var(--notix-state-warning); }
+[data-notix-progress][data-state="info"] { --_c: var(--notix-state-info); }
+[data-notix-progress][data-state="loading"] { --_c: var(--notix-state-loading); }
+[data-notix-progress][data-state="action"] { --_c: var(--notix-state-action); }
+
 /* Tone + tone-bg via color-mix (same approach as sileo) */
 [data-notix-badge][data-state] {
 	--notix-tone: var(--_c);
@@ -427,6 +444,60 @@
 	background-color: color-mix(in oklch, var(--_c) 25%, transparent);
 }
 
+[data-notix-button]:focus-visible {
+	outline: 2px solid var(--_c);
+	outline-offset: 2px;
+}
+
+/* ─── Dismiss Button ─── */
+
+[data-notix-dismiss] {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	width: 24px;
+	height: 24px;
+	margin-left: auto;
+	padding: 0;
+	border: 0;
+	border-radius: 9999px;
+	background: transparent;
+	color: var(--notix-on-fill);
+	opacity: 0;
+	cursor: pointer;
+	transition: opacity 150ms ease, background-color 150ms ease;
+}
+
+[data-notix-toast]:hover [data-notix-dismiss],
+[data-notix-toast]:focus-within [data-notix-dismiss],
+[data-notix-dismiss]:focus-visible {
+	opacity: 0.6;
+}
+
+[data-notix-dismiss]:hover {
+	opacity: 1;
+	background-color: color-mix(in srgb, var(--notix-on-fill) 10%, transparent);
+}
+
+[data-notix-dismiss]:focus-visible {
+	opacity: 1;
+	outline: 2px solid var(--notix-state-info);
+	outline-offset: 1px;
+}
+
+/* ─── Anchor Focus ─── */
+
+[data-notix-anchor] {
+	outline: none;
+}
+
+[data-notix-anchor]:focus-visible {
+	outline: 2px solid var(--notix-state-info);
+	outline-offset: 2px;
+	border-radius: 4px;
+}
+
 /* ================================ Animations ============================== */
 
 [data-notix-icon="spin"] {
@@ -458,6 +529,51 @@
 	to {
 		opacity: 0;
 		filter: blur(6px);
+	}
+}
+
+/* ─── Progress Bar ─── */
+
+[data-notix-progress] {
+	position: absolute;
+	bottom: 0;
+	left: 0;
+	z-index: 30;
+	height: 3px;
+	border-radius: 0 0 var(--notix-roundness) var(--notix-roundness);
+	background-color: var(--_c, var(--notix-state-info));
+	opacity: 0.5;
+	transform-origin: left;
+	animation: notix-progress var(--notix-progress-duration, 6000ms) linear forwards;
+	pointer-events: none;
+}
+
+[data-notix-toast]:hover [data-notix-progress],
+[data-notix-toast]:focus-within [data-notix-progress] {
+	animation-play-state: paused;
+}
+
+@keyframes notix-progress {
+	from {
+		width: 100%;
+	}
+	to {
+		width: 0%;
+	}
+}
+
+/* ============================== Responsive ================================= */
+
+@media (max-width: 480px) {
+	:root {
+		--notix-width: calc(100vw - 2rem);
+	}
+
+	[data-notix-viewport] {
+		left: 0 !important;
+		right: 0 !important;
+		transform: none !important;
+		align-items: stretch !important;
 	}
 }
 

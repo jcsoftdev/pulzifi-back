@@ -115,7 +115,7 @@ export function WorkspaceFeature({
   }
 
   const handleSettings = () => {
-    console.log('Settings')
+    router.push('/settings')
   }
 
   return (

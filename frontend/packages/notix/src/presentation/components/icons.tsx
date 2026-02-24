@@ -74,3 +74,10 @@ export const LifeBuoyIcon = () => (
 		<circle cx="12" cy="12" r="4" />
 	</Icon>
 );
+
+export const CloseIcon = () => (
+	<Icon title="Close">
+		<path d="M18 6 6 18" />
+		<path d="m6 6 12 12" />
+	</Icon>
+);
