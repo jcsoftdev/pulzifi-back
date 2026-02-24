@@ -28,6 +28,7 @@ import {
 	ArrowRightIcon,
 	CheckIcon,
 	CircleAlertIcon,
+	CloseIcon,
 	InfoIcon,
 	LifeBuoyIcon,
 	LoaderCircleIcon,
@@ -67,6 +68,8 @@ interface DefaultToastProps {
 	ready?: boolean;
 	exiting?: boolean;
 	canExpand?: boolean;
+	onDismiss?: () => void;
+	duration?: number | null;
 }
 
 export const DefaultToast = memo(function DefaultToast({
@@ -76,8 +79,10 @@ export const DefaultToast = memo(function DefaultToast({
 	ready: readyProp,
 	exiting = false,
 	canExpand = true,
+	onDismiss,
+	duration,
 }: DefaultToastProps) {
-	const fill = "#FFFFFF";
+	const fill = "var(--notix-fill)";
 	const id = toast.instanceId;
 
 	const next: View = useMemo(
@@ -355,6 +360,20 @@ export const DefaultToast = memo(function DefaultToast({
 		[view.button],
 	);
 
+	const handleDismissClick = useCallback(
+		(e: React.MouseEvent) => {
+			e.preventDefault();
+			e.stopPropagation();
+			onDismiss?.();
+		},
+		[onDismiss],
+	);
+
+	const rectStyle = useMemo<CSSProperties>(
+		() => ({ fill: view.fill }),
+		[view.fill],
+	);
+
 	/* --------------------------------- Render --------------------------------- */
 
 	return (
@@ -377,7 +396,7 @@ export const DefaultToast = memo(function DefaultToast({
 						data-notix-pill-rect
 						rx={resolvedRoundness}
 						ry={resolvedRoundness}
-						fill={view.fill}
+						style={rectStyle}
 						initial={false}
 						animate={pillAnimate}
 						transition={pillTransition}
@@ -388,7 +407,7 @@ export const DefaultToast = memo(function DefaultToast({
 						width={WIDTH}
 						rx={resolvedRoundness}
 						ry={resolvedRoundness}
-						fill={view.fill}
+						style={rectStyle}
 						initial={false}
 						animate={bodyAnimate}
 						transition={bodyTransition}
@@ -396,7 +415,7 @@ export const DefaultToast = memo(function DefaultToast({
 				</svg>
 			</div>
 
-			{/* Header (badge + title) overlaid on pill */}
+			{/* Header (badge + title + dismiss) overlaid on pill */}
 			<div ref={headerRef} data-notix-header>
 				<div data-notix-header-stack>
 					<div
@@ -448,7 +467,16 @@ export const DefaultToast = memo(function DefaultToast({
 						</div>
 					)}
 				</div>
-
+				{onDismiss && !isLoading && (
+					<button
+						type="button"
+						data-notix-dismiss
+						aria-label="Dismiss notification"
+						onClick={handleDismissClick}
+					>
+						<CloseIcon />
+					</button>
+				)}
 			</div>
 
 			{/* Expandable content */}
@@ -475,6 +503,17 @@ export const DefaultToast = memo(function DefaultToast({
 						)}
 					</div>
 				</div>
+			)}
+
+			{/* Auto-dismiss progress bar */}
+			{duration != null && duration > 0 && !isLoading && (
+				<div
+					data-notix-progress
+					data-state={view.state}
+					role="progressbar"
+					aria-label="Time remaining before notification dismisses"
+					style={{ "--notix-progress-duration": `${duration}ms` } as CSSProperties}
+				/>
 			)}
 		</div>
 	);

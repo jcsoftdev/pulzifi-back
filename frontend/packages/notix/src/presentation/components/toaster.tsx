@@ -104,6 +104,10 @@ export function Toaster({
 					data-notix-viewport
 					data-position={pos}
 					aria-live="polite"
+					aria-atomic="false"
+					aria-relevant="additions removals"
+					role="region"
+					aria-label="Notifications"
 					className={className}
 					style={getViewportStyle(pos)}
 				>

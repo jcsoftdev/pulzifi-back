@@ -26,11 +26,9 @@ export const NavigationService = {
    * Fetch top N workspaces from backend (uses workspace-api from packages/services)
    */
   async fetchTopWorkspaces(limit: number = 5): Promise<Workspace[]> {
-    console.log('[NavigationService] Fetching workspaces with limit:', limit)
     const response = await WorkspaceApi.listWorkspaces({
       limit,
     })
-    console.log('[NavigationService] Response:', response)
 
     // Transform backend DTO to frontend domain type
     return response.workspaces.map((dto) => ({
