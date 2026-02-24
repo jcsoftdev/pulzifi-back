@@ -35,14 +35,9 @@ import (
 	"go.uber.org/zap"
 )
 
-// createEmailProvider creates the appropriate email provider based on config.
+// createEmailProvider creates the Resend email provider.
 func createEmailProvider(cfg *config.Config) emailservices.EmailProvider {
-	if cfg.ResendAPIKey != "" {
-		logger.Info("Using Resend email provider")
-		return emailproviders.NewResendProvider(cfg.ResendAPIKey, cfg.EmailFromAddress, cfg.EmailFromName)
-	}
-	logger.Warn("RESEND_API_KEY not set — using no-op email provider (emails will be logged only)")
-	return emailproviders.NewNoopProvider()
+	return emailproviders.NewResendProvider(cfg.ResendAPIKey, cfg.EmailFromAddress, cfg.EmailFromName)
 }
 
 func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus *eventbus.EventBus, enableWorkers bool) {
