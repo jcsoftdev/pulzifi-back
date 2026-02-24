@@ -40,7 +40,7 @@ export const MAIN_ROUTES: RouteConfig[] = [
   {
     id: 'home',
     label: 'Home',
-    href: '/',
+    href: '/dashboard',
     icon: 'House',
     position: 'main',
     order: 1,
@@ -113,8 +113,8 @@ export function getBottomRoutes(userRole?: string): RouteConfig[] {
  * Check if a path matches a route
  */
 export function isRouteActive(routeHref: string, currentPath: string): boolean {
-  if (routeHref === '/') {
-    return currentPath === '/'
+  if (routeHref === '/dashboard') {
+    return currentPath === '/dashboard'
   }
   return currentPath.startsWith(routeHref)
 }

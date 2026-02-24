@@ -33,8 +33,9 @@ type Response struct {
 	UpdatedAt string  `json:"updated_at"`
 }
 
-// Handle executes the get current user use case
-func (h *Handler) Handle(ctx context.Context, userID uuid.UUID) (*Response, error) {
+// Handle executes the get current user use case.
+// roles should be the list already validated from the JWT token claims.
+func (h *Handler) Handle(ctx context.Context, userID uuid.UUID, roles []string) (*Response, error) {
 	user, err := h.userRepo.GetByID(ctx, userID)
 	if err != nil {
 		return nil, err
@@ -44,7 +45,7 @@ func (h *Handler) Handle(ctx context.Context, userID uuid.UUID) (*Response, erro
 		return nil, nil
 	}
 
-	resp := h.toResponse(user)
+	resp := h.toResponse(user, highestRole(roles))
 
 	tenant, err := h.userRepo.GetUserFirstOrganization(ctx, userID)
 	if err == nil {
@@ -54,7 +55,27 @@ func (h *Handler) Handle(ctx context.Context, userID uuid.UUID) (*Response, erro
 	return resp, nil
 }
 
-func (h *Handler) toResponse(user *entities.User) *Response {
+// highestRole returns the most privileged role name from a list of role name strings.
+// Priority: SUPER_ADMIN > ADMIN > USER > VIEWER
+func highestRole(roles []string) string {
+	priority := map[string]int{
+		"SUPER_ADMIN": 4,
+		"ADMIN":       3,
+		"USER":        2,
+		"VIEWER":      1,
+	}
+	best := "USER"
+	bestPrio := 0
+	for _, r := range roles {
+		if p, ok := priority[r]; ok && p > bestPrio {
+			bestPrio = p
+			best = r
+		}
+	}
+	return best
+}
+
+func (h *Handler) toResponse(user *entities.User, role string) *Response {
 	name := user.FirstName
 	if user.LastName != "" {
 		name = user.FirstName + " " + user.LastName
@@ -69,7 +90,7 @@ func (h *Handler) toResponse(user *entities.User) *Response {
 		ID:        user.ID.String(),
 		Name:      name,
 		Email:     user.Email,
-		Role:      "ADMIN",
+		Role:      role,
 		Status:    status,
 		Avatar:    user.AvatarURL,
 		CreatedAt: user.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),

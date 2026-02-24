@@ -1,7 +1,7 @@
 'use client'
 
 import { Button } from '@workspace/ui/components/atoms'
-import { Plus } from 'lucide-react'
+import { ClipboardCheck, Copy, Monitor, Plus } from 'lucide-react'
 import type { DashboardStats } from '../domain/types'
 import { StatCard } from './stat-card'
 
@@ -52,9 +52,19 @@ export function DashboardHeader({
           value={stats.workplaces.toString()}
           max={stats.maxWorkplaces.toString()}
           label="Workplaces"
+          icon={<Monitor className="w-5 h-5" />}
         />
-        <StatCard value={stats.pages.toString()} max={stats.maxPages.toString()} label="Pages" />
-        <StatCard value={stats.todayChecks.toString()} label="Today's checks" />
+        <StatCard
+          value={stats.pages.toString()}
+          max={stats.maxPages.toString()}
+          label="Pages"
+          icon={<Copy className="w-5 h-5" />}
+        />
+        <StatCard
+          value={stats.todayChecks.toString()}
+          label="Today's checks"
+          icon={<ClipboardCheck className="w-5 h-5" />}
+        />
         <StatCard
           value={stats.monthlyChecks.toString()}
           max={stats.maxMonthlyChecks.toString()}
