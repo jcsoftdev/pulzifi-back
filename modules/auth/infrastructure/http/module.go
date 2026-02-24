@@ -156,6 +156,13 @@ func (m *Module) handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	go func() {
+		subject, html := templates.RegistrationSubmitted(response.FirstName, req.OrganizationName)
+		if sendErr := m.emailProvider.Send(context.Background(), response.Email, subject, html); sendErr != nil {
+			logger.Error("Failed to send registration confirmation email", zap.Error(sendErr))
+		}
+	}()
+
 	writeJSON(w, http.StatusCreated, response)
 }
 

@@ -59,6 +59,18 @@ func AlertNotification(pageURL, changeType, dashboardURL string) (subject, html 
 	return
 }
 
+// RegistrationSubmitted generates the registration confirmation email.
+func RegistrationSubmitted(firstName, orgName string) (subject, html string) {
+	subject = "We received your Pulzifi registration"
+	html = wrap(subject, fmt.Sprintf(`
+<h2>Hi %s,</h2>
+<p>Thanks for signing up! We've received your registration request for <strong>%s</strong> and it's currently under review.</p>
+<p>You'll get another email from us once your account has been approved or if we need more information.</p>
+<p>If you have any questions in the meantime, feel free to reach out to our support team.</p>
+`, firstName, orgName))
+	return
+}
+
 // PasswordReset generates the password reset email.
 func PasswordReset(firstName, resetURL string) (subject, html string) {
 	subject = "Reset your Pulzifi password"
