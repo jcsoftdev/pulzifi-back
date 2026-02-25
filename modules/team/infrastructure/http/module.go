@@ -50,6 +50,7 @@ func (m *Module) RegisterHTTPRoutes(r chi.Router) {
 		r.Post("/members", m.handleInviteMember)
 		r.Put("/members/{member_id}", m.handleUpdateMember)
 		r.Delete("/members/{member_id}", m.handleRemoveMember)
+		r.Post("/members/{member_id}/resend-invite", m.handleResendInvite)
 	})
 }
 
@@ -198,6 +199,59 @@ func (m *Module) handleRemoveMember(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (m *Module) handleResendInvite(w http.ResponseWriter, r *http.Request) {
+	memberIDStr := chi.URLParam(r, "member_id")
+	memberID, err := uuid.Parse(memberIDStr)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid member id"})
+		return
+	}
+
+	subdomain := middleware.GetSubdomainFromContext(r.Context())
+
+	repo := persistence.NewTeamMemberPostgresRepository(m.db)
+
+	member, err := repo.GetByID(r.Context(), memberID)
+	if err != nil || member == nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "member not found"})
+		return
+	}
+
+	if member.InvitationStatus != "pending" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invitation already accepted"})
+		return
+	}
+
+	// Invalidate any existing unused invite tokens for this user
+	_, _ = m.db.ExecContext(r.Context(),
+		`UPDATE public.password_resets SET used = true WHERE user_id = $1 AND used = false`,
+		member.UserID,
+	)
+
+	// Generate a new invite token
+	token, err := invitemember.GenerateResetToken(r.Context(), m.db, member.UserID)
+	if err != nil {
+		logger.Error("Failed to generate invite token for resend", zap.Error(err))
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to resend invitation"})
+		return
+	}
+
+	// Send invitation email (fire-and-forget)
+	go func() {
+		inviterEmail, _ := r.Context().Value(authmw.UserEmailKey).(string)
+		if inviterEmail == "" {
+			inviterEmail = "A team member"
+		}
+		loginURL := fmt.Sprintf("%s/invite/accept?token=%s", m.frontendURL, token)
+		subject, html := templates.TeamInvite(inviterEmail, subdomain, loginURL)
+		if sendErr := m.emailProvider.Send(r.Context(), member.Email, subject, html); sendErr != nil {
+			logger.Error("Failed to resend invite email", zap.Error(sendErr))
+		}
+	}()
+
+	writeJSON(w, http.StatusOK, map[string]string{"message": "invitation resent"})
 }
 
 func writeJSON(w http.ResponseWriter, status int, v interface{}) {

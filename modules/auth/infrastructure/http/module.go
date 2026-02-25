@@ -455,6 +455,16 @@ func (m *Module) handleResetPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Activate any pending organization memberships — the user has accepted their invitation
+	_, err = tx.ExecContext(r.Context(),
+		`UPDATE public.organization_members SET invitation_status = 'active' WHERE user_id = $1 AND invitation_status = 'pending'`,
+		userID,
+	)
+	if err != nil {
+		logger.Error("Failed to activate pending organization memberships", zap.Error(err))
+		// Non-fatal: proceed with password reset even if this update fails
+	}
+
 	if err := tx.Commit(); err != nil {
 		logger.Error("Failed to commit password reset", zap.Error(err))
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to reset password"})

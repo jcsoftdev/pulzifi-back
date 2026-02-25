@@ -89,23 +89,49 @@ func (h *Handler) Handle(ctx context.Context, requestID uuid.UUID, reviewerID uu
 		return err
 	}
 
-	// 3. Generate schema name and create organization
+	// 3. Create organization — or reuse if already approved for this subdomain
 	schemaName := h.orgService.GenerateSchemaName(regReq.OrganizationSubdomain)
-	org := orgentities.NewOrganization(regReq.OrganizationName, regReq.OrganizationSubdomain, schemaName, regReq.UserID)
+	var orgID uuid.UUID
+	orgAlreadyExisted := false
 
-	_, err = tx.ExecContext(ctx,
-		`INSERT INTO public.organizations (id, name, subdomain, schema_name, owner_user_id, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-		org.ID, org.Name, org.Subdomain, org.SchemaName, org.OwnerUserID, org.CreatedAt, org.UpdatedAt,
-	)
-	if err != nil {
-		logger.Error("Failed to create organization", zap.Error(err))
-		return fmt.Errorf("failed to create organization: %w", err)
+	err = tx.QueryRowContext(ctx,
+		`SELECT id, schema_name FROM public.organizations WHERE subdomain = $1`,
+		regReq.OrganizationSubdomain,
+	).Scan(&orgID, &schemaName)
+
+	if err == sql.ErrNoRows {
+		// Org doesn't exist yet — create it
+		org := orgentities.NewOrganization(regReq.OrganizationName, regReq.OrganizationSubdomain, schemaName, regReq.UserID)
+		orgID = org.ID
+		_, err = tx.ExecContext(ctx,
+			`INSERT INTO public.organizations (id, name, subdomain, schema_name, owner_user_id, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+			org.ID, org.Name, org.Subdomain, org.SchemaName, org.OwnerUserID, org.CreatedAt, org.UpdatedAt,
+		)
+		if err != nil {
+			logger.Error("Failed to create organization", zap.Error(err))
+			return fmt.Errorf("failed to create organization: %w", err)
+		}
+	} else if err != nil {
+		logger.Error("Failed to check for existing organization", zap.Error(err))
+		return fmt.Errorf("failed to check organization: %w", err)
+	} else {
+		orgAlreadyExisted = true
+		logger.Info("Organization already exists, adding user as member",
+			zap.String("subdomain", regReq.OrganizationSubdomain),
+			zap.String("user_id", regReq.UserID.String()),
+		)
 	}
 
-	// 4. Insert organization member (role: owner)
+	// 4. Insert organization member (owner if new org, MEMBER if joining an existing one)
+	memberRole := "owner"
+	if orgAlreadyExisted {
+		memberRole = "MEMBER"
+	}
 	_, err = tx.ExecContext(ctx,
-		`INSERT INTO public.organization_members (id, organization_id, user_id, role, joined_at) VALUES ($1, $2, $3, $4, NOW())`,
-		uuid.New(), org.ID, regReq.UserID, "owner",
+		`INSERT INTO public.organization_members (id, organization_id, user_id, role, joined_at)
+		 VALUES ($1, $2, $3, $4, NOW())
+		 ON CONFLICT (organization_id, user_id) DO NOTHING`,
+		uuid.New(), orgID, regReq.UserID, memberRole,
 	)
 	if err != nil {
 		logger.Error("Failed to create organization member", zap.Error(err))
@@ -129,12 +155,13 @@ func (h *Handler) Handle(ctx context.Context, requestID uuid.UUID, reviewerID uu
 		return fmt.Errorf("failed to assign role: %w", err)
 	}
 
-	// 6. Assign default (starter) plan to the organization
+	// 6. Assign default (starter) plan to the organization (only if newly created)
 	_, err = tx.ExecContext(ctx,
 		`INSERT INTO public.organization_plans (id, organization_id, plan_id, status, started_at, created_at, updated_at)
 		 SELECT gen_random_uuid(), $1, id, 'active', NOW(), NOW(), NOW()
-		 FROM public.plans WHERE name = 'starter' LIMIT 1`,
-		org.ID,
+		 FROM public.plans WHERE name = 'starter' LIMIT 1
+		 ON CONFLICT DO NOTHING`,
+		orgID,
 	)
 	if err != nil {
 		logger.Error("Failed to assign default plan", zap.Error(err))
@@ -147,11 +174,14 @@ func (h *Handler) Handle(ctx context.Context, requestID uuid.UUID, reviewerID uu
 	}
 
 	// Provision tenant schema (DDL — must run outside the transaction)
-	if err := sharedDB.ProvisionTenantSchema(h.db, schemaName); err != nil {
-		logger.Error("Failed to provision tenant schema after approval — manual migration may be needed",
-			zap.Error(err),
-			zap.String("schema", schemaName),
-		)
+	// Skip if the org already existed — schema was already provisioned during the first approval
+	if !orgAlreadyExisted {
+		if err := sharedDB.ProvisionTenantSchema(h.db, schemaName); err != nil {
+			logger.Error("Failed to provision tenant schema after approval — manual migration may be needed",
+				zap.Error(err),
+				zap.String("schema", schemaName),
+			)
+		}
 	}
 
 	logger.Info("User approved successfully",

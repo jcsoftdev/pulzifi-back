@@ -33,6 +33,7 @@ func (r *teamMemberPostgresRepository) ListByOrganization(ctx context.Context, o
 	query := `
 		SELECT
 			om.id, om.organization_id, om.user_id, om.role, om.invited_by, om.joined_at,
+			om.invitation_status,
 			u.first_name, u.last_name, u.email, u.avatar_url
 		FROM public.organization_members om
 		INNER JOIN public.users u ON om.user_id = u.id
@@ -50,6 +51,7 @@ func (r *teamMemberPostgresRepository) ListByOrganization(ctx context.Context, o
 		m := &entities.TeamMember{}
 		err := rows.Scan(
 			&m.ID, &m.OrganizationID, &m.UserID, &m.Role, &m.InvitedBy, &m.JoinedAt,
+			&m.InvitationStatus,
 			&m.FirstName, &m.LastName, &m.Email, &m.AvatarURL,
 		)
 		if err != nil {
@@ -64,6 +66,7 @@ func (r *teamMemberPostgresRepository) GetByID(ctx context.Context, memberID uui
 	query := `
 		SELECT
 			om.id, om.organization_id, om.user_id, om.role, om.invited_by, om.joined_at,
+			om.invitation_status,
 			u.first_name, u.last_name, u.email, u.avatar_url
 		FROM public.organization_members om
 		INNER JOIN public.users u ON om.user_id = u.id
@@ -72,6 +75,7 @@ func (r *teamMemberPostgresRepository) GetByID(ctx context.Context, memberID uui
 	m := &entities.TeamMember{}
 	err := r.db.QueryRowContext(ctx, query, memberID).Scan(
 		&m.ID, &m.OrganizationID, &m.UserID, &m.Role, &m.InvitedBy, &m.JoinedAt,
+		&m.InvitationStatus,
 		&m.FirstName, &m.LastName, &m.Email, &m.AvatarURL,
 	)
 	if err == sql.ErrNoRows {
@@ -87,6 +91,7 @@ func (r *teamMemberPostgresRepository) GetByUserAndOrg(ctx context.Context, orgI
 	query := `
 		SELECT
 			om.id, om.organization_id, om.user_id, om.role, om.invited_by, om.joined_at,
+			om.invitation_status,
 			u.first_name, u.last_name, u.email, u.avatar_url
 		FROM public.organization_members om
 		INNER JOIN public.users u ON om.user_id = u.id
@@ -95,6 +100,7 @@ func (r *teamMemberPostgresRepository) GetByUserAndOrg(ctx context.Context, orgI
 	m := &entities.TeamMember{}
 	err := r.db.QueryRowContext(ctx, query, orgID, userID).Scan(
 		&m.ID, &m.OrganizationID, &m.UserID, &m.Role, &m.InvitedBy, &m.JoinedAt,
+		&m.InvitationStatus,
 		&m.FirstName, &m.LastName, &m.Email, &m.AvatarURL,
 	)
 	if err == sql.ErrNoRows {
@@ -138,20 +144,26 @@ func (r *teamMemberPostgresRepository) FindUserByEmail(ctx context.Context, emai
 	return m, nil
 }
 
-func (r *teamMemberPostgresRepository) AddMember(ctx context.Context, orgID, userID uuid.UUID, role string, invitedBy *uuid.UUID) (*entities.TeamMember, error) {
+func (r *teamMemberPostgresRepository) AddMember(ctx context.Context, orgID, userID uuid.UUID, role string, invitedBy *uuid.UUID, invitationStatus string) (*entities.TeamMember, error) {
 	id := uuid.New()
 	now := time.Now()
 
 	query := `
-		INSERT INTO public.organization_members (id, organization_id, user_id, role, invited_by, joined_at)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO public.organization_members (id, organization_id, user_id, role, invited_by, joined_at, invitation_status)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`
-	_, err := r.db.ExecContext(ctx, query, id, orgID, userID, role, invitedBy, now)
+	_, err := r.db.ExecContext(ctx, query, id, orgID, userID, role, invitedBy, now, invitationStatus)
 	if err != nil {
 		return nil, err
 	}
 
 	return r.GetByID(ctx, id)
+}
+
+func (r *teamMemberPostgresRepository) UpdateInvitationStatus(ctx context.Context, memberID uuid.UUID, status string) error {
+	query := `UPDATE public.organization_members SET invitation_status = $1 WHERE id = $2 AND deleted_at IS NULL`
+	_, err := r.db.ExecContext(ctx, query, status, memberID)
+	return err
 }
 
 func (r *teamMemberPostgresRepository) UpdateRole(ctx context.Context, memberID uuid.UUID, role string) error {

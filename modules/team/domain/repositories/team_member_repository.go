@@ -13,8 +13,9 @@ type TeamMemberRepository interface {
 	GetByUserAndOrg(ctx context.Context, orgID, userID uuid.UUID) (*entities.TeamMember, error)
 	FindUserByEmail(ctx context.Context, email string) (*entities.TeamMember, error)
 	CreateUser(ctx context.Context, email, firstName, lastName, hashedPassword string) (uuid.UUID, error)
-	AddMember(ctx context.Context, orgID, userID uuid.UUID, role string, invitedBy *uuid.UUID) (*entities.TeamMember, error)
+	AddMember(ctx context.Context, orgID, userID uuid.UUID, role string, invitedBy *uuid.UUID, invitationStatus string) (*entities.TeamMember, error)
 	UpdateRole(ctx context.Context, memberID uuid.UUID, role string) error
+	UpdateInvitationStatus(ctx context.Context, memberID uuid.UUID, status string) error
 	Remove(ctx context.Context, memberID uuid.UUID) error
 	GetOrganizationIDBySubdomain(ctx context.Context, subdomain string) (uuid.UUID, error)
 }
