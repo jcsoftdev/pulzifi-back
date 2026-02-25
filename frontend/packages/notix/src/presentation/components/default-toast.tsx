@@ -70,6 +70,7 @@ interface DefaultToastProps {
 	canExpand?: boolean;
 	onDismiss?: () => void;
 	duration?: number | null;
+	showProgress?: boolean;
 }
 
 export const DefaultToast = memo(function DefaultToast({
@@ -81,6 +82,7 @@ export const DefaultToast = memo(function DefaultToast({
 	canExpand = true,
 	onDismiss,
 	duration,
+	showProgress = false,
 }: DefaultToastProps) {
 	const fill = "var(--notix-fill)";
 	const id = toast.instanceId;
@@ -506,7 +508,7 @@ export const DefaultToast = memo(function DefaultToast({
 			)}
 
 			{/* Auto-dismiss progress bar */}
-			{duration != null && duration > 0 && !isLoading && (
+			{showProgress && hasDesc && duration != null && duration > 0 && !isLoading && (
 				<div
 					data-notix-progress
 					data-state={view.state}

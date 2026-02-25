@@ -27,7 +27,7 @@ type MockTeamMemberRepository struct {
 
 	FindUserByEmailFn       func(ctx context.Context, email string) (*entities.TeamMember, error)
 	GetByUserAndOrgFn       func(ctx context.Context, orgID, userID uuid.UUID) (*entities.TeamMember, error)
-	AddMemberFn             func(ctx context.Context, orgID, userID uuid.UUID, role string, invitedBy *uuid.UUID) (*entities.TeamMember, error)
+	AddMemberFn             func(ctx context.Context, orgID, userID uuid.UUID, role string, invitedBy *uuid.UUID, invitationStatus string) (*entities.TeamMember, error)
 	GetOrgIDBySubdomainFn   func(ctx context.Context, subdomain string) (uuid.UUID, error)
 	CreateUserFn            func(ctx context.Context, email, firstName, lastName, hashedPassword string) (uuid.UUID, error)
 
@@ -67,12 +67,16 @@ func (m *MockTeamMemberRepository) CreateUser(ctx context.Context, email, firstN
 	return m.CreateUserResult, m.CreateUserErr
 }
 
-func (m *MockTeamMemberRepository) AddMember(ctx context.Context, orgID, userID uuid.UUID, role string, invitedBy *uuid.UUID) (*entities.TeamMember, error) {
+func (m *MockTeamMemberRepository) AddMember(ctx context.Context, orgID, userID uuid.UUID, role string, invitedBy *uuid.UUID, invitationStatus string) (*entities.TeamMember, error) {
 	m.AddMemberCalls++
 	if m.AddMemberFn != nil {
-		return m.AddMemberFn(ctx, orgID, userID, role, invitedBy)
+		return m.AddMemberFn(ctx, orgID, userID, role, invitedBy, invitationStatus)
 	}
 	return m.AddMemberResult, m.AddMemberErr
+}
+
+func (m *MockTeamMemberRepository) UpdateInvitationStatus(_ context.Context, _ uuid.UUID, _ string) error {
+	return nil
 }
 
 func (m *MockTeamMemberRepository) UpdateRole(_ context.Context, _ uuid.UUID, _ string) error {

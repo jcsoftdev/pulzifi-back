@@ -73,6 +73,7 @@ export interface NotixOptions {
 	state?: ToastState;
 	position?: NotixPosition;
 	duration?: Duration;
+	showProgress?: boolean;
 	icon?: ReactNode | null;
 	styles?: NotixStyles;
 	className?: string;
@@ -96,6 +97,7 @@ export interface ToastData {
 	readonly description?: ReactNode | string;
 	readonly position: NotixPosition;
 	readonly duration: Duration;
+	readonly showProgress?: boolean;
 	readonly icon?: ReactNode | null;
 	readonly styles?: NotixStyles;
 	readonly className?: string;

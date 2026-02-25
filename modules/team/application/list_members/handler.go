@@ -28,15 +28,16 @@ func (h *ListMembersHandler) Handle(ctx context.Context, subdomain string) (*Lis
 	dtos := make([]*TeamMemberResponse, 0, len(members))
 	for _, m := range members {
 		dtos = append(dtos, &TeamMemberResponse{
-			ID:        m.ID,
-			UserID:    m.UserID,
-			Role:      m.Role,
-			FirstName: m.FirstName,
-			LastName:  m.LastName,
-			Email:     m.Email,
-			AvatarURL: m.AvatarURL,
-			InvitedBy: m.InvitedBy,
-			JoinedAt:  m.JoinedAt,
+			ID:               m.ID,
+			UserID:           m.UserID,
+			Role:             m.Role,
+			FirstName:        m.FirstName,
+			LastName:         m.LastName,
+			Email:            m.Email,
+			AvatarURL:        m.AvatarURL,
+			InvitedBy:        m.InvitedBy,
+			JoinedAt:         m.JoinedAt,
+			InvitationStatus: m.InvitationStatus,
 		})
 	}
 

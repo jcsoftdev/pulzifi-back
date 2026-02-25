@@ -180,6 +180,7 @@ export function ToastItem({
 				canExpand={canExpand}
 				onDismiss={dismiss}
 				duration={toast.duration}
+				showProgress={toast.showProgress}
 			/>
 		</div>
 	);

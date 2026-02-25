@@ -91,6 +91,7 @@ func isPublicPath(path string) bool {
 		"/api/v1/auth/refresh",   // Token refresh
 		"/api/v1/auth/providers", // OAuth providers
 		"/api/v1/auth/csrf",      // CSRF token
+		"/api/v1/admin",          // Super admin routes (global, not tenant-specific)
 		"/api/docs",              // API Documentation
 		"/swagger",
 		"/health",

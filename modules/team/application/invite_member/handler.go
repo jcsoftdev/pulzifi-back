@@ -66,7 +66,11 @@ func (h *InviteMemberHandler) Handle(ctx context.Context, subdomain string, invi
 	}
 
 	inviterIDPtr := &inviterID
-	member, err := h.repo.AddMember(ctx, orgID, userID, role, inviterIDPtr)
+	invitationStatus := "active"
+	if isNewUser {
+		invitationStatus = "pending"
+	}
+	member, err := h.repo.AddMember(ctx, orgID, userID, role, inviterIDPtr, invitationStatus)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +88,7 @@ func (h *InviteMemberHandler) Handle(ctx context.Context, subdomain string, invi
 
 	// Generate a password reset token for new users so they can set their own password
 	if isNewUser && h.db != nil {
-		token, err := generateResetToken(ctx, h.db, userID)
+		token, err := GenerateResetToken(ctx, h.db, userID)
 		if err != nil {
 			logger.Error("Failed to generate set-password token for invited user", zap.Error(err))
 		} else {
@@ -95,8 +99,8 @@ func (h *InviteMemberHandler) Handle(ctx context.Context, subdomain string, invi
 	return resp, nil
 }
 
-// generateResetToken creates a password reset token and stores it in public.password_resets.
-func generateResetToken(ctx context.Context, db *sql.DB, userID uuid.UUID) (string, error) {
+// GenerateResetToken creates a password reset token and stores it in public.password_resets.
+func GenerateResetToken(ctx context.Context, db *sql.DB, userID uuid.UUID) (string, error) {
 	tokenBytes := make([]byte, 32)
 	if _, err := rand.Read(tokenBytes); err != nil {
 		return "", err
