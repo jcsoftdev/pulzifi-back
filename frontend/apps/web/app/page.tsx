@@ -79,7 +79,7 @@ export default async function HomePage() {
   const tenant = extractTenantFromHostname(hostname)
 
   if (tenant) {
-    redirect('/login')
+    redirect('/workspaces')
   }
 
   return (
