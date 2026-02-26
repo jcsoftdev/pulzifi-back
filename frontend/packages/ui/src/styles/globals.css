@@ -95,6 +95,8 @@
 }
 
 @theme inline {
+  --font-family-heading: var(--font-heading);
+  --font-family-logo: var(--font-logo);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);

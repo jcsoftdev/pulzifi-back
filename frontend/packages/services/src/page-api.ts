@@ -45,6 +45,12 @@ export interface CreatePageDto {
   name: string
   url: string
   tags?: string[]
+  checkFrequency?: string
+  blockAdsCookies?: boolean
+  scheduleType?: string
+  enabledInsightTypes?: string[]
+  enabledAlertConditions?: string[]
+  customAlertCondition?: string
 }
 
 export interface ListPagesParams {
@@ -225,7 +231,24 @@ export const PageApi = {
       tags: data.tags,
     }
     const response = await http.post<PageBackendDto>('/api/v1/pages', payload)
-    return transformPage(response)
+    const page = transformPage(response)
+
+    // Create monitoring config via upsert with the selected settings
+    const configPayload: Record<string, unknown> = {
+      check_frequency: data.checkFrequency ?? 'Off',
+      schedule_type: data.scheduleType ?? 'all_time',
+      block_ads_cookies: data.blockAdsCookies ?? true,
+      enabled_insight_types: data.enabledInsightTypes ?? ['marketing', 'market_analysis'],
+      enabled_alert_conditions: data.enabledAlertConditions ?? ['any_changes'],
+      custom_alert_condition: data.customAlertCondition ?? '',
+    }
+    try {
+      await http.put(`/api/v1/monitoring/configs/${page.id}`, configPayload)
+    } catch (err) {
+      console.error('[PageAPI] Failed to create monitoring config for page', page.id, err)
+    }
+
+    return page
   },
 
   async updatePage(id: string, data: Partial<CreatePageDto>): Promise<Page> {

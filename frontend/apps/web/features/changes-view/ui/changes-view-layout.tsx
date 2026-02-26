@@ -76,11 +76,13 @@ export function ChangesViewLayout({
           )}
           <Select value={resolvedCheckId} onValueChange={handleCheckChange}>
             <SelectTrigger className="w-full bg-background">
-              <SelectValue placeholder="Select a check" />
+              <SelectValue placeholder="Select a check">
+                {activeCheck ? formatDateTime(activeCheck.checkedAt) : null}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {checks.map((check) => (
-                <SelectItem key={check.id} value={check.id}>
+                <SelectItem key={check.id} value={check.id} textValue={formatDateTime(check.checkedAt)}>
                   {formatDateTime(check.checkedAt)}
                   {check.extractorFailed ? ' — Extractor failed' : ''}
                 </SelectItem>

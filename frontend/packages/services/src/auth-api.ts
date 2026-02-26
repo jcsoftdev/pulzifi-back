@@ -94,6 +94,23 @@ export const AuthApi = {
     await http.post('/api/auth/logout', {})
   },
 
+  async updateProfile(data: { firstName: string; lastName: string }): Promise<User> {
+    const http = await getHttpClient()
+    const response = await http.put<UserBackendDto>('/api/v1/auth/me', {
+      first_name: data.firstName,
+      last_name: data.lastName,
+    })
+    return transformUser(response)
+  },
+
+  async changePassword(data: { currentPassword: string; newPassword: string }): Promise<void> {
+    const http = await getHttpClient()
+    await http.put('/api/v1/auth/me/password', {
+      current_password: data.currentPassword,
+      new_password: data.newPassword,
+    })
+  },
+
   async checkSubdomain(subdomain: string): Promise<{ available: boolean; message?: string }> {
     const http = await createBffHttpClient()
     return http.post<{ available: boolean; message?: string }>(

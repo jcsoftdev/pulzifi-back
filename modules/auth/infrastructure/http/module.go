@@ -136,6 +136,8 @@ func (m *Module) RegisterHTTPRoutes(r chi.Router) {
 		r.Group(func(r chi.Router) {
 			r.Use(m.authMiddleware.Authenticate)
 			r.Get("/me", m.handleGetCurrentUser)
+			r.Put("/me", m.handleUpdateCurrentUser)
+			r.Put("/me/password", m.handleChangePassword)
 			r.Delete("/me", m.handleDeleteCurrentUser)
 		})
 	})
@@ -634,6 +636,107 @@ func (m *Module) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		redirectURL = "/"
 	}
 	http.Redirect(w, r, redirectURL, http.StatusTemporaryRedirect)
+}
+
+func (m *Module) handleUpdateCurrentUser(w http.ResponseWriter, r *http.Request) {
+	userIDStr, ok := r.Context().Value(authmw.UserIDKey).(string)
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid user id"})
+		return
+	}
+
+	var req struct {
+		FirstName string `json:"first_name"`
+		LastName  string `json:"last_name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+
+	user, err := m.userRepo.GetByID(r.Context(), userID)
+	if err != nil || user == nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "user not found"})
+		return
+	}
+
+	if req.FirstName != "" {
+		user.FirstName = req.FirstName
+	}
+	if req.LastName != "" {
+		user.LastName = req.LastName
+	}
+
+	if err := m.userRepo.Update(r.Context(), user); err != nil {
+		logger.Error("Failed to update user profile", zap.Error(err))
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to update profile"})
+		return
+	}
+
+	roles, _ := r.Context().Value(authmw.UserRolesKey).([]string)
+	response, _ := m.getCurrentUserHandler.Handle(r.Context(), userID, roles)
+	writeJSON(w, http.StatusOK, response)
+}
+
+func (m *Module) handleChangePassword(w http.ResponseWriter, r *http.Request) {
+	userIDStr, ok := r.Context().Value(authmw.UserIDKey).(string)
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid user id"})
+		return
+	}
+
+	var req struct {
+		CurrentPassword string `json:"current_password"`
+		NewPassword     string `json:"new_password"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+
+	if len(req.NewPassword) < 8 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "password must be at least 8 characters"})
+		return
+	}
+
+	user, err := m.userRepo.GetByID(r.Context(), userID)
+	if err != nil || user == nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "user not found"})
+		return
+	}
+
+	if err := m.authService.ValidateCredentials(r.Context(), user, req.CurrentPassword); err != nil {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "current password is incorrect"})
+		return
+	}
+
+	hashedPassword, err := m.authService.HashPassword(req.NewPassword)
+	if err != nil {
+		logger.Error("Failed to hash new password", zap.Error(err))
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to update password"})
+		return
+	}
+
+	user.PasswordHash = hashedPassword
+	if err := m.userRepo.Update(r.Context(), user); err != nil {
+		logger.Error("Failed to update user password", zap.Error(err))
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to update password"})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"message": "password updated successfully"})
 }
 
 func writeJSON(w http.ResponseWriter, status int, v interface{}) {

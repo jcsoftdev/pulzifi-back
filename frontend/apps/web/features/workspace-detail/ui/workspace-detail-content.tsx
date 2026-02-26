@@ -8,7 +8,8 @@ import { FileText, Settings, SquarePlus, Trash2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
 import { useState } from 'react'
-import type { CreatePageDto, Page } from '@/features/page/domain/types'
+import { getFrequencyLabel } from '@/features/page/domain/types'
+import type { CreatePageDto, EditPageDto, Page } from '@/features/page/domain/types'
 import { AddPageDialog } from '@/features/page/ui/add-page-dialog'
 import { BulkDeletePagesDialog } from '@/features/page/ui/bulk-delete-pages-dialog'
 import { BulkFrequencyChangeDialog } from '@/features/page/ui/bulk-frequency-change-dialog'
@@ -19,6 +20,7 @@ import { useWorkspaces } from '@/features/workspace/application/hooks/use-worksp
 import type { Workspace, WorkspaceType } from '@/features/workspace/domain/types'
 import { DeleteWorkspaceDialog } from '@/features/workspace/ui/delete-workspace-dialog'
 import { EditWorkspaceDialog } from '@/features/workspace/ui/edit-workspace-dialog'
+
 
 export interface WorkspaceDetailContentProps {
   workspace: Workspace
@@ -57,11 +59,6 @@ export function WorkspaceDetailContent({
 
     try {
       const newPage = await PageApi.createPage(data)
-      // Seed default monitoring config: Weekdays schedule, frequency Off
-      await PageApi.updateMonitoringConfig(newPage.id, {
-        scheduleType: 'all_time',
-        checkFrequency: 'Off',
-      })
       setPages((prev) => [
         newPage,
         ...prev,
@@ -86,17 +83,34 @@ export function WorkspaceDetailContent({
     setIsDeletePageOpen(true)
   }
 
-  const handleUpdatePage = async (
-    pageId: string,
-    data: {
-      name: string
-      url: string
-    }
-  ) => {
+  const handleUpdatePage = async (pageId: string, data: EditPageDto) => {
     setIsLoading(true)
     try {
-      const updatedPage = await PageApi.updatePage(pageId, data)
-      setPages((prev) => prev.map((p) => (p.id === pageId ? updatedPage : p)))
+      const updatedPage = await PageApi.updatePage(pageId, {
+        name: data.name,
+        url: data.url,
+        tags: data.tags,
+      })
+      await PageApi.updateMonitoringConfig(pageId, {
+        checkFrequency: data.checkFrequency,
+        scheduleType: data.scheduleType,
+        blockAdsCookies: data.blockAdsCookies,
+        enabledInsightTypes: data.enabledInsightTypes,
+        enabledAlertConditions: data.enabledAlertConditions,
+        customAlertCondition: data.customAlertCondition,
+      })
+      setPages((prev) =>
+        prev.map((p) => {
+          if (p.id !== pageId) return p
+          return {
+            ...p,
+            name: updatedPage.name,
+            url: updatedPage.url,
+            tags: data.tags ?? p.tags,
+            checkFrequency: data.checkFrequency ?? p.checkFrequency,
+          }
+        })
+      )
       setIsEditPageOpen(false)
       setSelectedPage(null)
       notification.success({ title: 'Page updated', description: `"${updatedPage.name}" has been updated.` })
@@ -381,7 +395,7 @@ export function WorkspaceDetailContent({
         onOpenChange={setIsBulkFrequencyOpen}
         onConfirm={handleBulkFrequencyConfirm}
         count={pendingBulkFrequency?.ids.length ?? 0}
-        frequency={pendingBulkFrequency?.frequency ?? ''}
+        frequency={pendingBulkFrequency ? getFrequencyLabel(pendingBulkFrequency.frequency) : ''}
         isLoading={isLoading}
       />
 

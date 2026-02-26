@@ -16,6 +16,9 @@ services:
   # ============================================================
   # DATABASE SERVICES
   # ============================================================
+  # TOGGLE: Comment/uncomment the postgres service below for LOCAL mode
+  # For LOCAL: uncomment postgres + use DB_HOST: postgres in monolith/worker
+  # For PRODUCTION (Railway): comment out postgres + use DB_HOST: shinkansen.proxy.rlwy.net
 
   postgres:
     image: postgres:17-alpine
@@ -113,11 +116,9 @@ services:
         condition: service_healthy
     environment:
       HTTP_PORT: 9090
-      DB_HOST: postgres
-      DB_USER: ${DB_USER:-pulzifi_user}
-      DB_PASSWORD: ${DB_PASSWORD:-pulzifi_password}
-      DB_NAME: ${DB_NAME:-pulzifi}
-      # REDIS_HOST: pulzifi-redis-monolith
+      # All DB config comes from .env
+      # For LOCAL: DB_HOST=postgres (service name)
+      # For PROD: DB_HOST=shinkansen.proxy.rlwy.net
       MINIO_ENDPOINT: localstack:4566
       MINIO_ACCESS_KEY: test
       MINIO_SECRET_KEY: test
@@ -125,11 +126,11 @@ services:
       MINIO_USE_SSL: ${MINIO_USE_SSL:-false}
       MINIO_PUBLIC_URL: http://localhost:4566
       EXTRACTOR_URL: http://extractor:3000
-      # REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_password}
       ENVIRONMENT: development
       ENABLE_WORKERS: "false"
     env_file:
       - .env
+      - .env.docker  # Overrides DB_HOST for docker (postgres/Railway)
     ports:
       - "9090:9090"
     volumes:
@@ -159,22 +160,20 @@ services:
       extractor:
         condition: service_healthy
     environment:
-      DB_HOST: postgres
-      DB_USER: ${DB_USER:-pulzifi_user}
-      DB_PASSWORD: ${DB_PASSWORD:-pulzifi_password}
-      DB_NAME: ${DB_NAME:-pulzifi}
-      # REDIS_HOST: pulzifi-redis-monolith
+      # All DB config comes from .env
+      # For LOCAL: DB_HOST=postgres (service name)
+      # For PROD: DB_HOST=shinkansen.proxy.rlwy.net
       MINIO_ENDPOINT: localstack:4566
       MINIO_ACCESS_KEY: test
       MINIO_SECRET_KEY: test
       MINIO_BUCKET: ${MINIO_BUCKET:-pulzifi-snapshots}
       MINIO_USE_SSL: ${MINIO_USE_SSL:-false}
       EXTRACTOR_URL: http://extractor:3000
-      # REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_password}
       ENVIRONMENT: development
       ENABLE_WORKERS: "true"
     env_file:
       - .env
+      - .env.docker  # Overrides DB_HOST for docker (postgres/Railway)
     volumes:
       - .:/workspace
     networks:

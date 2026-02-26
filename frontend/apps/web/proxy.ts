@@ -203,6 +203,6 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!api|_next|_nextjs|__nextjs|favicon.ico|login|register|forgot-password|reset-password|lecture-ai).*)',
+    '/((?!api|_next|_nextjs|__nextjs|favicon.ico|images|login|register|forgot-password|reset-password|lecture-ai).*)',
   ],
 }

@@ -2,9 +2,10 @@
 
 import { Avatar, AvatarFallback, AvatarImage } from '@workspace/ui/components/atoms/avatar'
 import { Button } from '@workspace/ui/components/atoms/button'
-import { LogOut } from 'lucide-react'
+import { LogOut, Settings } from 'lucide-react'
 import { useState } from 'react'
 import type { User } from '../domain/types'
+import { AccountSettingsDialog } from '../../account-settings/ui/account-settings-dialog'
 
 export interface ProfileFooterProps {
   user: User
@@ -12,6 +13,7 @@ export interface ProfileFooterProps {
 
 export function ProfileFooter({ user }: Readonly<ProfileFooterProps>) {
   const [isLoggingOut, setIsLoggingOut] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   const handleLogout = async () => {
     setIsLoggingOut(true)
@@ -42,33 +44,50 @@ export function ProfileFooter({ user }: Readonly<ProfileFooterProps>) {
   }
 
   return (
-    <div className="p-2">
-      <div className="flex items-center gap-2 p-2 border border-border rounded-lg bg-card">
-        <Avatar className="w-8 h-8 rounded-lg">
-          {user.avatar && <AvatarImage src={user.avatar} alt={user.name} />}
-          <AvatarFallback className="text-xs rounded-lg">
-            {user.name.charAt(0).toUpperCase()}
-          </AvatarFallback>
-        </Avatar>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-foreground truncate leading-tight">
-            {user.name}
-          </p>
-          <p className="text-xs font-normal text-muted-foreground truncate leading-tight">
-            {user.role}
-          </p>
+    <>
+      <div className="p-2">
+        <div className="flex items-center gap-2 p-2 border border-border rounded-lg bg-card">
+          <Avatar className="w-8 h-8 rounded-lg">
+            {user.avatar && <AvatarImage src={user.avatar} alt={user.name} />}
+            <AvatarFallback className="text-xs rounded-lg">
+              {user.name.charAt(0).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-foreground truncate leading-tight">
+              {user.name}
+            </p>
+            <p className="text-xs font-normal text-muted-foreground truncate leading-tight">
+              {user.role}
+            </p>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="h-4 w-4 flex-shrink-0"
+            aria-label="Account settings"
+            onClick={() => setSettingsOpen(true)}
+          >
+            <Settings className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="h-4 w-4 flex-shrink-0"
+            aria-label="Logout"
+            onClick={handleLogout}
+            disabled={isLoggingOut}
+          >
+            <LogOut className={`h-4 w-4 ${isLoggingOut ? 'animate-spin' : ''}`} />
+          </Button>
         </div>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className="h-4 w-4 flex-shrink-0"
-          aria-label="Logout"
-          onClick={handleLogout}
-          disabled={isLoggingOut}
-        >
-          <LogOut className={`h-4 w-4 ${isLoggingOut ? 'animate-spin' : ''}`} />
-        </Button>
       </div>
-    </div>
+
+      <AccountSettingsDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        user={user}
+      />
+    </>
   )
 }

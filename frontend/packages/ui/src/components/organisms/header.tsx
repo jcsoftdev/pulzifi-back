@@ -17,6 +17,7 @@ export interface HeaderProps extends React.HTMLAttributes<HTMLElement> {
   hasNotifications?: boolean
   notificationCount?: number
   notificationSlot?: React.ReactNode
+  checksSlot?: React.ReactNode
   breadcrumbs?: BreadcrumbItem[]
 }
 
@@ -28,6 +29,7 @@ const Header = React.forwardRef<HTMLElement, HeaderProps>(
       hasNotifications,
       notificationCount,
       notificationSlot,
+      checksSlot,
       breadcrumbs,
       children,
       className,
@@ -47,7 +49,7 @@ const Header = React.forwardRef<HTMLElement, HeaderProps>(
             {breadcrumbs && breadcrumbs.length > 0 ? <Breadcrumb items={breadcrumbs} /> : null}
           </div>
           <div className="flex items-center gap-4">
-            {checks && (
+            {checksSlot ?? (checks && (
               <div className="hidden md:block">
                 <ChecksTag
                   current={checks.current}
@@ -55,7 +57,7 @@ const Header = React.forwardRef<HTMLElement, HeaderProps>(
                   refillDate={checks.refillDate}
                 />
               </div>
-            )}
+            ))}
             {notificationSlot ?? (
               <NotificationButton
                 onClick={onNotificationClick}
