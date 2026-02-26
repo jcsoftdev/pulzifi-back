@@ -18,16 +18,8 @@ import {
 import { cn } from '@workspace/ui/lib/utils'
 import { ChevronDown, Clock, RefreshCcw, Trash2 } from 'lucide-react'
 import { useState } from 'react'
+import { CHECK_FREQUENCY_OPTIONS } from '../domain/types'
 import type { Page } from '../domain/types'
-
-const CHECK_FREQUENCIES = [
-  'Off',
-  'Every 1 hour',
-  'Every 2 hours',
-  'Every 8 hours',
-  'Every day',
-  'Every 48 hours',
-] as const
 
 export interface PagesTableProps {
   pages: Page[]
@@ -111,9 +103,9 @@ export function PagesTable({
                 <SelectValue placeholder="Set frequency…" />
               </SelectTrigger>
               <SelectContent>
-                {CHECK_FREQUENCIES.map((freq) => (
-                  <SelectItem key={freq} value={freq}>
-                    {freq}
+                {CHECK_FREQUENCY_OPTIONS.map((freq) => (
+                  <SelectItem key={freq.value} value={freq.value}>
+                    {freq.label}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -280,9 +272,9 @@ export function PagesTable({
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {CHECK_FREQUENCIES.map((freq) => (
-                            <SelectItem key={freq} value={freq}>
-                              {freq}
+                          {CHECK_FREQUENCY_OPTIONS.map((freq) => (
+                            <SelectItem key={freq.value} value={freq.value}>
+                              {freq.label}
                             </SelectItem>
                           ))}
                         </SelectContent>

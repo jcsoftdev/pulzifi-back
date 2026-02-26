@@ -44,6 +44,13 @@ export function VisualPulse({
     recompute,
   ])
 
+  const updatePosition = useCallback((clientX: number) => {
+    if (!containerRef.current) return
+    const rect = containerRef.current.getBoundingClientRect()
+    const x = Math.max(0, Math.min(clientX - rect.left, rect.width))
+    setSliderPosition((x / rect.width) * 100)
+  }, [])
+
   const handleMouseDown = useCallback(() => {
     setIsResizing(true)
   }, [])
@@ -54,36 +61,50 @@ export function VisualPulse({
 
   const handleMouseMove = useCallback(
     (e: MouseEvent) => {
-      if (!isResizing || !containerRef.current) return
-
-      const rect = containerRef.current.getBoundingClientRect()
-      const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width))
-      const percentage = (x / rect.width) * 100
-      setSliderPosition(percentage)
+      if (!isResizing) return
+      updatePosition(e.clientX)
     },
-    [
-      isResizing,
-    ]
+    [isResizing, updatePosition]
+  )
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    e.preventDefault()
+    setIsResizing(true)
+  }, [])
+
+  const handleTouchEnd = useCallback(() => {
+    setIsResizing(false)
+  }, [])
+
+  const handleTouchMove = useCallback(
+    (e: TouchEvent) => {
+      if (!isResizing || !e.touches[0]) return
+      e.preventDefault()
+      updatePosition(e.touches[0].clientX)
+    },
+    [isResizing, updatePosition]
   )
 
   useEffect(() => {
     if (isResizing) {
       globalThis.addEventListener('mousemove', handleMouseMove)
       globalThis.addEventListener('mouseup', handleMouseUp)
+      globalThis.addEventListener('touchmove', handleTouchMove, { passive: false })
+      globalThis.addEventListener('touchend', handleTouchEnd)
     } else {
       globalThis.removeEventListener('mousemove', handleMouseMove)
       globalThis.removeEventListener('mouseup', handleMouseUp)
+      globalThis.removeEventListener('touchmove', handleTouchMove)
+      globalThis.removeEventListener('touchend', handleTouchEnd)
     }
 
     return () => {
       globalThis.removeEventListener('mousemove', handleMouseMove)
       globalThis.removeEventListener('mouseup', handleMouseUp)
+      globalThis.removeEventListener('touchmove', handleTouchMove)
+      globalThis.removeEventListener('touchend', handleTouchEnd)
     }
-  }, [
-    isResizing,
-    handleMouseMove,
-    handleMouseUp,
-  ])
+  }, [isResizing, handleMouseMove, handleMouseUp, handleTouchMove, handleTouchEnd])
 
   if (!currentScreenshotUrl) {
     return (
@@ -164,12 +185,13 @@ export function VisualPulse({
         <button
           type="button"
           aria-label="Drag to compare images"
-          className="absolute top-0 bottom-0 w-1 bg-primary cursor-ew-resize z-10 flex items-center justify-center hover:bg-primary/90 transition-colors border-0 p-0"
+          className="absolute top-0 bottom-0 w-1 bg-primary cursor-ew-resize z-10 flex items-center justify-center hover:bg-primary/90 transition-colors border-0 p-0 touch-none"
           style={{
             left: `${sliderPosition}%`,
             transform: 'translateX(-50%)',
           }}
           onMouseDown={handleMouseDown}
+          onTouchStart={handleTouchStart}
         >
           <div className="w-8 h-16 bg-primary rounded-lg flex items-center justify-center shadow-lg">
             <svg

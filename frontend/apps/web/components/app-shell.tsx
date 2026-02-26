@@ -1,6 +1,6 @@
 'use client'
 
-import { Button, Sheet, SheetContent, SheetTrigger } from '@workspace/ui/components/atoms'
+import { Button, Sheet, SheetContent, SheetTitle, SheetTrigger } from '@workspace/ui/components/atoms'
 import type { BreadcrumbItem } from '@workspace/ui/components/molecules'
 import { NotificationButton } from '@workspace/ui/components/molecules'
 import { Header } from '@workspace/ui/components/organisms'
@@ -12,13 +12,15 @@ import { useEffect, useState } from 'react'
 export interface AppShellProps {
   children: ReactNode
   sidebar: ReactNode
-  checksData: {
+  checksData?: {
     current: number
     max: number
     refillDate: string
   }
   hasNotifications?: boolean
   notificationCount?: number
+  checksSlot?: ReactNode
+  notificationsSlot?: ReactNode
   breadcrumbs?: BreadcrumbItem[]
 }
 
@@ -28,6 +30,8 @@ export function AppShell({
   checksData,
   hasNotifications = false,
   notificationCount = 0,
+  checksSlot,
+  notificationsSlot,
   breadcrumbs: initialBreadcrumbs,
 }: Readonly<AppShellProps>) {
   const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbItem[] | undefined>(initialBreadcrumbs)
@@ -56,9 +60,10 @@ export function AppShell({
           <div className="sticky top-0 z-10 bg-background">
             <Header
               checks={checksData}
+              checksSlot={checksSlot}
               hasNotifications={hasNotifications}
               notificationCount={notificationCount}
-              notificationSlot={
+              notificationSlot={notificationsSlot ?? (
                 <NotixAnchor
                   as={NotificationButton}
                   hasNotifications={hasNotifications}
@@ -71,7 +76,7 @@ export function AppShell({
                     description: 'text-sm text-muted-foreground',
                   }}
                 />
-              }
+              )}
               breadcrumbs={breadcrumbs}
             >
               <SheetTrigger asChild>
@@ -85,6 +90,7 @@ export function AppShell({
         </div>
       </div>
       <SheetContent side="left" className="p-0 w-auto border-none">
+        <SheetTitle className="sr-only">Navigation</SheetTitle>
         {sidebar}
       </SheetContent>
     </Sheet>

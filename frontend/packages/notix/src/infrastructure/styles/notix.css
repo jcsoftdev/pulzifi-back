@@ -580,6 +580,14 @@
 		transform: none !important;
 		align-items: stretch !important;
 	}
+
+	/* Anchor popup: keep compact width so the SVG (fixed at 350px) aligns
+	   correctly with the trigger. Prevents the canvas/content from stretching
+	   full-viewport-width and appearing disconnected from the bell icon. */
+	[data-notix-anchor] [data-notix-canvas],
+	[data-notix-anchor-content] {
+		width: min(350px, calc(100vw - 2rem));
+	}
 }
 
 /* ============================== Reduced Motion ============================= */

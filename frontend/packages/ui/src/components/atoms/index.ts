@@ -1,3 +1,6 @@
+export { Checkbox } from './checkbox'
+export { RadioGroup, RadioGroupItem } from './radio-group'
+export { Textarea } from './textarea'
 export {
   AlertDialog,
   AlertDialogAction,
@@ -53,3 +56,4 @@ export {
   SheetTrigger,
 } from './sheet'
 export { Skeleton } from './skeleton'
+export { TagsInput } from './tags-input'

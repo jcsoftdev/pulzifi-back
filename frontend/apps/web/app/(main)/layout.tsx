@@ -1,28 +1,36 @@
 export const dynamic = 'force-dynamic'
 
+import { Suspense } from 'react'
 import { AppShell } from '@/components/app-shell'
 import { AuthGuard } from '@/components/auth-guard'
-import { NotificationService } from '@/features/notifications/domain/services/notification-service'
+import { NotificationsLoader } from '@/features/notifications/ui/notifications-loader'
 import { SidebarFeature } from '@/features/sidebar'
-import { UsageService } from '@/features/usage/domain/services/usage-service'
+import { SidebarSkeleton } from '@/features/sidebar/ui/sidebar-skeleton'
+import { ChecksDataLoader } from '@/features/usage/ui/checks-data-loader'
 
-export default async function MainLayout({
+export default function MainLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  // Fetch de datos en el servidor usando domain services
-  // Cada feature tiene su propio service en su domain layer
-  const checksData = await UsageService.getChecksData()
-  const notificationsData = await NotificationService.getNotificationsData()
-
   return (
     <AuthGuard>
       <AppShell
-        sidebar={<SidebarFeature />}
-        checksData={checksData}
-        hasNotifications={notificationsData.hasNotifications}
-        notificationCount={notificationsData.notificationCount}
+        sidebar={
+          <Suspense fallback={<SidebarSkeleton />}>
+            <SidebarFeature />
+          </Suspense>
+        }
+        checksSlot={
+          <Suspense fallback={<div className="hidden md:block"><div className="h-7 w-44 bg-muted rounded-md animate-pulse" /></div>}>
+            <ChecksDataLoader />
+          </Suspense>
+        }
+        notificationsSlot={
+          <Suspense fallback={<div className="w-16 h-8 bg-muted rounded-md animate-pulse" />}>
+            <NotificationsLoader />
+          </Suspense>
+        }
       >
         {children}
       </AppShell>

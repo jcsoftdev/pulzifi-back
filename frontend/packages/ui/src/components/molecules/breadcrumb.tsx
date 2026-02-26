@@ -6,10 +6,11 @@ import * as React from 'react'
 import { cn } from '../../lib/utils'
 
 export interface BreadcrumbItem {
-  label: string
+  label: React.ReactNode
   href?: string
   icon?: React.ReactNode
   isCurrent?: boolean
+  id?: string
 }
 
 export interface BreadcrumbProps {
@@ -23,9 +24,10 @@ export function Breadcrumb({ items, className }: Readonly<BreadcrumbProps>) {
       <ol className="flex items-center flex-wrap gap-1">
         {items.map((item, index) => {
           const isCurrent = item.isCurrent || index === items.length - 1
+          const key = item.id || `breadcrumb-${index}`
 
           return (
-            <React.Fragment key={`${item.label}-${index}`}>
+            <React.Fragment key={key}>
               {index > 0 && (
                 <li aria-hidden="true">
                   <ChevronRight className="w-4 h-4 text-foreground/45" />
