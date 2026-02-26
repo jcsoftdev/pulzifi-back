@@ -83,7 +83,7 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
 
   try {
     await AuthApi.getCurrentUser()
-    redirect('/')
+    redirect('/workspaces')
   } catch (error: unknown) {
     if (isRedirectError(error)) throw error
     // Any other error (401, etc.) — allow auth pages to render
