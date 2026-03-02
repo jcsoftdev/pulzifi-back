@@ -115,6 +115,12 @@ func (m *Module) AuthMiddleware() *authmw.AuthMiddleware {
 	return m.authMiddleware
 }
 
+func (m *Module) LoginHandler() *login.Handler          { return m.loginHandler }
+func (m *Module) RefreshHandler() *refreshapp.Handler    { return m.refreshHandler }
+func (m *Module) TokenService() services.TokenService    { return m.tokenService }
+func (m *Module) CookieDomain() string                   { return m.cookieDomain }
+func (m *Module) CookieSecure() bool                     { return m.cookieSecure }
+
 func (m *Module) ModuleName() string {
 	return "Auth"
 }

@@ -24,7 +24,7 @@ func (m *mockSnapshotPort) ExecuteCheck(_ context.Context, _ uuid.UUID, _ string
 
 func TestWorkerPool_DispatchSucceeds(t *testing.T) {
 	port := &mockSnapshotPort{}
-	pool := NewWorkerPool(port, 10)
+	pool := NewWorkerPool(port, 10, nil)
 	pool.Start(2)
 	defer pool.Stop()
 
@@ -43,7 +43,7 @@ func TestWorkerPool_DispatchSucceeds(t *testing.T) {
 
 func TestWorkerPool_QueueLength(t *testing.T) {
 	port := &mockSnapshotPort{delay: 100 * time.Millisecond}
-	pool := NewWorkerPool(port, 5)
+	pool := NewWorkerPool(port, 5, nil)
 	// Don't start workers so jobs stay in queue
 	// We can't call Start(0) as that starts 0 workers - exactly what we want
 
@@ -62,7 +62,7 @@ func TestWorkerPool_QueueLength(t *testing.T) {
 func TestWorkerPool_RetriesAndSucceeds(t *testing.T) {
 	port := &mockSnapshotPort{}
 	// Buffer size of 1 means second dispatch will block unless first is consumed
-	pool := NewWorkerPool(port, 1)
+	pool := NewWorkerPool(port, 1, nil)
 	pool.Start(1)
 	defer pool.Stop()
 
@@ -82,7 +82,7 @@ func TestWorkerPool_RetriesAndSucceeds(t *testing.T) {
 func TestWorkerPool_RetriesExhausted(t *testing.T) {
 	port := &mockSnapshotPort{}
 	// Buffer size 1, no workers started -> queue will never drain
-	pool := NewWorkerPool(port, 1)
+	pool := NewWorkerPool(port, 1, nil)
 
 	// Fill the buffer
 	_ = pool.Dispatch(context.Background(), uuid.New(), "https://example.com", "tenant_1")
@@ -100,7 +100,7 @@ func TestWorkerPool_RetriesExhausted(t *testing.T) {
 
 func TestWorkerPool_ContextCancellation(t *testing.T) {
 	port := &mockSnapshotPort{}
-	pool := NewWorkerPool(port, 1)
+	pool := NewWorkerPool(port, 1, nil)
 
 	// Fill the buffer
 	_ = pool.Dispatch(context.Background(), uuid.New(), "https://example.com", "tenant_1")

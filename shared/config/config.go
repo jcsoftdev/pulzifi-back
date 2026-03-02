@@ -36,6 +36,7 @@ type Config struct {
 
 	// Frontend
 	FrontendURL string
+	NextJSURL   string // Internal Next.js server URL for reverse proxy
 	StaticDir   string
 
 	// CORS
@@ -109,7 +110,7 @@ func Load() *Config {
 		RedisHost:             getEnv("REDIS_HOST", ""),
 		RedisPort:             getEnv("REDIS_PORT", "6379"),
 		RedisPassword:         getEnv("REDIS_PASSWORD", ""),
-		HTTPPort:              getEnvFallback("HTTP_PORT", "PORT", "9090"),
+		HTTPPort:              getEnvFallback("HTTP_PORT", "PORT", "3000"),
 		GRPCPort:              getEnv("GRPC_PORT", "9000"),
 		Environment:           env,
 		LogLevel:              getEnv("LOG_LEVEL", "info"),
@@ -118,6 +119,7 @@ func Load() *Config {
 		JWTRefreshExpiration:  getEnvDurationSeconds("JWT_REFRESH_EXPIRATION", 604800), // Default 7 days
 		CookieDomain:          getEnv("COOKIE_DOMAIN", ""),
 		FrontendURL:           getEnv("FRONTEND_URL", ""),
+		NextJSURL:             getEnv("NEXTJS_URL", "http://localhost:3001"),
 		StaticDir:             getEnv("STATIC_DIR", "./frontend/dist"),
 		CORSAllowedOrigins:    mustGetEnv("CORS_ALLOWED_ORIGINS"),
 		CORSAllowedMethods:    getEnv("CORS_ALLOWED_METHODS", "GET,POST,PUT,DELETE,OPTIONS,PATCH"),

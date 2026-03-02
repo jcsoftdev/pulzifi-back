@@ -128,38 +128,35 @@ func (r *MonitoringConfigPostgresRepository) BulkUpdateFrequency(ctx context.Con
 	return err
 }
 
+func buildDueConditions() string {
+	allKeys := entities.AllFrequencyKeys()
+	var conditions []string
+	for canonical, keys := range allKeys {
+		pgInterval := entities.FrequencyToPostgresInterval[canonical]
+		for _, k := range keys {
+			conditions = append(conditions,
+				fmt.Sprintf("(mc.check_frequency = '%s' AND (p.last_checked_at IS NULL OR p.last_checked_at < NOW() - INTERVAL '%s'))", k, pgInterval))
+		}
+	}
+	return strings.Join(conditions, " OR\n\t\t\t")
+}
+
 func (r *MonitoringConfigPostgresRepository) GetDueSnapshotTasks(ctx context.Context) ([]entities.SnapshotTask, error) {
 	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
 		return nil, err
 	}
 
-	q := `
+	q := fmt.Sprintf(`
 		SELECT p.id, p.url
 		FROM pages p
 		JOIN monitoring_configs mc ON p.id = mc.page_id
 		WHERE p.deleted_at IS NULL AND mc.deleted_at IS NULL
 		AND mc.check_frequency != 'Off'
 		AND (
-			(mc.check_frequency = '30m' AND (p.last_checked_at IS NULL OR p.last_checked_at < NOW() - INTERVAL '30 minutes')) OR
-			(mc.check_frequency = '1h' AND (p.last_checked_at IS NULL OR p.last_checked_at < NOW() - INTERVAL '1 hour')) OR
-			(mc.check_frequency = '1 hr' AND (p.last_checked_at IS NULL OR p.last_checked_at < NOW() - INTERVAL '1 hour')) OR
-			(mc.check_frequency = '2h' AND (p.last_checked_at IS NULL OR p.last_checked_at < NOW() - INTERVAL '2 hours')) OR
-			(mc.check_frequency = '2 hr' AND (p.last_checked_at IS NULL OR p.last_checked_at < NOW() - INTERVAL '2 hours')) OR
-			(mc.check_frequency = '8h' AND (p.last_checked_at IS NULL OR p.last_checked_at < NOW() - INTERVAL '8 hours')) OR
-			(mc.check_frequency = '8 hr' AND (p.last_checked_at IS NULL OR p.last_checked_at < NOW() - INTERVAL '8 hours')) OR
-			(mc.check_frequency = '24h' AND (p.last_checked_at IS NULL OR p.last_checked_at < NOW() - INTERVAL '1 day')) OR
-			(mc.check_frequency = '1d' AND (p.last_checked_at IS NULL OR p.last_checked_at < NOW() - INTERVAL '1 day')) OR
-			(mc.check_frequency = '48h' AND (p.last_checked_at IS NULL OR p.last_checked_at < NOW() - INTERVAL '48 hours')) OR
-			(mc.check_frequency = '2d' AND (p.last_checked_at IS NULL OR p.last_checked_at < NOW() - INTERVAL '48 hours')) OR
-			(mc.check_frequency = 'Every 30 minutes' AND (p.last_checked_at IS NULL OR p.last_checked_at < NOW() - INTERVAL '30 minutes')) OR
-			(mc.check_frequency = 'Every 1 hour' AND (p.last_checked_at IS NULL OR p.last_checked_at < NOW() - INTERVAL '1 hour')) OR
-			(mc.check_frequency = 'Every 2 hours' AND (p.last_checked_at IS NULL OR p.last_checked_at < NOW() - INTERVAL '2 hours')) OR
-			(mc.check_frequency = 'Every 8 hours' AND (p.last_checked_at IS NULL OR p.last_checked_at < NOW() - INTERVAL '8 hours')) OR
-			(mc.check_frequency = 'Every day' AND (p.last_checked_at IS NULL OR p.last_checked_at < NOW() - INTERVAL '1 day')) OR
-			(mc.check_frequency = 'Every 48 hours' AND (p.last_checked_at IS NULL OR p.last_checked_at < NOW() - INTERVAL '48 hours'))
+			%s
 		)
 		LIMIT 50
-	`
+	`, buildDueConditions())
 
 	rows, err := r.db.QueryContext(ctx, q)
 	if err != nil {

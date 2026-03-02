@@ -1,20 +1,33 @@
 import { WorkspaceApi } from '@workspace/services'
+import { handleServerAuthError } from '@/lib/auth/server-auth'
 import type { Workspace } from '../../domain/types'
 
 export async function getWorkspacesServer(): Promise<Workspace[]> {
-  const response = await WorkspaceApi.listWorkspaces()
-  return response.workspaces
+  try {
+    const response = await WorkspaceApi.listWorkspaces()
+    return response.workspaces
+  } catch (error) {
+    return handleServerAuthError(error)
+  }
 }
 
 export async function getWorkspaceServer(id: string): Promise<Workspace> {
-  return await WorkspaceApi.getWorkspace(id)
+  try {
+    return await WorkspaceApi.getWorkspace(id)
+  } catch (error) {
+    return handleServerAuthError(error)
+  }
 }
 
 export async function createWorkspaceServer(data: {
   name: string
   type: 'Personal' | 'Team' | 'Competitor'
 }): Promise<Workspace> {
-  return await WorkspaceApi.createWorkspace(data)
+  try {
+    return await WorkspaceApi.createWorkspace(data)
+  } catch (error) {
+    return handleServerAuthError(error)
+  }
 }
 
 export async function updateWorkspaceServer(
@@ -25,9 +38,17 @@ export async function updateWorkspaceServer(
     tags: string[]
   }>
 ): Promise<Workspace> {
-  return await WorkspaceApi.updateWorkspace(id, data)
+  try {
+    return await WorkspaceApi.updateWorkspace(id, data)
+  } catch (error) {
+    return handleServerAuthError(error)
+  }
 }
 
 export async function deleteWorkspaceServer(id: string): Promise<void> {
-  await WorkspaceApi.deleteWorkspace(id)
+  try {
+    await WorkspaceApi.deleteWorkspace(id)
+  } catch (error) {
+    return handleServerAuthError(error)
+  }
 }

@@ -129,10 +129,12 @@ export default function ChangesPage() {
   )
   const activeCheckId = checkIdParam || detectedChecks[0]?.id || ''
   // Find position in the FULL sorted list so previousCheck is always the
-  // immediately preceding run (not the previous detected change)
+  // immediately preceding successful run with a screenshot
   const activeCheckIndex = checks.findIndex((c) => c.id === activeCheckId)
   const activeCheck = checks[activeCheckIndex]
-  const previousCheck = checks[activeCheckIndex + 1]
+  const previousCheck = checks
+    .slice(activeCheckIndex + 1)
+    .find((c) => c.status === 'success' && c.screenshotUrl)
 
   useEffect(() => {
     async function loadData() {

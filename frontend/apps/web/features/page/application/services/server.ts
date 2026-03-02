@@ -1,4 +1,5 @@
 import { PageApi } from '@workspace/services'
+import { handleServerAuthError } from '@/lib/auth/server-auth'
 import type { CreatePageDto, Page } from '../../domain/types'
 
 export async function getPagesServer(workspaceId: string): Promise<Page[]> {
@@ -7,27 +8,38 @@ export async function getPagesServer(workspaceId: string): Promise<Page[]> {
       workspaceId,
     })
   } catch (error) {
-    const err = error instanceof Error ? error : new Error(String(error))
-    console.error('[PageService] Failed to list pages', {
-      workspaceId,
-      error: err.message,
-    })
-    throw error
+    return handleServerAuthError(error)
   }
 }
 
 export async function getPageServer(id: string): Promise<Page> {
-  return await PageApi.getPage(id)
+  try {
+    return await PageApi.getPage(id)
+  } catch (error) {
+    return handleServerAuthError(error)
+  }
 }
 
 export async function createPageServer(data: CreatePageDto): Promise<Page> {
-  return await PageApi.createPage(data)
+  try {
+    return await PageApi.createPage(data)
+  } catch (error) {
+    return handleServerAuthError(error)
+  }
 }
 
 export async function updatePageServer(id: string, data: Partial<CreatePageDto>): Promise<Page> {
-  return await PageApi.updatePage(id, data)
+  try {
+    return await PageApi.updatePage(id, data)
+  } catch (error) {
+    return handleServerAuthError(error)
+  }
 }
 
 export async function deletePageServer(id: string): Promise<void> {
-  await PageApi.deletePage(id)
+  try {
+    await PageApi.deletePage(id)
+  } catch (error) {
+    return handleServerAuthError(error)
+  }
 }

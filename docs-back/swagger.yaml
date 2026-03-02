@@ -1,0 +1,1750 @@
+basePath: /api/v1
+definitions:
+  add_workspace_member.AddWorkspaceMemberRequest:
+    properties:
+      role:
+        type: string
+      user_id:
+        type: string
+    type: object
+  add_workspace_member.AddWorkspaceMemberResponse:
+    properties:
+      invited_at:
+        type: string
+      invited_by:
+        type: string
+      role:
+        type: string
+      user_id:
+        type: string
+      workspace_id:
+        type: string
+    type: object
+  create_monitoring_config.CreateMonitoringConfigRequest:
+    properties:
+      block_ads_cookies:
+        type: boolean
+      check_frequency:
+        description: '"5m", "1h", "1d"'
+        type: string
+      page_id:
+        type: string
+      schedule_type:
+        description: '"continuous", "scheduled"'
+        type: string
+      timezone:
+        description: '"UTC", "America/New_York", etc'
+        type: string
+    type: object
+  create_monitoring_config.CreateMonitoringConfigResponse:
+    properties:
+      block_ads_cookies:
+        type: boolean
+      check_frequency:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: string
+      page_id:
+        type: string
+      schedule_type:
+        type: string
+      timezone:
+        type: string
+    type: object
+  create_notification_preference.CreateNotificationPreferenceRequest:
+    properties:
+      change_types:
+        items:
+          type: string
+        type: array
+      email_enabled:
+        type: boolean
+      page_id:
+        type: string
+      user_id:
+        type: string
+      workspace_id:
+        type: string
+    type: object
+  create_notification_preference.CreateNotificationPreferenceResponse:
+    properties:
+      change_types:
+        items:
+          type: string
+        type: array
+      created_at:
+        type: string
+      email_enabled:
+        type: boolean
+      id:
+        type: string
+      page_id:
+        type: string
+      user_id:
+        type: string
+      workspace_id:
+        type: string
+    type: object
+  createalert.CreateAlertRequest:
+    properties:
+      check_id:
+        type: string
+      description:
+        type: string
+      metadata:
+        $ref: '#/definitions/entities.Metadata'
+      page_id:
+        type: string
+      title:
+        type: string
+      type:
+        type: string
+      workspace_id:
+        type: string
+    required:
+    - check_id
+    - page_id
+    - title
+    - type
+    - workspace_id
+    type: object
+  createalert.CreateAlertResponse:
+    properties:
+      check_id:
+        type: string
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      metadata:
+        $ref: '#/definitions/entities.Metadata'
+      page_id:
+        type: string
+      title:
+        type: string
+      type:
+        type: string
+      workspace_id:
+        type: string
+    type: object
+  createcheck.CreateCheckRequest:
+    properties:
+      change_detected:
+        type: boolean
+      change_type:
+        type: string
+      duration_ms:
+        type: integer
+      error_message:
+        type: string
+      html_snapshot_url:
+        type: string
+      page_id:
+        type: string
+      screenshot_url:
+        type: string
+      status:
+        type: string
+    required:
+    - page_id
+    - status
+    type: object
+  createcheck.CreateCheckResponse:
+    properties:
+      change_detected:
+        type: boolean
+      change_type:
+        type: string
+      checked_at:
+        type: string
+      id:
+        type: string
+      page_id:
+        type: string
+      status:
+        type: string
+    type: object
+  createpage.CreatePageRequest:
+    properties:
+      name:
+        type: string
+      url:
+        type: string
+      workspace_id:
+        type: string
+    required:
+    - name
+    - url
+    - workspace_id
+    type: object
+  createpage.CreatePageResponse:
+    properties:
+      check_count:
+        type: integer
+      check_frequency:
+        type: string
+      created_at:
+        type: string
+      created_by:
+        type: string
+      detected_changes:
+        type: integer
+      id:
+        type: string
+      last_change_detected_at:
+        type: string
+      last_checked_at:
+        type: string
+      name:
+        type: string
+      tags:
+        items:
+          type: string
+        type: array
+      thumbnail_url:
+        type: string
+      updated_at:
+        type: string
+      url:
+        type: string
+      workspace_id:
+        type: string
+    type: object
+  createworkspace.CreateWorkspaceRequest:
+    properties:
+      name:
+        type: string
+      type:
+        type: string
+    required:
+    - name
+    - type
+    type: object
+  createworkspace.CreateWorkspaceResponse:
+    properties:
+      created_at:
+        type: string
+      created_by:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      type:
+        type: string
+    type: object
+  entities.Metadata:
+    additionalProperties: true
+    type: object
+  get_current_user.Response:
+    properties:
+      avatar:
+        type: string
+      created_at:
+        type: string
+      email:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      role:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  handlers.GetOrganizationResponseDTO:
+    properties:
+      created_at:
+        example: "2025-11-11T12:58:42Z"
+        type: string
+      id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      name:
+        example: Acme Corp
+        type: string
+      subdomain:
+        example: acme
+        type: string
+    type: object
+  list_workspace_members.ListWorkspaceMembersResponse:
+    properties:
+      members:
+        items:
+          $ref: '#/definitions/list_workspace_members.WorkspaceMemberDTO'
+        type: array
+    type: object
+  list_workspace_members.WorkspaceMemberDTO:
+    properties:
+      invited_at:
+        type: string
+      invited_by:
+        type: string
+      role:
+        type: string
+      user_id:
+        type: string
+    type: object
+  listpages.ListPagesResponse:
+    properties:
+      pages:
+        items:
+          $ref: '#/definitions/listpages.PageResponse'
+        type: array
+    type: object
+  listpages.PageResponse:
+    properties:
+      check_count:
+        type: integer
+      check_frequency:
+        type: string
+      created_at:
+        type: string
+      created_by:
+        type: string
+      detected_changes:
+        type: integer
+      id:
+        type: string
+      last_change_detected_at:
+        type: string
+      last_checked_at:
+        type: string
+      name:
+        type: string
+      tags:
+        items:
+          type: string
+        type: array
+      thumbnail_url:
+        type: string
+      updated_at:
+        type: string
+      url:
+        type: string
+      workspace_id:
+        type: string
+    type: object
+  listworkspaces.ListWorkspacesResponse:
+    properties:
+      workspaces:
+        items:
+          $ref: '#/definitions/listworkspaces.Workspace'
+        type: array
+    type: object
+  listworkspaces.Workspace:
+    properties:
+      created_at:
+        type: string
+      created_by:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      type:
+        type: string
+    type: object
+  login.Request:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  login.Response:
+    properties:
+      access_token:
+        type: string
+      expires_in:
+        type: integer
+      refresh_token:
+        type: string
+      tenant:
+        description: First organization subdomain
+        type: string
+      token_type:
+        type: string
+    type: object
+  refresh_token.Request:
+    properties:
+      refresh_token:
+        type: string
+    required:
+    - refresh_token
+    type: object
+  refresh_token.Response:
+    properties:
+      access_token:
+        type: string
+      expires_in:
+        type: integer
+      refresh_token:
+        type: string
+      token_type:
+        type: string
+    type: object
+  register.Request:
+    properties:
+      email:
+        type: string
+      first_name:
+        type: string
+      last_name:
+        type: string
+      password:
+        minLength: 8
+        type: string
+    required:
+    - email
+    - first_name
+    - last_name
+    - password
+    type: object
+  register.Response:
+    properties:
+      email:
+        type: string
+      first_name:
+        type: string
+      last_name:
+        type: string
+      message:
+        type: string
+      user_id:
+        type: string
+    type: object
+  updatemonitoringconfig.UpdateMonitoringConfigRequest:
+    properties:
+      block_ads_cookies:
+        type: boolean
+      check_frequency:
+        type: string
+      schedule_type:
+        type: string
+      timezone:
+        type: string
+    type: object
+  updatemonitoringconfig.UpdateMonitoringConfigResponse:
+    properties:
+      block_ads_cookies:
+        type: boolean
+      check_frequency:
+        type: string
+      id:
+        type: string
+      page_id:
+        type: string
+      schedule_type:
+        type: string
+      timezone:
+        type: string
+      updated_at:
+        type: string
+    type: object
+host: localhost:9090
+info:
+  contact:
+    email: support@pulzifi.com
+    name: API Support
+  description: Pulzifi backend monolith API
+  license:
+    name: MIT
+  title: Pulzifi API
+  version: "1.0"
+paths:
+  /alerts:
+    get:
+      description: List all alerts for the current workspace
+      parameters:
+      - description: Workspace ID (optional filter)
+        in: query
+        name: workspace_id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List Alerts
+      tags:
+      - alerts
+    post:
+      consumes:
+      - application/json
+      description: Create a new alert
+      parameters:
+      - description: Create Alert Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/createalert.CreateAlertRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/createalert.CreateAlertResponse'
+      security:
+      - BearerAuth: []
+      summary: Create Alert
+      tags:
+      - alerts
+  /alerts/{id}:
+    delete:
+      description: Delete an alert
+      responses:
+        "204":
+          description: No Content
+      security:
+      - BearerAuth: []
+      summary: Delete Alert
+      tags:
+      - alerts
+    get:
+      description: Get an alert by ID
+      parameters:
+      - description: Alert ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get Alert
+      tags:
+      - alerts
+    put:
+      consumes:
+      - application/json
+      description: Update an alert
+      parameters:
+      - description: Alert ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Update Alert Request
+        in: body
+        name: request
+        required: true
+        schema:
+          additionalProperties:
+            type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update Alert
+      tags:
+      - alerts
+  /api/organizations:
+    post:
+      consumes:
+      - application/json
+      description: Create a new organization with the provided name and subdomain
+      parameters:
+      - description: Create Organization Request
+        in: body
+        name: request
+        required: true
+        schema:
+          additionalProperties:
+            type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create Organization
+      tags:
+      - organizations
+  /api/organizations/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve organization details by ID
+      parameters:
+      - description: Organization ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.GetOrganizationResponseDTO'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get Organization
+      tags:
+      - organizations
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticate user with email and password
+      parameters:
+      - description: Login Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/login.Request'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/login.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Login user
+      tags:
+      - auth
+  /auth/logout:
+    post:
+      consumes:
+      - application/json
+      description: Logout the current user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Logout user
+      tags:
+      - auth
+  /auth/me:
+    get:
+      description: Get the current authenticated user's information
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/get_current_user.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get Current User
+      tags:
+      - auth
+  /auth/refresh:
+    post:
+      consumes:
+      - application/json
+      description: Refresh an access token using a refresh token
+      parameters:
+      - description: Refresh Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/refresh_token.Request'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/refresh_token.Response'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Refresh token
+      tags:
+      - auth
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Register a new user with email and password
+      parameters:
+      - description: Register Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/register.Request'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/register.Response'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Register a new user
+      tags:
+      - auth
+  /insights:
+    get:
+      description: List all insights
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List Insights
+      tags:
+      - insights
+  /insights/{id}:
+    get:
+      description: Get an insight by ID
+      parameters:
+      - description: Insight ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get Insight
+      tags:
+      - insights
+  /insights/generate:
+    post:
+      consumes:
+      - application/json
+      description: Generate a new insight
+      parameters:
+      - description: Generate Insight Request
+        in: body
+        name: request
+        required: true
+        schema:
+          additionalProperties:
+            type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Generate Insight
+      tags:
+      - insights
+  /integrations/webhooks:
+    get:
+      description: List all webhook integrations
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List Webhook Integrations
+      tags:
+      - integrations
+    post:
+      consumes:
+      - application/json
+      description: Create a new webhook integration
+      parameters:
+      - description: Create Webhook Request
+        in: body
+        name: request
+        required: true
+        schema:
+          additionalProperties:
+            type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create Webhook Integration
+      tags:
+      - integrations
+  /integrations/webhooks/{id}:
+    get:
+      description: Get a webhook integration by ID
+      parameters:
+      - description: Webhook ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get Webhook Integration
+      tags:
+      - integrations
+  /monitoring/checks:
+    get:
+      description: List all monitoring checks
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List Monitoring Checks
+      tags:
+      - monitoring
+    post:
+      consumes:
+      - application/json
+      description: Create a new monitoring check
+      parameters:
+      - description: Create Check Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/createcheck.CreateCheckRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/createcheck.CreateCheckResponse'
+      security:
+      - BearerAuth: []
+      summary: Create Monitoring Check
+      tags:
+      - monitoring
+  /monitoring/checks/{id}:
+    get:
+      description: Get a monitoring check by ID
+      parameters:
+      - description: Check ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get Monitoring Check
+      tags:
+      - monitoring
+  /monitoring/configs:
+    post:
+      consumes:
+      - application/json
+      description: Create a new monitoring config
+      parameters:
+      - description: Create Config Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/create_monitoring_config.CreateMonitoringConfigRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/create_monitoring_config.CreateMonitoringConfigResponse'
+      security:
+      - BearerAuth: []
+      summary: Create Monitoring Config
+      tags:
+      - monitoring
+  /monitoring/configs/{pageId}:
+    get:
+      description: Get a monitoring config by page ID
+      parameters:
+      - description: Page ID
+        in: path
+        name: pageId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get Monitoring Config
+      tags:
+      - monitoring
+    put:
+      consumes:
+      - application/json
+      description: Update an existing monitoring config or create a new one if it
+        doesn't exist
+      parameters:
+      - description: Page ID
+        in: path
+        name: pageId
+        required: true
+        type: string
+      - description: Update Config Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/updatemonitoringconfig.UpdateMonitoringConfigRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/updatemonitoringconfig.UpdateMonitoringConfigResponse'
+      security:
+      - BearerAuth: []
+      summary: Update or Create Monitoring Config (Upsert)
+      tags:
+      - monitoring
+  /monitoring/notification-preferences:
+    post:
+      consumes:
+      - application/json
+      description: Create a new notification preference
+      parameters:
+      - description: Create Preference Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/create_notification_preference.CreateNotificationPreferenceRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/create_notification_preference.CreateNotificationPreferenceResponse'
+      security:
+      - BearerAuth: []
+      summary: Create Notification Preference
+      tags:
+      - monitoring
+  /monitoring/notification-preferences/{id}:
+    get:
+      description: Get a notification preference by ID
+      parameters:
+      - description: Preference ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get Notification Preference
+      tags:
+      - monitoring
+  /organization/current:
+    get:
+      description: Get the current organization based on the tenant from subdomain
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get Current Organization
+      tags:
+      - organizations
+  /organizations:
+    get:
+      description: List all organizations for the current user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List Organizations
+      tags:
+      - organizations
+    post:
+      consumes:
+      - application/json
+      description: Create a new organization with the provided name and subdomain
+      parameters:
+      - description: Create Organization Request
+        in: body
+        name: request
+        required: true
+        schema:
+          additionalProperties:
+            type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create Organization
+      tags:
+      - organizations
+  /organizations/{id}:
+    delete:
+      description: Delete an organization
+      parameters:
+      - description: Organization ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete Organization
+      tags:
+      - organizations
+    get:
+      description: Get a specific organization by ID
+      parameters:
+      - description: Organization ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get Organization
+      tags:
+      - organizations
+    put:
+      consumes:
+      - application/json
+      description: Update an organization
+      parameters:
+      - description: Organization ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Update Organization Request
+        in: body
+        name: request
+        required: true
+        schema:
+          additionalProperties:
+            type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update Organization
+      tags:
+      - organizations
+  /pages:
+    get:
+      description: List all pages for a workspace
+      parameters:
+      - description: Workspace ID
+        in: query
+        name: workspace_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/listpages.ListPagesResponse'
+      security:
+      - BearerAuth: []
+      summary: List Pages
+      tags:
+      - pages
+    post:
+      consumes:
+      - application/json
+      description: Create a new page
+      parameters:
+      - description: Create Page Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/createpage.CreatePageRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/createpage.CreatePageResponse'
+      security:
+      - BearerAuth: []
+      summary: Create Page
+      tags:
+      - pages
+  /pages/{id}:
+    delete:
+      description: Delete a page
+      responses:
+        "204":
+          description: No Content
+      security:
+      - BearerAuth: []
+      summary: Delete Page
+      tags:
+      - pages
+    get:
+      description: Get a page by ID
+      parameters:
+      - description: Page ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get Page
+      tags:
+      - pages
+    put:
+      consumes:
+      - application/json
+      description: Update a page
+      parameters:
+      - description: Page ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Update Page Request
+        in: body
+        name: request
+        required: true
+        schema:
+          additionalProperties:
+            type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update Page
+      tags:
+      - pages
+  /reports:
+    get:
+      description: List all reports
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List Reports
+      tags:
+      - reports
+    post:
+      consumes:
+      - application/json
+      description: Create a new report
+      parameters:
+      - description: Create Report Request
+        in: body
+        name: request
+        required: true
+        schema:
+          additionalProperties:
+            type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create Report
+      tags:
+      - reports
+  /reports/{id}:
+    get:
+      description: Get a report by ID
+      parameters:
+      - description: Report ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get Report
+      tags:
+      - reports
+  /usage/metrics:
+    get:
+      description: Get usage metrics for the current organization
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get Usage Metrics
+      tags:
+      - usage
+  /usage/quotas:
+    get:
+      description: Get usage quotas for the current organization
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get Usage Quotas
+      tags:
+      - usage
+  /workspaces:
+    get:
+      description: List all workspaces
+      parameters:
+      - description: 'Limit number of results (default: all)'
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/listworkspaces.ListWorkspacesResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List Workspaces
+      tags:
+      - workspaces
+    post:
+      consumes:
+      - application/json
+      description: Create a new workspace
+      parameters:
+      - description: Create Workspace Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/createworkspace.CreateWorkspaceRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/createworkspace.CreateWorkspaceResponse'
+      security:
+      - BearerAuth: []
+      summary: Create Workspace
+      tags:
+      - workspaces
+  /workspaces/{id}:
+    delete:
+      description: Delete a workspace
+      parameters:
+      - description: Workspace ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete Workspace
+      tags:
+      - workspaces
+    get:
+      description: Get a workspace by ID
+      parameters:
+      - description: Workspace ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get Workspace
+      tags:
+      - workspaces
+    put:
+      consumes:
+      - application/json
+      description: Update a workspace
+      parameters:
+      - description: Workspace ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Update Workspace Request
+        in: body
+        name: request
+        required: true
+        schema:
+          additionalProperties:
+            type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update Workspace
+      tags:
+      - workspaces
+  /workspaces/{id}/members:
+    get:
+      description: List all members of a workspace
+      parameters:
+      - description: Workspace ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/list_workspace_members.ListWorkspaceMembersResponse'
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List Workspace Members
+      tags:
+      - workspaces
+    post:
+      consumes:
+      - application/json
+      description: Add a user to a workspace
+      parameters:
+      - description: Workspace ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Add Member Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/add_workspace_member.AddWorkspaceMemberRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/add_workspace_member.AddWorkspaceMemberResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Add Workspace Member
+      tags:
+      - workspaces
+  /workspaces/{id}/members/{user_id}:
+    delete:
+      description: Remove a user from a workspace
+      parameters:
+      - description: Workspace ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: User ID to remove
+        in: path
+        name: user_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Remove Workspace Member
+      tags:
+      - workspaces
+schemes:
+- http
+- https
+swagger: "2.0"

@@ -19,7 +19,7 @@ help: ## Show this help message
 	@echo ""
 	@echo "$(GREEN)DEVELOPMENT:$(NC)"
 	@echo "  $(YELLOW)make dev$(NC)      - Start local dev environment (postgres + extractor + hot reload)"
-	@echo "  $(YELLOW)make dev-web$(NC)  - Start Caddy proxy + Next.js (direct API calls, no proxy overhead)"
+	@echo "  $(YELLOW)make dev-web$(NC)  - Start Next.js on :3001 (Go on :3000 proxies unmatched routes)"
 	@echo "  $(YELLOW)make down$(NC)     - Stop local dev environment"
 	@echo "  $(YELLOW)make logs$(NC)     - View logs (use: make logs service=monolith)"
 	@echo ""
@@ -45,14 +45,10 @@ dev: check-env ## Start local dev (postgres + extractor + API + worker with hot 
 	@echo "$(GREEN)Starting local dev environment...$(NC)"
 	@docker-compose -f docker-compose.monolith.yml up
 
-dev-web: ## Start Caddy proxy (:3000) + Next.js (:3001) for local frontend dev
-	@command -v caddy >/dev/null 2>&1 || { echo "$(YELLOW)caddy not found — install with: brew install caddy$(NC)"; exit 1; }
-	@echo "$(GREEN)Starting Caddy on :3000 and Next.js on :3001...$(NC)"
-	@echo "$(YELLOW)Access the app at http://<tenant>.localhost:3000$(NC)"
-	@trap 'kill 0' INT; \
-		caddy run --config Caddyfile & \
-		(cd frontend/apps/web && PORT=3001 bun dev) & \
-		wait
+dev-web: ## Start Next.js on :3001 (Go on :3000 proxies unmatched routes)
+	@echo "$(GREEN)Starting Next.js on :3001...$(NC)"
+	@echo "$(YELLOW)Access the app at http://<tenant>.localhost:3000 (Go serves as entry point)$(NC)"
+	@cd frontend/apps/web && PORT=3001 bun dev
 
 down: ## Stop local dev environment
 	@docker-compose -f docker-compose.monolith.yml down -v

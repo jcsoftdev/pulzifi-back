@@ -71,7 +71,7 @@ export interface Check {
   checkedAt: string
 }
 
-interface CheckBackendDto {
+export interface CheckBackendDto {
   id: string
   page_id: string
   status: string
@@ -81,6 +81,24 @@ interface CheckBackendDto {
   change_type: string
   error_message?: string
   checked_at: string
+}
+
+export function mapBackendCheck(c: CheckBackendDto): Check {
+  return {
+    id: c.id,
+    pageId: c.page_id,
+    status: c.status,
+    screenshotUrl: c.screenshot_url,
+    htmlSnapshotUrl: c.html_snapshot_url,
+    changeDetected: c.change_detected,
+    changeType: c.change_type,
+    errorMessage: c.error_message,
+    extractorFailed:
+      (c.status === 'error' || c.status === 'failed') &&
+      typeof c.error_message === 'string' &&
+      c.error_message.toLowerCase().includes('extractor'),
+    checkedAt: c.checked_at,
+  }
 }
 
 interface MonitoringConfigBackendDto {
@@ -319,21 +337,7 @@ export const PageApi = {
     const response = await http.get<{
       checks: CheckBackendDto[]
     }>(`/api/v1/monitoring/checks/page/${pageId}`)
-    return response.checks.map((c) => ({
-      id: c.id,
-      pageId: c.page_id,
-      status: c.status,
-      screenshotUrl: c.screenshot_url,
-      htmlSnapshotUrl: c.html_snapshot_url,
-      changeDetected: c.change_detected,
-      changeType: c.change_type,
-      errorMessage: c.error_message,
-      extractorFailed:
-        (c.status === 'error' || c.status === 'failed') &&
-        typeof c.error_message === 'string' &&
-        c.error_message.toLowerCase().includes('extractor'),
-      checkedAt: c.checked_at,
-    }))
+    return response.checks.map(mapBackendCheck)
   },
 
   async listInsights(pageId: string, checkId?: string): Promise<Insight[]> {
