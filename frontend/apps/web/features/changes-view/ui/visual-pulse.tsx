@@ -147,12 +147,12 @@ export function VisualPulse({
             : undefined
         }
       >
-        {/* Previous Image (Background) — flow layout until height computed, then absolute */}
+        {/* Current Image (Background) — flow layout until height computed, then absolute */}
         {/* biome-ignore lint/performance/noImgElement: screenshot URLs are dynamic external URLs; ref + naturalWidth needed for height computation */}
         <img
-          ref={prevImgRef}
-          src={previousScreenshotUrl}
-          alt="Previous snapshot"
+          ref={currImgRef}
+          src={currentScreenshotUrl}
+          alt="Current snapshot"
           onLoad={recompute}
           className={
             containerHeight
@@ -161,7 +161,7 @@ export function VisualPulse({
           }
         />
 
-        {/* Current Image (Foreground - Clipped) */}
+        {/* Previous Image (Foreground - Clipped) */}
         <div
           className="absolute top-0 left-0 h-full overflow-hidden border-r border-primary/50"
           style={{
@@ -170,9 +170,9 @@ export function VisualPulse({
         >
           {/* biome-ignore lint/performance/noImgElement: foreground image must span beyond clipping container — incompatible with next/image fill */}
           <img
-            ref={currImgRef}
-            src={currentScreenshotUrl}
-            alt="Current snapshot"
+            ref={prevImgRef}
+            src={previousScreenshotUrl}
+            alt="Previous snapshot"
             onLoad={recompute}
             className="absolute top-0 left-0 h-full max-w-none object-contain object-top"
             style={{

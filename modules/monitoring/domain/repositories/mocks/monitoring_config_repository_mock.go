@@ -55,6 +55,10 @@ func (m *MockMonitoringConfigRepository) UpdateLastCheckedAt(_ context.Context, 
 	return m.UpdateLastCheckedErr
 }
 
+func (m *MockMonitoringConfigRepository) BulkUpdateFrequency(_ context.Context, _ []uuid.UUID, _ string) error {
+	return nil
+}
+
 func (m *MockMonitoringConfigRepository) MarkPageDueNow(_ context.Context, _ uuid.UUID) error {
 	m.MarkPageDueNowCalls++
 	return m.MarkPageDueNowErr

@@ -4,8 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -31,16 +33,18 @@ import (
 	"github.com/jcsoftdev/pulzifi-back/shared/eventbus"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
+	"github.com/jcsoftdev/pulzifi-back/shared/pubsub"
 	"github.com/jcsoftdev/pulzifi-back/shared/router"
 	"go.uber.org/zap"
 )
 
 // Module implements the router.ModuleRegisterer interface for the Monitoring module
 type Module struct {
-	db         *sql.DB
-	eventBus   *eventbus.EventBus
-	scheduler  *scheduler.Scheduler
-	workerPool *workers.WorkerPool
+	db          *sql.DB
+	eventBus    *eventbus.EventBus
+	scheduler   *scheduler.Scheduler
+	workerPool  *workers.WorkerPool
+	checkBroker *pubsub.CheckBroker
 }
 
 // NewModule creates a new instance of the Monitoring module
@@ -61,8 +65,9 @@ func NewModuleWithDB(db *sql.DB, eventBus *eventbus.EventBus, emailProvider emai
 	// Initialize Snapshot Infrastructure
 	objectStorage, err := snapshotstorage.NewObjectStorage(cfg)
 	if err != nil {
-		logger.Error("Failed to initialize object storage client", zap.Error(err))
-	} else {
+		objectStorage = nil // Ensure interface is truly nil, not a nil concrete pointer
+		logger.Error("Failed to initialize object storage client — snapshot uploads will fail", zap.Error(err))
+	} else if objectStorage != nil {
 		if err := objectStorage.EnsureBucket(context.Background()); err != nil {
 			logger.Error("Failed to initialize object storage", zap.Error(err))
 		}
@@ -79,8 +84,45 @@ func NewModuleWithDB(db *sql.DB, eventBus *eventbus.EventBus, emailProvider emai
 
 	snapshotWorker := snapshotapp.NewSnapshotWorker(objectStorage, extractorClient, m.db, insightHandler, emailProvider, frontendURL)
 
-	// Create WorkerPool
-	m.workerPool = workers.NewWorkerPool(snapshotWorker, 100)
+	// Initialize the check broker for SSE push notifications.
+	m.checkBroker = pubsub.NewCheckBroker()
+
+	// Wire OnCheckDone so successful/error completions are pushed to SSE subscribers.
+	snapshotWorker.SetOnCheckDone(func(pageID uuid.UUID, checkJSON []byte) {
+		m.checkBroker.Publish(pageID.String(), checkJSON)
+	})
+
+	// Create WorkerPool with a callback that marks failed checks in the DB.
+	failCheck := func(ctx context.Context, checkID uuid.UUID, schemaName string, errMsg string) {
+		repo := persistence.NewCheckPostgresRepository(m.db, schemaName)
+		check, err := repo.GetByID(ctx, checkID)
+		if err != nil || check == nil {
+			return
+		}
+		if check.Status == "success" || check.Status == "error" {
+			return // already in a terminal state
+		}
+		check.Status = "error"
+		check.ErrorMessage = errMsg
+		if updateErr := repo.Update(ctx, check); updateErr != nil {
+			logger.Error("failCheck: failed to update check status", zap.Error(updateErr), zap.String("check_id", checkID.String()))
+			return
+		}
+		// Publish the failed check to SSE subscribers.
+		payload, _ := json.Marshal(listchecks.CheckResponse{
+			ID:             check.ID,
+			PageID:         check.PageID,
+			Status:         check.Status,
+			ScreenshotURL:  check.ScreenshotURL,
+			HTMLSnapshotURL: check.HTMLSnapshotURL,
+			ChangeDetected: check.ChangeDetected,
+			ChangeType:     check.ChangeType,
+			ErrorMessage:   check.ErrorMessage,
+			CheckedAt:      check.CheckedAt,
+		})
+		m.checkBroker.Publish(check.PageID.String(), payload)
+	}
+	m.workerPool = workers.NewWorkerPool(snapshotWorker, 100, failCheck)
 
 	// In API-only mode we still need immediate dispatch capability when user updates frequency.
 	// Start a lightweight in-process worker to consume TriggerPageCheck jobs.
@@ -123,23 +165,29 @@ func (m *Module) ModuleName() string {
 func (m *Module) RegisterHTTPRoutes(router chi.Router) {
 	router.Route("/monitoring", func(r chi.Router) {
 		r.Use(middleware.AuthMiddleware.Authenticate)
-		r.Use(middleware.OrgMiddleware.RequireOrganizationMembership)
-		r.Use(middleware.RequireTenant)
-		r.Route("/checks", func(cr chi.Router) {
-			cr.Post("/", m.handleCreateCheck)
-			cr.Get("/", m.handleListChecks)
-			cr.Get("/{id}", m.handleGetCheck)
-			cr.Get("/page/{pageId}", m.handleListChecksByPage)
-		})
-		r.Route("/configs", func(cr chi.Router) {
-			cr.Post("/", m.handleCreateMonitoringConfig)
-			cr.Put("/bulk", m.handleBulkUpdateMonitoringConfig)
-			cr.Get("/{pageId}", m.handleGetMonitoringConfig)
-			cr.Put("/{pageId}", m.handleUpdateMonitoringConfig)
-		})
-		r.Route("/notification-preferences", func(cr chi.Router) {
-			cr.Post("/", m.handleCreateNotificationPreference)
-			cr.Get("/{id}", m.handleGetNotificationPreference)
+
+		// SSE endpoint — auth only (no org/tenant needed, pageId is globally unique).
+		r.Get("/checks/page/{pageId}/stream", m.handleCheckSSE)
+
+		r.Group(func(r chi.Router) {
+			r.Use(middleware.OrgMiddleware.RequireOrganizationMembership)
+			r.Use(middleware.RequireTenant)
+			r.Route("/checks", func(cr chi.Router) {
+				cr.Post("/", m.handleCreateCheck)
+				cr.Get("/", m.handleListChecks)
+				cr.Get("/{id}", m.handleGetCheck)
+				cr.Get("/page/{pageId}", m.handleListChecksByPage)
+			})
+			r.Route("/configs", func(cr chi.Router) {
+				cr.Post("/", m.handleCreateMonitoringConfig)
+				cr.Put("/bulk", m.handleBulkUpdateMonitoringConfig)
+				cr.Get("/{pageId}", m.handleGetMonitoringConfig)
+				cr.Put("/{pageId}", m.handleUpdateMonitoringConfig)
+			})
+			r.Route("/notification-preferences", func(cr chi.Router) {
+				cr.Post("/", m.handleCreateNotificationPreference)
+				cr.Get("/{id}", m.handleGetNotificationPreference)
+			})
 		})
 	})
 }
@@ -462,4 +510,59 @@ func (m *Module) handleGetNotificationPreference(w http.ResponseWriter, r *http.
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(pref)
+}
+
+// handleCheckSSE streams check-updated events to the client using SSE.
+// The client connects with /checks/page/{pageId}/stream and receives events
+// whenever a check for that page completes (success or error).
+func (m *Module) handleCheckSSE(w http.ResponseWriter, r *http.Request) {
+	pageIDStr := chi.URLParam(r, "pageId")
+	if _, err := uuid.Parse(pageIDStr); err != nil {
+		http.Error(w, "invalid pageId", http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+	w.WriteHeader(http.StatusOK)
+
+	rc := http.NewResponseController(w)
+	if err := rc.Flush(); err != nil {
+		return
+	}
+
+	ch, unsubscribe := m.checkBroker.Subscribe(pageIDStr)
+	defer unsubscribe()
+
+	// 5-minute timeout — browser's EventSource auto-reconnects after close.
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Minute)
+	defer cancel()
+
+	// Send heartbeat comments every 30s to keep the connection alive through proxies.
+	heartbeat := time.NewTicker(30 * time.Second)
+	defer heartbeat.Stop()
+
+	for {
+		select {
+		case payload, ok := <-ch:
+			if !ok {
+				return
+			}
+			fmt.Fprintf(w, "event: check:updated\ndata: %s\n\n", payload)
+			if err := rc.Flush(); err != nil {
+				return
+			}
+		case <-heartbeat.C:
+			if _, err := fmt.Fprintf(w, ": heartbeat\n\n"); err != nil {
+				return
+			}
+			if err := rc.Flush(); err != nil {
+				return
+			}
+		case <-ctx.Done():
+			return
+		}
+	}
 }

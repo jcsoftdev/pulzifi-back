@@ -26,10 +26,12 @@ import (
 	team "github.com/jcsoftdev/pulzifi-back/modules/team/infrastructure/http"
 	usage "github.com/jcsoftdev/pulzifi-back/modules/usage/infrastructure/http"
 	workspace "github.com/jcsoftdev/pulzifi-back/modules/workspace/infrastructure/http"
+	"github.com/jcsoftdev/pulzifi-back/shared/bff"
 	"github.com/jcsoftdev/pulzifi-back/shared/config"
 	"github.com/jcsoftdev/pulzifi-back/shared/eventbus"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
+	"github.com/jcsoftdev/pulzifi-back/shared/noncestore"
 	"github.com/jcsoftdev/pulzifi-back/shared/pubsub"
 	"github.com/jcsoftdev/pulzifi-back/shared/router"
 	"go.uber.org/zap"
@@ -40,7 +42,7 @@ func createEmailProvider(cfg *config.Config) emailservices.EmailProvider {
 	return emailproviders.NewResendProvider(cfg.ResendAPIKey, cfg.EmailFromAddress, cfg.EmailFromName)
 }
 
-func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus *eventbus.EventBus, enableWorkers bool) {
+func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus *eventbus.EventBus, enableWorkers bool) *bff.Handler {
 	cfg := config.Load()
 
 	userRepo := authpersistence.NewUserPostgresRepository(db)
@@ -77,7 +79,8 @@ func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus 
 		EventBus:         eventBus,
 		DB:               db,
 	})
-	authMiddleware := authModule.(*auth.Module).AuthMiddleware()
+	authMod := authModule.(*auth.Module)
+	authMiddleware := authMod.AuthMiddleware()
 
 	// Set global middleware for all modules
 	middleware.SetAuthMiddleware(authMiddleware)
@@ -135,4 +138,17 @@ func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus 
 	logger.Info("Started organization event subscriber")
 
 	logger.Info("All modules registered successfully", zap.Int("total", registry.Count()))
+
+	// Create BFF auth handler using extracted auth module handlers
+	bffHandler := bff.NewHandler(bff.HandlerDeps{
+		LoginHandler:   authMod.LoginHandler(),
+		RefreshHandler: authMod.RefreshHandler(),
+		TokenService:   authMod.TokenService(),
+		NonceStore:     noncestore.New(),
+		CookieDomain:   authMod.CookieDomain(),
+		CookieSecure:   authMod.CookieSecure(),
+		Logger:         logger.Logger,
+	})
+
+	return bffHandler
 }

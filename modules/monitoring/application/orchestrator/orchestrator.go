@@ -3,6 +3,7 @@ package orchestrator
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/domain/entities"
@@ -21,6 +22,8 @@ type UsageRepository interface {
 
 type CheckRepository interface {
 	Create(ctx context.Context, check *entities.Check) error
+	GetByID(ctx context.Context, id uuid.UUID) (*entities.Check, error)
+	Update(ctx context.Context, check *entities.Check) error
 }
 
 type PageRepository interface {
@@ -94,5 +97,13 @@ func (o *Orchestrator) ScheduleCheck(ctx context.Context, job CheckJob) error {
 	}
 
 	// 5. Dispatch Job
-	return o.dispatcher.Dispatch(ctx, check.ID, job.URL, job.SchemaName)
+	if err := o.dispatcher.Dispatch(ctx, check.ID, job.URL, job.SchemaName); err != nil {
+		check.Status = "error"
+		check.ErrorMessage = fmt.Sprintf("dispatch failed: %v", err)
+		if updateErr := checkRepo.Update(ctx, check); updateErr != nil {
+			logger.Error("Failed to mark check as error after dispatch failure", zap.Error(updateErr), zap.String("check_id", check.ID.String()))
+		}
+		return err
+	}
+	return nil
 }

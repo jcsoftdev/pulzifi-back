@@ -1,7 +1,6 @@
 'use client'
 
 import { type MonitoringConfig, type Page, PageApi } from '@workspace/services/page-api'
-import { notification } from '@/lib/notification'
 import { Badge } from '@workspace/ui/components/atoms/badge'
 import { Button } from '@workspace/ui/components/atoms/button'
 import { Input } from '@workspace/ui/components/atoms/input'
@@ -15,6 +14,8 @@ import {
 import { Check, Loader2, Pencil, X } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
+import { CHECK_FREQUENCY_OPTIONS } from '@/features/page/domain/types'
+import { notification } from '@/lib/notification'
 
 interface GeneralSummaryCardProps {
   page: Page
@@ -32,10 +33,18 @@ export function GeneralSummaryCard({ page, config }: Readonly<GeneralSummaryCard
       try {
         await PageApi.updateMonitoringConfig(page.id, updates)
         router.refresh()
-        notification.success({ title: 'Settings saved' })
+        if (updates.checkFrequency) {
+          window.dispatchEvent(new CustomEvent('checks:refresh'))
+        }
+        notification.success({
+          title: 'Settings saved',
+        })
       } catch (error) {
         console.error('Failed to update config', error)
-        notification.error({ title: 'Failed to save settings', description: error instanceof Error ? error.message : 'Please try again.' })
+        notification.error({
+          title: 'Failed to save settings',
+          description: error instanceof Error ? error.message : 'Please try again.',
+        })
       }
     })
   }
@@ -50,10 +59,15 @@ export function GeneralSummaryCard({ page, config }: Readonly<GeneralSummaryCard
         await PageApi.updatePage(page.id, updates)
         router.refresh()
         setIsEditingTags(false)
-        notification.success({ title: 'Page updated' })
+        notification.success({
+          title: 'Page updated',
+        })
       } catch (error) {
         console.error('Failed to update page', error)
-        notification.error({ title: 'Failed to update page', description: error instanceof Error ? error.message : 'Please try again.' })
+        notification.error({
+          title: 'Failed to update page',
+          description: error instanceof Error ? error.message : 'Please try again.',
+        })
       }
     })
   }
@@ -78,15 +92,6 @@ export function GeneralSummaryCard({ page, config }: Readonly<GeneralSummaryCard
       tags: currentTags.filter((tag) => tag !== tagToRemove),
     })
   }
-
-  const FREQUENCIES = [
-    'Off',
-    'Every 1 hour',
-    'Every 2 hours',
-    'Every 8 hours',
-    'Every day',
-    'Every 48 hours',
-  ] as const
 
   return (
     <div className="flex flex-col gap-6 bg-card border border-border rounded-xl p-6 h-full">
@@ -177,9 +182,9 @@ export function GeneralSummaryCard({ page, config }: Readonly<GeneralSummaryCard
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {FREQUENCIES.map((freq) => (
-                <SelectItem key={freq} value={freq}>
-                  {freq}
+              {CHECK_FREQUENCY_OPTIONS.map((freq) => (
+                <SelectItem key={freq.value} value={freq.value}>
+                  {freq.label}
                 </SelectItem>
               ))}
             </SelectContent>

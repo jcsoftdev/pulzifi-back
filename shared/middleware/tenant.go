@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"go.uber.org/zap"
 )
@@ -31,8 +32,17 @@ const (
 func TenantMiddleware(db *sql.DB) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Chi's Mount() sets rctx.RoutePath to the path with the mount
+			// prefix stripped (e.g. /api/v1/auth/me → /auth/me), but leaves
+			// r.URL.Path unchanged. Use RoutePath when available so the
+			// public-path check works correctly inside mounted subrouters.
+			path := r.URL.Path
+			if rctx := chi.RouteContext(r.Context()); rctx != nil && rctx.RoutePath != "" {
+				path = rctx.RoutePath
+			}
+
 			// Allow certain paths without tenant
-			if isPublicPath(r.URL.Path) {
+			if isPublicPath(path) {
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -81,21 +91,25 @@ func TenantMiddleware(db *sql.DB) func(http.Handler) http.Handler {
 }
 
 func isPublicPath(path string) bool {
+	// These paths are checked AFTER Chi strips the mount prefix.
+	// The v1Router is mounted at /api/v1, so the middleware sees paths
+	// like /auth/me, not /api/v1/auth/me.
 	publicPaths := []string{
-		"/api/v1/swagger",
-		"/api/v1/health",
-		"/api/v1/auth/login",     // Login no requiere tenant
-		"/api/v1/auth/register",         // Register no requiere tenant
-		"/api/v1/auth/check-subdomain",  // Subdomain check no requiere tenant
-		"/api/v1/auth/me",        // Current user (uses JWT, not tenant)
-		"/api/v1/auth/refresh",   // Token refresh
-		"/api/v1/auth/providers", // OAuth providers
-		"/api/v1/auth/csrf",      // CSRF token
-		"/api/v1/admin",          // Super admin routes (global, not tenant-specific)
-		"/api/docs",              // API Documentation
 		"/swagger",
 		"/health",
 		"/docs",
+		"/auth/login",
+		"/auth/register",
+		"/auth/check-subdomain",
+		"/auth/me",
+		"/auth/refresh",
+		"/auth/logout",
+		"/auth/forgot-password",
+		"/auth/reset-password",
+		"/auth/oauth",
+		"/auth/providers",
+		"/auth/csrf",
+		"/admin",
 	}
 
 	for _, prefix := range publicPaths {

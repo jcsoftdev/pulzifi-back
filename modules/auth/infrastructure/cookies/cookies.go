@@ -1,6 +1,7 @@
 package cookies
 
 import (
+	"errors"
 	"net"
 	"net/http"
 	"time"
@@ -84,9 +85,20 @@ func ClearAuthCookies(w http.ResponseWriter, r *http.Request, staticDomain strin
 }
 
 func GetTokenFromCookie(r *http.Request, name string) (string, error) {
+	allCookies := r.Cookies()
+	for i := len(allCookies) - 1; i >= 0; i-- {
+		cookie := allCookies[i]
+		if cookie.Name == name && cookie.Value != "" {
+			return cookie.Value, nil
+		}
+	}
+
 	cookie, err := r.Cookie(name)
 	if err != nil {
 		return "", err
+	}
+	if cookie.Value == "" {
+		return "", errors.New("cookie value is empty")
 	}
 	return cookie.Value, nil
 }

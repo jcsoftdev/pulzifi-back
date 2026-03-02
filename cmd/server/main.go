@@ -15,7 +15,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
-	"github.com/jcsoftdev/pulzifi-back/docs"
+	"github.com/jcsoftdev/pulzifi-back/docs-back"
 	createorgapp "github.com/jcsoftdev/pulzifi-back/modules/organization/application/create_organization"
 	getorgapp "github.com/jcsoftdev/pulzifi-back/modules/organization/application/get_organization"
 	orgservices "github.com/jcsoftdev/pulzifi-back/modules/organization/domain/services"
@@ -29,6 +29,7 @@ import (
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	middlewarex "github.com/jcsoftdev/pulzifi-back/shared/middleware"
 	"github.com/jcsoftdev/pulzifi-back/shared/router"
+	"github.com/jcsoftdev/pulzifi-back/shared/static"
 	"github.com/jcsoftdev/pulzifi-back/shared/swagger"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -44,7 +45,7 @@ var _ = docs.SwaggerInfo // Ensure docs is imported
 // @license.name MIT
 // @basePath /api/v1
 // @schemes http https
-// @host localhost:9090
+// @host localhost:3000
 func main() {
 	// Load configuration
 	cfg := config.Load()
@@ -161,7 +162,12 @@ func main() {
 	// Create module registry and register all modules
 	logger.Info("Registering module routes...")
 	registry := router.NewRegistry(logger.Logger)
-	registerAllModulesInternal(registry, db, eventBus, enableWorkers)
+	bffHandler := registerAllModulesInternal(registry, db, eventBus, enableWorkers)
+
+	// Mount BFF auth routes BEFORE /api/v1 (these handle cookies/nonces)
+	httpRouter.Route("/api/auth", func(r chi.Router) {
+		bffHandler.RegisterRoutes(r)
+	})
 
 	// Register routes from all modules under /api/v1
 	v1Router := chi.NewRouter()
@@ -182,9 +188,8 @@ func main() {
 	registry.RegisterAll(v1Router)
 	httpRouter.Mount("/api/v1", v1Router)
 
-	// Frontend proxy disabled - Frontend runs independently on localhost:3000
-	// Nginx handles routing and CORS
-	// static.Setup(httpRouter, cfg.FrontendURL, cfg.StaticDir, logger.Logger)
+	// Reverse proxy: unmatched routes → Next.js for page rendering
+	static.Setup(httpRouter, cfg.NextJSURL, cfg.StaticDir, logger.Logger)
 
 	// Start HTTP server
 	wg.Add(1)
@@ -221,10 +226,12 @@ func startHTTPServer(ctx context.Context, router chi.Router, port string) {
 	server := &http.Server{
 		Addr:        ":" + port,
 		Handler:     router,
-		ReadTimeout: 15 * time.Second,
-		// WriteTimeout is intentionally 0 (disabled) to support long-lived
-		// SSE connections that can take up to 120s to stream their response.
-		// Individual handlers enforce their own per-request deadlines.
+		ReadHeaderTimeout: 15 * time.Second,
+		// ReadTimeout is intentionally not set: it applies a deadline on the
+		// underlying connection that cancels r.Context() during handler
+		// execution, killing long-lived SSE streams. ReadHeaderTimeout only
+		// limits reading request headers, leaving handlers free to run as
+		// long as they need. Individual handlers enforce their own deadlines.
 	}
 
 	go func() {

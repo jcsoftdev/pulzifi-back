@@ -24,7 +24,9 @@ func Setup(router chi.Router, frontendURL, staticDir string, logger *zap.Logger)
 	}
 }
 
-// setupProxyNotFound configura el proxy solo para rutas no encontradas (404)
+// setupProxyNotFound configures a reverse proxy for unmatched routes (404).
+// All /api/* and /swagger/* paths return 404 (they should be Chi routes).
+// Everything else is proxied to Next.js for page rendering.
 func setupProxyNotFound(router chi.Router, frontendURL string, logger *zap.Logger) {
 	target, err := url.Parse(frontendURL)
 	if err != nil {
@@ -33,26 +35,31 @@ func setupProxyNotFound(router chi.Router, frontendURL string, logger *zap.Logge
 	}
 
 	proxy := httputil.NewSingleHostReverseProxy(target)
+	proxy.FlushInterval = -1 // SSE + HMR streaming
 
-	// Modificar Director para preservar headers importantes
 	originalDirector := proxy.Director
 	proxy.Director = func(req *http.Request) {
+		// Capture original host BEFORE the default director rewrites the URL
+		origHost := req.Host
+
 		originalDirector(req)
+
 		req.Header.Set("X-Forwarded-For", req.RemoteAddr)
-		req.Header.Set("X-Forwarded-Proto", "http")
+		req.Header.Set("X-Forwarded-Host", origHost)
+
+		proto := "http"
+		if fp := req.Header.Get("X-Forwarded-Proto"); fp != "" {
+			proto = fp
+		}
+		req.Header.Set("X-Forwarded-Proto", proto)
 
 		// Extract subdomain and add as X-Tenant header
-		host := req.Host
-		if strings.Contains(host, ".localhost") {
-			// Extract subdomain from host like "tenant.localhost:9090"
-			parts := strings.Split(host, ".")
+		if strings.Contains(origHost, ".localhost") {
+			parts := strings.Split(origHost, ".")
 			if len(parts) >= 2 {
-				tenant := parts[0]
-				// Remove port if present
-				tenant = strings.Split(tenant, ":")[0]
+				tenant := strings.Split(parts[0], ":")[0]
 				if tenant != "" && tenant != "localhost" {
 					req.Header.Set("X-Tenant", tenant)
-					logger.Debug("Extracted tenant from subdomain", zap.String("tenant", tenant), zap.String("host", host))
 				}
 			}
 		}
@@ -64,21 +71,18 @@ func setupProxyNotFound(router chi.Router, frontendURL string, logger *zap.Logge
 		w.Write([]byte("Frontend server unavailable"))
 	}
 
-	logger.Info("Proxying to frontend dev server", zap.String("url", frontendURL))
+	logger.Info("Proxying unmatched routes to Next.js", zap.String("url", frontendURL))
 
-	// Usar NotFound para solo proxear rutas no encontradas
 	router.NotFound(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// No proxear rutas de API (excepto /api/auth que es NextAuth)
-		if strings.HasPrefix(r.URL.Path, "/api/") && !strings.HasPrefix(r.URL.Path, "/api/auth") {
+		// All /api/* paths should be registered Chi routes — return 404
+		if strings.HasPrefix(r.URL.Path, "/api/") {
 			http.NotFound(w, r)
 			return
 		}
-		// No proxear Swagger
 		if strings.HasPrefix(r.URL.Path, "/swagger") {
 			http.NotFound(w, r)
 			return
 		}
-		logger.Debug("Proxying request via NotFound", zap.String("path", r.URL.Path), zap.String("method", r.Method))
 		proxy.ServeHTTP(w, r)
 	}))
 }

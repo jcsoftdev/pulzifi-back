@@ -5,8 +5,8 @@ import { extractTenantFromHostname, getTenantFromWindow } from './tenant-utils'
 import type { IHttpClient } from './types'
 
 // Browser API calls always use the current page origin so cookies are sent as
-// same-origin requests. Locally, Caddy on :3000 routes /api/v1/* straight to
-// the Go backend. In production the Next.js rewrite proxy handles it.
+// same-origin requests. Go on :3000 is the single HTTP entry point — it serves
+// API routes directly and proxies page requests to Next.js on :3001.
 const getClientApiUrl = (): string => {
   return globalThis.window.location.origin
 }
@@ -35,7 +35,16 @@ async function getServerForwardHeaders(): Promise<Record<string, string>> {
       forwarded.Cookie = cookie
     }
 
-    const host = incoming.get('host')
+    const incomingTenant = incoming.get('x-tenant')
+    if (incomingTenant) {
+      forwarded['X-Tenant'] = incomingTenant
+      return forwarded
+    }
+
+    // Prefer X-Forwarded-Host (set by Go reverse proxy) over Host,
+    // because the proxy rewrites Host to the internal target (e.g. host.docker.internal:3001)
+    // while X-Forwarded-Host preserves the original browser host (e.g. tenant.localhost:3000).
+    const host = incoming.get('x-forwarded-host') || incoming.get('host')
     if (host) {
       const tenant = extractTenantFromHostname(host)
       if (tenant) {

@@ -15,6 +15,10 @@ type SnapshotPort interface {
 	ExecuteCheck(ctx context.Context, checkID uuid.UUID, url string, schemaName string) error
 }
 
+// FailCheckFunc is called to mark a check as "error" when the worker cannot
+// recover from a failure (panic or returned error).
+type FailCheckFunc func(ctx context.Context, checkID uuid.UUID, schemaName string, errMsg string)
+
 type SnapshotJob struct {
 	CheckID    uuid.UUID
 	URL        string
@@ -24,14 +28,16 @@ type SnapshotJob struct {
 type WorkerPool struct {
 	jobQueue     chan SnapshotJob
 	snapshotPort SnapshotPort
+	failCheck    FailCheckFunc
 	wg           sync.WaitGroup
 	quit         chan struct{}
 }
 
-func NewWorkerPool(snapshotPort SnapshotPort, bufferSize int) *WorkerPool {
+func NewWorkerPool(snapshotPort SnapshotPort, bufferSize int, failCheck FailCheckFunc) *WorkerPool {
 	return &WorkerPool{
 		jobQueue:     make(chan SnapshotJob, bufferSize),
 		snapshotPort: snapshotPort,
+		failCheck:    failCheck,
 		quit:         make(chan struct{}),
 	}
 }
@@ -60,15 +66,40 @@ func (p *WorkerPool) worker(id int) {
 	for {
 		select {
 		case job := <-p.jobQueue:
-			logger.Debug("Worker received job", zap.Int("worker_id", id), zap.String("check_id", job.CheckID.String()))
-			if err := p.snapshotPort.ExecuteCheck(context.Background(), job.CheckID, job.URL, job.SchemaName); err != nil {
-				logger.Error("Worker failed to execute check",
-					zap.Int("worker_id", id),
-					zap.String("check_id", job.CheckID.String()),
-					zap.Error(err))
-			}
+			p.executeJob(id, job)
 		case <-p.quit:
 			return
+		}
+	}
+}
+
+func (p *WorkerPool) executeJob(workerID int, job SnapshotJob) {
+	logger.Debug("Worker received job", zap.Int("worker_id", workerID), zap.String("check_id", job.CheckID.String()))
+
+	// Recover from panics so the worker goroutine stays alive and the
+	// check is marked as failed instead of staying "pending" forever.
+	defer func() {
+		if r := recover(); r != nil {
+			errMsg := fmt.Sprintf("worker panic: %v", r)
+			logger.Error("Worker panicked during check execution",
+				zap.Int("worker_id", workerID),
+				zap.String("check_id", job.CheckID.String()),
+				zap.String("error", errMsg))
+			if p.failCheck != nil {
+				p.failCheck(context.Background(), job.CheckID, job.SchemaName, errMsg)
+			}
+		}
+	}()
+
+	if err := p.snapshotPort.ExecuteCheck(context.Background(), job.CheckID, job.URL, job.SchemaName); err != nil {
+		logger.Error("Worker failed to execute check",
+			zap.Int("worker_id", workerID),
+			zap.String("check_id", job.CheckID.String()),
+			zap.Error(err))
+		// ExecuteCheck already marks the check as "error" internally for most
+		// paths. This catch handles early failures (e.g. check not found in DB).
+		if p.failCheck != nil {
+			p.failCheck(context.Background(), job.CheckID, job.SchemaName, err.Error())
 		}
 	}
 }

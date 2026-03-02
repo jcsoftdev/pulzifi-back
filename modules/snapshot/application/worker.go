@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -38,6 +39,48 @@ type SnapshotWorker struct {
 	insightHandler  *generateinsights.GenerateInsightsHandler
 	emailProvider   emailservices.EmailProvider
 	frontendURL     string
+	onCheckDone     func(pageID uuid.UUID, checkJSON []byte)
+}
+
+// SetOnCheckDone registers a callback invoked after every check completes
+// (success or error) with the serialized CheckResponse payload.
+func (s *SnapshotWorker) SetOnCheckDone(fn func(pageID uuid.UUID, checkJSON []byte)) {
+	s.onCheckDone = fn
+}
+
+// notifyCheckDone serializes a check into the same DTO format the frontend
+// expects and invokes the onCheckDone callback if set.
+func (s *SnapshotWorker) notifyCheckDone(check *entities.Check) {
+	if s.onCheckDone == nil {
+		return
+	}
+	type checkResponse struct {
+		ID              uuid.UUID `json:"id"`
+		PageID          uuid.UUID `json:"page_id"`
+		Status          string    `json:"status"`
+		ScreenshotURL   string    `json:"screenshot_url"`
+		HTMLSnapshotURL string    `json:"html_snapshot_url"`
+		ChangeDetected  bool      `json:"change_detected"`
+		ChangeType      string    `json:"change_type"`
+		ErrorMessage    string    `json:"error_message,omitempty"`
+		CheckedAt       string    `json:"checked_at"`
+	}
+	payload, err := json.Marshal(checkResponse{
+		ID:              check.ID,
+		PageID:          check.PageID,
+		Status:          check.Status,
+		ScreenshotURL:   check.ScreenshotURL,
+		HTMLSnapshotURL: check.HTMLSnapshotURL,
+		ChangeDetected:  check.ChangeDetected,
+		ChangeType:      check.ChangeType,
+		ErrorMessage:    check.ErrorMessage,
+		CheckedAt:       check.CheckedAt.Format("2006-01-02T15:04:05.999999Z"),
+	})
+	if err != nil {
+		logger.Error("Failed to serialize check for SSE notification", zap.Error(err))
+		return
+	}
+	s.onCheckDone(check.PageID, payload)
 }
 
 func NewSnapshotWorker(objectStorage repositories.ObjectStorage, extractorClient *extractor.HTTPClient, db *sql.DB, insightHandler *generateinsights.GenerateInsightsHandler, emailProvider emailservices.EmailProvider, frontendURL string) *SnapshotWorker {
@@ -63,28 +106,40 @@ func (s *SnapshotWorker) ExecuteCheck(ctx context.Context, checkID uuid.UUID, ta
 		return fmt.Errorf("check not found: %s", checkID)
 	}
 
-	// Find previous successful check for comparison
-	// Ideally we need a better query, but for now getting latest by page
-	// (which might be the current one or previous one)
-	// We will skip comparison if we can't reliably find the previous one
-	// or implement a simple check
-	// prevCheck, _ := checkRepo.GetLatestByPage(ctx, check.PageID)
+	// markError is a helper that ensures the check reaches "error" status.
+	markError := func(msg string, duration int) error {
+		check.Status = "error"
+		check.ErrorMessage = msg
+		check.DurationMs = duration
+		if updateErr := checkRepo.Update(ctx, check); updateErr != nil {
+			logger.Error("Failed to mark check as error", zap.Error(updateErr), zap.String("check_id", checkID.String()))
+			return updateErr
+		}
+		s.notifyCheckDone(check)
+		return fmt.Errorf("%s", msg)
+	}
+
+	// Fetch monitoring config before extraction to get block_ads_cookies setting
+	configRepo := monPersistence.NewMonitoringConfigPostgresRepository(s.db, schemaName)
+	pageConfig, _ := configRepo.GetByPageID(ctx, check.PageID)
+
+	extractOpts := extractor.ExtractOptions{}
+	if pageConfig != nil {
+		extractOpts.BlockAdsCookies = pageConfig.BlockAdsCookies
+	}
 
 	startTime := time.Now()
-	res, err := s.extractorClient.Extract(ctx, targetURL)
+	res, err := s.extractorClient.Extract(ctx, targetURL, extractOpts)
 	duration := int(time.Since(startTime).Milliseconds())
 
 	if err != nil {
-		check.Status = "error"
-		check.ErrorMessage = err.Error()
-		check.DurationMs = duration
-		return checkRepo.Update(ctx, check)
+		return markError(err.Error(), duration)
 	}
 
 	// Process Results
 	imgBytes, err := base64.StdEncoding.DecodeString(res.ScreenshotBase64)
 	if err != nil {
-		return fmt.Errorf("failed to decode screenshot: %w", err)
+		return markError(fmt.Sprintf("failed to decode screenshot: %v", err), duration)
 	}
 
 	ts := time.Now().Unix()
@@ -92,17 +147,16 @@ func (s *SnapshotWorker) ExecuteCheck(ctx context.Context, checkID uuid.UUID, ta
 	htmlName := fmt.Sprintf("%s/%d.html", check.PageID, ts)
 
 	// Upload
+	if s.objectStorage == nil {
+		return markError("object storage client is not configured", duration)
+	}
 	imgURL, err := s.objectStorage.Upload(ctx, imgName, bytes.NewReader(imgBytes), int64(len(imgBytes)), "image/png")
 	if err != nil {
-		logger.Error("Failed to upload screenshot", zap.Error(err))
-		// Continue even if upload fails? Or fail?
-		// Let's continue but mark error?
-		// For now fail.
-		return err
+		return markError(fmt.Sprintf("failed to upload screenshot: %v", err), duration)
 	}
 	htmlURL, err := s.objectStorage.Upload(ctx, htmlName, strings.NewReader(res.HTML), int64(len(res.HTML)), "text/html")
 	if err != nil {
-		return err
+		return markError(fmt.Sprintf("failed to upload html snapshot: %v", err), duration)
 	}
 
 	// Hashes
@@ -126,10 +180,6 @@ func (s *SnapshotWorker) ExecuteCheck(ctx context.Context, checkID uuid.UUID, ta
 		if prevCheck.ContentHash != contentHashStr {
 			check.ChangeDetected = true
 			check.ChangeType = "content"
-
-			// Load insight preferences for this page
-			configRepo := monPersistence.NewMonitoringConfigPostgresRepository(s.db, schemaName)
-			pageConfig, _ := configRepo.GetByPageID(ctx, check.PageID)
 
 			enabledInsightTypes := []string{"marketing", "market_analysis"}
 			enabledAlertConditions := []string{"any_changes"}
@@ -158,6 +208,8 @@ func (s *SnapshotWorker) ExecuteCheck(ctx context.Context, checkID uuid.UUID, ta
 	if err := checkRepo.Update(ctx, check); err != nil {
 		return err
 	}
+
+	s.notifyCheckDone(check)
 
 	if err := s.updatePageSnapshotMetadata(ctx, schemaName, check.PageID, imgURL, check.ChangeDetected); err != nil {
 		logger.Error("Failed to update page snapshot metadata", zap.Error(err), zap.String("page_id", check.PageID.String()))

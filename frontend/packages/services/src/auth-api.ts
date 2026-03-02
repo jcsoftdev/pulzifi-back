@@ -114,7 +114,7 @@ export const AuthApi = {
   async checkSubdomain(subdomain: string): Promise<{ available: boolean; message?: string }> {
     const http = await createBffHttpClient()
     return http.post<{ available: boolean; message?: string }>(
-      '/api/auth/check-subdomain',
+      '/api/v1/auth/check-subdomain',
       { subdomain }
     )
   },
@@ -128,7 +128,7 @@ export const AuthApi = {
     organizationSubdomain: string
   }): Promise<{ status: string; message: string }> {
     const http = await createBffHttpClient()
-    const response = await http.post<RegisterBackendResponse>('/api/auth/register', {
+    const response = await http.post<RegisterBackendResponse>('/api/v1/auth/register', {
       email: data.email,
       password: data.password,
       firstName: data.firstName,

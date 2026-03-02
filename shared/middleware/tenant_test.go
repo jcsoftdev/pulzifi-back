@@ -53,31 +53,33 @@ func TestGetSetSearchPathSQL(t *testing.T) {
 }
 
 func TestIsPublicPath(t *testing.T) {
+	// Paths are as seen by the v1Router (after Chi strips the /api/v1 mount prefix).
 	tests := []struct {
-		name   string
-		path   string
+		name     string
+		path     string
 		isPublic bool
 	}{
-		{"swagger path", "/api/v1/swagger", true},
-		{"swagger subpath", "/api/v1/swagger/index.html", true},
-		{"health check", "/api/v1/health", true},
-		{"auth login", "/api/v1/auth/login", true},
-		{"auth register", "/api/v1/auth/register", true},
-		{"auth me", "/api/v1/auth/me", true},
-		{"auth refresh", "/api/v1/auth/refresh", true},
-		{"auth providers", "/api/v1/auth/providers", true},
-		{"auth csrf", "/api/v1/auth/csrf", true},
-		{"api docs", "/api/docs", true},
-		{"root swagger", "/swagger", true},
-		{"root health", "/health", true},
-		{"root docs", "/docs", true},
-		{"monitoring endpoint", "/api/v1/monitoring/checks", false},
-		{"organizations endpoint", "/api/v1/organizations", false},
+		{"swagger path", "/swagger", true},
+		{"swagger subpath", "/swagger/index.html", true},
+		{"health check", "/health", true},
+		{"auth login", "/auth/login", true},
+		{"auth register", "/auth/register", true},
+		{"auth me", "/auth/me", true},
+		{"auth refresh", "/auth/refresh", true},
+		{"auth providers", "/auth/providers", true},
+		{"auth csrf", "/auth/csrf", true},
+		{"docs path", "/docs", true},
+		{"admin path", "/admin", true},
+		{"admin subpath", "/admin/users", true},
+		{"auth oauth", "/auth/oauth/google", true},
+		{"auth logout", "/auth/logout", true},
+		{"monitoring endpoint", "/monitoring/checks", false},
+		{"organizations endpoint", "/organizations", false},
 		{"random path", "/some/random/path", false},
 		{"root path", "/", false},
 		{"empty path", "", false},
-		{"partial match", "/api/v1/heal", false},
-		{"auth but different", "/api/v1/authorize", false},
+		{"partial match", "/heal", false},
+		{"auth but different", "/authorize", false},
 	}
 
 	for _, tt := range tests {

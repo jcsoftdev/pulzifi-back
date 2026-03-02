@@ -96,6 +96,25 @@ export class FetchHttpClient implements IHttpClient {
     return data as T
   }
 
+  private isRefreshRequest(url: string): boolean {
+    return url.includes('/api/auth/refresh')
+  }
+
+  private async refreshSession(headers: Record<string, string>): Promise<boolean> {
+    try {
+      const refreshUrl = this.buildUrl('/api/auth/refresh')
+      const refreshResponse = await fetch(refreshUrl, {
+        method: 'POST',
+        credentials: 'include',
+        headers,
+      })
+
+      return refreshResponse.ok
+    } catch {
+      return false
+    }
+  }
+
   private async request<T>(
     url: string,
     config: RequestInit & RequestConfig = {}
@@ -104,11 +123,22 @@ export class FetchHttpClient implements IHttpClient {
     const fullUrl = this.buildUrl(url, params)
     const finalHeaders = this.buildHeaders(headers)
 
-    const response = await fetch(fullUrl, {
+    let response = await fetch(fullUrl, {
       ...fetchConfig,
       credentials: fetchConfig.credentials ?? 'include',
       headers: finalHeaders,
     })
+
+    if (response.status === 401 && !this.isRefreshRequest(url)) {
+      const refreshed = await this.refreshSession(finalHeaders)
+      if (refreshed) {
+        response = await fetch(fullUrl, {
+          ...fetchConfig,
+          credentials: fetchConfig.credentials ?? 'include',
+          headers: finalHeaders,
+        })
+      }
+    }
 
     if (response.status === 401) {
       throw new UnauthorizedError()

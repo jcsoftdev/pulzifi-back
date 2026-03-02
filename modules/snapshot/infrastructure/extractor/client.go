@@ -16,6 +16,10 @@ type ExtractorResult struct {
 	ScreenshotBase64 string `json:"screenshot_base64"`
 }
 
+type ExtractOptions struct {
+	BlockAdsCookies bool
+}
+
 type HTTPClient struct {
 	baseURL    string
 	httpClient *http.Client
@@ -25,13 +29,16 @@ func NewHTTPClient(baseURL string) *HTTPClient {
 	return &HTTPClient{
 		baseURL: baseURL,
 		httpClient: &http.Client{
-			Timeout: 60 * time.Second,
+			Timeout: 120 * time.Second,
 		},
 	}
 }
 
-func (c *HTTPClient) Extract(ctx context.Context, url string) (*ExtractorResult, error) {
-	payload := map[string]string{"url": url}
+func (c *HTTPClient) Extract(ctx context.Context, url string, opts ExtractOptions) (*ExtractorResult, error) {
+	payload := map[string]interface{}{
+		"url":               url,
+		"block_ads_cookies": opts.BlockAdsCookies,
+	}
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return nil, err

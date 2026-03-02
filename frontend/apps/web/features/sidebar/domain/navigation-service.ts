@@ -1,4 +1,5 @@
 import { AuthApi, OrganizationApi, WorkspaceApi } from '@workspace/services'
+import { handleServerAuthError } from '@/lib/auth/server-auth'
 import { BOTTOM_ROUTES, MAIN_ROUTES, type RouteConfig } from './routes'
 import type { Organization, User, Workspace } from './types'
 
@@ -26,44 +27,58 @@ export const NavigationService = {
    * Fetch top N workspaces from backend (uses workspace-api from packages/services)
    */
   async fetchTopWorkspaces(limit: number = 5): Promise<Workspace[]> {
-    const response = await WorkspaceApi.listWorkspaces({
-      limit,
-    })
+    try {
+      const response = await WorkspaceApi.listWorkspaces({
+        limit,
+      })
 
-    // Transform backend DTO to frontend domain type
-    return response.workspaces.map((dto) => ({
-      id: dto.id,
-      name: dto.name,
-      type: dto.type as Workspace['type'],
-    }))
+      return response.workspaces.map((dto) => ({
+        id: dto.id,
+        name: dto.name,
+        type: dto.type as Workspace['type'],
+      }))
+    } catch (error) {
+      return handleServerAuthError(error)
+    }
   },
 
   /**
    * Fetch all workspaces from backend
    */
   async fetchWorkspaces(): Promise<Workspace[]> {
-    const response = await WorkspaceApi.listWorkspaces()
+    try {
+      const response = await WorkspaceApi.listWorkspaces()
 
-    // Transform backend DTO to frontend domain type
-    return response.workspaces.map((dto) => ({
-      id: dto.id,
-      name: dto.name,
-      type: dto.type as Workspace['type'],
-    }))
+      return response.workspaces.map((dto) => ({
+        id: dto.id,
+        name: dto.name,
+        type: dto.type as Workspace['type'],
+      }))
+    } catch (error) {
+      return handleServerAuthError(error)
+    }
   },
 
   /**
    * Fetch current organization
    */
   async fetchOrganization(): Promise<Organization> {
-    return await OrganizationApi.getCurrentOrganization()
+    try {
+      return await OrganizationApi.getCurrentOrganization()
+    } catch (error) {
+      return handleServerAuthError(error)
+    }
   },
 
   /**
    * Fetch current user
    */
   async fetchUser(): Promise<User> {
-    return await AuthApi.getCurrentUser()
+    try {
+      return await AuthApi.getCurrentUser()
+    } catch (error) {
+      return handleServerAuthError(error)
+    }
   },
 
   /**

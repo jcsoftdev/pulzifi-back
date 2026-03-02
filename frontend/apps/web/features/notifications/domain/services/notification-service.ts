@@ -5,6 +5,7 @@
  */
 
 import { NotificationApi } from '@workspace/services'
+import { handleServerAuthError } from '@/lib/auth/server-auth'
 import type { Notification, NotificationsData } from '../types'
 
 export const NotificationService = {
@@ -13,14 +14,22 @@ export const NotificationService = {
    * Works in both server-side and client-side
    */
   async getNotificationsData(): Promise<NotificationsData> {
-    return await NotificationApi.getNotificationsData()
+    try {
+      return await NotificationApi.getNotificationsData()
+    } catch (error) {
+      return handleServerAuthError(error)
+    }
   },
 
   /**
    * Get all notifications for the current user
    */
   async getNotifications(): Promise<Notification[]> {
-    return await NotificationApi.getNotifications()
+    try {
+      return await NotificationApi.getNotifications()
+    } catch (error) {
+      return handleServerAuthError(error)
+    }
   },
 
   /**
