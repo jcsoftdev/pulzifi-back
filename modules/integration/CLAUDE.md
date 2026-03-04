@@ -1,35 +1,29 @@
 # Integration Module
 
-## Responsibility
+Third-party service integrations (webhooks, Slack, Teams, etc.).
 
-Third-party service integrations including Slack, Microsoft Teams, Discord, Google Sheets, and custom webhooks.
+## Domain Entities
 
-## Entities
+- `Integration` — integration config with service type and flexible config
 
-- **Integration** — ID, ServiceType (slack/teams/discord/google_sheets/webhook), Config (JSON), Enabled, CreatedBy, CreatedAt, UpdatedAt, DeletedAt
+## Use Cases
 
-## Repository Interfaces
+- `upsert_integration` — create/update integration
+- `list_integrations` — list integrations for org
+- `delete_integration` — delete integration
+- Webhook CRUD: create, list, get webhook integrations
 
-- `IntegrationRepository` — Create, List, GetByID, GetByServiceType, ListByServiceType, Update, DeleteByID
+## HTTP Routes (`/integrations/*`, tenant-aware)
 
-## Routes
+- GET `/integrations`
+- POST `/integrations`
+- DELETE `/integrations/{id}`
+- GET `/integrations/webhooks`
+- POST `/integrations/webhooks`
+- GET `/integrations/webhooks/{id}`
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/integrations` | List integrations |
-| POST | `/integrations` | Upsert integration |
-| DELETE | `/integrations/{id}` | Delete integration |
-| POST | `/integrations/webhooks` | Create webhook |
-| GET | `/integrations/webhooks` | List webhooks |
-| DELETE | `/integrations/webhooks/{id}` | Delete webhook |
+## Infrastructure
 
-## Dependencies
-
-- Auth middleware
-- gRPC server (exposes integration config to monitoring module)
-
-## Constraints
-
-- Tenant-scoped
-- Config stored as JSON blob (service-specific structure)
-- Webhooks triggered by monitoring events
+- PostgreSQL: `integrations` table (tenant-scoped)
+- Webhook sender: HTTP POST with HMAC signing
+- Service types: slack, teams, discord, google_sheets, webhook

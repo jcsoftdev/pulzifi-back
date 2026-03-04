@@ -6,9 +6,9 @@ tmp_dir = "tmp"
 [build]
   args_bin = []
   bin = "bin/pulzifi-monolith"
-  cmd = "go build -o ./bin/pulzifi-monolith ./cmd/server/"
+  cmd = "swag init -g cmd/server/main.go --output docs 2>/dev/null; go build -o ./bin/pulzifi-monolith ./cmd/server/"
   delay = 1000
-  exclude_dir = ["assets", "tmp", "vendor", "testdata"]
+  exclude_dir = ["assets", "tmp", "vendor", "testdata", "docs"]
   exclude_file = []
   exclude_pattern = ["*.so", "*.sqlc.go"]
   exclude_regex = ["_test\\.go"]

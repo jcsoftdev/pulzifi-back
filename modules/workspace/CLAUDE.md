@@ -1,38 +1,46 @@
 # Workspace Module
 
-## Responsibility
+Workspace management within organizations.
 
-Workspace CRUD within a tenant, member role-based authorization (Owner/Editor/Viewer), and workspace membership management.
+## Domain Entities
 
-## Entities
+- `Workspace` — workspace with name, type, tags
+- `WorkspaceMember` — workspace-level member with role
 
-- **Workspace** — ID, Name, Type, Tags, CreatedBy, CreatedAt, UpdatedAt, DeletedAt
-- **WorkspaceMember** — WorkspaceID, UserID, Role (Owner/Editor/Viewer), InvitedBy, InvitedAt
+## Use Cases
 
-## Repository Interfaces
+- `create_workspace` — create workspace in organization
+- `list_workspaces` — list workspaces
+- `get_workspace` — get workspace details
+- `update_workspace` — update workspace
+- `delete_workspace` — delete workspace
+- `add_workspace_member` — add member to workspace
+- `list_workspace_members` — list workspace members
+- `remove_workspace_member` — remove member
+- `update_member_role` — update member workspace role
 
-- `WorkspaceRepository` — Create, GetByID, List, ListByCreator, Update, Delete, AddMember, GetMember, ListMembers, ListByMember, UpdateMemberRole, RemoveMember
+## HTTP Routes (`/workspaces/*`, tenant-aware)
 
-## Routes
+- POST `/workspaces`
+- GET `/workspaces`
+- GET `/workspaces/{id}`
+- PUT `/workspaces/{id}`
+- DELETE `/workspaces/{id}`
+- GET `/workspaces/{id}/members`
+- POST `/workspaces/{id}/members`
+- PUT `/workspaces/{id}/members/{member_id}`
+- DELETE `/workspaces/{id}/members/{member_id}`
 
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/workspaces` | Create workspace |
-| GET | `/workspaces` | List workspaces |
-| GET | `/workspaces/{id}` | Get workspace |
-| PUT | `/workspaces/{id}` | Update workspace |
-| DELETE | `/workspaces/{id}` | Delete workspace |
-| POST | `/workspaces/{id}/members` | Add member |
-| GET | `/workspaces/{id}/members` | List members |
-| PUT | `/workspaces/{id}/members/{user_id}` | Update member role |
-| DELETE | `/workspaces/{id}/members/{user_id}` | Remove member |
+## Domain Services
 
-## Dependencies
+- `WorkspaceAuthorizationService` — workspace-level access control
 
-- Auth middleware (multi-level: global permission → workspace membership → workspace role)
+## Infrastructure
 
-## Constraints
+- PostgreSQL: `workspaces`, `workspace_members` tables (tenant-scoped)
+- Authorization middleware for workspace-level access
 
-- Tenant-scoped: all workspace data lives in the tenant's PostgreSQL schema
-- Creator automatically becomes Owner
-- Authorization checks at workspace level via WorkspaceAuthorizationMiddleware
+## Notes
+
+- Hierarchy: Organization > Workspace > Pages
+- Role-based member permissions per workspace

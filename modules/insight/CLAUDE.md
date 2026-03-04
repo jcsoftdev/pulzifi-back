@@ -1,42 +1,35 @@
 # Insight Module
 
-## Responsibility
+AI-powered insight generation for page changes using LLM.
 
-AI-powered insight generation from detected page changes using OpenRouter LLM. Supports multiple insight types and real-time streaming of generation progress via SSE.
+## Domain Entities
 
-## Entities
+- `Insight` — AI-generated insight with title, content, metadata
 
-- **Insight** — ID, PageID, CheckID, InsightType (seo/performance/content/accessibility), Title, Content, Metadata, CreatedAt
+## Use Cases
 
-## Repository Interfaces
+- `generate_insights` — generate insights for check changes (async, background)
+- `list_insights` — list insights for a page or check
 
-- `InsightRepository` — Create, ListByPageID, ListByCheckID, GetByID
+## HTTP Routes (`/insights/*`, tenant-aware)
+
+- POST `/insights/generate` (returns 202 Accepted)
+- GET `/insights`
+- GET `/insights/{id}`
+- GET `/insights/sse` — SSE stream for generation completion
 
 ## Domain Services
 
-- `InsightGenerator` interface — implemented by OpenRouter adapter in `infrastructure/ai/`
+- `InsightGenerator` interface (OpenRouter implementation)
 
-## Routes
+## Infrastructure
 
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/insights/generate` | Generate insights (async, returns 202) |
-| GET | `/insights` | List insights (filterable by page_id, check_id) |
-| GET | `/insights/{id}` | Get insight |
-| GET | `/insights/sse?check_id=...` | SSE stream for generation progress |
+- OpenRouter AI client (configurable model)
+- HTML text extraction from snapshots
+- PostgreSQL: `insights` table (tenant-scoped)
+- Pub/Sub Broker: SSE notifications when generation completes
 
-## Dependencies
+## Notes
 
-- Monitoring module (provides check data)
-- OpenRouter API (`shared/ai/`) for LLM inference
-- HTML text extraction (`shared/html/`)
-- InsightBroker (`shared/pubsub/`) for SSE streaming
-- Email module (optional notification)
-
-## Constraints
-
-- Requires `OPENROUTER_API_KEY` to be set (disabled otherwise)
-- Default model: `mistralai/mistral-7b-instruct:free`
-- Insights generated asynchronously; client polls via SSE
-- InsightBroker has 5-minute replay cache for late SSE subscribers
-- SSE connection timeout: 120 seconds
+- Returns 202 immediately; generation runs in background
+- Configured via `OPENROUTER_API_KEY` and `OPENROUTER_MODEL`

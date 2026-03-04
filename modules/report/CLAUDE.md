@@ -1,30 +1,23 @@
 # Report Module
 
-## Responsibility
+Generate and store monitoring reports.
 
-Report generation and management from monitoring data. Reports summarize page monitoring activity over a time period.
+## Domain Entities
 
-## Entities
+- `Report` — report with flexible content (JSON), PDF URL
 
-- **Report** — ID, PageID, Title, ReportDate, Content, PDFURL, CreatedBy, CreatedAt, DeletedAt
+## Use Cases
 
-## Repository Interfaces
+- `create_report` — create a report for a page
+- `list_reports` — list reports (optionally filtered by page)
+- `get_report` — get report details
 
-- `ReportRepository` — Create, GetByID, ListByPage, List
+## HTTP Routes (`/reports/*`, tenant-aware)
 
-## Routes
+- POST `/reports`
+- GET `/reports`
+- GET `/reports/{id}`
 
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/reports` | Create report |
-| GET | `/reports` | List reports (filterable by page_id) |
-| GET | `/reports/{id}` | Get report |
+## Infrastructure
 
-## Dependencies
-
-- Page module
-- Auth middleware
-
-## Constraints
-
-- Tenant-scoped
+- PostgreSQL: `reports` table (tenant-scoped) with JSON content field

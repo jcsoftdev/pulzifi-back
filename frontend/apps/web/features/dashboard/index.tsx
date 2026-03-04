@@ -1,10 +1,15 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { notification } from '@/lib/notification'
+import type { CreatePageDto } from '@/features/page/domain/types'
+import { AddPageDialog } from '@/features/page/ui/add-page-dialog'
 import { useWorkspaces } from '@/features/workspace/application/hooks/use-workspaces'
 import { CreateWorkspaceDialog } from '@/features/workspace/ui/create-workspace-dialog'
+import type { Workspace } from '@/features/workspace/domain/types'
+import { PageApi } from '@workspace/services/page-api'
+import { WorkspaceApi } from '@workspace/services'
 import { useDashboardStats } from './application/use-dashboard-stats'
 import type {
   DashboardStats,
@@ -168,6 +173,14 @@ export function DashboardFeature({
   const { isLoading: isCreatingWorkspace, error: createWorkspaceError, createWorkspace } =
     useWorkspaces()
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
+  const [isAddPageOpen, setIsAddPageOpen] = useState(false)
+  const [isAddingPage, setIsAddingPage] = useState(false)
+  const [addPageError, setAddPageError] = useState<Error | null>(null)
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([])
+
+  useEffect(() => {
+    WorkspaceApi.listWorkspaces().then((res) => setWorkspaces(res.workspaces)).catch(() => {})
+  }, [])
 
   const headerStats: DashboardStats = {
     workplaces: stats?.workspacesCount ?? 0,
@@ -210,6 +223,22 @@ export function DashboardFeature({
     }
   }
 
+  const handleAddPage = async (data: CreatePageDto) => {
+    setIsAddingPage(true)
+    setAddPageError(null)
+    try {
+      const newPage = await PageApi.createPage(data)
+      setIsAddPageOpen(false)
+      notification.success({ title: 'Page added', description: `"${newPage.name}" has been added.` })
+      refetch()
+    } catch (err) {
+      setAddPageError(err instanceof Error ? err : new Error('Failed to add page'))
+      notification.error({ title: 'Failed to add page', description: err instanceof Error ? err.message : 'Please try again.' })
+    } finally {
+      setIsAddingPage(false)
+    }
+  }
+
   return (
     <div className="flex-1 flex flex-col">
       <CreateWorkspaceDialog
@@ -221,11 +250,20 @@ export function DashboardFeature({
         mode="create"
       />
 
+      <AddPageDialog
+        open={isAddPageOpen}
+        onOpenChange={setIsAddPageOpen}
+        onSubmit={handleAddPage}
+        workspaces={workspaces}
+        isLoading={isAddingPage}
+        error={addPageError}
+      />
+
       <DashboardHeader
         userName={userName}
         stats={headerStats}
         onCreateWorkspace={() => setIsCreateDialogOpen(true)}
-        onAddPage={() => router.push('/workspaces')}
+        onAddPage={() => setIsAddPageOpen(true)}
       />
 
       {isEmpty ? (
@@ -241,7 +279,7 @@ export function DashboardFeature({
               title="No Pages Yet"
               description="Add a page link to your workspace to start monitoring updates and tracking changes in real time."
               buttonText="+ Add new page"
-              onButtonClick={() => router.push('/workspaces')}
+              onButtonClick={() => setIsAddPageOpen(true)}
             />
           </div>
           <EmptyStateCard

@@ -149,6 +149,16 @@ func (m *Module) RegisterHTTPRoutes(r chi.Router) {
 	})
 }
 
+// handleRegister creates a new user registration request
+// @Summary Register
+// @Description Submit a new user registration request (requires admin approval)
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body register.Request true "Registration Request"
+// @Success 201 {object} map[string]interface{}
+// @Failure 400 {object} map[string]string
+// @Router /auth/register [post]
 func (m *Module) handleRegister(w http.ResponseWriter, r *http.Request) {
 	var req register.Request
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -197,6 +207,16 @@ func (m *Module) handleCheckSubdomain(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, response)
 }
 
+// handleLogin authenticates a user and returns JWT tokens
+// @Summary Login
+// @Description Authenticate with email and password. Returns access_token for use with the Authorize button above.
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body login.Request true "Login credentials"
+// @Success 200 {object} login.Response
+// @Failure 401 {object} map[string]string
+// @Router /auth/login [post]
 func (m *Module) handleLogin(w http.ResponseWriter, r *http.Request) {
 	var req login.Request
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -237,6 +257,13 @@ func (m *Module) handleLogin(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleLogout clears authentication cookies
+// @Summary Logout
+// @Description Clear authentication cookies
+// @Tags auth
+// @Produce json
+// @Success 200 {object} map[string]string
+// @Router /auth/logout [post]
 func (m *Module) handleLogout(w http.ResponseWriter, r *http.Request) {
 	cookies.ClearAuthCookies(w, r, m.cookieDomain, m.cookieSecure)
 	writeJSON(w, http.StatusOK, map[string]interface{}{"message": "logged out successfully"})
@@ -269,6 +296,15 @@ func (m *Module) handleRefresh(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleGetCurrentUser returns the authenticated user's profile
+// @Summary Get current user
+// @Description Get the profile of the currently authenticated user
+// @Tags auth
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} map[string]interface{}
+// @Failure 401 {object} map[string]string
+// @Router /auth/me [get]
 func (m *Module) handleGetCurrentUser(w http.ResponseWriter, r *http.Request) {
 	userIDStr, ok := r.Context().Value(authmw.UserIDKey).(string)
 	if !ok {

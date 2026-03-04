@@ -5,6 +5,7 @@ import {
   type Page,
   PageApi,
 } from '@workspace/services/page-api'
+import { type ChecksData, UsageApi } from '@workspace/services/usage-api'
 import { type Workspace, WorkspaceApi } from '@workspace/services/workspace-api'
 
 export const PageDetailService = {
@@ -26,5 +27,17 @@ export const PageDetailService = {
 
   async listInsights(pageId: string): Promise<Insight[]> {
     return await PageApi.listInsights(pageId)
+  },
+
+  async getQuotaStatus(): Promise<{ exceeded: boolean; refillDate: string }> {
+    try {
+      const data: ChecksData = await UsageApi.getChecksData()
+      return {
+        exceeded: data.current >= data.max,
+        refillDate: data.refillDate,
+      }
+    } catch {
+      return { exceeded: false, refillDate: 'N/A' }
+    }
   },
 }

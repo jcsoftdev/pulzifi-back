@@ -21,10 +21,12 @@ import {
   SelectValue,
 } from '@workspace/ui/components/atoms/select'
 import { Textarea } from '@workspace/ui/components/atoms/textarea'
-import { Link2, Sparkles } from 'lucide-react'
-import { useEffect, useId, useState } from 'react'
+import { Link2, Sparkles, Loader2, ArrowLeft, Monitor, MousePointerClick } from 'lucide-react'
+import { useCallback, useEffect, useId, useState } from 'react'
 import { CHECK_FREQUENCY_OPTIONS } from '../domain/types'
-import type { CreatePageDto } from '../domain/types'
+import type { CreatePageDto, PagePreviewResult, SelectorOffsets } from '../domain/types'
+import { PagePreviewSelector, type ElementSelection } from './page-preview-selector'
+import { PageApi } from '@workspace/services/page-api'
 
 const INSIGHT_TYPES = [
   { value: 'marketing', label: 'Marketing Lens' },
@@ -38,11 +40,19 @@ const ALERT_CONDITIONS = [
   { value: 'navigation_changes', label: "Site's main navigation menu changes" },
 ] as const
 
+type WizardStep = 'url' | 'selector' | 'config'
+
+export interface WorkspaceOption {
+  id: string
+  name: string
+}
+
 export interface AddPageDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onSubmit: (data: CreatePageDto) => Promise<void>
-  workspaceId: string
+  workspaceId?: string
+  workspaces?: WorkspaceOption[]
   isLoading?: boolean
   error?: Error | null
 }
@@ -52,10 +62,13 @@ export function AddPageDialog({
   onOpenChange,
   onSubmit,
   workspaceId,
+  workspaces = [],
   isLoading = false,
   error,
 }: Readonly<AddPageDialogProps>) {
   const uid = useId()
+  const [step, setStep] = useState<WizardStep>('url')
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState(workspaceId ?? '')
   const [name, setName] = useState('')
   const [url, setUrl] = useState('')
   const [tags, setTags] = useState<string[]>([])
@@ -69,8 +82,24 @@ export function AddPageDialog({
   const [enabledAlertConditions, setEnabledAlertConditions] = useState<string[]>(['any_changes'])
   const [customAlertCondition, setCustomAlertCondition] = useState('')
 
+  // Selector state
+  const [selectorType, setSelectorType] = useState<'full_page' | 'element'>('full_page')
+  const [cssSelector, setCssSelector] = useState('')
+  const [xpathSelector, setXpathSelector] = useState('')
+  const [selectorOffsets, setSelectorOffsets] = useState<SelectorOffsets>({
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+  })
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewData, setPreviewData] = useState<PagePreviewResult | null>(null)
+  const [previewError, setPreviewError] = useState<string | null>(null)
+
   useEffect(() => {
     if (!open) {
+      setStep('url')
+      setSelectedWorkspaceId(workspaceId ?? '')
       setName('')
       setUrl('')
       setTags([])
@@ -80,8 +109,14 @@ export function AddPageDialog({
       setEnabledInsightTypes(['marketing', 'market_analysis'])
       setEnabledAlertConditions(['any_changes'])
       setCustomAlertCondition('')
+      setSelectorType('full_page')
+      setCssSelector('')
+      setXpathSelector('')
+      setSelectorOffsets({ top: 0, right: 0, bottom: 0, left: 0 })
+      setPreviewData(null)
+      setPreviewError(null)
     }
-  }, [open])
+  }, [open, workspaceId])
 
   const toggleInsightType = (value: string, checked: boolean) => {
     setEnabledInsightTypes((prev) =>
@@ -95,12 +130,41 @@ export function AddPageDialog({
     )
   }
 
+  const handlePreviewPage = useCallback(async () => {
+    if (!url.trim()) return
+    setPreviewLoading(true)
+    setPreviewError(null)
+    try {
+      const result = await PageApi.previewPage(url.trim(), blockAdsCookies)
+      setPreviewData(result)
+      setStep('selector')
+    } catch (err) {
+      setPreviewError(err instanceof Error ? err.message : 'Failed to preview page')
+    } finally {
+      setPreviewLoading(false)
+    }
+  }, [url, blockAdsCookies])
+
+  const handleElementSelect = useCallback((selection: ElementSelection | null) => {
+    if (selection) {
+      setSelectorType('element')
+      setCssSelector(selection.cssSelector)
+      setXpathSelector(selection.xpathSelector)
+      setSelectorOffsets(selection.offsets)
+    } else {
+      setSelectorType('full_page')
+      setCssSelector('')
+      setXpathSelector('')
+      setSelectorOffsets({ top: 0, right: 0, bottom: 0, left: 0 })
+    }
+  }, [])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!name.trim() || !url.trim()) return
+    if (!selectedWorkspaceId || !name.trim() || !url.trim()) return
 
     await onSubmit({
-      workspaceId,
+      workspaceId: selectedWorkspaceId,
       name: name.trim(),
       url: url.trim(),
       tags,
@@ -110,17 +174,40 @@ export function AddPageDialog({
       enabledInsightTypes,
       enabledAlertConditions,
       customAlertCondition: customAlertCondition.trim(),
+      selectorType,
+      cssSelector,
+      xpathSelector,
+      selectorOffsets,
     })
   }
 
-  const isFormValid = name.trim() !== '' && url.trim() !== ''
+  const isFormValid = selectedWorkspaceId !== '' && name.trim() !== '' && url.trim() !== ''
+
+  const stepTitle = {
+    url: 'Add New Page',
+    selector: 'Select Region to Monitor',
+    config: 'Configure Monitoring',
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[672px] max-h-[90vh] p-0 flex flex-col gap-0 overflow-hidden">
+      <DialogContent
+        className={`${step === 'selector' ? 'max-w-[720px]' : 'max-w-[672px]'} max-h-[90vh] p-0 flex flex-col gap-0 overflow-hidden`}
+      >
         {/* Header */}
         <DialogHeader className="px-6 py-5 border-b border-border shrink-0">
-          <DialogTitle className="text-xl font-bold">Add New Page</DialogTitle>
+          <DialogTitle className="text-xl font-bold flex items-center gap-2">
+            {step !== 'url' && (
+              <button
+                type="button"
+                onClick={() => setStep(step === 'config' ? 'selector' : 'url')}
+                className="p-1 -ml-1 hover:bg-muted rounded"
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </button>
+            )}
+            {stepTitle[step]}
+          </DialogTitle>
         </DialogHeader>
 
         <form
@@ -129,189 +216,255 @@ export function AddPageDialog({
         >
           {/* Scrollable body */}
           <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8">
-            {/* Page URL — full width */}
-            <div className="space-y-2">
-              <Label className="font-semibold">Page URL</Label>
-              <div className="relative">
-                <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                <Input
-                  type="url"
-                  value={url}
-                  onChange={(e) => setUrl(e.target.value)}
-                  placeholder="https://example.com/page-to-monitor"
-                  className="pl-9"
-                  disabled={isLoading}
-                  required
+            {/* ─── STEP 1: URL Entry ─── */}
+            {step === 'url' && (
+              <>
+                {/* Workspace selector */}
+                {!workspaceId && (
+                  <div className="space-y-2">
+                    <Label className="font-semibold">Workspace</Label>
+                    <Select
+                      value={selectedWorkspaceId}
+                      onValueChange={setSelectedWorkspaceId}
+                      disabled={isLoading}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a workspace" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {workspaces.map((ws) => (
+                          <SelectItem key={ws.id} value={ws.id}>
+                            {ws.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {/* Page URL */}
+                <div className="space-y-2">
+                  <Label className="font-semibold">Page URL</Label>
+                  <div className="relative">
+                    <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                    <Input
+                      type="url"
+                      value={url}
+                      onChange={(e) => setUrl(e.target.value)}
+                      placeholder="https://example.com/page-to-monitor"
+                      className="pl-9"
+                      disabled={isLoading || previewLoading}
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Block ads checkbox */}
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id={`${uid}-block-ads-step1`}
+                    checked={blockAdsCookies}
+                    onCheckedChange={(checked) => setBlockAdsCookies(checked === true)}
+                    disabled={isLoading || previewLoading}
+                  />
+                  <Label htmlFor={`${uid}-block-ads-step1`} className="font-normal cursor-pointer">
+                    Block ads and cookie banners
+                  </Label>
+                </div>
+
+                {previewError && (
+                  <p className="text-sm text-destructive">{previewError}</p>
+                )}
+              </>
+            )}
+
+            {/* ─── STEP 2: Element Selection ─── */}
+            {step === 'selector' && previewData && (
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Click an element to monitor only that region, or skip to monitor the full page.
+                </p>
+
+                <PagePreviewSelector
+                  screenshotBase64={previewData.screenshot_base64}
+                  viewport={previewData.viewport}
+                  pageHeight={previewData.page_height}
+                  elements={previewData.elements}
+                  onSelect={handleElementSelect}
+                  selectedSelector={cssSelector}
                 />
+
+                {selectorType === 'element' && (
+                  <div className="flex items-center gap-2 text-sm text-blue-600 bg-blue-50 dark:bg-blue-950/30 px-3 py-2 rounded">
+                    <MousePointerClick className="h-4 w-4 shrink-0" />
+                    <span>Monitoring selected element: <code className="text-xs">{cssSelector.slice(0, 60)}</code></span>
+                  </div>
+                )}
+
+                {selectorType === 'full_page' && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted px-3 py-2 rounded">
+                    <Monitor className="h-4 w-4 shrink-0" />
+                    <span>Monitoring full page (click an element above to narrow the scope)</span>
+                  </div>
+                )}
               </div>
-            </div>
+            )}
 
-            {/* Two-column layout */}
-            <div className="grid grid-cols-2 gap-8 items-start">
-              {/* Left column: Settings */}
-              <div className="space-y-6">
-                {/* Page Name */}
-                <div className="space-y-1.5">
-                  <Label>Page Name</Label>
-                  <Input
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g. Pricing Page"
-                    disabled={isLoading}
-                    required
-                  />
+            {/* ─── STEP 3: Configuration ─── */}
+            {step === 'config' && (
+              <div className="grid grid-cols-2 gap-8 items-start">
+                {/* Left column: Settings */}
+                <div className="space-y-6">
+                  {/* Page Name */}
+                  <div className="space-y-1.5">
+                    <Label>Page Name</Label>
+                    <Input
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="e.g. Pricing Page"
+                      disabled={isLoading}
+                      required
+                    />
+                  </div>
+
+                  {/* Tags */}
+                  <div className="space-y-1.5">
+                    <Label className="text-muted-foreground text-xs">Tags</Label>
+                    <TagsInput
+                      value={tags}
+                      onChange={setTags}
+                      placeholder="Add tag…"
+                      disabled={isLoading}
+                    />
+                  </div>
+
+                  {/* Check Frequency */}
+                  <div className="space-y-2">
+                    <Label>Check Frequency</Label>
+                    <Select
+                      value={checkFrequency}
+                      onValueChange={setCheckFrequency}
+                      disabled={isLoading}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {CHECK_FREQUENCY_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Monitoring Schedule */}
+                  <div className="space-y-2">
+                    <Label className="font-semibold">Monitoring Schedule</Label>
+                    <RadioGroup
+                      value={scheduleType}
+                      onValueChange={setScheduleType}
+                      disabled={isLoading}
+                      className="gap-2"
+                    >
+                      <div className="flex items-center gap-2">
+                        <RadioGroupItem value="work_days" id={`${uid}-sched-work-days`} />
+                        <Label htmlFor={`${uid}-sched-work-days`} className="font-normal cursor-pointer">
+                          Work days only
+                        </Label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <RadioGroupItem value="work_days_work_hours" id={`${uid}-sched-work-hours`} />
+                        <Label htmlFor={`${uid}-sched-work-hours`} className="font-normal cursor-pointer">
+                          Work days, during work hours
+                        </Label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <RadioGroupItem value="all_time" id={`${uid}-sched-all-time`} />
+                        <Label htmlFor={`${uid}-sched-all-time`} className="font-normal cursor-pointer">
+                          Every day (24/7)
+                        </Label>
+                      </div>
+                    </RadioGroup>
+                  </div>
                 </div>
 
-                {/* Tags */}
-                <div className="space-y-1.5">
-                  <Label className="text-muted-foreground text-xs">Tags</Label>
-                  <TagsInput
-                    value={tags}
-                    onChange={setTags}
-                    placeholder="Add tag…"
-                    disabled={isLoading}
-                  />
-                </div>
+                {/* Right column: Intelligent Insights */}
+                <div className="border border-primary/20 rounded-xl shadow-[0_0_15px_0_rgba(0,0,0,0.05)] dark:shadow-none overflow-hidden">
+                  {/* Panel header */}
+                  <div className="bg-muted border-b border-border px-4 py-4 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-primary" />
+                      <span className="text-base font-bold">Intelligent Insights</span>
+                    </div>
+                    <span className="border border-primary text-primary text-[10px] font-medium px-2 py-0.5 rounded">
+                      AI Powered
+                    </span>
+                  </div>
 
-                {/* Check Frequency */}
-                <div className="space-y-2">
-                  <Label>Check Frequency</Label>
-                  <Select
-                    value={checkFrequency}
-                    onValueChange={setCheckFrequency}
-                    disabled={isLoading}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {CHECK_FREQUENCY_OPTIONS.map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </SelectItem>
+                  {/* Panel body */}
+                  <div className="p-4 space-y-8">
+                    {/* Insight types */}
+                    <div className="space-y-3">
+                      {INSIGHT_TYPES.map((insight) => (
+                        <div key={insight.value} className="flex items-center gap-2">
+                          <Checkbox
+                            id={`${uid}-insight-${insight.value}`}
+                            checked={enabledInsightTypes.includes(insight.value)}
+                            onCheckedChange={(checked) =>
+                              toggleInsightType(insight.value, checked === true)
+                            }
+                            disabled={isLoading}
+                          />
+                          <Label
+                            htmlFor={`${uid}-insight-${insight.value}`}
+                            className="font-normal cursor-pointer"
+                          >
+                            {insight.label}
+                          </Label>
+                        </div>
                       ))}
-                    </SelectContent>
-                  </Select>
-
-                  {/* Block ads & cookie banners */}
-                  <div className="flex items-center gap-2 pt-1">
-                    <Checkbox
-                      id={`${uid}-block-ads`}
-                      checked={blockAdsCookies}
-                      onCheckedChange={(checked) => setBlockAdsCookies(checked === true)}
-                      disabled={isLoading}
-                    />
-                    <Label htmlFor={`${uid}-block-ads`} className="font-normal cursor-pointer">
-                      Block ads and cookie banners
-                    </Label>
-                  </div>
-                </div>
-
-                {/* Monitoring Schedule */}
-                <div className="space-y-2">
-                  <Label className="font-semibold">Monitoring Schedule</Label>
-                  <RadioGroup
-                    value={scheduleType}
-                    onValueChange={setScheduleType}
-                    disabled={isLoading}
-                    className="gap-2"
-                  >
-                    <div className="flex items-center gap-2">
-                      <RadioGroupItem value="work_days" id={`${uid}-sched-work-days`} />
-                      <Label htmlFor={`${uid}-sched-work-days`} className="font-normal cursor-pointer">
-                        Work days only
-                      </Label>
+                      <p className="text-xs font-semibold text-muted-foreground">
+                        New insights coming soon...
+                      </p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <RadioGroupItem value="work_days_work_hours" id={`${uid}-sched-work-hours`} />
-                      <Label htmlFor={`${uid}-sched-work-hours`} className="font-normal cursor-pointer">
-                        Work days, during work hours
-                      </Label>
+
+                    {/* Alert conditions */}
+                    <div className="space-y-3">
+                      <p className="text-xs font-medium text-muted-foreground">Alert me when</p>
+                      {ALERT_CONDITIONS.map((condition) => (
+                        <div key={condition.value} className="flex items-center gap-2">
+                          <Checkbox
+                            id={`${uid}-alert-${condition.value}`}
+                            checked={enabledAlertConditions.includes(condition.value)}
+                            onCheckedChange={(checked) =>
+                              toggleAlertCondition(condition.value, checked === true)
+                            }
+                            disabled={isLoading}
+                          />
+                          <Label
+                            htmlFor={`${uid}-alert-${condition.value}`}
+                            className="font-normal cursor-pointer"
+                          >
+                            {condition.label}
+                          </Label>
+                        </div>
+                      ))}
+
+                      {/* Custom alert */}
+                      <Textarea
+                        value={customAlertCondition}
+                        onChange={(e) => setCustomAlertCondition(e.target.value)}
+                        placeholder="Add your own here"
+                        className="min-h-[60px] text-xs bg-accent border-accent-foreground/30 placeholder:text-muted-foreground resize-none"
+                        disabled={isLoading}
+                      />
                     </div>
-                    <div className="flex items-center gap-2">
-                      <RadioGroupItem value="all_time" id={`${uid}-sched-all-time`} />
-                      <Label htmlFor={`${uid}-sched-all-time`} className="font-normal cursor-pointer">
-                        Every day (24/7)
-                      </Label>
-                    </div>
-                  </RadioGroup>
-                </div>
-              </div>
-
-              {/* Right column: Intelligent Insights */}
-              <div className="border border-primary/20 rounded-xl shadow-[0_0_15px_0_rgba(0,0,0,0.05)] dark:shadow-none overflow-hidden">
-                {/* Panel header */}
-                <div className="bg-muted border-b border-border px-4 py-4 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Sparkles className="h-4 w-4 text-primary" />
-                    <span className="text-base font-bold">Intelligent Insights</span>
-                  </div>
-                  <span className="border border-primary text-primary text-[10px] font-medium px-2 py-0.5 rounded">
-                    AI Powered
-                  </span>
-                </div>
-
-                {/* Panel body */}
-                <div className="p-4 space-y-8">
-                  {/* Insight types */}
-                  <div className="space-y-3">
-                    {INSIGHT_TYPES.map((insight) => (
-                      <div key={insight.value} className="flex items-center gap-2">
-                        <Checkbox
-                          id={`${uid}-insight-${insight.value}`}
-                          checked={enabledInsightTypes.includes(insight.value)}
-                          onCheckedChange={(checked) =>
-                            toggleInsightType(insight.value, checked === true)
-                          }
-                          disabled={isLoading}
-                        />
-                        <Label
-                          htmlFor={`${uid}-insight-${insight.value}`}
-                          className="font-normal cursor-pointer"
-                        >
-                          {insight.label}
-                        </Label>
-                      </div>
-                    ))}
-                    <p className="text-xs font-semibold text-muted-foreground">
-                      New insights coming soon...
-                    </p>
-                  </div>
-
-                  {/* Alert conditions */}
-                  <div className="space-y-3">
-                    <p className="text-xs font-medium text-muted-foreground">Alert me when</p>
-                    {ALERT_CONDITIONS.map((condition) => (
-                      <div key={condition.value} className="flex items-center gap-2">
-                        <Checkbox
-                          id={`${uid}-alert-${condition.value}`}
-                          checked={enabledAlertConditions.includes(condition.value)}
-                          onCheckedChange={(checked) =>
-                            toggleAlertCondition(condition.value, checked === true)
-                          }
-                          disabled={isLoading}
-                        />
-                        <Label
-                          htmlFor={`${uid}-alert-${condition.value}`}
-                          className="font-normal cursor-pointer"
-                        >
-                          {condition.label}
-                        </Label>
-                      </div>
-                    ))}
-
-                    {/* Custom alert */}
-                    <Textarea
-                      value={customAlertCondition}
-                      onChange={(e) => setCustomAlertCondition(e.target.value)}
-                      placeholder="Add your own here"
-                      className="min-h-[60px] text-xs bg-accent border-accent-foreground/30 placeholder:text-muted-foreground resize-none"
-                      disabled={isLoading}
-                    />
                   </div>
                 </div>
               </div>
-            </div>
+            )}
 
             {error && <p className="text-sm text-destructive">{error.message}</p>}
           </div>
@@ -322,13 +475,51 @@ export function AddPageDialog({
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
-              disabled={isLoading}
+              disabled={isLoading || previewLoading}
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isLoading || !isFormValid}>
-              {isLoading ? 'Adding...' : '+ Add Page'}
-            </Button>
+
+            <div className="flex gap-2">
+              {step === 'url' && (
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setStep('config')}
+                    disabled={!url.trim() || previewLoading}
+                  >
+                    Skip Preview
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={handlePreviewPage}
+                    disabled={!url.trim() || previewLoading}
+                  >
+                    {previewLoading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        Loading Preview...
+                      </>
+                    ) : (
+                      'Preview Page'
+                    )}
+                  </Button>
+                </>
+              )}
+
+              {step === 'selector' && (
+                <Button type="button" onClick={() => setStep('config')}>
+                  Continue
+                </Button>
+              )}
+
+              {step === 'config' && (
+                <Button type="submit" disabled={isLoading || !isFormValid}>
+                  {isLoading ? 'Adding...' : '+ Add Page'}
+                </Button>
+              )}
+            </div>
           </DialogFooter>
         </form>
       </DialogContent>

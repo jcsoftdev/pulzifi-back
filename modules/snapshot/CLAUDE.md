@@ -1,35 +1,27 @@
 # Snapshot Module
 
-## Responsibility
+Page snapshot capture and storage (worker service).
 
-Screenshot capture via Playwright, HTML extraction, object storage upload (Cloudinary/MinIO), and content hash computation for change detection.
+## Domain Entities
 
-## Entities
+- `SnapshotRequest` — snapshot request from queue
+- `SnapshotResult` — snapshot result (image, HTML, status)
 
-- **SnapshotRequest** — PageID, URL, SchemaName
-- **SnapshotResult** — PageID, URL, ImageURL, HTMLURL, TextURL, ImageHash, HTMLHash, TextHash, ContentHash, Status, ErrorMessage
+## Application Services
 
-## Repository Interfaces
-
-- `ObjectStorage` — Upload, EnsureBucket
+- `SnapshotWorker` — main orchestrator
+- `SnapshotService` — capture and upload logic
 
 ## Infrastructure
 
-- **Extractor client**: HTTP client to the Playwright Node.js service (`modules/infra/extractor/`)
-- **Cloudinary provider**: Cloud image/file storage
-- **MinIO provider**: S3-compatible local storage (LocalStack in dev)
+- Extractor client: HTTP call to infra/extractor service
+- Object storage: MinIO or Cloudinary for image/HTML storage
+- Email notifications: sends change notification emails
+- Insight generation: async insight generation after changes detected
+- Event bus: publishes snapshot-completed events
+- Webhook publishing for integrations
 
-## Dependencies
+## Notes
 
-- Monitoring module (provides check context)
-- Insight module (triggers AI analysis after change detection)
-- Email module (notification on changes)
-- EventBus (publishes snapshot events)
-- External: Playwright extractor service on port 3005
-
-## Constraints
-
-- Extractor service must be running and healthy
-- Content hash is SHA256 of normalized HTML text
-- Screenshots stored as PNG in object storage
-- HTML snapshots stored as compressed text
+- Detects changes via content hash comparison
+- No HTTP routes — runs as background worker

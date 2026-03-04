@@ -3,12 +3,14 @@ package updatemonitoringconfig
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/application/orchestrator"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/domain/entities"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/domain/repositories"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/scheduler"
@@ -43,6 +45,7 @@ func (h *UpdateMonitoringConfigHandler) Handle(ctx context.Context, pageID uuid.
 	}
 
 	shouldDispatch := false
+	quotaExceeded := false
 
 	// If config doesn't exist, create a new one with default values
 	if config == nil {
@@ -80,19 +83,45 @@ func (h *UpdateMonitoringConfigHandler) Handle(ctx context.Context, pageID uuid.
 			customAlertCondition = *req.CustomAlertCondition
 		}
 
+		selectorType := "full_page"
+		if req.SelectorType != nil {
+			selectorType = *req.SelectorType
+		}
+		cssSelector := ""
+		if req.CSSSelector != nil {
+			cssSelector = *req.CSSSelector
+		}
+		xpathSelector := ""
+		if req.XPathSelector != nil {
+			xpathSelector = *req.XPathSelector
+		}
+		var selectorOffsets *entities.SelectorOffsets
+		if req.SelectorOffsets != nil {
+			selectorOffsets = &entities.SelectorOffsets{
+				Top:    req.SelectorOffsets.Top,
+				Right:  req.SelectorOffsets.Right,
+				Bottom: req.SelectorOffsets.Bottom,
+				Left:   req.SelectorOffsets.Left,
+			}
+		}
+
 		// Create new config using the constructor from entities
 		config = &entities.MonitoringConfig{
-			ID:                    uuid.New(),
-			PageID:                pageID,
-			CheckFrequency:        checkFrequency,
-			ScheduleType:          scheduleType,
-			Timezone:              timezone,
-			BlockAdsCookies:       blockAdsCookies,
-			EnabledInsightTypes:   enabledInsightTypes,
+			ID:                     uuid.New(),
+			PageID:                 pageID,
+			CheckFrequency:         checkFrequency,
+			ScheduleType:           scheduleType,
+			Timezone:               timezone,
+			BlockAdsCookies:        blockAdsCookies,
+			EnabledInsightTypes:    enabledInsightTypes,
 			EnabledAlertConditions: enabledAlertConditions,
-			CustomAlertCondition:  customAlertCondition,
-			CreatedAt:             time.Now(),
-			UpdatedAt:             time.Now(),
+			CustomAlertCondition:   customAlertCondition,
+			SelectorType:           selectorType,
+			CSSSelector:            cssSelector,
+			XPathSelector:          xpathSelector,
+			SelectorOffsets:        selectorOffsets,
+			CreatedAt:              time.Now(),
+			UpdatedAt:              time.Now(),
 		}
 
 		// Create in database
@@ -104,11 +133,13 @@ func (h *UpdateMonitoringConfigHandler) Handle(ctx context.Context, pageID uuid.
 			shouldDispatch = true
 			if h.scheduler != nil {
 				if err := h.scheduler.TriggerPageCheck(ctx, h.tenant, pageID); err != nil {
-					logger.Error("UpdateMonitoringConfigHandler: Failed to trigger immediate check", zap.String("page_id", pageID.String()), zap.Error(err))
+					if errors.Is(err, orchestrator.ErrQuotaExceeded) {
+						quotaExceeded = true
+						logger.Warn("UpdateMonitoringConfigHandler: Quota exceeded", zap.String("page_id", pageID.String()))
+					} else {
+						logger.Error("UpdateMonitoringConfigHandler: Failed to trigger immediate check", zap.String("page_id", pageID.String()), zap.Error(err))
+					}
 				}
-				// Do NOT call WakeUp here — TriggerPageCheck already dispatches the check.
-				// Calling WakeUp causes the scheduler to also pick up the page (race with async UpdateLastChecked),
-				// resulting in duplicate executions.
 			} else {
 				if err := h.repo.MarkPageDueNow(ctx, pageID); err != nil {
 					logger.Error("UpdateMonitoringConfigHandler: Failed to mark page due now", zap.String("page_id", pageID.String()), zap.Error(err))
@@ -124,16 +155,6 @@ func (h *UpdateMonitoringConfigHandler) Handle(ctx context.Context, pageID uuid.
 			config.CheckFrequency = normalizedFrequency
 			if config.CheckFrequency != "Off" {
 				shouldDispatch = true
-				if h.scheduler != nil {
-					if err := h.scheduler.TriggerPageCheck(ctx, h.tenant, pageID); err != nil {
-						logger.Error("UpdateMonitoringConfigHandler: Failed to trigger immediate check", zap.String("page_id", pageID.String()), zap.Error(err))
-					}
-					// Do NOT call WakeUp here — TriggerPageCheck already dispatches the check.
-				} else {
-					if err := h.repo.MarkPageDueNow(ctx, pageID); err != nil {
-						logger.Error("UpdateMonitoringConfigHandler: Failed to mark page due now", zap.String("page_id", pageID.String()), zap.Error(err))
-					}
-				}
 			}
 		} else {
 			logger.Info("UpdateMonitoringConfigHandler: CheckFrequency not provided in request")
@@ -161,11 +182,50 @@ func (h *UpdateMonitoringConfigHandler) Handle(ctx context.Context, pageID uuid.
 			config.CustomAlertCondition = *req.CustomAlertCondition
 		}
 
+		if req.SelectorType != nil {
+			config.SelectorType = *req.SelectorType
+		}
+		if req.CSSSelector != nil {
+			config.CSSSelector = *req.CSSSelector
+		}
+		if req.XPathSelector != nil {
+			config.XPathSelector = *req.XPathSelector
+		}
+		if req.SelectorOffsets != nil {
+			config.SelectorOffsets = &entities.SelectorOffsets{
+				Top:    req.SelectorOffsets.Top,
+				Right:  req.SelectorOffsets.Right,
+				Bottom: req.SelectorOffsets.Bottom,
+				Left:   req.SelectorOffsets.Left,
+			}
+		}
+
 		config.UpdatedAt = time.Now()
 
-		// Save changes
+		// Save changes BEFORE triggering the check — TriggerPageCheck queries the
+		// DB for the page URL with a WHERE check_frequency != 'Off' filter.
+		// If we trigger first, the old "Off" value is still in the DB and the
+		// query returns no rows, silently skipping the dispatch.
 		if err := h.repo.Update(ctx, config); err != nil {
 			return nil, err
+		}
+
+		// Now that the DB has the new frequency, trigger the check.
+		if shouldDispatch {
+			if h.scheduler != nil {
+				if err := h.scheduler.TriggerPageCheck(ctx, h.tenant, pageID); err != nil {
+					if errors.Is(err, orchestrator.ErrQuotaExceeded) {
+						quotaExceeded = true
+						logger.Warn("UpdateMonitoringConfigHandler: Quota exceeded", zap.String("page_id", pageID.String()))
+					} else {
+						logger.Error("UpdateMonitoringConfigHandler: Failed to trigger immediate check", zap.String("page_id", pageID.String()), zap.Error(err))
+					}
+				}
+			} else {
+				if err := h.repo.MarkPageDueNow(ctx, pageID); err != nil {
+					logger.Error("UpdateMonitoringConfigHandler: Failed to mark page due now", zap.String("page_id", pageID.String()), zap.Error(err))
+				}
+			}
 		}
 	}
 
@@ -178,18 +238,34 @@ func (h *UpdateMonitoringConfigHandler) Handle(ctx context.Context, pageID uuid.
 		// So we do nothing here regarding dispatch.
 	}
 
+	// Build selector offsets DTO
+	var selectorOffsetsDTO *SelectorOffsetsDTO
+	if config.SelectorOffsets != nil {
+		selectorOffsetsDTO = &SelectorOffsetsDTO{
+			Top:    config.SelectorOffsets.Top,
+			Right:  config.SelectorOffsets.Right,
+			Bottom: config.SelectorOffsets.Bottom,
+			Left:   config.SelectorOffsets.Left,
+		}
+	}
+
 	// Return response
 	return &UpdateMonitoringConfigResponse{
-		ID:                    config.ID,
-		PageID:                config.PageID,
-		CheckFrequency:        config.CheckFrequency,
-		ScheduleType:          config.ScheduleType,
-		Timezone:              config.Timezone,
-		BlockAdsCookies:       config.BlockAdsCookies,
-		EnabledInsightTypes:   config.EnabledInsightTypes,
+		ID:                     config.ID,
+		PageID:                 config.PageID,
+		CheckFrequency:         config.CheckFrequency,
+		ScheduleType:           config.ScheduleType,
+		Timezone:               config.Timezone,
+		BlockAdsCookies:        config.BlockAdsCookies,
+		EnabledInsightTypes:    config.EnabledInsightTypes,
 		EnabledAlertConditions: config.EnabledAlertConditions,
-		CustomAlertCondition:  config.CustomAlertCondition,
-		UpdatedAt:             config.UpdatedAt,
+		CustomAlertCondition:   config.CustomAlertCondition,
+		SelectorType:           config.SelectorType,
+		CSSSelector:            config.CSSSelector,
+		XPathSelector:          config.XPathSelector,
+		SelectorOffsets:        selectorOffsetsDTO,
+		UpdatedAt:              config.UpdatedAt,
+		QuotaExceeded:          quotaExceeded,
 	}, nil
 }
 

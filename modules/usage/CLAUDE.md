@@ -1,31 +1,31 @@
 # Usage Module
 
-## Responsibility
+Billing and usage quota management.
 
-Usage tracking, quota management, plan assignment, and billing metrics. Tracks resource consumption (checks, pages, workspaces, alerts) against plan limits.
+## Use Cases
 
-## Entities
+- `get_metrics` — get usage metrics (checks, pages, workspaces, alerts)
+- `get_quotas` — get current billing period quotas
+- `list_plans` — list available plans (SUPER_ADMIN)
+- `assign_organization_plan` — assign plan to org (SUPER_ADMIN)
+- `gift_month` — grant free month to organization (SUPER_ADMIN)
 
-Uses raw SQL queries (no formal entity structs).
+## HTTP Routes (`/usage/*`, tenant-aware)
 
-## Routes
+- GET `/usage/metrics`
+- GET `/usage/quotas`
+- GET `/usage/admin/plans` (SUPER_ADMIN)
+- GET `/usage/admin/organizations` (SUPER_ADMIN)
+- PUT `/usage/admin/organizations/{id}/plan` (SUPER_ADMIN)
+- POST `/usage/admin/organizations/{id}/gift-month` (SUPER_ADMIN)
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/usage/metrics` | Get usage metrics |
-| GET | `/usage/quotas` | Get current quotas and refill date |
-| GET | `/usage/admin/plans` | List available plans (SUPER_ADMIN) |
-| GET | `/usage/admin/organizations` | List orgs with plans (SUPER_ADMIN) |
-| PUT | `/usage/admin/organizations/{id}/plan` | Assign plan to org (SUPER_ADMIN) |
+## Infrastructure
 
-## Dependencies
+- PostgreSQL: `usage_tracking`, `organization_plans`, `plans` tables (public/tenant)
+- Billing periods anchored to plan start date
+- Auto-creates billing periods on first query
 
-- Auth middleware
-- Organization module
-- gRPC server (exposes usage data)
+## Notes
 
-## Constraints
-
-- Tenant-scoped for regular users
-- Admin routes require SUPER_ADMIN permission
-- Quota refill tracked by billing period
+- Tracks `checks_used` vs `checks_allowed` per billing period
+- Supports `storage_period_days` per plan

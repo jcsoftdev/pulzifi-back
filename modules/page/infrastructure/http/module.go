@@ -6,20 +6,23 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	createpage "github.com/jcsoftdev/pulzifi-back/modules/page/application/create_page"
 	bulkdeletepages "github.com/jcsoftdev/pulzifi-back/modules/page/application/bulk_delete_pages"
+	createpage "github.com/jcsoftdev/pulzifi-back/modules/page/application/create_page"
 	deletepage "github.com/jcsoftdev/pulzifi-back/modules/page/application/delete_page"
 	getpage "github.com/jcsoftdev/pulzifi-back/modules/page/application/get_page"
 	listpages "github.com/jcsoftdev/pulzifi-back/modules/page/application/list_pages"
+	previewpage "github.com/jcsoftdev/pulzifi-back/modules/page/application/preview_page"
 	updatepage "github.com/jcsoftdev/pulzifi-back/modules/page/application/update_page"
 	"github.com/jcsoftdev/pulzifi-back/modules/page/infrastructure/persistence"
+	"github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/extractor"
 	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
 	"github.com/jcsoftdev/pulzifi-back/shared/router"
 )
 
 // Module implements the router.ModuleRegisterer interface for the Page module
 type Module struct {
-	db *sql.DB
+	db              *sql.DB
+	extractorClient *extractor.HTTPClient
 }
 
 // NewModule creates a new instance of the Page module
@@ -34,6 +37,14 @@ func NewModuleWithDB(db *sql.DB) router.ModuleRegisterer {
 	}
 }
 
+// NewModuleWithExtractor creates a new instance with database and extractor client
+func NewModuleWithExtractor(db *sql.DB, extractorClient *extractor.HTTPClient) router.ModuleRegisterer {
+	return &Module{
+		db:              db,
+		extractorClient: extractorClient,
+	}
+}
+
 // ModuleName returns the name of the module
 func (m *Module) ModuleName() string {
 	return "Page"
@@ -44,14 +55,31 @@ func (m *Module) RegisterHTTPRoutes(router chi.Router) {
 	router.Route("/pages", func(r chi.Router) {
 		r.Use(middleware.AuthMiddleware.Authenticate)
 		r.Use(middleware.OrgMiddleware.RequireOrganizationMembership)
-		r.Use(middleware.RequireTenant)
-		r.Post("/", m.handleCreatePage)
-		r.Post("/bulk-delete", m.handleBulkDeletePages)
-		r.Get("/", m.handleListPages)
-		r.Get("/{id}", m.handleGetPage)
-		r.Put("/{id}", m.handleUpdatePage)
-		r.Delete("/{id}", m.handleDeletePage)
+
+		// Preview endpoint doesn't need tenant context
+		r.Post("/preview", m.handlePreviewPage)
+
+		r.Group(func(r chi.Router) {
+			r.Use(middleware.RequireTenant)
+			r.Post("/", m.handleCreatePage)
+			r.Post("/bulk-delete", m.handleBulkDeletePages)
+			r.Get("/", m.handleListPages)
+			r.Get("/{id}", m.handleGetPage)
+			r.Put("/{id}", m.handleUpdatePage)
+			r.Delete("/{id}", m.handleDeletePage)
+		})
 	})
+}
+
+// handlePreviewPage returns a screenshot and element map for the interactive selector
+func (m *Module) handlePreviewPage(w http.ResponseWriter, r *http.Request) {
+	if m.extractorClient == nil {
+		http.Error(w, "Extractor service not configured", http.StatusServiceUnavailable)
+		return
+	}
+
+	handler := previewpage.NewPreviewPageHandler(m.extractorClient)
+	handler.HandleHTTP(w, r)
 }
 
 // handleCreatePage creates a new page

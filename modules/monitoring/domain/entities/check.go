@@ -8,17 +8,19 @@ import (
 
 // Check represents a page monitoring check result
 type Check struct {
-	ID              uuid.UUID
-	PageID          uuid.UUID
-	Status          string // success, error
-	ScreenshotURL   string
-	HTMLSnapshotURL string
-	ContentHash     string
-	ChangeDetected  bool
-	ChangeType      string
-	ErrorMessage    string
-	DurationMs      int
-	CheckedAt       time.Time
+	ID                  uuid.UUID
+	PageID              uuid.UUID
+	Status              string // success, error
+	ScreenshotURL       string
+	HTMLSnapshotURL     string
+	ContentHash         string
+	ChangeDetected      bool
+	ChangeType          string
+	ErrorMessage        string
+	DurationMs          int
+	ScreenshotHash      string // SHA-256 of screenshot bytes for pixel comparison
+	VisionChangeSummary string // AI-generated change description from vision model
+	CheckedAt           time.Time
 }
 
 // NewCheck creates a new check

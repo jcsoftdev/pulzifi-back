@@ -1,48 +1,38 @@
 # Monitoring Module
 
-## Responsibility
+Page monitoring with check scheduling, configuration, and notifications.
 
-Core monitoring engine: check scheduling, frequency configuration, notification preferences, worker pool management, and real-time check result streaming via SSE.
+## Domain Entities
 
-## Entities
+- `Check` — single page snapshot result (screenshot, HTML, status, change detection)
+- `MonitoringConfig` — monitoring configuration per page (frequency, enabled insight types)
+- `NotificationPreference` — user notification settings
+- `Frequency` — monitoring frequency enum
 
-- **Check** — ID, PageID, Status, ScreenshotURL, HTMLSnapshotURL, ContentHash, ChangeDetected, ChangeType, ErrorMessage, DurationMs
-- **MonitoringConfig** — ID, PageID, CheckFrequency, ScheduleType, Timezone, BlockAdsCookies, EnabledInsightTypes, EnabledAlertConditions, CustomAlertCondition
-- **NotificationPreference** — ID, UserID, AlertType, Enabled
+## Use Cases
 
-## Repository Interfaces
+- `create_check` — create a monitoring check result
+- `list_checks` — list checks for a page (with filtering)
+- `create_monitoring_config` — set monitoring frequency for a page
+- `get_monitoring_config` — get config for a page
+- `update_monitoring_config` — update config
+- `bulk_update_monitoring_config` — update multiple pages at once
+- `create_notification_preference` — set notification settings
 
-- `CheckRepository` — Create, GetByID, ListByPage, GetLatestByPage, Update, GetPreviousSuccessfulByPage
-- `MonitoringConfigRepository` — Create, GetByPageID, Update, BulkUpdateFrequency, GetDueSnapshotTasks, GetPageURL, UpdateLastCheckedAt, MarkPageDueNow
+## HTTP Routes (`/checks/*`, `/monitoring/*`, tenant-aware)
 
-## Routes
+- POST `/checks`
+- GET `/checks`
+- POST `/monitoring-config`
+- GET `/monitoring-config/{page_id}`
+- PUT `/monitoring-config/{page_id}`
+- POST `/monitoring-config/bulk-update`
 
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/monitoring/checks` | Create check |
-| GET | `/monitoring/checks` | List checks |
-| GET | `/monitoring/checks/{id}` | Get check |
-| GET | `/monitoring/checks/page/{pageId}` | List checks by page |
-| GET | `/monitoring/checks/page/{pageId}/stream` | SSE stream (real-time) |
-| POST | `/monitoring/configs` | Create monitoring config |
-| GET | `/monitoring/configs/{pageId}` | Get config |
-| PUT | `/monitoring/configs/{pageId}` | Update/upsert config |
-| PUT | `/monitoring/configs/bulk` | Bulk update frequencies |
-| POST | `/monitoring/notification-preferences` | Create preference |
-| GET | `/monitoring/notification-preferences/{id}` | Get preference |
+## Infrastructure
 
-## Dependencies
-
-- Snapshot module (worker pool, Playwright extractor)
-- Insight module (triggers AI generation on change)
-- Email module (notifications)
-- Alert module (gRPC client)
-- EventBus, CheckBroker (SSE)
-- Scheduler (30s poll for due configs)
-
-## Constraints
-
-- Scheduler runs in the worker process (`ENABLE_WORKERS=true`)
-- Worker pool manages concurrent goroutines for parallel check execution
-- Change detection uses SHA256 hash of extracted HTML content
-- SSE uses buffered channels (size 1); slow subscribers get dropped
+- PostgreSQL: `checks`, `monitoring_configs`, `notification_preferences` tables (tenant-scoped)
+- Scheduler: cron-based check scheduling (30s poll interval)
+- Worker Pool: concurrent check execution with failure tracking
+- Pub/Sub Broker (CheckBroker): SSE for pushing check completion
+- Snapshot worker, insight generation, email alerts
+- Webhook publishing to configured integrations

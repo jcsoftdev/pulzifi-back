@@ -1,34 +1,29 @@
 # Team Module
 
-## Responsibility
+Organization-level team member management and invitations.
 
-Organization-level team member management, invitation workflow, role assignment, and invitation resending.
+## Domain Entities
 
-## Entities
+- `TeamMember` — org member with denormalized user info (email, name, avatar)
 
-- **TeamMember** — ID, OrganizationID, UserID, Role, InvitedBy, JoinedAt, InvitationStatus, FirstName, LastName, Email, AvatarURL
+## Use Cases
 
-## Repository Interfaces
+- `invite_member` — invite member to organization
+- `list_members` — list organization members
+- `update_member` — update member role
+- `remove_member` — remove member from organization
+- `resend_invite` — resend invitation email
 
-- `TeamMemberRepository` — ListByOrganization, GetByID, GetByUserAndOrg, FindUserByEmail, CreateUser, AddMember, UpdateRole, UpdateInvitationStatus, Remove, GetOrganizationIDBySubdomain
+## HTTP Routes (`/team/*`)
 
-## Routes
+- GET `/team/members`
+- POST `/team/members`
+- PUT `/team/members/{member_id}`
+- DELETE `/team/members/{member_id}`
+- POST `/team/members/{member_id}/resend-invite`
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/team/members` | List team members |
-| POST | `/team/members` | Invite member |
-| PUT | `/team/members/{member_id}` | Update member role |
-| DELETE | `/team/members/{member_id}` | Remove member |
-| POST | `/team/members/{member_id}/resend-invite` | Resend invitation email |
+## Infrastructure
 
-## Dependencies
-
-- Auth module (creates user account for invited member)
-- Email module (sends invitation emails with password reset token)
-
-## Constraints
-
-- Tenant-scoped
-- Invitation creates a user with pending status and a password reset token
-- Accepting invitation activates the membership via password reset flow
+- PostgreSQL: `organization_members` table (public schema)
+- Email: invitation and resend emails
+- Invitation status: pending/active

@@ -15,6 +15,13 @@ export interface Page {
   updatedAt: string
 }
 
+export interface SelectorOffsets {
+  top: number
+  right: number
+  bottom: number
+  left: number
+}
+
 export interface CreatePageDto {
   workspaceId: string
   name: string
@@ -26,6 +33,10 @@ export interface CreatePageDto {
   enabledInsightTypes?: string[]
   enabledAlertConditions?: string[]
   customAlertCondition?: string
+  selectorType?: 'full_page' | 'element'
+  cssSelector?: string
+  xpathSelector?: string
+  selectorOffsets?: SelectorOffsets
 }
 
 export interface EditPageDto {
@@ -38,6 +49,26 @@ export interface EditPageDto {
   enabledInsightTypes?: string[]
   enabledAlertConditions?: string[]
   customAlertCondition?: string
+  selectorType?: 'full_page' | 'element'
+  cssSelector?: string
+  xpathSelector?: string
+  selectorOffsets?: SelectorOffsets
+}
+
+export interface PreviewElement {
+  selector: string
+  xpath: string
+  tag: string
+  rect: { x: number; y: number; w: number; h: number }
+  text_preview: string
+  semantic_role: string
+}
+
+export interface PagePreviewResult {
+  screenshot_base64: string
+  viewport: { width: number; height: number }
+  page_height: number
+  elements: PreviewElement[]
 }
 
 export type PageStatus = 'active' | 'inactive'

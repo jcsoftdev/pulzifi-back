@@ -1,33 +1,25 @@
 # Admin Module
 
-## Responsibility
+Manages user registration requests and admin approval workflow.
 
-Super-admin user approval/rejection workflow. New user registrations require admin approval before the user can access the platform and have their organization created.
+## Domain Entities
 
-## Entities
+- `RegistrationRequest` — pending registration with user info, org details, and approval status
 
-- **RegistrationRequest** — ID, UserID, OrganizationName, OrganizationSubdomain, Status (pending/approved/rejected), ReviewedBy, ReviewedAt
+## Use Cases
 
-## Repository Interfaces
+- `list_pending_users` — list pending registrations (with pagination)
+- `approve_user` — approve a registration and create organization
+- `reject_user` — reject a registration request
 
-- `RegistrationRequestRepository` — Create, GetByID, GetByUserID, ListPending, UpdateStatus, ExistsPendingBySubdomain
+## HTTP Routes (`/admin/*`, requires SUPER_ADMIN role)
 
-## Routes
+- GET `/admin/users/pending`
+- PUT `/admin/users/{id}/approve`
+- PUT `/admin/users/{id}/reject`
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/admin/users/pending` | List pending registration requests |
-| PUT | `/admin/users/{id}/approve` | Approve user (creates organization + tenant schema) |
-| PUT | `/admin/users/{id}/reject` | Reject user (sends rejection email) |
+## Infrastructure
 
-## Dependencies
-
-- Auth module (user status updates)
-- Organization module (creates org on approval)
-- Email module (sends approval/rejection emails)
-
-## Constraints
-
-- Requires SUPER_ADMIN permission
-- Approval triggers organization creation, which triggers tenant schema creation
-- Subdomain uniqueness checked before approval
+- PostgreSQL: `registration_requests` table (public schema)
+- Email: sends approval/rejection notifications via templates
+- Cross-module: integrates with Organization, Auth, Email modules

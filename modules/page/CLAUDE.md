@@ -1,36 +1,29 @@
 # Page Module
 
-## Responsibility
+Monitored page management (URL, name, tags).
 
-Page/URL entity management for monitoring. Pages are URLs registered within workspaces that get periodically checked for changes.
+## Domain Entities
 
-## Entities
+- `Page` — page entity with workspace, URL, metadata, related check/tag data
 
-- **Page** — ID, WorkspaceID, Name, URL, ThumbnailURL, LastCheckedAt, LastChangeDetectedAt, CheckCount, Tags, CheckFrequency, DetectedChanges
+## Use Cases
 
-## Repository Interfaces
+- `create_page` — create a page to monitor
+- `list_pages` — list pages in workspace
+- `get_page` — get page details
+- `update_page` — update page info
+- `delete_page` — soft delete page
+- `bulk_delete_pages` — delete multiple pages
 
-- `PageRepository` — Create, GetByID, ListByWorkspace, Update, Delete, BulkDelete
+## HTTP Routes (`/pages/*`, tenant-aware)
 
-## Routes
+- POST `/pages`
+- GET `/pages`
+- GET `/pages/{id}`
+- PUT `/pages/{id}`
+- DELETE `/pages/{id}`
+- POST `/pages/bulk-delete`
 
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/pages` | Create page |
-| GET | `/pages` | List pages (filterable by workspace) |
-| GET | `/pages/{id}` | Get page |
-| PUT | `/pages/{id}` | Update page |
-| DELETE | `/pages/{id}` | Delete page |
-| POST | `/pages/bulk-delete` | Delete multiple pages |
+## Infrastructure
 
-## Dependencies
-
-- Workspace module (pages belong to workspaces)
-- Monitoring module (page creation triggers monitoring config)
-- gRPC server (exposes page data to other modules)
-
-## Constraints
-
-- Tenant-scoped
-- URL must be valid and reachable
-- Deleting a page cascades to monitoring configs, checks, insights, and alerts
+- PostgreSQL: `pages`, `page_tags` tables (tenant-scoped)

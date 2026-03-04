@@ -19,11 +19,13 @@ import (
 	alertPersistence "github.com/jcsoftdev/pulzifi-back/modules/alert/infrastructure/persistence"
 	emailservices "github.com/jcsoftdev/pulzifi-back/modules/email/domain/services"
 	"github.com/jcsoftdev/pulzifi-back/modules/email/infrastructure/templates"
+	insightservices "github.com/jcsoftdev/pulzifi-back/modules/insight/domain/services"
 	integrationPersistence "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/persistence"
 	"github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/webhook"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/domain/entities"
 	monPersistence "github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/persistence"
 	generateinsights "github.com/jcsoftdev/pulzifi-back/modules/insight/application/generate_insights"
+	imagecompare "github.com/jcsoftdev/pulzifi-back/modules/snapshot/domain/services"
 	"github.com/jcsoftdev/pulzifi-back/modules/snapshot/domain/repositories"
 	"github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/extractor"
 	sharedHTML "github.com/jcsoftdev/pulzifi-back/shared/html"
@@ -33,19 +35,31 @@ import (
 )
 
 type SnapshotWorker struct {
-	objectStorage   repositories.ObjectStorage
-	extractorClient *extractor.HTTPClient
-	db              *sql.DB
-	insightHandler  *generateinsights.GenerateInsightsHandler
-	emailProvider   emailservices.EmailProvider
-	frontendURL     string
-	onCheckDone     func(pageID uuid.UUID, checkJSON []byte)
+	objectStorage      repositories.ObjectStorage
+	extractorClient    *extractor.HTTPClient
+	db                 *sql.DB
+	insightHandler     *generateinsights.GenerateInsightsHandler
+	emailProvider      emailservices.EmailProvider
+	frontendURL        string
+	visionAnalyzer     insightservices.VisionAnalyzer
+	pixelDiffThreshold float64
+	onCheckDone        func(pageID uuid.UUID, checkJSON []byte)
 }
 
 // SetOnCheckDone registers a callback invoked after every check completes
 // (success or error) with the serialized CheckResponse payload.
 func (s *SnapshotWorker) SetOnCheckDone(fn func(pageID uuid.UUID, checkJSON []byte)) {
 	s.onCheckDone = fn
+}
+
+// SetVisionAnalyzer sets the vision AI analyzer for screenshot comparison.
+func (s *SnapshotWorker) SetVisionAnalyzer(analyzer insightservices.VisionAnalyzer) {
+	s.visionAnalyzer = analyzer
+}
+
+// SetPixelDiffThreshold sets the threshold for pixel comparison (default 0.001).
+func (s *SnapshotWorker) SetPixelDiffThreshold(threshold float64) {
+	s.pixelDiffThreshold = threshold
 }
 
 // notifyCheckDone serializes a check into the same DTO format the frontend
@@ -85,12 +99,13 @@ func (s *SnapshotWorker) notifyCheckDone(check *entities.Check) {
 
 func NewSnapshotWorker(objectStorage repositories.ObjectStorage, extractorClient *extractor.HTTPClient, db *sql.DB, insightHandler *generateinsights.GenerateInsightsHandler, emailProvider emailservices.EmailProvider, frontendURL string) *SnapshotWorker {
 	return &SnapshotWorker{
-		objectStorage:   objectStorage,
-		extractorClient: extractorClient,
-		db:              db,
-		insightHandler:  insightHandler,
-		emailProvider:   emailProvider,
-		frontendURL:     frontendURL,
+		objectStorage:      objectStorage,
+		extractorClient:    extractorClient,
+		db:                 db,
+		insightHandler:     insightHandler,
+		emailProvider:      emailProvider,
+		frontendURL:        frontendURL,
+		pixelDiffThreshold: 0.001, // default
 	}
 }
 
@@ -119,13 +134,26 @@ func (s *SnapshotWorker) ExecuteCheck(ctx context.Context, checkID uuid.UUID, ta
 		return fmt.Errorf("%s", msg)
 	}
 
-	// Fetch monitoring config before extraction to get block_ads_cookies setting
+	// Fetch monitoring config before extraction to get block_ads_cookies + selector settings
 	configRepo := monPersistence.NewMonitoringConfigPostgresRepository(s.db, schemaName)
 	pageConfig, _ := configRepo.GetByPageID(ctx, check.PageID)
 
+	// Build extract options with selector support
 	extractOpts := extractor.ExtractOptions{}
 	if pageConfig != nil {
 		extractOpts.BlockAdsCookies = pageConfig.BlockAdsCookies
+		if pageConfig.SelectorType == "element" && pageConfig.CSSSelector != "" {
+			extractOpts.Selector = pageConfig.CSSSelector
+			extractOpts.SelectorXPath = pageConfig.XPathSelector
+			if pageConfig.SelectorOffsets != nil {
+				extractOpts.SelectorOffsets = &extractor.SelectorOffsets{
+					Top:    pageConfig.SelectorOffsets.Top,
+					Right:  pageConfig.SelectorOffsets.Right,
+					Bottom: pageConfig.SelectorOffsets.Bottom,
+					Left:   pageConfig.SelectorOffsets.Left,
+				}
+			}
+		}
 	}
 
 	startTime := time.Now()
@@ -159,9 +187,12 @@ func (s *SnapshotWorker) ExecuteCheck(ctx context.Context, checkID uuid.UUID, ta
 		return markError(fmt.Sprintf("failed to upload html snapshot: %v", err), duration)
 	}
 
-	// Hashes
+	// Content hash (text-based, for backwards compatibility)
 	contentHash := sha256.Sum256([]byte(res.Text))
 	contentHashStr := hex.EncodeToString(contentHash[:])
+
+	// Screenshot hash (pixel-based)
+	screenshotHash := imagecompare.HashScreenshot(imgBytes)
 
 	// Update Check
 	check.Status = "success"
@@ -169,32 +200,35 @@ func (s *SnapshotWorker) ExecuteCheck(ctx context.Context, checkID uuid.UUID, ta
 	check.ScreenshotURL = imgURL
 	check.HTMLSnapshotURL = htmlURL
 	check.ContentHash = contentHashStr
+	check.ScreenshotHash = screenshotHash
 	check.ChangeDetected = false
 	check.ChangeType = ""
 
-	// Compare logic (simplified)
-	// Fetch the actual previous successful check
+	// Fetch previous successful check for comparison
 	prevCheck := s.getPreviousSuccessfulCheck(ctx, checkRepo, check.PageID, check.ID)
 
-	if prevCheck != nil && prevCheck.ContentHash != "" {
-		if prevCheck.ContentHash != contentHashStr {
+	if prevCheck != nil {
+		enabledInsightTypes := []string{"marketing", "market_analysis"}
+		enabledAlertConditions := []string{"any_changes"}
+		if pageConfig != nil {
+			if len(pageConfig.EnabledInsightTypes) > 0 {
+				enabledInsightTypes = pageConfig.EnabledInsightTypes
+			}
+			if len(pageConfig.EnabledAlertConditions) > 0 {
+				enabledAlertConditions = pageConfig.EnabledAlertConditions
+			}
+		}
+
+		changeDetected, changeSummary := s.detectChange(ctx, prevCheck, check, imgBytes, res, targetURL)
+
+		if changeDetected {
 			check.ChangeDetected = true
 			check.ChangeType = "content"
-
-			enabledInsightTypes := []string{"marketing", "market_analysis"}
-			enabledAlertConditions := []string{"any_changes"}
-			if pageConfig != nil {
-				if len(pageConfig.EnabledInsightTypes) > 0 {
-					enabledInsightTypes = pageConfig.EnabledInsightTypes
-				}
-				if len(pageConfig.EnabledAlertConditions) > 0 {
-					enabledAlertConditions = pageConfig.EnabledAlertConditions
-				}
-			}
+			check.VisionChangeSummary = changeSummary
 
 			// Only alert if "any_changes" is an enabled alert condition
 			if sliceContains(enabledAlertConditions, "any_changes") {
-				s.createAlert(ctx, schemaName, check, targetURL)
+				s.createAlert(ctx, schemaName, check, targetURL, changeSummary)
 			}
 
 			// Generate insights for enabled types
@@ -218,6 +252,99 @@ func (s *SnapshotWorker) ExecuteCheck(ctx context.Context, checkID uuid.UUID, ta
 	return nil
 }
 
+// detectChange runs the two-stage change detection pipeline:
+// Stage 1: Pixel hash/diff comparison
+// Stage 2: Vision AI analysis (if configured and pixel diff exceeds threshold)
+// Returns (changeDetected, changeSummary)
+func (s *SnapshotWorker) detectChange(ctx context.Context, prevCheck, currCheck *entities.Check, currImgBytes []byte, res *extractor.ExtractorResult, pageURL string) (bool, string) {
+	// Stage 1: Try pixel comparison if previous screenshot hash is available
+	if prevCheck.ScreenshotHash != "" {
+		// Fast path: if hashes are identical, no change
+		if prevCheck.ScreenshotHash == currCheck.ScreenshotHash {
+			logger.Info("Screenshot hash identical — no change", zap.String("page_id", currCheck.PageID.String()))
+			return false, ""
+		}
+
+		// Hashes differ — try pixel-level comparison if we can download previous screenshot
+		if prevCheck.ScreenshotURL != "" && s.visionAnalyzer != nil {
+			prevImgBytes := s.downloadScreenshot(prevCheck.ScreenshotURL)
+			if len(prevImgBytes) > 0 {
+				result, err := imagecompare.CompareScreenshots(prevImgBytes, currImgBytes, s.pixelDiffThreshold)
+				if err == nil {
+					if result.Identical {
+						return false, ""
+					}
+					if result.DiffRatio < s.pixelDiffThreshold {
+						logger.Info("Pixel diff below threshold — no meaningful change",
+							zap.String("page_id", currCheck.PageID.String()),
+							zap.Float64("diff_ratio", result.DiffRatio),
+							zap.Float64("threshold", s.pixelDiffThreshold))
+						return false, ""
+					}
+
+					// Stage 2: Vision AI analysis
+					logger.Info("Pixel diff above threshold, running Vision AI",
+						zap.String("page_id", currCheck.PageID.String()),
+						zap.Float64("diff_ratio", result.DiffRatio))
+
+					prevB64 := base64.StdEncoding.EncodeToString(prevImgBytes)
+					visionResult, err := s.visionAnalyzer.AnalyzeChange(ctx, prevB64, res.ScreenshotBase64, pageURL)
+					if err != nil {
+						logger.Error("Vision AI analysis failed, falling back to text hash",
+							zap.Error(err), zap.String("page_id", currCheck.PageID.String()))
+						// Fall through to text hash comparison
+					} else {
+						if !visionResult.HasMeaningfulChange {
+							logger.Info("Vision AI says no meaningful change",
+								zap.String("page_id", currCheck.PageID.String()))
+							return false, ""
+						}
+						return true, visionResult.ChangeSummary
+					}
+				}
+			}
+		}
+	}
+
+	// Fallback: text hash comparison (original behavior)
+	if prevCheck.ContentHash != "" && prevCheck.ContentHash != currCheck.ContentHash {
+		return true, ""
+	}
+
+	return false, ""
+}
+
+// downloadScreenshot fetches a screenshot from object storage URL.
+func (s *SnapshotWorker) downloadScreenshot(url string) []byte {
+	if url == "" {
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		logger.Error("Failed to create request for screenshot download", zap.String("url", url), zap.Error(err))
+		return nil
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		logger.Error("Failed to download screenshot", zap.String("url", url), zap.Error(err))
+		return nil
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		logger.Error("Failed to read screenshot body", zap.String("url", url), zap.Error(err))
+		return nil
+	}
+
+	return data
+}
+
 func (s *SnapshotWorker) getPreviousSuccessfulCheck(ctx context.Context, repo *monPersistence.CheckPostgresRepository, pageID, currentCheckID uuid.UUID) *entities.Check {
 	check, err := repo.GetPreviousSuccessfulByPage(ctx, pageID, currentCheckID)
 	if err != nil {
@@ -226,7 +353,7 @@ func (s *SnapshotWorker) getPreviousSuccessfulCheck(ctx context.Context, repo *m
 	return check
 }
 
-func (s *SnapshotWorker) createAlert(ctx context.Context, schemaName string, check *entities.Check, pageURL string) {
+func (s *SnapshotWorker) createAlert(ctx context.Context, schemaName string, check *entities.Check, pageURL string, changeSummary string) {
 	if _, err := s.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(schemaName)); err != nil {
 		logger.Error("Failed to set search path for alert", zap.Error(err))
 		return
@@ -238,7 +365,17 @@ func (s *SnapshotWorker) createAlert(ctx context.Context, schemaName string, che
 		return
 	}
 
-	alert := alertentities.NewAlert(workspaceID, check.PageID, check.ID, "content_change", "Content Changed", "The page content has changed.")
+	// Use Vision AI summary if available, otherwise generic message
+	alertTitle := "Content Changed"
+	alertDescription := "The page content has changed."
+	if changeSummary != "" {
+		alertTitle = changeSummary
+		alertDescription = changeSummary
+	}
+
+	alert := alertentities.NewAlert(workspaceID, check.PageID, check.ID, "content_change", alertTitle, alertDescription)
+	alert.ChangeSummary = changeSummary
+
 	alertRepo := alertPersistence.NewAlertPostgresRepository(s.db, schemaName)
 	if err := alertRepo.Create(ctx, alert); err != nil {
 		logger.Error("Failed to create alert", zap.Error(err))
@@ -247,14 +384,14 @@ func (s *SnapshotWorker) createAlert(ctx context.Context, schemaName string, che
 	}
 
 	// Send email notifications asynchronously
-	go s.sendAlertEmails(schemaName, check, pageURL)
+	go s.sendAlertEmails(schemaName, check, pageURL, changeSummary)
 
 	// Dispatch webhooks (Slack, Discord, Teams) asynchronously
-	go s.dispatchWebhooks(schemaName, check, pageURL)
+	go s.dispatchWebhooks(schemaName, check, pageURL, changeSummary)
 }
 
 // sendAlertEmails queries notification preferences for the page and sends email alerts.
-func (s *SnapshotWorker) sendAlertEmails(schemaName string, check *entities.Check, pageURL string) {
+func (s *SnapshotWorker) sendAlertEmails(schemaName string, check *entities.Check, pageURL string, changeSummary string) {
 	if s.emailProvider == nil {
 		return
 	}
@@ -278,6 +415,10 @@ func (s *SnapshotWorker) sendAlertEmails(schemaName string, check *entities.Chec
 	if changeType == "" {
 		changeType = "content"
 	}
+	// Use change summary as the change type description if available
+	if changeSummary != "" {
+		changeType = changeSummary
+	}
 	subject, html := templates.AlertNotification(pageURL, changeType, dashboardURL)
 
 	for _, pref := range prefs {
@@ -294,7 +435,7 @@ func (s *SnapshotWorker) sendAlertEmails(schemaName string, check *entities.Chec
 }
 
 // dispatchWebhooks sends webhook notifications to enabled Slack/Discord/Teams integrations.
-func (s *SnapshotWorker) dispatchWebhooks(schemaName string, check *entities.Check, pageURL string) {
+func (s *SnapshotWorker) dispatchWebhooks(schemaName string, check *entities.Check, pageURL string, changeSummary string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -304,6 +445,9 @@ func (s *SnapshotWorker) dispatchWebhooks(schemaName string, check *entities.Che
 	changeType := check.ChangeType
 	if changeType == "" {
 		changeType = "content"
+	}
+	if changeSummary != "" {
+		changeType = changeSummary
 	}
 
 	for _, serviceType := range []string{"slack", "discord", "teams"} {

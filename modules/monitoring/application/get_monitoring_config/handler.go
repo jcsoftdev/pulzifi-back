@@ -27,18 +27,32 @@ func (h *GetMonitoringConfigHandler) Handle(ctx context.Context, pageID uuid.UUI
 		return nil, nil
 	}
 
+	var selectorOffsetsDTO *SelectorOffsetsDTO
+	if config.SelectorOffsets != nil {
+		selectorOffsetsDTO = &SelectorOffsetsDTO{
+			Top:    config.SelectorOffsets.Top,
+			Right:  config.SelectorOffsets.Right,
+			Bottom: config.SelectorOffsets.Bottom,
+			Left:   config.SelectorOffsets.Left,
+		}
+	}
+
 	return &GetMonitoringConfigResponse{
-		ID:                    config.ID,
-		PageID:                config.PageID,
-		CheckFrequency:        config.CheckFrequency,
-		ScheduleType:          config.ScheduleType,
-		Timezone:              config.Timezone,
-		BlockAdsCookies:       config.BlockAdsCookies,
-		EnabledInsightTypes:   config.EnabledInsightTypes,
+		ID:                     config.ID,
+		PageID:                 config.PageID,
+		CheckFrequency:         config.CheckFrequency,
+		ScheduleType:           config.ScheduleType,
+		Timezone:               config.Timezone,
+		BlockAdsCookies:        config.BlockAdsCookies,
+		EnabledInsightTypes:    config.EnabledInsightTypes,
 		EnabledAlertConditions: config.EnabledAlertConditions,
-		CustomAlertCondition:  config.CustomAlertCondition,
-		CreatedAt:             config.CreatedAt,
-		UpdatedAt:             config.UpdatedAt,
+		CustomAlertCondition:   config.CustomAlertCondition,
+		SelectorType:           config.SelectorType,
+		CSSSelector:            config.CSSSelector,
+		XPathSelector:          config.XPathSelector,
+		SelectorOffsets:        selectorOffsetsDTO,
+		CreatedAt:              config.CreatedAt,
+		UpdatedAt:              config.UpdatedAt,
 	}, nil
 }
 

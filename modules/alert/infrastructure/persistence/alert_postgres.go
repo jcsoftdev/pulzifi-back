@@ -24,8 +24,8 @@ func (r *AlertPostgresRepository) Create(ctx context.Context, alert *entities.Al
 	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
 		return err
 	}
-	q := `INSERT INTO alerts (id, workspace_id, page_id, check_id, type, title, description, metadata, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
-	_, err := r.db.ExecContext(ctx, q, alert.ID, alert.WorkspaceID, alert.PageID, alert.CheckID, alert.Type, alert.Title, alert.Description, alert.Metadata, alert.CreatedAt)
+	q := `INSERT INTO alerts (id, workspace_id, page_id, check_id, type, title, description, change_summary, metadata, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`
+	_, err := r.db.ExecContext(ctx, q, alert.ID, alert.WorkspaceID, alert.PageID, alert.CheckID, alert.Type, alert.Title, alert.Description, alert.ChangeSummary, alert.Metadata, alert.CreatedAt)
 	return err
 }
 
@@ -35,8 +35,8 @@ func (r *AlertPostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (*e
 	}
 	var a entities.Alert
 	var readAt sql.NullTime
-	q := `SELECT id, workspace_id, page_id, check_id, type, title, description, metadata, read_at, created_at FROM alerts WHERE id = $1`
-	err := r.db.QueryRowContext(ctx, q, id).Scan(&a.ID, &a.WorkspaceID, &a.PageID, &a.CheckID, &a.Type, &a.Title, &a.Description, &a.Metadata, &readAt, &a.CreatedAt)
+	q := `SELECT id, workspace_id, page_id, check_id, type, title, description, COALESCE(change_summary, ''), metadata, read_at, created_at FROM alerts WHERE id = $1`
+	err := r.db.QueryRowContext(ctx, q, id).Scan(&a.ID, &a.WorkspaceID, &a.PageID, &a.CheckID, &a.Type, &a.Title, &a.Description, &a.ChangeSummary, &a.Metadata, &readAt, &a.CreatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -53,7 +53,7 @@ func (r *AlertPostgresRepository) ListByWorkspace(ctx context.Context, workspace
 	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
 		return nil, err
 	}
-	q := `SELECT id, workspace_id, page_id, check_id, type, title, description, metadata, read_at, created_at FROM alerts WHERE workspace_id = $1 ORDER BY created_at DESC`
+	q := `SELECT id, workspace_id, page_id, check_id, type, title, description, COALESCE(change_summary, ''), metadata, read_at, created_at FROM alerts WHERE workspace_id = $1 ORDER BY created_at DESC`
 	rows, err := r.db.QueryContext(ctx, q, workspaceID)
 	if err != nil {
 		return nil, err
@@ -63,7 +63,7 @@ func (r *AlertPostgresRepository) ListByWorkspace(ctx context.Context, workspace
 	for rows.Next() {
 		var a entities.Alert
 		var readAt sql.NullTime
-		if err := rows.Scan(&a.ID, &a.WorkspaceID, &a.PageID, &a.CheckID, &a.Type, &a.Title, &a.Description, &a.Metadata, &readAt, &a.CreatedAt); err != nil {
+		if err := rows.Scan(&a.ID, &a.WorkspaceID, &a.PageID, &a.CheckID, &a.Type, &a.Title, &a.Description, &a.ChangeSummary, &a.Metadata, &readAt, &a.CreatedAt); err != nil {
 			return nil, err
 		}
 		if readAt.Valid {
@@ -72,6 +72,60 @@ func (r *AlertPostgresRepository) ListByWorkspace(ctx context.Context, workspace
 		alerts = append(alerts, &a)
 	}
 	return alerts, nil
+}
+
+func (r *AlertPostgresRepository) CountUnread(ctx context.Context) (int, error) {
+	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
+		return 0, err
+	}
+	var count int
+	err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM alerts WHERE read_at IS NULL`).Scan(&count)
+	return count, err
+}
+
+func (r *AlertPostgresRepository) CountAll(ctx context.Context) (int, error) {
+	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
+		return 0, err
+	}
+	var count int
+	err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM alerts`).Scan(&count)
+	return count, err
+}
+
+func (r *AlertPostgresRepository) ListAll(ctx context.Context, limit int) ([]*entities.AlertWithPage, error) {
+	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
+		return nil, err
+	}
+	q := `SELECT a.id, a.workspace_id, a.page_id, a.check_id, a.type, a.title, a.description, a.metadata, a.read_at, a.created_at,
+	       COALESCE(p.name, '') AS page_name, COALESCE(p.url, '') AS page_url
+	       FROM alerts a LEFT JOIN pages p ON p.id = a.page_id
+	       ORDER BY a.created_at DESC LIMIT $1`
+	rows, err := r.db.QueryContext(ctx, q, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var alerts []*entities.AlertWithPage
+	for rows.Next() {
+		var a entities.AlertWithPage
+		var readAt sql.NullTime
+		if err := rows.Scan(&a.ID, &a.WorkspaceID, &a.PageID, &a.CheckID, &a.Type, &a.Title, &a.Description, &a.Metadata, &readAt, &a.CreatedAt, &a.PageName, &a.PageURL); err != nil {
+			return nil, err
+		}
+		if readAt.Valid {
+			a.ReadAt = &readAt.Time
+		}
+		alerts = append(alerts, &a)
+	}
+	return alerts, nil
+}
+
+func (r *AlertPostgresRepository) MarkAllAsRead(ctx context.Context) error {
+	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
+		return err
+	}
+	_, err := r.db.ExecContext(ctx, `UPDATE alerts SET read_at = $1 WHERE read_at IS NULL`, time.Now())
+	return err
 }
 
 func (r *AlertPostgresRepository) MarkAsRead(ctx context.Context, id uuid.UUID) error {
