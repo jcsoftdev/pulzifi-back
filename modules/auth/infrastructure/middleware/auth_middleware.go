@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/services"
@@ -49,9 +50,15 @@ func (m *AuthMiddleware) Authenticate(next http.Handler) http.Handler {
 }
 
 func (m *AuthMiddleware) resolveAuthContext(r *http.Request) (string, string, []string, []string, bool) {
+	// Try cookie first (normal browser flow)
 	tokenStr, err := cookies.GetTokenFromCookie(r, cookies.AccessTokenCookie)
 	if err != nil || tokenStr == "" {
-		logger.Warn("Missing access token cookie")
+		// Fall back to Authorization: Bearer <token> header (Swagger UI, API clients)
+		tokenStr = extractBearerToken(r.Header.Get("Authorization"))
+	}
+
+	if tokenStr == "" {
+		logger.Warn("Missing access token (cookie and bearer)")
 		return "", "", nil, nil, false
 	}
 
@@ -62,6 +69,13 @@ func (m *AuthMiddleware) resolveAuthContext(r *http.Request) (string, string, []
 	}
 
 	return claims.UserID.String(), claims.Email, claims.Roles, claims.Permissions, true
+}
+
+func extractBearerToken(authHeader string) string {
+	if strings.HasPrefix(authHeader, "Bearer ") {
+		return strings.TrimPrefix(authHeader, "Bearer ")
+	}
+	return ""
 }
 
 func (m *AuthMiddleware) RequirePermission(resource, action string) func(http.Handler) http.Handler {
@@ -107,10 +121,13 @@ func (m *AuthMiddleware) RequireRole(requiredRole string) func(http.Handler) htt
 	}
 }
 
-// ValidateTokenFromRequest validates the access token cookie and returns the user ID.
+// ValidateTokenFromRequest validates the access token (cookie or Bearer header) and returns the user ID.
 func (m *AuthMiddleware) ValidateTokenFromRequest(r *http.Request) (uuid.UUID, error) {
 	tokenStr, err := cookies.GetTokenFromCookie(r, cookies.AccessTokenCookie)
 	if err != nil || tokenStr == "" {
+		tokenStr = extractBearerToken(r.Header.Get("Authorization"))
+	}
+	if tokenStr == "" {
 		return uuid.Nil, errors.New("missing access token")
 	}
 

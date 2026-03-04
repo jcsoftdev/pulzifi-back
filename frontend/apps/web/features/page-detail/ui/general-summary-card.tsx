@@ -20,9 +20,11 @@ import { notification } from '@/lib/notification'
 interface GeneralSummaryCardProps {
   page: Page
   config: MonitoringConfig | null
+  quotaExceeded?: boolean
+  refillDate?: string
 }
 
-export function GeneralSummaryCard({ page, config }: Readonly<GeneralSummaryCardProps>) {
+export function GeneralSummaryCard({ page, config, quotaExceeded, refillDate }: Readonly<GeneralSummaryCardProps>) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [isEditingTags, setIsEditingTags] = useState(false)
@@ -31,14 +33,21 @@ export function GeneralSummaryCard({ page, config }: Readonly<GeneralSummaryCard
   const handleUpdateConfig = (updates: Partial<MonitoringConfig>) => {
     startTransition(async () => {
       try {
-        await PageApi.updateMonitoringConfig(page.id, updates)
+        const result = await PageApi.updateMonitoringConfig(page.id, updates)
         router.refresh()
         if (updates.checkFrequency) {
           window.dispatchEvent(new CustomEvent('checks:refresh'))
         }
-        notification.success({
-          title: 'Settings saved',
-        })
+        if (result.quotaExceeded) {
+          notification.warning({
+            title: 'Monthly check quota reached',
+            description: `Settings saved, but checks are paused until ${refillDate ?? 'next billing cycle'}.`,
+          })
+        } else {
+          notification.success({
+            title: 'Settings saved',
+          })
+        }
       } catch (error) {
         console.error('Failed to update config', error)
         notification.error({
@@ -99,6 +108,12 @@ export function GeneralSummaryCard({ page, config }: Readonly<GeneralSummaryCard
         <h3 className="text-xl font-semibold text-foreground">General Summary</h3>
         {isPending && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
       </div>
+
+      {quotaExceeded && (
+        <div className="rounded-md border border-yellow-500/30 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-700 dark:text-yellow-400">
+          Monthly check quota reached. Checks are paused until {refillDate ?? 'next billing cycle'}.
+        </div>
+      )}
 
       <div className="flex flex-col gap-4">
         {/* Tag Section */}

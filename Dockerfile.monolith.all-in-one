@@ -10,9 +10,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Install air for hot reload
+# Install air for hot reload and swag for swagger docs
 ENV PATH=$PATH:/root/go/bin
-RUN go install github.com/air-verse/air@latest
+RUN go install github.com/air-verse/air@latest && \
+    go install github.com/swaggo/swag/cmd/swag@latest
 
 WORKDIR /workspace
 

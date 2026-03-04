@@ -12,11 +12,12 @@ export interface PageDetailFeatureProps {
 }
 
 export async function PageDetailFeature({ workspaceId, pageId }: Readonly<PageDetailFeatureProps>) {
-  const [page, workspace, config, checks] = await Promise.all([
+  const [page, workspace, config, checks, quotaStatus] = await Promise.all([
     PageDetailService.getPage(pageId),
     PageDetailService.getWorkspace(workspaceId),
     PageDetailService.getMonitoringConfig(pageId),
     PageDetailService.listChecks(pageId),
+    PageDetailService.getQuotaStatus(),
   ])
 
   return (
@@ -44,13 +45,13 @@ export async function PageDetailFeature({ workspaceId, pageId }: Readonly<PageDe
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
           <div className="flex flex-col gap-6 md:gap-8 lg:col-span-2">
-            <ChecksHistory checks={checks} workspaceId={workspaceId} pageId={pageId} />
+            <ChecksHistory checks={checks} workspaceId={workspaceId} pageId={pageId} quotaExceeded={quotaStatus.exceeded} refillDate={quotaStatus.refillDate} />
 
             <AdvancedSettingsCard pageId={pageId} initialConfig={config} />
           </div>
 
           <div className="flex flex-col gap-6 md:gap-8 lg:col-span-1">
-            <GeneralSummaryCard page={page} config={config} />
+            <GeneralSummaryCard page={page} config={config} quotaExceeded={quotaStatus.exceeded} refillDate={quotaStatus.refillDate} />
 
             <IntelligentInsightsCard pageId={pageId} config={config} />
           </div>

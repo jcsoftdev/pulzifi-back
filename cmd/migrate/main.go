@@ -7,7 +7,11 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"regexp"
+	"sort"
+	"strconv"
+	"strings"
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database"
@@ -127,6 +131,39 @@ func ensureTenantSchemaExists(db *sql.DB, schemaName string) error {
 	return nil
 }
 
+// migrationFile holds metadata parsed from an .up.sql filename.
+type migrationFile struct {
+	version uint
+	name    string
+}
+
+// parseMigrationDir scans a directory for *.up.sql files and returns a sorted
+// slice of migrationFile, mapping each version number to its human-readable name.
+func parseMigrationDir(dir string) ([]migrationFile, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+
+	re := regexp.MustCompile(`^(\d+)_(.+)\.up\.sql$`)
+	var files []migrationFile
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		m := re.FindStringSubmatch(e.Name())
+		if m == nil {
+			continue
+		}
+		v, _ := strconv.ParseUint(m[1], 10, 64)
+		// Convert snake_case to readable label, e.g. "init_tenant_schema" → "init tenant schema"
+		label := strings.ReplaceAll(m[2], "_", " ")
+		files = append(files, migrationFile{version: uint(v), name: label})
+	}
+	sort.Slice(files, func(i, j int) bool { return files[i].version < files[j].version })
+	return files, nil
+}
+
 func runMigration(db *sql.DB, schemaName, migrationDirName, command string, steps int) error {
 	var (
 		driver database.Driver
@@ -164,7 +201,8 @@ func runMigration(db *sql.DB, schemaName, migrationDirName, command string, step
 	}
 
 	cwd, _ := os.Getwd()
-	sourceURL := fmt.Sprintf("file://%s/%s/%s", cwd, migrationsBaseDir, migrationDirName)
+	migDir := filepath.Join(cwd, migrationsBaseDir, migrationDirName)
+	sourceURL := fmt.Sprintf("file://%s", migDir)
 
 	m, err := migrate.NewWithDatabaseInstance(
 		sourceURL,
@@ -175,19 +213,54 @@ func runMigration(db *sql.DB, schemaName, migrationDirName, command string, step
 		return fmt.Errorf("failed to create migrate instance: %w", err)
 	}
 
-	// Check current version
-	version, dirty, err := m.Version()
+	// Parse migration files for rich logging
+	allMigrations, _ := parseMigrationDir(migDir)
+	nameOf := make(map[uint]string, len(allMigrations))
+	for _, f := range allMigrations {
+		nameOf[f.version] = f.name
+	}
+
+	// Check current version before running
+	versionBefore, dirty, err := m.Version()
 	if err != nil && err != migrate.ErrNilVersion {
 		log.Printf("[%s] Failed to get version: %v", schemaName, err)
 	} else if err == migrate.ErrNilVersion {
-		log.Printf("[%s] Current version: None", schemaName)
+		log.Printf("[%s] Current version: none (fresh schema)", schemaName)
 	} else {
-		log.Printf("[%s] Current version: %d (dirty: %v)", schemaName, version, dirty)
+		label := nameOf[versionBefore]
+		if label != "" {
+			log.Printf("[%s] Current version: %d — %s", schemaName, versionBefore, label)
+		} else {
+			log.Printf("[%s] Current version: %d", schemaName, versionBefore)
+		}
+		if dirty {
+			log.Printf("[%s] WARNING: schema is dirty; manual intervention may be required", schemaName)
+		}
 	}
 
-	if dirty {
-		log.Printf("[%s] Database is dirty. Forcing version cleanup...", schemaName)
-		// Option: m.Force(int(version))
+	// Show pending migrations when running 'up'
+	if command == "up" || command == "version" {
+		var pending []migrationFile
+		for _, f := range allMigrations {
+			if err == migrate.ErrNilVersion || f.version > versionBefore {
+				pending = append(pending, f)
+			}
+		}
+		if command == "version" {
+			log.Printf("[%s] Pending migrations (%d):", schemaName, len(pending))
+			for _, f := range pending {
+				log.Printf("[%s]   → %06d  %s", schemaName, f.version, f.name)
+			}
+			return nil
+		}
+		if len(pending) == 0 {
+			log.Printf("[%s] No changes", schemaName)
+		} else {
+			log.Printf("[%s] Pending migrations (%d):", schemaName, len(pending))
+			for _, f := range pending {
+				log.Printf("[%s]   → %06d  %s", schemaName, f.version, f.name)
+			}
+		}
 	}
 
 	switch command {
@@ -205,21 +278,31 @@ func runMigration(db *sql.DB, schemaName, migrationDirName, command string, step
 		}
 	case "force":
 		err = m.Force(steps)
-	case "version":
-		// Already printed above
-		return nil
 	default:
 		return fmt.Errorf("unknown command: %s", command)
 	}
 
 	if err != nil {
 		if err == migrate.ErrNoChange {
-			log.Printf("[%s] No changes", schemaName)
+			// Already reported above for 'up'
+			if command != "up" {
+				log.Printf("[%s] No changes", schemaName)
+			}
 			return nil
 		}
 		return err
 	}
 
-	log.Printf("[%s] Migration success", schemaName)
+	// Report what changed
+	versionAfter, _, _ := m.Version()
+	if versionAfter != versionBefore {
+		log.Printf("[%s] Applied migrations %d → %d:", schemaName, versionBefore, versionAfter)
+		for _, f := range allMigrations {
+			if f.version > versionBefore && f.version <= versionAfter {
+				log.Printf("[%s]   ✓ %06d  %s", schemaName, f.version, f.name)
+			}
+		}
+	}
+	log.Printf("[%s] Migration complete (version: %d)", schemaName, versionAfter)
 	return nil
 }

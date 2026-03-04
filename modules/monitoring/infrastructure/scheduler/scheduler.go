@@ -200,6 +200,15 @@ func (s *Scheduler) TriggerPageCheck(ctx context.Context, schema string, pageID 
 		return err
 	}
 
+	// Synchronous quota pre-check so the caller (HTTP handler) can detect quota exceeded.
+	hasQuota, err := s.orchestrator.HasQuota(ctx, schema)
+	if err != nil {
+		return fmt.Errorf("quota check: %w", err)
+	}
+	if !hasQuota {
+		return orchestrator.ErrQuotaExceeded
+	}
+
 	// Mark the page as checked now so the scheduler loop doesn't also pick it up
 	// before the async goroutine below has a chance to call UpdateLastChecked.
 	repo := persistence.NewMonitoringConfigPostgresRepository(s.db, schema)

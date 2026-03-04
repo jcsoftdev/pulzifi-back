@@ -21,18 +21,32 @@ interface ChecksHistoryProps {
   checks: Check[]
   workspaceId: string
   pageId: string
+  quotaExceeded?: boolean
+  refillDate?: string
 }
 
 export function ChecksHistory({
   checks: initialChecks,
   workspaceId,
   pageId,
+  quotaExceeded,
+  refillDate,
 }: Readonly<ChecksHistoryProps>) {
   const sectionId = useId()
   const [checks, setChecks] = useState(initialChecks)
   const [hasFreshData, setHasFreshData] = useState(false)
   const timeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined)
   const eventSourceRef = useRef<EventSource | null>(null)
+
+  // Sync server-rendered data when it changes (e.g. after router.refresh() or navigation).
+  // Compare count + first ID since array references change on every RSC render.
+  const initialSyncKey = `${initialChecks.length}:${initialChecks[0]?.id}`
+  const [prevSyncKey, setPrevSyncKey] = useState(initialSyncKey)
+  if (initialSyncKey !== prevSyncKey) {
+    setPrevSyncKey(initialSyncKey)
+    setChecks(initialChecks)
+    setHasFreshData(true)
+  }
 
   const fetchChecks = useCallback(async () => {
     try {
@@ -119,6 +133,12 @@ export function ChecksHistory({
       </div>
 
       <div className="flex flex-col gap-4 max-h-[500px] overflow-y-auto pr-2">
+        {quotaExceeded && (
+          <div className="rounded-md border border-yellow-500/30 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-700 dark:text-yellow-400">
+            Monthly check quota reached. New checks are paused until {refillDate ?? 'next billing cycle'}.
+          </div>
+        )}
+
         {/* Today Header - Mock for now as backend doesn't group yet */}
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-medium text-muted-foreground">Today</h3>

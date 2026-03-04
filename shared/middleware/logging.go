@@ -76,3 +76,9 @@ func (w *responseWriterWrapper) Write(b []byte) (int, error) {
 	}
 	return w.ResponseWriter.Write(b)
 }
+
+// Unwrap returns the underlying ResponseWriter, allowing http.NewResponseController
+// to reach the real http.Flusher for SSE streaming.
+func (w *responseWriterWrapper) Unwrap() http.ResponseWriter {
+	return w.ResponseWriter
+}

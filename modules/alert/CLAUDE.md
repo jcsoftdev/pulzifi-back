@@ -1,35 +1,27 @@
 # Alert Module
 
-## Responsibility
+Manages alert notifications for page change detection.
 
-Alert creation and management for page change detection events. Alerts notify users when monitored pages have changed.
+## Domain Entities
 
-## Entities
+- `Alert` — change detection alert with flexible metadata (JSON)
 
-- **Alert** — ID, WorkspaceID, PageID, CheckID, Type, Title, Description, Metadata, ReadAt
+## Use Cases
 
-## Repository Interfaces
+- `create_alert` — create a new alert
+- `list_alerts` — list alerts filtered by workspace
+- `get_alert` — get alert details
+- `update_alert` — mark alert as read
+- `delete_alert` — delete alert
 
-- `AlertRepository` — Create, GetByID, ListByWorkspace, MarkAsRead, Delete
+## HTTP Routes (`/alerts/*`, tenant-aware)
 
-## Routes
+- POST `/alerts`
+- GET `/alerts`
+- GET `/alerts/{id}`
+- PUT `/alerts/{id}`
+- DELETE `/alerts/{id}`
 
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/alerts` | Create alert |
-| GET | `/alerts` | List alerts (filtered by workspace_id) |
-| GET | `/alerts/{id}` | Get alert |
-| PUT | `/alerts/{id}` | Mark as read |
-| DELETE | `/alerts/{id}` | Delete alert |
+## Infrastructure
 
-## Dependencies
-
-- Monitoring module (triggers alerts on detected changes)
-- gRPC server (exposes alert creation to other modules)
-- Email module (optional notification)
-
-## Constraints
-
-- Tenant-scoped
-- Alerts created automatically when change detection finds differences
-- Alerts can be marked as read but not edited
+- PostgreSQL: `alerts` table (tenant-scoped)

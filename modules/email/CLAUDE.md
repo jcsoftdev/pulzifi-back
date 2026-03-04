@@ -1,34 +1,27 @@
 # Email Module
 
-## Responsibility
+Email service with pluggable providers and HTML templates.
 
-Email sending via Resend API, status tracking, and template rendering for transactional emails.
+## Domain Entities
 
-## Entities
+- `Email` — email record with status (pending, sent, failed, bounced)
 
-- **Email** — ID, To, Subject, Body, Status (pending/sent/failed/bounced), CreatedAt, SentAt
+## Use Cases
 
-## Repository Interfaces
+- `send_email` — send email via provider
+- `get_email_status` — check email delivery status
 
-- `EmailRepository` — Save, GetByID, GetByTo, Update
+## HTTP Routes (`/emails/*`)
 
-## Routes
+- POST `/emails/send`
 
-None — internal service only, called by other modules via gRPC.
+## Domain Services
+
+- `EmailService` — business logic for email operations
+- `EmailProvider` — Resend HTTP client for delivery
 
 ## Infrastructure
 
-- **Resend provider**: `infrastructure/providers/resend_provider.go`
-- **Templates**: Registration approval, rejection, team invitation, password reset, monitoring alerts
-- **gRPC server**: Exposes email sending to other modules
-
-## Dependencies
-
-- Resend API (`RESEND_API_KEY` env var)
-- Config: `EMAIL_FROM_ADDRESS`, `EMAIL_FROM_NAME`
-
-## Constraints
-
-- Disabled if `RESEND_API_KEY` is not set
-- Emails sent asynchronously
-- Retry logic for transient failures
+- Resend provider (production) or in-memory (dev)
+- Templates: registration, approval, rejection, password reset
+- Fire-and-forget sending from handlers

@@ -1,37 +1,34 @@
 # Organization Module
 
-## Responsibility
+Organization entity and multi-tenancy schema management.
 
-Multi-tenant organization lifecycle management, subdomain provisioning, and organization membership tracking.
+## Domain Entities
 
-## Entities
+- `Organization` — organization with subdomain, schema_name, owner
 
-- **Organization** — ID, Name, Subdomain, SchemaName, OwnerUserID, CreatedAt, UpdatedAt, DeletedAt
+## Use Cases
 
-## Repository Interfaces
+- `create_organization` — create org (via registration approval)
+- `get_organization` — fetch org details
+- `get_current_organization` — fetch authenticated user's org
 
-- `OrganizationRepository` — Create, GetByID, GetBySubdomain, List, Update, Delete, CountBySubdomain
+## HTTP Routes (`/organizations/*`, `/organization/*`)
 
-## Routes
+- POST `/organizations`
+- GET `/organizations`
+- GET `/organizations/{id}`
+- PUT `/organizations/{id}`
+- DELETE `/organizations/{id}`
+- GET `/organization/current`
 
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/organizations` | Create organization |
-| GET | `/organizations` | List organizations |
-| GET | `/organizations/{id}` | Get organization |
-| PUT | `/organizations/{id}` | Update organization |
-| DELETE | `/organizations/{id}` | Delete organization |
-| GET | `/organization/current` | Get current org by subdomain |
+## Infrastructure
 
-## Dependencies
+- PostgreSQL: `organizations` table (public schema)
+- gRPC Server: organization service for inter-module communication
+- Event publishing: `organization.created` event
+- Multi-tenant schema creation: `create_tenant_schema()` SQL function
 
-- Auth module (user ownership)
-- Admin module (triggered on approval)
-- gRPC server (exposes organization data to other modules)
-- EventBus subscriber (listens for user approval events)
+## Notes
 
-## Constraints
-
-- Organization creation triggers `create_tenant_schema()` SQL function
-- Subdomain must be unique across all organizations
-- SchemaName derived from subdomain for PostgreSQL schema isolation
+- Schema-per-tenant: each org gets a PostgreSQL schema
+- Subdomain routing: tenant extracted from `tenant.app.com`

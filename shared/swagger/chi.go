@@ -1,8 +1,8 @@
 package swagger
 
 import (
-	"io/ioutil"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -24,10 +24,10 @@ func SetupSwaggerForChi(router chi.Router) {
 	// Route for doc.json - serve the swagger spec JSON
 	router.Get("/swagger/doc.json", func(w http.ResponseWriter, r *http.Request) {
 		// Read and serve the swagger.json file
-		data, err := ioutil.ReadFile("docs/swagger.json")
+		data, err := os.ReadFile("docs/swagger.json")
 		if err != nil {
 			// If file doesn't exist, try alternate paths
-			data, err = ioutil.ReadFile("/app/docs/swagger.json")
+			data, err = os.ReadFile("/app/docs/swagger.json")
 			if err != nil {
 				http.Error(w, "Swagger spec not found", http.StatusNotFound)
 				return

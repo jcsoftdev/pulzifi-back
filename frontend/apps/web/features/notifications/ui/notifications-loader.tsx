@@ -1,22 +1,17 @@
 import { NotificationService } from '@/features/notifications/domain/services/notification-service'
-import { NotificationButton } from '@workspace/ui/components/molecules'
-import { NotixAnchor } from '@workspace/notix'
+import { NotificationsWidget } from './notifications-widget'
 
 export async function NotificationsLoader() {
-  const notificationsData = await NotificationService.getNotificationsData()
+  const [notificationsData, { notifications, total }] = await Promise.all([
+    NotificationService.getNotificationsData(),
+    NotificationService.getNotifications(),
+  ])
 
   return (
-    <NotixAnchor
-      as={NotificationButton}
-      hasNotifications={notificationsData.hasNotifications}
-      notificationCount={notificationsData.notificationCount}
-      title={`${notificationsData.notificationCount} Notification${notificationsData.notificationCount === 1 ? '' : 's'}`}
-      description="You have unread notifications."
-      state="info"
-      classNames={{
-        title: 'text-sm font-semibold text-foreground',
-        description: 'text-sm text-muted-foreground',
-      }}
+    <NotificationsWidget
+      initialNotifications={notifications}
+      initialUnreadCount={notificationsData.notificationCount}
+      totalCount={total}
     />
   )
 }

@@ -15,7 +15,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
-	"github.com/jcsoftdev/pulzifi-back/docs-back"
 	createorgapp "github.com/jcsoftdev/pulzifi-back/modules/organization/application/create_organization"
 	getorgapp "github.com/jcsoftdev/pulzifi-back/modules/organization/application/get_organization"
 	orgservices "github.com/jcsoftdev/pulzifi-back/modules/organization/domain/services"
@@ -35,8 +34,6 @@ import (
 	"google.golang.org/grpc"
 )
 
-var _ = docs.SwaggerInfo // Ensure docs is imported
-
 // @title Pulzifi API
 // @version 1.0
 // @description Pulzifi backend monolith API
@@ -46,6 +43,10 @@ var _ = docs.SwaggerInfo // Ensure docs is imported
 // @basePath /api/v1
 // @schemes http https
 // @host localhost:3000
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description Enter "Bearer" followed by a space and your JWT access token
 func main() {
 	// Load configuration
 	cfg := config.Load()

@@ -1,28 +1,22 @@
 # Dashboard Module
 
-## Responsibility
+Aggregated dashboard statistics for organization overview.
 
-Aggregated dashboard statistics across workspaces, pages, checks, alerts, and insights for the current tenant.
+## Domain Entities
 
-## Entities
+- `DashboardStats` — aggregated metrics (workspaces, pages, checks, alerts, insights)
+- `WorkspaceChanges` — detected changes per workspace
+- `RecentAlert` — recent alert summary
+- `RecentInsight` — recent insight summary
 
-- **DashboardStats** — WorkspacesCount, PagesCount, TodayChecksCount, ChangesPerWorkspace[], RecentAlerts[], RecentInsights[]
+## Use Cases
 
-## Repository Interfaces
+- `get_dashboard_stats` — fetch aggregated dashboard statistics
 
-- `DashboardRepository` — GetStats
+## HTTP Routes (`/dashboard/*`, tenant-aware)
 
-## Routes
+- GET `/dashboard/stats`
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/dashboard/stats` | Get aggregated dashboard statistics |
+## Infrastructure
 
-## Dependencies
-
-- Monitoring, Alert, Insight data (read via cross-table queries within tenant schema)
-
-## Constraints
-
-- Tenant-scoped (stats are per-organization)
-- Read-only module (no writes)
+- PostgreSQL: complex queries aggregating workspace, page, check, alert, insight data (tenant-scoped)

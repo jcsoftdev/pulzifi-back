@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/jcsoftdev/pulzifi-back/shared/config"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
@@ -11,7 +12,8 @@ import (
 	"go.uber.org/zap"
 )
 
-// Connect creates a connection pool to PostgreSQL
+// Connect creates a connection pool to PostgreSQL with retry logic for transient
+// DNS/network failures (common on Railway private networking).
 func Connect(cfg *config.Config) (*sql.DB, error) {
 	// Support DATABASE_URL (e.g. Railway managed Postgres) with fallback to individual vars
 	dsn := os.Getenv("DATABASE_URL")
@@ -32,9 +34,26 @@ func Connect(cfg *config.Config) (*sql.DB, error) {
 		return nil, err
 	}
 
-	// Test the connection
-	if err := db.Ping(); err != nil {
-		logger.Error("Failed to ping database", zap.Error(err))
+	// Retry ping with exponential backoff to handle transient DNS/network errors
+	maxRetries := 5
+	backoff := 2 * time.Second
+	for i := 0; i < maxRetries; i++ {
+		if err = db.Ping(); err == nil {
+			break
+		}
+		if i < maxRetries-1 {
+			logger.Warn("Failed to ping database, retrying...",
+				zap.Error(err),
+				zap.Int("attempt", i+1),
+				zap.Duration("backoff", backoff),
+			)
+			time.Sleep(backoff)
+			backoff *= 2
+		}
+	}
+	if err != nil {
+		logger.Error("Failed to ping database after retries", zap.Error(err), zap.Int("attempts", maxRetries))
+		db.Close()
 		return nil, err
 	}
 

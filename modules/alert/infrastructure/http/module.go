@@ -7,7 +7,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	countunreadalerts "github.com/jcsoftdev/pulzifi-back/modules/alert/application/count_unread_alerts"
 	createalert "github.com/jcsoftdev/pulzifi-back/modules/alert/application/create_alert"
+	listallalerts "github.com/jcsoftdev/pulzifi-back/modules/alert/application/list_all_alerts"
+	markallalerts "github.com/jcsoftdev/pulzifi-back/modules/alert/application/mark_all_alerts_read"
 	"github.com/jcsoftdev/pulzifi-back/modules/alert/infrastructure/persistence"
 
 	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
@@ -43,6 +46,9 @@ func (m *Module) RegisterHTTPRoutes(router chi.Router) {
 		r.Use(middleware.OrgMiddleware.RequireOrganizationMembership)
 		r.Post("/", m.handleCreateAlert)
 		r.Get("/", m.handleListAlerts)
+		r.Get("/unread-count", m.handleCountUnread)
+		r.Get("/all", m.handleListAllAlerts)
+		r.Put("/read-all", m.handleMarkAllRead)
 		r.Get("/{id}", m.handleGetAlert)
 		r.Put("/{id}", m.handleUpdateAlert)
 		r.Delete("/{id}", m.handleDeleteAlert)
@@ -253,4 +259,25 @@ func (m *Module) handleDeleteAlert(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (m *Module) handleCountUnread(w http.ResponseWriter, r *http.Request) {
+	tenant := middleware.GetTenantFromContext(r.Context())
+	repo := persistence.NewAlertPostgresRepository(m.db, tenant)
+	handler := countunreadalerts.NewCountUnreadAlertsHandler(repo)
+	handler.HandleHTTP(w, r)
+}
+
+func (m *Module) handleListAllAlerts(w http.ResponseWriter, r *http.Request) {
+	tenant := middleware.GetTenantFromContext(r.Context())
+	repo := persistence.NewAlertPostgresRepository(m.db, tenant)
+	handler := listallalerts.NewListAllAlertsHandler(repo)
+	handler.HandleHTTP(w, r)
+}
+
+func (m *Module) handleMarkAllRead(w http.ResponseWriter, r *http.Request) {
+	tenant := middleware.GetTenantFromContext(r.Context())
+	repo := persistence.NewAlertPostgresRepository(m.db, tenant)
+	handler := markallalerts.NewMarkAllAlertsReadHandler(repo)
+	handler.HandleHTTP(w, r)
 }

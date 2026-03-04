@@ -22,6 +22,7 @@ import (
 	orgpersistence "github.com/jcsoftdev/pulzifi-back/modules/organization/infrastructure/persistence"
 	orgservices "github.com/jcsoftdev/pulzifi-back/modules/organization/domain/services"
 	page "github.com/jcsoftdev/pulzifi-back/modules/page/infrastructure/http"
+	snapshotextractor "github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/extractor"
 	report "github.com/jcsoftdev/pulzifi-back/modules/report/infrastructure/http"
 	team "github.com/jcsoftdev/pulzifi-back/modules/team/infrastructure/http"
 	usage "github.com/jcsoftdev/pulzifi-back/modules/usage/infrastructure/http"
@@ -104,7 +105,7 @@ func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus 
 		{"Email", email.NewModule(emailProvider)},
 		{"Organization", organization.NewModule(orgRepo)},
 		{"Workspace", workspace.NewModuleWithDB(db)},
-		{"Page", page.NewModuleWithDB(db)},
+		{"Page", page.NewModuleWithExtractor(db, snapshotextractor.NewHTTPClient(cfg.ExtractorURL))},
 		{"Alert", alert.NewModuleWithDB(db)},
 		{"Monitoring", monitoring.NewModuleWithDB(db, eventBus, emailProvider, cfg.FrontendURL)},
 		{"Integration", integration.NewModuleWithDB(db)},

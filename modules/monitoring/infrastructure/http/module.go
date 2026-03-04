@@ -84,6 +84,17 @@ func NewModuleWithDB(db *sql.DB, eventBus *eventbus.EventBus, emailProvider emai
 
 	snapshotWorker := snapshotapp.NewSnapshotWorker(objectStorage, extractorClient, m.db, insightHandler, emailProvider, frontendURL)
 
+	// Set pixel diff threshold from config
+	snapshotWorker.SetPixelDiffThreshold(cfg.PixelDiffThreshold)
+
+	// Initialize Vision AI analyzer if vision model is configured
+	if cfg.OpenRouterAPIKey != "" && cfg.OpenRouterVisionModel != "" {
+		visionClient := sharedAI.NewOpenRouterClient(cfg.OpenRouterAPIKey, cfg.OpenRouterVisionModel)
+		visionAnalyzer := insightAI.NewOpenRouterVisionAnalyzer(visionClient)
+		snapshotWorker.SetVisionAnalyzer(visionAnalyzer)
+		logger.Info("Vision AI analyzer initialized", zap.String("model", cfg.OpenRouterVisionModel))
+	}
+
 	// Initialize the check broker for SSE push notifications.
 	m.checkBroker = pubsub.NewCheckBroker()
 
@@ -133,6 +144,12 @@ func NewModuleWithDB(db *sql.DB, eventBus *eventbus.EventBus, emailProvider emai
 
 	repoFactory := persistence.NewPostgresRepositoryFactory(m.db)
 	orch := orchestrator.NewOrchestrator(repoFactory, m.workerPool)
+
+	// Push pending/error check events to SSE subscribers when the orchestrator
+	// creates a check record or a dispatch fails.
+	orch.SetOnCheckCreated(func(pageID uuid.UUID, checkJSON []byte) {
+		m.checkBroker.Publish(pageID.String(), checkJSON)
+	})
 
 	// Create Scheduler instance
 	m.scheduler = scheduler.NewScheduler(m.db, orch)

@@ -9,16 +9,17 @@ import (
 )
 
 type Alert struct {
-	ID          uuid.UUID
-	WorkspaceID uuid.UUID
-	PageID      uuid.UUID
-	CheckID     uuid.UUID
-	Type        string
-	Title       string
-	Description string
-	Metadata    Metadata
-	ReadAt      *time.Time
-	CreatedAt   time.Time
+	ID            uuid.UUID
+	WorkspaceID   uuid.UUID
+	PageID        uuid.UUID
+	CheckID       uuid.UUID
+	Type          string
+	Title         string
+	Description   string
+	ChangeSummary string // Specific change description from Vision AI
+	Metadata      Metadata
+	ReadAt        *time.Time
+	CreatedAt     time.Time
 }
 
 // Metadata is flexible JSON data
@@ -41,6 +42,12 @@ func (m *Metadata) Scan(value interface{}) error {
 		return nil
 	}
 	return json.Unmarshal(bytes, &m)
+}
+
+type AlertWithPage struct {
+	Alert
+	PageName string
+	PageURL  string
 }
 
 func NewAlert(workspaceID, pageID, checkID uuid.UUID, alertType, title, description string) *Alert {

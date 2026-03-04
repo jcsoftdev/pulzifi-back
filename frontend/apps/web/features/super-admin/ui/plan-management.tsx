@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@workspace/ui/components/atoms'
-import { Loader2 } from 'lucide-react'
+import { Gift, Loader2 } from 'lucide-react'
 import { useCallback, useEffect, useState, useTransition } from 'react'
 
 export function PlanManagement() {
@@ -56,6 +56,23 @@ export function PlanManagement() {
       } catch {
         setActionError('Failed to update plan for this organization.')
         notification.error({ title: 'Failed to update plan', description: 'Please try again.' })
+      }
+    })
+  }
+
+  const handleGiftMonth = (organizationId: string, orgName: string) => {
+    setActionError(null)
+    startTransition(async () => {
+      try {
+        const result = await SuperAdminApi.giftMonth(organizationId)
+        const period = result.gifted_period
+        notification.success({
+          title: 'Free month gifted',
+          description: `${orgName} received a free month (${period.period_start} to ${period.period_end}).`,
+        })
+      } catch {
+        setActionError('Failed to gift free month.')
+        notification.error({ title: 'Failed to gift month', description: 'The period may already exist.' })
       }
     })
   }
@@ -135,6 +152,15 @@ export function PlanManagement() {
                     </SelectContent>
                   </Select>
                 </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={isPending || !org.plan_code}
+                  onClick={() => handleGiftMonth(org.id, org.name)}
+                >
+                  <Gift className="w-4 h-4 mr-2" />
+                  Gift Month
+                </Button>
               </CardContent>
             </Card>
           ))}

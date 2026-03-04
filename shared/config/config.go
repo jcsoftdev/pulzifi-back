@@ -66,8 +66,10 @@ type Config struct {
 	ExtractorURL string
 
 	// AI / OpenRouter
-	OpenRouterAPIKey string
-	OpenRouterModel  string
+	OpenRouterAPIKey     string
+	OpenRouterModel      string
+	OpenRouterVisionModel string
+	PixelDiffThreshold    float64
 
 	// Email (Resend)
 	ResendAPIKey     string
@@ -137,8 +139,10 @@ func Load() *Config {
 		CloudinaryAPISecret:   getEnv("CLOUDINARY_API_SECRET", ""),
 		CloudinaryFolder:      getEnv("CLOUDINARY_FOLDER", ""),
 		ExtractorURL:          mustGetEnv("EXTRACTOR_URL"),
-		OpenRouterAPIKey:      getEnv("OPENROUTER_API_KEY", ""),
-		OpenRouterModel:       getEnv("OPENROUTER_MODEL", "mistralai/mistral-7b-instruct:free"),
+		OpenRouterAPIKey:       getEnv("OPENROUTER_API_KEY", ""),
+		OpenRouterModel:        getEnv("OPENROUTER_MODEL", "mistralai/mistral-7b-instruct:free"),
+		OpenRouterVisionModel:  getEnv("OPENROUTER_VISION_MODEL", ""),
+		PixelDiffThreshold:     getEnvFloat("PIXEL_DIFF_THRESHOLD", 0.001),
 		ResendAPIKey:          getEnv("RESEND_API_KEY", ""),
 		EmailFromAddress:      getEnv("EMAIL_FROM_ADDRESS", ""),
 		EmailFromName:         getEnv("EMAIL_FROM_NAME", ""),
@@ -202,6 +206,15 @@ func getEnvDuration(key string, defaultValue time.Duration) time.Duration {
 	if value, exists := os.LookupEnv(key); exists {
 		if d, err := time.ParseDuration(value); err == nil {
 			return d
+		}
+	}
+	return defaultValue
+}
+
+func getEnvFloat(key string, defaultValue float64) float64 {
+	if value, exists := os.LookupEnv(key); exists {
+		if f, err := strconv.ParseFloat(value, 64); err == nil {
+			return f
 		}
 	}
 	return defaultValue

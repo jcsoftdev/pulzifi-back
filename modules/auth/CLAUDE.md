@@ -1,51 +1,48 @@
 # Auth Module
 
-## Responsibility
+User authentication, JWT token management, and OAuth providers.
 
-User authentication, JWT token management, OAuth2 integration (Google, GitHub), password reset/recovery, and session management.
+## Domain Entities
 
-## Entities
+- `User` — user profile with status, email verification, notification preferences
+- `RefreshToken` — JWT refresh token storage
+- `Session` — user session state
+- `Role` — role definitions (OWNER, ADMIN, MEMBER, SUPER_ADMIN)
 
-- **User** — ID, Email, PasswordHash, FirstName, LastName, Status (pending/approved/rejected), EmailVerified, NotificationFrequency
-- **Session** — ID, UserID, ExpiresAt
-- **RefreshToken** — ID, UserID, Token, ExpiresAt, IsRevoked
-- **Role** — ID, Name, Description
-- **Permission** — ID, Name, Resource, Action
+## Use Cases
 
-## Repository Interfaces
+- `register` — user registration (creates pending registration request)
+- `check_subdomain` — validate subdomain availability
+- `login` — authenticate with email/password
+- `refresh_token` — refresh JWT tokens
+- `get_current_user` — fetch authenticated user
+- `forgot_password` / `reset_password` — password reset flow
 
-- `UserRepository` — CRUD + GetByEmail, ExistsByEmail, UpdateStatus, ListByStatus
-- `SessionRepository` — Create, FindByID, DeleteByID, DeleteExpired
-- `RefreshTokenRepository` — Create, FindByToken, FindByUserID, Revoke, RevokeAllByUserID, DeleteExpired
-- `RoleRepository`, `PermissionRepository`
+## HTTP Routes (`/auth/*`)
 
-## Routes
+- POST `/auth/register`
+- POST `/auth/check-subdomain`
+- POST `/auth/login`
+- POST `/auth/logout`
+- POST `/auth/refresh`
+- POST `/auth/forgot-password`
+- POST `/auth/reset-password`
+- GET `/auth/oauth/{provider}`
+- GET `/auth/oauth/{provider}/callback`
+- GET `/auth/me` (authenticated)
+- PUT `/auth/me`
+- PUT `/auth/me/password`
+- DELETE `/auth/me`
 
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/auth/register` | User registration |
-| POST | `/auth/login` | Login, returns JWT tokens |
-| POST | `/auth/logout` | Clear session |
-| POST | `/auth/refresh` | Refresh JWT |
-| POST | `/auth/check-subdomain` | Check subdomain availability |
-| POST | `/auth/forgot-password` | Send reset email |
-| POST | `/auth/reset-password` | Reset with token |
-| GET/POST | `/auth/oauth/{provider}` | OAuth redirect and callback |
-| GET | `/auth/me` | Get current user |
-| PUT | `/auth/me` | Update profile |
-| PUT | `/auth/me/password` | Change password |
-| DELETE | `/auth/me` | Delete account |
+## Domain Services
 
-## Dependencies
+- `AuthService` — password hashing/validation (bcrypt)
+- `TokenService` — JWT generation and validation
 
-- Admin module (RegistrationRequestRepository)
-- Organization module (creates org on approval)
-- Email module (password reset, verification)
-- EventBus (user.deleted event)
-- OAuth providers (Google, GitHub)
+## Infrastructure
 
-## Constraints
-
-- Passwords hashed with bcrypt
-- JWT tokens are HttpOnly cookies (managed by BFF layer in `shared/bff/`)
-- User status workflow: pending → approved/rejected (admin approval required)
+- PostgreSQL: `users`, `refresh_tokens`, `sessions`, `roles`, `permissions` tables (public schema)
+- OAuth: Google and GitHub providers (conditional on env vars)
+- Cookie management with domain/secure flags
+- Email: password reset emails
+- Event publishing: `user.deleted` event on account deletion

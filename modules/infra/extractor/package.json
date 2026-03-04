@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "hono": "^4.8.5",
-    "playwright": "^1.41.2"
+    "rebrowser-playwright": "^1.49.1"
   },
   "devDependencies": {
     "typescript": "^5.3.3",
