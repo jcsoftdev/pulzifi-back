@@ -19,14 +19,14 @@ import (
 	alertPersistence "github.com/jcsoftdev/pulzifi-back/modules/alert/infrastructure/persistence"
 	emailservices "github.com/jcsoftdev/pulzifi-back/modules/email/domain/services"
 	"github.com/jcsoftdev/pulzifi-back/modules/email/infrastructure/templates"
+	generateinsights "github.com/jcsoftdev/pulzifi-back/modules/insight/application/generate_insights"
 	insightservices "github.com/jcsoftdev/pulzifi-back/modules/insight/domain/services"
 	integrationPersistence "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/persistence"
 	"github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/webhook"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/domain/entities"
 	monPersistence "github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/persistence"
-	generateinsights "github.com/jcsoftdev/pulzifi-back/modules/insight/application/generate_insights"
-	imagecompare "github.com/jcsoftdev/pulzifi-back/modules/snapshot/domain/services"
 	"github.com/jcsoftdev/pulzifi-back/modules/snapshot/domain/repositories"
+	imagecompare "github.com/jcsoftdev/pulzifi-back/modules/snapshot/domain/services"
 	"github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/extractor"
 	sharedHTML "github.com/jcsoftdev/pulzifi-back/shared/html"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
@@ -136,23 +136,108 @@ func (s *SnapshotWorker) ExecuteCheck(ctx context.Context, checkID uuid.UUID, ta
 
 	// Fetch monitoring config before extraction to get block_ads_cookies + selector settings
 	configRepo := monPersistence.NewMonitoringConfigPostgresRepository(s.db, schemaName)
-	pageConfig, _ := configRepo.GetByPageID(ctx, check.PageID)
+	pageConfig, configErr := configRepo.GetByPageID(ctx, check.PageID)
+	if configErr != nil {
+		logger.Warn("Failed to load monitoring config, using defaults",
+			zap.String("page_id", check.PageID.String()), zap.Error(configErr))
+	}
 
-	// Build extract options with selector support
+	enabledInsightTypes := []string{"marketing", "market_analysis"}
+	enabledAlertConditions := []string{"any_changes"}
+	if pageConfig != nil {
+		if len(pageConfig.EnabledInsightTypes) > 0 {
+			enabledInsightTypes = pageConfig.EnabledInsightTypes
+		}
+		if len(pageConfig.EnabledAlertConditions) > 0 {
+			enabledAlertConditions = pageConfig.EnabledAlertConditions
+		}
+	}
+
 	extractOpts := extractor.ExtractOptions{}
 	if pageConfig != nil {
 		extractOpts.BlockAdsCookies = pageConfig.BlockAdsCookies
-		if pageConfig.SelectorType == "element" && pageConfig.CSSSelector != "" {
-			extractOpts.Selector = pageConfig.CSSSelector
-			extractOpts.SelectorXPath = pageConfig.XPathSelector
-			if pageConfig.SelectorOffsets != nil {
-				extractOpts.SelectorOffsets = &extractor.SelectorOffsets{
-					Top:    pageConfig.SelectorOffsets.Top,
-					Right:  pageConfig.SelectorOffsets.Right,
-					Bottom: pageConfig.SelectorOffsets.Bottom,
-					Left:   pageConfig.SelectorOffsets.Left,
+
+		switch pageConfig.SelectorType {
+		case "element":
+			if pageConfig.CSSSelector != "" {
+				extractOpts.Selector = pageConfig.CSSSelector
+				extractOpts.SelectorXPath = pageConfig.XPathSelector
+				if pageConfig.SelectorOffsets != nil {
+					extractOpts.SelectorOffsets = &extractor.SelectorOffsets{
+						Top:    pageConfig.SelectorOffsets.Top,
+						Right:  pageConfig.SelectorOffsets.Right,
+						Bottom: pageConfig.SelectorOffsets.Bottom,
+						Left:   pageConfig.SelectorOffsets.Left,
+					}
 				}
 			}
+		case "sections":
+			// Query sections and pass them to the extractor for a single page load.
+			sectionRepo := monPersistence.NewMonitoredSectionPostgresRepository(s.db, schemaName)
+			pageSections, err := sectionRepo.ListByPageID(ctx, check.PageID)
+			if err != nil {
+				logger.Error("Failed to load monitored sections, falling back to full-page",
+					zap.String("page_id", check.PageID.String()), zap.Error(err))
+				break
+			}
+			if len(pageSections) == 0 {
+				logger.Warn("No monitored sections found for sections-mode page, falling back to full-page",
+					zap.String("page_id", check.PageID.String()))
+				break
+			}
+
+			logger.Info("Processing sections mode",
+				zap.String("page_id", check.PageID.String()),
+				zap.Int("section_count", len(pageSections)))
+
+			sectionsByID := make(map[uuid.UUID]*entities.MonitoredSection, len(pageSections))
+			for _, sec := range pageSections {
+				sectionsByID[sec.ID] = sec
+				opt := extractor.SectionExtractOption{ID: sec.ID.String(), Selector: sec.CSSSelector, SelectorXPath: sec.XPathSelector}
+				if sec.SelectorOffsets != nil {
+					opt.Offsets = &extractor.SelectorOffsets{Top: sec.SelectorOffsets.Top, Right: sec.SelectorOffsets.Right, Bottom: sec.SelectorOffsets.Bottom, Left: sec.SelectorOffsets.Left}
+				}
+				extractOpts.Sections = append(extractOpts.Sections, opt)
+			}
+
+			startTime := time.Now()
+			res, err := s.extractorClient.Extract(ctx, targetURL, extractOpts)
+			duration := int(time.Since(startTime).Milliseconds())
+			if err != nil {
+				return markError(err.Error(), duration)
+			}
+
+			logger.Info("Extractor returned sections result",
+				zap.String("page_id", check.PageID.String()),
+				zap.Int("section_results", len(res.Sections)),
+				zap.Bool("has_full_page_screenshot", res.ScreenshotBase64 != ""))
+
+			// Store full-page screenshot on the parent check if available.
+			if res.ScreenshotBase64 != "" {
+				if imgBytes, decErr := base64.StdEncoding.DecodeString(res.ScreenshotBase64); decErr == nil && len(imgBytes) > 0 {
+					ts := time.Now().Unix()
+					imgName := fmt.Sprintf("%s/%d.png", check.PageID, ts)
+					if imgURL, upErr := s.objectStorage.Upload(ctx, imgName, bytes.NewReader(imgBytes), int64(len(imgBytes)), "image/png"); upErr == nil {
+						check.ScreenshotURL = imgURL
+					}
+				}
+			}
+
+			// Mark parent check as complete.
+			check.Status = "success"
+			check.DurationMs = duration
+			if err := checkRepo.Update(ctx, check); err != nil {
+				return err
+			}
+			s.notifyCheckDone(check)
+
+			anyChanged := s.processSectionsFromExtractor(ctx, checkRepo, schemaName, check.ID, check.PageID, sectionsByID, res.Sections, targetURL, enabledAlertConditions)
+			if anyChanged {
+				check.ChangeDetected = true
+				check.ChangeType = "content"
+				_ = checkRepo.Update(ctx, check)
+			}
+			return nil
 		}
 	}
 
@@ -208,18 +293,7 @@ func (s *SnapshotWorker) ExecuteCheck(ctx context.Context, checkID uuid.UUID, ta
 	prevCheck := s.getPreviousSuccessfulCheck(ctx, checkRepo, check.PageID, check.ID)
 
 	if prevCheck != nil {
-		enabledInsightTypes := []string{"marketing", "market_analysis"}
-		enabledAlertConditions := []string{"any_changes"}
-		if pageConfig != nil {
-			if len(pageConfig.EnabledInsightTypes) > 0 {
-				enabledInsightTypes = pageConfig.EnabledInsightTypes
-			}
-			if len(pageConfig.EnabledAlertConditions) > 0 {
-				enabledAlertConditions = pageConfig.EnabledAlertConditions
-			}
-		}
-
-		changeDetected, changeSummary := s.detectChange(ctx, prevCheck, check, imgBytes, res, targetURL)
+		changeDetected, changeSummary := s.detectChange(ctx, prevCheck, check, imgBytes, res.ScreenshotBase64, targetURL)
 
 		if changeDetected {
 			check.ChangeDetected = true
@@ -256,7 +330,7 @@ func (s *SnapshotWorker) ExecuteCheck(ctx context.Context, checkID uuid.UUID, ta
 // Stage 1: Pixel hash/diff comparison
 // Stage 2: Vision AI analysis (if configured and pixel diff exceeds threshold)
 // Returns (changeDetected, changeSummary)
-func (s *SnapshotWorker) detectChange(ctx context.Context, prevCheck, currCheck *entities.Check, currImgBytes []byte, res *extractor.ExtractorResult, pageURL string) (bool, string) {
+func (s *SnapshotWorker) detectChange(ctx context.Context, prevCheck, currCheck *entities.Check, currImgBytes []byte, currBase64 string, pageURL string) (bool, string) {
 	// Stage 1: Try pixel comparison if previous screenshot hash is available
 	if prevCheck.ScreenshotHash != "" {
 		// Fast path: if hashes are identical, no change
@@ -288,7 +362,7 @@ func (s *SnapshotWorker) detectChange(ctx context.Context, prevCheck, currCheck 
 						zap.Float64("diff_ratio", result.DiffRatio))
 
 					prevB64 := base64.StdEncoding.EncodeToString(prevImgBytes)
-					visionResult, err := s.visionAnalyzer.AnalyzeChange(ctx, prevB64, res.ScreenshotBase64, pageURL)
+					visionResult, err := s.visionAnalyzer.AnalyzeChange(ctx, prevB64, currBase64, pageURL)
 					if err != nil {
 						logger.Error("Vision AI analysis failed, falling back to text hash",
 							zap.Error(err), zap.String("page_id", currCheck.PageID.String()))
@@ -352,6 +426,7 @@ func (s *SnapshotWorker) getPreviousSuccessfulCheck(ctx context.Context, repo *m
 	}
 	return check
 }
+
 
 func (s *SnapshotWorker) createAlert(ctx context.Context, schemaName string, check *entities.Check, pageURL string, changeSummary string) {
 	if _, err := s.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(schemaName)); err != nil {
@@ -566,6 +641,107 @@ func (s *SnapshotWorker) fetchTextFromURL(rawURL string) string {
 		zap.Int("attempts", maxRetries),
 		zap.Error(lastErr))
 	return ""
+}
+
+// processSectionsFromExtractor creates one check per monitored section using the
+// section screenshots returned by the extractor (single page load). Returns true
+// if any section detected a change.
+func (s *SnapshotWorker) processSectionsFromExtractor(
+	ctx context.Context,
+	checkRepo *monPersistence.CheckPostgresRepository,
+	schemaName string,
+	parentCheckID uuid.UUID,
+	pageID uuid.UUID,
+	sectionsByID map[uuid.UUID]*entities.MonitoredSection,
+	sectionResults []extractor.SectionExtractResult,
+	targetURL string,
+	enabledAlertConditions []string,
+) bool {
+	anyChanged := false
+	firstScreenshotURL := ""
+
+	for i := range sectionResults {
+		sec := &sectionResults[i]
+		if sec.ScreenshotBase64 == "" {
+			logger.Warn("Section has no screenshot (selector may not have matched)",
+				zap.String("section_id", sec.ID),
+				zap.Bool("selector_matched", sec.SelectorMatched))
+			continue
+		}
+
+		sectionID, err := uuid.Parse(sec.ID)
+		if err != nil {
+			logger.Warn("Invalid section ID in extractor result", zap.String("id", sec.ID))
+			continue
+		}
+		section, ok := sectionsByID[sectionID]
+		if !ok {
+			continue
+		}
+
+		imgBytes, err := base64.StdEncoding.DecodeString(sec.ScreenshotBase64)
+		if err != nil || len(imgBytes) == 0 {
+			logger.Warn("Failed to decode section screenshot", zap.String("section_id", sec.ID), zap.Error(err))
+			continue
+		}
+
+		ts := time.Now().Unix()
+		imgName := fmt.Sprintf("%s/sections/%s/%d.png", pageID, sectionID, ts)
+		imgURL, err := s.objectStorage.Upload(ctx, imgName, bytes.NewReader(imgBytes), int64(len(imgBytes)), "image/png")
+		if err != nil {
+			logger.Error("Failed to upload section screenshot", zap.String("section_id", sec.ID), zap.Error(err))
+			continue
+		}
+
+		htmlURL := ""
+		if sec.HTML != "" {
+			htmlName := fmt.Sprintf("%s/sections/%s/%d.html", pageID, sectionID, ts)
+			htmlURL, _ = s.objectStorage.Upload(ctx, htmlName, strings.NewReader(sec.HTML), int64(len(sec.HTML)), "text/html")
+		}
+
+		contentHash := sha256.Sum256([]byte(sec.Text))
+		contentHashStr := hex.EncodeToString(contentHash[:])
+
+		sectionCheck := entities.NewCheck(pageID, "success", false)
+		sectionCheck.SectionID = &section.ID
+		sectionCheck.ParentCheckID = &parentCheckID
+		sectionCheck.ScreenshotURL = imgURL
+		sectionCheck.HTMLSnapshotURL = htmlURL
+		sectionCheck.ContentHash = contentHashStr
+		sectionCheck.ScreenshotHash = imagecompare.HashScreenshot(imgBytes)
+
+		prevSectionCheck, _ := checkRepo.GetPreviousSuccessfulBySection(ctx, pageID, &section.ID, uuid.Nil)
+		if prevSectionCheck != nil {
+			changeDetected, changeSummary := s.detectChange(ctx, prevSectionCheck, sectionCheck, imgBytes, sec.ScreenshotBase64, targetURL)
+			if changeDetected {
+				sectionCheck.ChangeDetected = true
+				sectionCheck.ChangeType = "content"
+				sectionCheck.VisionChangeSummary = changeSummary
+				anyChanged = true
+				if sliceContains(enabledAlertConditions, "any_changes") {
+					s.createAlert(ctx, schemaName, sectionCheck, targetURL, changeSummary)
+				}
+			}
+		}
+
+		if err := checkRepo.Create(ctx, sectionCheck); err != nil {
+			logger.Error("Failed to create section check", zap.String("section_id", sec.ID), zap.Error(err))
+			continue
+		}
+		s.notifyCheckDone(sectionCheck)
+
+		if firstScreenshotURL == "" {
+			firstScreenshotURL = imgURL
+		}
+	}
+
+	if firstScreenshotURL != "" {
+		if err := s.updatePageSnapshotMetadata(ctx, schemaName, pageID, firstScreenshotURL, anyChanged); err != nil {
+			logger.Error("Failed to update page snapshot metadata from sections", zap.Error(err))
+		}
+	}
+
+	return anyChanged
 }
 
 func (s *SnapshotWorker) updatePageSnapshotMetadata(ctx context.Context, schemaName string, pageID uuid.UUID, thumbnailURL string, changeDetected bool) error {

@@ -53,12 +53,13 @@ func setupProxyNotFound(router chi.Router, frontendURL string, logger *zap.Logge
 		}
 		req.Header.Set("X-Forwarded-Proto", proto)
 
-		// Extract subdomain and add as X-Tenant header
-		if strings.Contains(origHost, ".localhost") {
-			parts := strings.Split(origHost, ".")
+		// Extract subdomain and add as X-Tenant header (*.localhost and *.app.local)
+		host := strings.Split(origHost, ":")[0]
+		if strings.Contains(host, ".localhost") || strings.HasSuffix(host, ".app.local") || strings.HasSuffix(host, ".local") {
+			parts := strings.Split(host, ".")
 			if len(parts) >= 2 {
-				tenant := strings.Split(parts[0], ":")[0]
-				if tenant != "" && tenant != "localhost" {
+				tenant := parts[0]
+				if tenant != "" && tenant != "localhost" && tenant != "app" {
 					req.Header.Set("X-Tenant", tenant)
 				}
 			}

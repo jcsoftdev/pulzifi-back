@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { notification } from '@/lib/notification'
 import { DeletePageDialog } from '@/features/page/ui/delete-page-dialog'
 import { EditPageDialog } from '@/features/page/ui/edit-page-dialog'
+import type { EditPageDto } from '@/features/page/domain/types'
 import { PageInfoCard } from './page-info-card'
 
 interface PageInfoWithActionsProps {
@@ -22,24 +23,68 @@ export function PageInfoWithActions({
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [isActionLoading, setIsActionLoading] = useState(false)
+  const [editError, setEditError] = useState<Error | null>(null)
 
-  const handleUpdatePage = async (
-    id: string,
-    data: {
-      name: string
-      url: string
-    }
-  ) => {
+  const handleUpdatePage = async (id: string, data: EditPageDto) => {
     setIsActionLoading(true)
+    setEditError(null)
     try {
-      const updated = await PageApi.updatePage(id, data)
+      // 1. Update core page fields (name, url, tags)
+      const updated = await PageApi.updatePage(id, {
+        name: data.name,
+        url: data.url,
+        tags: data.tags,
+      })
+
+      // 2. Update monitoring config (frequency, schedule, insights, alerts, selector type)
+      await PageApi.updateMonitoringConfig(id, {
+        checkFrequency: data.checkFrequency,
+        blockAdsCookies: data.blockAdsCookies,
+        scheduleType: data.scheduleType,
+        enabledInsightTypes: data.enabledInsightTypes,
+        enabledAlertConditions: data.enabledAlertConditions,
+        customAlertCondition: data.customAlertCondition,
+        selectorType: data.selectorType,
+        cssSelector: data.cssSelector,
+        xpathSelector: data.xpathSelector,
+        selectorOffsets: data.selectorOffsets,
+      })
+
+      // 3. Save sections if they were provided (modified via selector UI)
+      if (data.sections !== undefined) {
+        if (data.sections.length > 0) {
+          await PageApi.saveSections(
+            id,
+            data.sections.map((s, i) => ({
+              name: s.name,
+              cssSelector: s.cssSelector,
+              xpathSelector: s.xpathSelector,
+              selectorOffsets: s.selectorOffsets,
+              sortOrder: s.sortOrder ?? i,
+            }))
+          )
+        } else {
+          // Sections array is empty — user cleared sections (switched to full_page)
+          // The saveSections with empty array will replace all existing sections
+          await PageApi.saveSections(id, [])
+        }
+      }
+
       setPage(updated)
       setIsEditOpen(false)
       router.refresh()
-      notification.action({ title: 'Page updated', description: `"${updated.name}" has been updated.` })
+      notification.action({
+        title: 'Page updated',
+        description: `"${updated.name}" has been updated.`,
+      })
     } catch (err) {
       console.error('Failed to update page:', err)
-      notification.error({ title: 'Failed to update page', description: err instanceof Error ? err.message : 'Please try again.' })
+      const error = err instanceof Error ? err : new Error('Please try again.')
+      setEditError(error)
+      notification.error({
+        title: 'Failed to update page',
+        description: error.message,
+      })
     } finally {
       setIsActionLoading(false)
     }
@@ -53,7 +98,10 @@ export function PageInfoWithActions({
       router.push(`/workspaces/${workspaceId}`)
     } catch (err) {
       console.error('Failed to delete page:', err)
-      notification.error({ title: 'Failed to delete page', description: err instanceof Error ? err.message : 'Please try again.' })
+      notification.error({
+        title: 'Failed to delete page',
+        description: err instanceof Error ? err.message : 'Please try again.',
+      })
       setIsActionLoading(false)
     }
   }
@@ -77,6 +125,7 @@ export function PageInfoWithActions({
         page={page}
         onOpenChange={setIsEditOpen}
         onSubmit={handleUpdatePage}
+        error={editError}
       />
 
       <DeletePageDialog

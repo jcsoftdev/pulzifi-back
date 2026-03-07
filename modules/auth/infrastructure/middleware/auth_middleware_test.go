@@ -35,8 +35,8 @@ func (m *mockTokenService) GetTokenExpiration() time.Duration {
 	return 15 * time.Minute
 }
 
-func (m *mockTokenService) GetRefreshTokenExpiration() time.Time {
-	return time.Now().Add(7 * 24 * time.Hour)
+func (m *mockTokenService) GetRefreshTokenExpiration() time.Duration {
+	return 7 * 24 * time.Hour
 }
 
 // --- Helpers ---

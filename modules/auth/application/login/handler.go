@@ -2,6 +2,7 @@ package login
 
 import (
 	"context"
+	"time"
 
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/entities"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/repositories"
@@ -50,7 +51,8 @@ func (h *Handler) Handle(ctx context.Context, req *Request) (*Response, error) {
 		return nil, err
 	}
 
-	refreshToken := entities.NewRefreshToken(user.ID, refreshTokenStr, h.tokenService.GetRefreshTokenExpiration())
+	refreshTokenExpiry := time.Now().Add(h.tokenService.GetRefreshTokenExpiration())
+	refreshToken := entities.NewRefreshToken(user.ID, refreshTokenStr, refreshTokenExpiry)
 	if err := h.refreshTokenRepo.Create(ctx, refreshToken); err != nil {
 		logger.Error("Failed to store refresh token", zap.Error(err))
 		return nil, err

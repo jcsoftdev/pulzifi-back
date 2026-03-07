@@ -11,20 +11,21 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	emailservices "github.com/jcsoftdev/pulzifi-back/modules/email/domain/services"
+	generateinsights "github.com/jcsoftdev/pulzifi-back/modules/insight/application/generate_insights"
+	insightAI "github.com/jcsoftdev/pulzifi-back/modules/insight/infrastructure/ai"
+	bulkupdatemonitoringconfig "github.com/jcsoftdev/pulzifi-back/modules/monitoring/application/bulk_update_monitoring_config"
 	createcheck "github.com/jcsoftdev/pulzifi-back/modules/monitoring/application/create_check"
 	createmonitoringconfig "github.com/jcsoftdev/pulzifi-back/modules/monitoring/application/create_monitoring_config"
 	createnotificationpreference "github.com/jcsoftdev/pulzifi-back/modules/monitoring/application/create_notification_preference"
-	bulkupdatemonitoringconfig "github.com/jcsoftdev/pulzifi-back/modules/monitoring/application/bulk_update_monitoring_config"
 	getmonitoringconfig "github.com/jcsoftdev/pulzifi-back/modules/monitoring/application/get_monitoring_config"
 	listchecks "github.com/jcsoftdev/pulzifi-back/modules/monitoring/application/list_checks"
+	managesections "github.com/jcsoftdev/pulzifi-back/modules/monitoring/application/manage_sections"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/application/orchestrator"
 	updatemonitoringconfig "github.com/jcsoftdev/pulzifi-back/modules/monitoring/application/update_monitoring_config"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/application/workers"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/persistence"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/scheduler"
-	generateinsights "github.com/jcsoftdev/pulzifi-back/modules/insight/application/generate_insights"
-	insightAI "github.com/jcsoftdev/pulzifi-back/modules/insight/infrastructure/ai"
-	emailservices "github.com/jcsoftdev/pulzifi-back/modules/email/domain/services"
 	snapshotapp "github.com/jcsoftdev/pulzifi-back/modules/snapshot/application"
 	snapshotextractor "github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/extractor"
 	snapshotstorage "github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/storage"
@@ -121,15 +122,15 @@ func NewModuleWithDB(db *sql.DB, eventBus *eventbus.EventBus, emailProvider emai
 		}
 		// Publish the failed check to SSE subscribers.
 		payload, _ := json.Marshal(listchecks.CheckResponse{
-			ID:             check.ID,
-			PageID:         check.PageID,
-			Status:         check.Status,
-			ScreenshotURL:  check.ScreenshotURL,
+			ID:              check.ID,
+			PageID:          check.PageID,
+			Status:          check.Status,
+			ScreenshotURL:   check.ScreenshotURL,
 			HTMLSnapshotURL: check.HTMLSnapshotURL,
-			ChangeDetected: check.ChangeDetected,
-			ChangeType:     check.ChangeType,
-			ErrorMessage:   check.ErrorMessage,
-			CheckedAt:      check.CheckedAt,
+			ChangeDetected:  check.ChangeDetected,
+			ChangeType:      check.ChangeType,
+			ErrorMessage:    check.ErrorMessage,
+			CheckedAt:       check.CheckedAt,
 		})
 		m.checkBroker.Publish(check.PageID.String(), payload)
 	}
@@ -204,6 +205,11 @@ func (m *Module) RegisterHTTPRoutes(router chi.Router) {
 			r.Route("/notification-preferences", func(cr chi.Router) {
 				cr.Post("/", m.handleCreateNotificationPreference)
 				cr.Get("/{id}", m.handleGetNotificationPreference)
+			})
+			r.Route("/sections/page/{pageId}", func(cr chi.Router) {
+				cr.Get("/", m.handleListSections)
+				cr.Post("/", m.handleSaveSections)
+				cr.Delete("/{sectionId}", m.handleDeleteSection)
 			})
 		})
 	})
@@ -339,8 +345,45 @@ func (m *Module) handleGetCheck(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	resp := listchecks.CheckResponse{
+		ID:              check.ID,
+		PageID:          check.PageID,
+		SectionID:       check.SectionID,
+		ParentCheckID:   check.ParentCheckID,
+		Status:          check.Status,
+		ScreenshotURL:   check.ScreenshotURL,
+		HTMLSnapshotURL: check.HTMLSnapshotURL,
+		ChangeDetected:  check.ChangeDetected,
+		ChangeType:      check.ChangeType,
+		ErrorMessage:    check.ErrorMessage,
+		CheckedAt:       check.CheckedAt,
+	}
+
+	// If this is a parent check, include its section checks.
+	if check.SectionID == nil {
+		sectionChecks, err := repo.ListByParentCheckID(r.Context(), check.ID)
+		if err == nil && len(sectionChecks) > 0 {
+			resp.Sections = make([]*listchecks.CheckResponse, len(sectionChecks))
+			for i, sc := range sectionChecks {
+				resp.Sections[i] = &listchecks.CheckResponse{
+					ID:              sc.ID,
+					PageID:          sc.PageID,
+					SectionID:       sc.SectionID,
+					ParentCheckID:   sc.ParentCheckID,
+					Status:          sc.Status,
+					ScreenshotURL:   sc.ScreenshotURL,
+					HTMLSnapshotURL: sc.HTMLSnapshotURL,
+					ChangeDetected:  sc.ChangeDetected,
+					ChangeType:      sc.ChangeType,
+					ErrorMessage:    sc.ErrorMessage,
+					CheckedAt:       sc.CheckedAt,
+				}
+			}
+		}
+	}
+
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(check)
+	json.NewEncoder(w).Encode(resp)
 }
 
 // handleCreateMonitoringConfig creates a new monitoring config
@@ -527,6 +570,71 @@ func (m *Module) handleGetNotificationPreference(w http.ResponseWriter, r *http.
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(pref)
+}
+
+// handleListSections returns all monitored sections for a page
+// @Summary List Monitored Sections
+// @Description List all monitored sections for a page
+// @Tags monitoring
+// @Security BearerAuth
+// @Produce json
+// @Param pageId path string true "Page ID"
+// @Success 200 {object} managesections.ListSectionsResponse
+// @Router /monitoring/sections/page/{pageId} [get]
+func (m *Module) handleListSections(w http.ResponseWriter, r *http.Request) {
+	if m.db == nil {
+		http.Error(w, "Database not initialized", http.StatusInternalServerError)
+		return
+	}
+	tenant := middleware.GetTenantFromContext(r.Context())
+	sectionRepo := persistence.NewMonitoredSectionPostgresRepository(m.db, tenant)
+	configRepo := persistence.NewMonitoringConfigPostgresRepository(m.db, tenant)
+	handler := managesections.NewManageSectionsHandler(sectionRepo, configRepo)
+	handler.HandleListHTTP(w, r)
+}
+
+// handleSaveSections replaces all monitored sections for a page
+// @Summary Save Monitored Sections
+// @Description Replace all monitored sections for a page
+// @Tags monitoring
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param pageId path string true "Page ID"
+// @Param request body managesections.SaveSectionsRequest true "Save Sections Request"
+// @Success 200 {object} managesections.ListSectionsResponse
+// @Router /monitoring/sections/page/{pageId} [post]
+func (m *Module) handleSaveSections(w http.ResponseWriter, r *http.Request) {
+	if m.db == nil {
+		http.Error(w, "Database not initialized", http.StatusInternalServerError)
+		return
+	}
+	tenant := middleware.GetTenantFromContext(r.Context())
+	sectionRepo := persistence.NewMonitoredSectionPostgresRepository(m.db, tenant)
+	configRepo := persistence.NewMonitoringConfigPostgresRepository(m.db, tenant)
+	handler := managesections.NewManageSectionsHandler(sectionRepo, configRepo)
+	handler.HandleSaveHTTP(w, r)
+}
+
+// handleDeleteSection deletes a single monitored section
+// @Summary Delete Monitored Section
+// @Description Delete a monitored section by ID
+// @Tags monitoring
+// @Security BearerAuth
+// @Param pageId path string true "Page ID"
+// @Param sectionId path string true "Section ID"
+// @Success 204
+// @Router /monitoring/sections/page/{pageId}/{sectionId} [delete]
+func (m *Module) handleDeleteSection(w http.ResponseWriter, r *http.Request) {
+	if m.db == nil {
+		http.Error(w, "Database not initialized", http.StatusInternalServerError)
+		return
+	}
+	tenant := middleware.GetTenantFromContext(r.Context())
+	sectionRepo := persistence.NewMonitoredSectionPostgresRepository(m.db, tenant)
+	configRepo := persistence.NewMonitoringConfigPostgresRepository(m.db, tenant)
+	handler := managesections.NewManageSectionsHandler(sectionRepo, configRepo)
+	handler.HandleDeleteHTTP(w, r)
 }
 
 // handleCheckSSE streams check-updated events to the client using SSE.

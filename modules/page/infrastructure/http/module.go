@@ -3,6 +3,7 @@ package http
 import (
 	"database/sql"
 	"encoding/json"
+	"io"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -11,12 +12,13 @@ import (
 	deletepage "github.com/jcsoftdev/pulzifi-back/modules/page/application/delete_page"
 	getpage "github.com/jcsoftdev/pulzifi-back/modules/page/application/get_page"
 	listpages "github.com/jcsoftdev/pulzifi-back/modules/page/application/list_pages"
-	previewpage "github.com/jcsoftdev/pulzifi-back/modules/page/application/preview_page"
 	updatepage "github.com/jcsoftdev/pulzifi-back/modules/page/application/update_page"
 	"github.com/jcsoftdev/pulzifi-back/modules/page/infrastructure/persistence"
 	"github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/extractor"
+	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
 	"github.com/jcsoftdev/pulzifi-back/shared/router"
+	"go.uber.org/zap"
 )
 
 // Module implements the router.ModuleRegisterer interface for the Page module
@@ -71,15 +73,68 @@ func (m *Module) RegisterHTTPRoutes(router chi.Router) {
 	})
 }
 
-// handlePreviewPage returns a screenshot and element map for the interactive selector
+// handlePreviewPage proxies the SSE stream from the extractor service.
+// The extractor emits "progress", "result", and "error" SSE events which
+// are forwarded to the client in real-time for live progress feedback.
 func (m *Module) handlePreviewPage(w http.ResponseWriter, r *http.Request) {
 	if m.extractorClient == nil {
 		http.Error(w, "Extractor service not configured", http.StatusServiceUnavailable)
 		return
 	}
 
-	handler := previewpage.NewPreviewPageHandler(m.extractorClient)
-	handler.HandleHTTP(w, r)
+	var req struct {
+		URL             string `json:"url"`
+		BlockAdsCookies bool   `json:"block_ads_cookies"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.URL == "" {
+		http.Error(w, "URL is required", http.StatusBadRequest)
+		return
+	}
+
+	resp, err := m.extractorClient.PreviewStream(r.Context(), req.URL, req.BlockAdsCookies)
+	if err != nil {
+		logger.Error("Failed to start preview stream", zap.Error(err))
+		http.Error(w, "Failed to preview page", http.StatusInternalServerError)
+		return
+	}
+	defer resp.Body.Close()
+
+	// Set SSE headers and proxy the stream
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+	w.WriteHeader(http.StatusOK)
+
+	rc := http.NewResponseController(w)
+	// Flush headers immediately so the client sees the 200 OK right away.
+	if err := rc.Flush(); err != nil {
+		return
+	}
+
+	// Stream the extractor response to the client, flushing after each chunk.
+	buf := make([]byte, 4096)
+	for {
+		n, readErr := resp.Body.Read(buf)
+		if n > 0 {
+			if _, writeErr := w.Write(buf[:n]); writeErr != nil {
+				return
+			}
+			if flushErr := rc.Flush(); flushErr != nil {
+				return
+			}
+		}
+		if readErr != nil {
+			if readErr != io.EOF {
+				logger.Error("Error reading preview stream", zap.Error(readErr))
+			}
+			return
+		}
+	}
 }
 
 // handleCreatePage creates a new page

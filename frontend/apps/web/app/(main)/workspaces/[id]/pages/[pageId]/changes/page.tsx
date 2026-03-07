@@ -1,14 +1,15 @@
 'use client'
 
-import type { Check, Insight, Page } from '@workspace/services/page-api'
-import { UsageApi } from '@workspace/services'
+import type { Check, Insight, MonitoredSection, Page } from '@workspace/services/page-api'
+import { PageApi, UsageApi } from '@workspace/services'
 import { Button } from '@workspace/ui/components/atoms/button'
 import { Settings, Zap } from 'lucide-react'
 import { useParams, useSearchParams } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ChangesViewService } from '@/features/changes-view/domain/changes-view-service'
 import { ChangesViewLayout } from '@/features/changes-view/ui/changes-view-layout'
 import { IntelligentInsights } from '@/features/changes-view/ui/intelligent-insights'
+import { SectionNavTabs } from '@/features/changes-view/ui/section-nav-tabs'
 import { TextChanges } from '@/features/changes-view/ui/text-changes'
 import { VisualPulse } from '@/features/changes-view/ui/visual-pulse'
 import type { DiffRow } from '@/features/changes-view/utils/simple-diff'
@@ -18,7 +19,6 @@ function VisualPulseSkeleton() {
   return (
     <div className="flex flex-col gap-6">
       <div className="relative w-full select-none overflow-hidden rounded-lg border border-border shadow-sm bg-muted/10 h-[500px] animate-pulse">
-        {/* Slider handle placeholder */}
         <div
           className="absolute top-0 bottom-0 w-1 bg-primary z-10 flex items-center justify-center"
           style={{ left: '50%', transform: 'translateX(-50%)' }}
@@ -44,7 +44,7 @@ function TextChangesSkeleton() {
         {['a', 'b', 'c', 'd'].map((i) => (
           <div key={i} className="rounded-lg border border-border/40 overflow-hidden text-sm">
             <div className="flex gap-3 px-4 py-2.5 border-b border-border/30 bg-muted/10">
-              <span className="select-none shrink-0 text-foreground/25 font-mono text-xs pt-px">−</span>
+              <span className="select-none shrink-0 text-foreground/25 font-mono text-xs pt-px">-</span>
               <div className="h-4 w-full bg-muted rounded animate-pulse" />
             </div>
             <div className="flex gap-3 px-4 py-2.5 bg-emerald-950/20">
@@ -62,7 +62,6 @@ function InsightsSkeleton() {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
       <div className="lg:col-span-2 flex flex-col gap-6">
-        {/* Empty state card matching real UI */}
         <div className="bg-card border border-border rounded-xl p-16 flex flex-col items-center justify-center text-center gap-4">
           <Zap className="h-14 w-14 text-violet-500" strokeWidth={1.5} />
           <p className="text-sm text-muted-foreground">New Intelligent Insight available</p>
@@ -87,7 +86,6 @@ function InsightsSkeleton() {
             Edit Intelligent Insights
           </Button>
           <div className="bg-muted/30 rounded-lg p-6 flex flex-col items-center justify-center text-center gap-4 border border-border border-dashed">
-            {/* Screenshot placeholder */}
             <div className="relative w-full aspect-[16/9] rounded-xl overflow-hidden bg-muted shadow-md border border-border animate-pulse" />
             <div className="h-4 w-48 bg-muted rounded animate-pulse" />
             <Button variant="outline" className="bg-background" disabled>
@@ -111,49 +109,130 @@ export default function ChangesPage() {
   const [checks, setChecks] = useState<Check[]>([])
   const [insights, setInsights] = useState<Insight[]>([])
   const [page, setPage] = useState<Page | null>(null)
+  const [sections, setSections] = useState<MonitoredSection[]>([])
+  const [selectedSectionId, setSelectedSectionId] = useState<string>('all')
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('visual')
   const [textChanges, setTextChanges] = useState<DiffRow[]>([])
   const [loadingDiff, setLoadingDiff] = useState(false)
   const [storagePeriodDays, setStoragePeriodDays] = useState(7)
 
-  // Detected-change checks within the storage period appear in the dropdown.
-  // The check referenced by the URL param is always included so the page
-  // works even when that check is older than the storage period.
+  const hasSections = sections.length > 0
+
+  // All section checks (with sectionId) and all parent/full-page checks (without).
+  const sectionChecks = useMemo(() => checks.filter((c) => !!c.sectionId), [checks])
+  const parentChecks = useMemo(() => checks.filter((c) => !c.sectionId), [checks])
+
+  // Build a list of unique "execution groups" from parent checks for the "All sections" dropdown.
+  // Each parent check represents one monitoring execution.
+  // For specific section mode, use that section's checks directly.
+  const filteredChecks = selectedSectionId === 'all'
+    ? (hasSections ? parentChecks : checks)
+    : sectionChecks.filter((c) => c.sectionId === selectedSectionId)
+
+  // Checks within the storage period that appear in the dropdown.
   const storageCutoff = new Date()
   storageCutoff.setDate(storageCutoff.getDate() - storagePeriodDays)
-  const detectedChecks = checks.filter(
+  const dropdownChecks = filteredChecks.filter(
     (c) =>
-      (c.changeDetected && new Date(c.checkedAt) >= storageCutoff) ||
+      (c.status === 'success' && new Date(c.checkedAt) >= storageCutoff) ||
       c.id === checkIdParam
   )
-  const activeCheckId = checkIdParam || detectedChecks[0]?.id || ''
-  // Find position in the FULL sorted list so previousCheck is always the
-  // immediately preceding successful run with a screenshot
-  const activeCheckIndex = checks.findIndex((c) => c.id === activeCheckId)
-  const activeCheck = checks[activeCheckIndex]
-  const previousCheck = checks
+  // Resolve active check: checkIdParam (if in current filter) → first dropdown → latest in filter.
+  const paramInFilter = checkIdParam ? filteredChecks.find((c) => c.id === checkIdParam) : undefined
+  const activeCheckId = paramInFilter?.id || dropdownChecks[0]?.id || filteredChecks[0]?.id || ''
+  const activeCheckIndex = filteredChecks.findIndex((c) => c.id === activeCheckId)
+  const activeCheck = filteredChecks[activeCheckIndex]
+
+  // Group section checks by sectionId, sorted newest first within each group.
+  const sectionChecksBySectionId = useMemo(() => {
+    const map = new Map<string, Check[]>()
+    for (const sc of sectionChecks) {
+      if (!sc.sectionId) continue
+      const arr = map.get(sc.sectionId) ?? []
+      arr.push(sc)
+      map.set(sc.sectionId, arr)
+    }
+    // Each group is already sorted DESC (flattened from parent checks sorted DESC)
+    return map
+  }, [sectionChecks])
+
+  // When "All sections" is selected and the active check is a parent check,
+  // gather its section children for display.
+  // If the active parent has no section children, show the most recent per section.
+  const activeSectionChecks = useMemo(() => {
+    if (!activeCheck || activeCheck.sectionId || !hasSections) return []
+    // Try linked via parentCheckId first.
+    const linked = sectionChecks.filter((c) => c.parentCheckId === activeCheck.id)
+    if (linked.length > 0) return linked
+    // Fallback for old data without parentCheckId: find section checks near the parent's time.
+    const parentTime = new Date(activeCheck.checkedAt).getTime()
+    const nearby = sectionChecks.filter(
+      (c) => Math.abs(new Date(c.checkedAt).getTime() - parentTime) < 5 * 60 * 1000
+    )
+    if (nearby.length > 0) return nearby
+    // Last resort: pick the most recent section check per section so we always show something.
+    const result: Check[] = []
+    for (const [, arr] of sectionChecksBySectionId) {
+      if (arr[0]) result.push(arr[0])
+    }
+    return result
+  }, [activeCheck, sectionChecks, sectionChecksBySectionId, hasSections])
+
+  // For a specific-section view, find the previous check with the same sectionId.
+  const previousCheck = filteredChecks
     .slice(activeCheckIndex + 1)
-    .find((c) => c.status === 'success' && c.screenshotUrl)
+    .find((c) => c.status === 'success' && !!c.screenshotUrl && c.sectionId === activeCheck?.sectionId)
+
+  // Find previous section checks for "All sections" comparison.
+  // For each active section check, find the next-oldest check with the same sectionId.
+  const previousSectionChecks = useMemo(() => {
+    if (!activeCheck || activeCheck.sectionId || !hasSections) return []
+    const activeIds = new Set(activeSectionChecks.map((c) => c.id))
+    const result: Check[] = []
+    for (const sc of activeSectionChecks) {
+      if (!sc.sectionId) continue
+      const allForSection = sectionChecksBySectionId.get(sc.sectionId) ?? []
+      const prev = allForSection.find(
+        (c) => !activeIds.has(c.id) && c.status === 'success' && !!c.screenshotUrl
+      )
+      if (prev) result.push(prev)
+    }
+    return result
+  }, [activeCheck, activeSectionChecks, sectionChecksBySectionId, hasSections])
+
+  const activeSection = activeCheck?.sectionId
+    ? sections.find((s) => s.id === activeCheck.sectionId)
+    : undefined
+
+  const activeSectionName = activeSection?.name
 
   useEffect(() => {
     async function loadData() {
       try {
         setLoading(true)
-        const [checksData, pageData, usageData] = await Promise.all([
+        const [checksData, pageData, usageData, sectionsData] = await Promise.all([
           ChangesViewService.getPageChecks(pageId),
           ChangesViewService.getPage(pageId),
           UsageApi.getChecksData(),
+          PageApi.listSections(pageId),
         ])
         setStoragePeriodDays(usageData.storagePeriodDays)
-        // Sort checks descending by date
-        const sortedChecks = checksData.sort(
+        // Flatten: parent checks + their nested section checks into a single array.
+        const allChecks: Check[] = []
+        for (const check of checksData) {
+          allChecks.push(check)
+          if (check.sections) {
+            allChecks.push(...check.sections)
+          }
+        }
+        const sortedChecks = allChecks.sort(
           (a: Check, b: Check) => new Date(b.checkedAt).getTime() - new Date(a.checkedAt).getTime()
         )
         setChecks(sortedChecks)
         setPage(pageData)
+        setSections(sectionsData)
 
-        // Determine which check is active to fetch insights for it
         const detected = sortedChecks.filter((c: Check) => c.changeDetected)
         const resolvedCheckId = checkIdParam || detected[0]?.id
         if (resolvedCheckId) {
@@ -212,18 +291,16 @@ export default function ChangesPage() {
     return (
       <div className="flex-1 p-8 max-w-7xl mx-auto w-full">
         <div className="flex flex-col gap-6 md:gap-8 px-4 md:px-0">
-          {/* Header */}
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-            <div className="flex flex-col gap-1">
-              <span className="text-sm text-muted-foreground">Change detected on:</span>
-              <div className="h-8 w-64 bg-muted rounded animate-pulse" />
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex flex-col gap-0.5">
+              <span className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Change detected on</span>
+              <div className="h-9 w-56 bg-muted rounded animate-pulse" />
             </div>
             <div className="w-full md:w-64 flex flex-col gap-1">
               <div className="h-9 w-full bg-muted rounded-md animate-pulse" />
             </div>
           </div>
 
-          {/* Tabs — static */}
           <div className="border-b border-border overflow-x-auto">
             <div className="flex gap-6 md:gap-8 min-w-max">
               <span className="pb-3 text-sm font-medium border-b-2 border-primary text-foreground">
@@ -238,7 +315,6 @@ export default function ChangesPage() {
             </div>
           </div>
 
-          {/* Content — Visual Pulse skeleton */}
           <div className="min-h-[500px]">
             <VisualPulseSkeleton />
           </div>
@@ -247,20 +323,72 @@ export default function ChangesPage() {
     )
   }
 
+  // In "All sections" mode with a parent check active, render one VisualPulse per section.
+  const renderAllSectionsView = () => {
+    return (
+      <div className="flex flex-col gap-8">
+        {activeSectionChecks.map((sc) => {
+          const sectionMeta = sections.find((s) => s.id === sc.sectionId)
+          const prevSc = previousSectionChecks.find((p) => p.sectionId === sc.sectionId)
+          return (
+            <div key={sc.id}>
+              {sectionMeta && (
+                <h4 className="text-sm font-medium text-muted-foreground mb-2">{sectionMeta.name}</h4>
+              )}
+              <VisualPulse
+                currentScreenshotUrl={sc.screenshotUrl}
+                previousScreenshotUrl={prevSc?.screenshotUrl}
+                sectionName={sectionMeta?.name}
+              />
+            </div>
+          )
+        })}
+        {/* Full page screenshot as a bonus if the parent check has one */}
+        {activeCheck?.screenshotUrl && (
+          <div>
+            <h4 className="text-sm font-medium text-muted-foreground mb-2">Full Page</h4>
+            <VisualPulse
+              currentScreenshotUrl={activeCheck.screenshotUrl}
+              previousScreenshotUrl={previousCheck?.screenshotUrl}
+            />
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="flex-1 p-8 max-w-7xl mx-auto w-full">
+      {/* Section nav tabs — shown when page has sections */}
+      {sections.length > 0 && (
+        <div className="mb-6 border-b border-border pb-4">
+          <SectionNavTabs
+            sections={sections}
+            selectedSectionId={selectedSectionId}
+            onSelect={setSelectedSectionId}
+            checks={checks}
+          />
+        </div>
+      )}
+
       <ChangesViewLayout
-        checks={detectedChecks}
+        checks={dropdownChecks}
         activeCheckId={activeCheckId}
         activeTab={activeTab}
         onTabChange={setActiveTab}
         storagePeriodDays={storagePeriodDays}
+        sections={sections}
       >
         {activeTab === 'visual' && (
-          <VisualPulse
-            currentScreenshotUrl={activeCheck?.screenshotUrl}
-            previousScreenshotUrl={previousCheck?.screenshotUrl}
-          />
+          selectedSectionId === 'all' && activeSectionChecks.length > 0 ? (
+            renderAllSectionsView()
+          ) : (
+            <VisualPulse
+              currentScreenshotUrl={activeCheck?.screenshotUrl}
+              previousScreenshotUrl={previousCheck?.screenshotUrl}
+              sectionName={activeSectionName}
+            />
+          )
         )}
         {activeTab === 'text' &&
           (loadingDiff ? (

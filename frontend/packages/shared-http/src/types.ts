@@ -14,6 +14,8 @@ export interface RequestConfig {
   }
   /** When true, returns HttpResponse<T> with data + headers instead of just T */
   withHeaders?: boolean
+  /** Override the default request timeout in milliseconds */
+  timeout?: number
 }
 
 /** Full HTTP response including data, headers and status code */

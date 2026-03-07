@@ -19,5 +19,5 @@ type TokenService interface {
 	GenerateRefreshToken(ctx context.Context, userID uuid.UUID) (string, error)
 	ValidateToken(ctx context.Context, token string) (*TokenClaims, error)
 	GetTokenExpiration() time.Duration
-	GetRefreshTokenExpiration() time.Time
+	GetRefreshTokenExpiration() time.Duration
 }

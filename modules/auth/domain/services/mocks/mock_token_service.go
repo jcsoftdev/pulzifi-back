@@ -16,7 +16,7 @@ type MockTokenService struct {
 	ValidateTokenResult        *services.TokenClaims
 	ValidateTokenErr           error
 	TokenExpiration            time.Duration
-	RefreshTokenExpiration     time.Time
+	RefreshTokenExpiration     time.Duration
 
 	GenerateAccessTokenFn  func(ctx context.Context, userID uuid.UUID, email string) (string, error)
 	GenerateRefreshTokenFn func(ctx context.Context, userID uuid.UUID) (string, error)
@@ -52,9 +52,9 @@ func (m *MockTokenService) GetTokenExpiration() time.Duration {
 	return m.TokenExpiration
 }
 
-func (m *MockTokenService) GetRefreshTokenExpiration() time.Time {
-	if m.RefreshTokenExpiration.IsZero() {
-		return time.Now().Add(7 * 24 * time.Hour)
+func (m *MockTokenService) GetRefreshTokenExpiration() time.Duration {
+	if m.RefreshTokenExpiration == 0 {
+		return 7 * 24 * time.Hour
 	}
 	return m.RefreshTokenExpiration
 }

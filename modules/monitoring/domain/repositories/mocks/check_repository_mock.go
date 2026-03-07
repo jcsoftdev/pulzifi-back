@@ -8,16 +8,24 @@ import (
 )
 
 type MockCheckRepository struct {
-	CreateErr          error
-	GetByIDResult      *entities.Check
-	GetByIDErr         error
-	ListByPageResult   []*entities.Check
-	ListByPageErr      error
-	GetLatestResult    *entities.Check
-	GetLatestErr       error
-	UpdateErr          error
-	GetPreviousResult  *entities.Check
-	GetPreviousErr     error
+	CreateErr                    error
+	GetByIDResult                *entities.Check
+	GetByIDErr                   error
+	ListByPageResult             []*entities.Check
+	ListByPageErr                error
+	ListByPageAndSectionResult   []*entities.Check
+	ListByPageAndSectionErr      error
+	ListByParentCheckIDResult      []*entities.Check
+	ListByParentCheckIDErr         error
+	ListSectionChecksByPageResult  []*entities.Check
+	ListSectionChecksByPageErr     error
+	GetLatestResult              *entities.Check
+	GetLatestErr                 error
+	UpdateErr                    error
+	GetPreviousResult            *entities.Check
+	GetPreviousErr               error
+	GetPreviousBySectionResult   *entities.Check
+	GetPreviousBySectionErr      error
 
 	CreateFn func(ctx context.Context, check *entities.Check) error
 
@@ -50,4 +58,20 @@ func (m *MockCheckRepository) Update(_ context.Context, _ *entities.Check) error
 
 func (m *MockCheckRepository) GetPreviousSuccessfulByPage(_ context.Context, _, _ uuid.UUID) (*entities.Check, error) {
 	return m.GetPreviousResult, m.GetPreviousErr
+}
+
+func (m *MockCheckRepository) ListByPageAndSection(_ context.Context, _ uuid.UUID, _ *uuid.UUID) ([]*entities.Check, error) {
+	return m.ListByPageAndSectionResult, m.ListByPageAndSectionErr
+}
+
+func (m *MockCheckRepository) ListByParentCheckID(_ context.Context, _ uuid.UUID) ([]*entities.Check, error) {
+	return m.ListByParentCheckIDResult, m.ListByParentCheckIDErr
+}
+
+func (m *MockCheckRepository) ListSectionChecksByPage(_ context.Context, _ uuid.UUID) ([]*entities.Check, error) {
+	return m.ListSectionChecksByPageResult, m.ListSectionChecksByPageErr
+}
+
+func (m *MockCheckRepository) GetPreviousSuccessfulBySection(_ context.Context, _ uuid.UUID, _ *uuid.UUID, _ uuid.UUID) (*entities.Check, error) {
+	return m.GetPreviousBySectionResult, m.GetPreviousBySectionErr
 }
