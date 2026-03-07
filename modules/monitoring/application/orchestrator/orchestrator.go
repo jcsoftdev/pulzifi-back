@@ -78,6 +78,7 @@ type CheckJob struct {
 	PageID     uuid.UUID
 	URL        string
 	SchemaName string
+	SectionID  *uuid.UUID // nil = full-page check; non-nil = section-specific check
 }
 
 // HasQuota checks whether the given tenant has remaining quota for the current billing period.
@@ -109,6 +110,7 @@ func (o *Orchestrator) ScheduleCheck(ctx context.Context, job CheckJob) error {
 
 	// 2. Create Check (Pending)
 	check := entities.NewCheck(job.PageID, "pending", false)
+	check.SectionID = job.SectionID
 	if err := checkRepo.Create(ctx, check); err != nil {
 		logger.Error("Failed to create check", zap.Error(err))
 		return err

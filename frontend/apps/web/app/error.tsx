@@ -17,13 +17,18 @@ export default function ErrorPage({
   useEffect(() => {
     // Check if it's an unauthorized error
     if (error.message === 'Unauthorized' || error.name === 'UnauthorizedError') {
-      // Call logout API to clear cookies
-      fetch('/api/auth/logout', {
-        method: 'POST',
-      }).finally(() => {
-        // Redirect to login
-        router.push('/login')
-      })
+      // Try to refresh the session before giving up
+      fetch('/api/auth/refresh', { method: 'POST', credentials: 'include' })
+        .then((res) => {
+          if (res.ok) {
+            reset()
+          } else {
+            router.push('/login')
+          }
+        })
+        .catch(() => {
+          router.push('/login')
+        })
       return
     }
 
@@ -32,6 +37,7 @@ export default function ErrorPage({
   }, [
     error,
     router,
+    reset,
   ])
 
   // Don't show UI for unauthorized errors, just redirect

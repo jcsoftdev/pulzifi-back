@@ -10,7 +10,9 @@ import (
 type Check struct {
 	ID                  uuid.UUID
 	PageID              uuid.UUID
-	Status              string // success, error
+	SectionID           *uuid.UUID // optional link to a monitored_section; nil = full-page check
+	ParentCheckID       *uuid.UUID // links section checks back to the parent full-page check
+	Status              string     // success, error
 	ScreenshotURL       string
 	HTMLSnapshotURL     string
 	ContentHash         string

@@ -17,13 +17,13 @@ import (
 	insight "github.com/jcsoftdev/pulzifi-back/modules/insight/infrastructure/http"
 	integration "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/http"
 	monitoring "github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/http"
+	orgservices "github.com/jcsoftdev/pulzifi-back/modules/organization/domain/services"
 	organization "github.com/jcsoftdev/pulzifi-back/modules/organization/infrastructure/http"
 	orgmessaging "github.com/jcsoftdev/pulzifi-back/modules/organization/infrastructure/messaging"
 	orgpersistence "github.com/jcsoftdev/pulzifi-back/modules/organization/infrastructure/persistence"
-	orgservices "github.com/jcsoftdev/pulzifi-back/modules/organization/domain/services"
 	page "github.com/jcsoftdev/pulzifi-back/modules/page/infrastructure/http"
-	snapshotextractor "github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/extractor"
 	report "github.com/jcsoftdev/pulzifi-back/modules/report/infrastructure/http"
+	snapshotextractor "github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/extractor"
 	team "github.com/jcsoftdev/pulzifi-back/modules/team/infrastructure/http"
 	usage "github.com/jcsoftdev/pulzifi-back/modules/usage/infrastructure/http"
 	workspace "github.com/jcsoftdev/pulzifi-back/modules/workspace/infrastructure/http"
@@ -143,6 +143,7 @@ func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus 
 	// Create BFF auth handler using extracted auth module handlers
 	bffHandler := bff.NewHandler(bff.HandlerDeps{
 		LoginHandler:   authMod.LoginHandler(),
+		LogoutHandler:  authMod.LogoutHandler(),
 		RefreshHandler: authMod.RefreshHandler(),
 		TokenService:   authMod.TokenService(),
 		NonceStore:     noncestore.New(),

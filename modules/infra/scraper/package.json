@@ -1,0 +1,22 @@
+{
+  "name": "@pulzifi/scraper",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "bun run index.ts",
+    "dev": "bun run --watch index.ts"
+  },
+  "dependencies": {
+    "hono": "^4.7.0",
+    "patchright": "^1.51.1",
+    "sharp": "^0.33.5",
+    "fingerprint-generator": "^2.1.61",
+    "fingerprint-injector": "^2.1.61",
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@ghostery/adblocker-playwright": "^2.3.2"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.2.0",
+    "typescript": "^5.7.0"
+  }
+}

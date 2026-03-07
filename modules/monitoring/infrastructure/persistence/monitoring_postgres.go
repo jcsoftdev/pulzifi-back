@@ -165,21 +165,28 @@ func buildDueConditions() string {
 }
 
 func (r *MonitoringConfigPostgresRepository) GetDueSnapshotTasks(ctx context.Context) ([]entities.SnapshotTask, error) {
-	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
-		return nil, err
-	}
-
+	// Atomically claim due tasks: SELECT with FOR UPDATE SKIP LOCKED then UPDATE in one
+	// round-trip. This prevents concurrent scheduler instances from picking up the same
+	// page and creating duplicate check records.
 	q := fmt.Sprintf(`
-		SELECT p.id, p.url
-		FROM pages p
-		JOIN monitoring_configs mc ON p.id = mc.page_id
-		WHERE p.deleted_at IS NULL AND mc.deleted_at IS NULL
-		AND mc.check_frequency != 'Off'
-		AND (
-			%s
+		WITH candidates AS (
+			SELECT p.id
+			FROM %[1]s.pages p
+			JOIN %[1]s.monitoring_configs mc ON p.id = mc.page_id
+			WHERE p.deleted_at IS NULL AND mc.deleted_at IS NULL
+			AND mc.check_frequency != 'Off'
+			AND (
+				%s
+			)
+			LIMIT 50
+			FOR UPDATE OF p SKIP LOCKED
 		)
-		LIMIT 50
-	`, buildDueConditions())
+		UPDATE %[1]s.pages
+		SET last_checked_at = NOW()
+		FROM candidates
+		WHERE %[1]s.pages.id = candidates.id
+		RETURNING %[1]s.pages.id, %[1]s.pages.url
+	`, r.tenant, buildDueConditions())
 
 	rows, err := r.db.QueryContext(ctx, q)
 	if err != nil {
@@ -213,19 +220,13 @@ func (r *MonitoringConfigPostgresRepository) GetPageURL(ctx context.Context, pag
 }
 
 func (r *MonitoringConfigPostgresRepository) UpdateLastCheckedAt(ctx context.Context, pageID uuid.UUID) error {
-	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
-		return err
-	}
-	q := `UPDATE pages SET last_checked_at = NOW() WHERE id = $1 AND deleted_at IS NULL`
+	q := fmt.Sprintf(`UPDATE %s.pages SET last_checked_at = NOW() WHERE id = $1 AND deleted_at IS NULL`, r.tenant)
 	_, err := r.db.ExecContext(ctx, q, pageID)
 	return err
 }
 
 func (r *MonitoringConfigPostgresRepository) MarkPageDueNow(ctx context.Context, pageID uuid.UUID) error {
-	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
-		return err
-	}
-	q := `UPDATE pages SET last_checked_at = NULL WHERE id = $1 AND deleted_at IS NULL`
+	q := fmt.Sprintf(`UPDATE %s.pages SET last_checked_at = NULL WHERE id = $1 AND deleted_at IS NULL`, r.tenant)
 	_, err := r.db.ExecContext(ctx, q, pageID)
 	return err
 }

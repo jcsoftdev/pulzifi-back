@@ -96,50 +96,25 @@ export class FetchHttpClient implements IHttpClient {
     return data as T
   }
 
-  private isRefreshRequest(url: string): boolean {
-    return url.includes('/api/auth/refresh')
-  }
-
-  private async refreshSession(headers: Record<string, string>): Promise<boolean> {
-    try {
-      const refreshUrl = this.buildUrl('/api/auth/refresh')
-      const refreshResponse = await fetch(refreshUrl, {
-        method: 'POST',
-        credentials: 'include',
-        headers,
-      })
-
-      return refreshResponse.ok
-    } catch {
-      return false
-    }
-  }
-
   private async request<T>(
     url: string,
     config: RequestInit & RequestConfig = {}
   ): Promise<T | HttpResponse<T>> {
-    const { params, headers, withHeaders, ...fetchConfig } = config
+    const { params, headers, withHeaders, timeout, ...fetchConfig } = config
     const fullUrl = this.buildUrl(url, params)
     const finalHeaders = this.buildHeaders(headers)
+    const signal = timeout ? AbortSignal.timeout(timeout) : undefined
 
-    let response = await fetch(fullUrl, {
+    const response = await fetch(fullUrl, {
       ...fetchConfig,
       credentials: fetchConfig.credentials ?? 'include',
       headers: finalHeaders,
+      ...(signal && { signal }),
     })
 
-    if (response.status === 401 && !this.isRefreshRequest(url)) {
-      const refreshed = await this.refreshSession(finalHeaders)
-      if (refreshed) {
-        response = await fetch(fullUrl, {
-          ...fetchConfig,
-          credentials: fetchConfig.credentials ?? 'include',
-          headers: finalHeaders,
-        })
-      }
-    }
-
+    // Server-side cannot refresh tokens (Set-Cookie headers from the refresh
+    // response are not propagated to the browser and the retry would still use
+    // stale cookies). Let the client handle refresh via SessionRefresher.
     if (response.status === 401) {
       throw new UnauthorizedError()
     }

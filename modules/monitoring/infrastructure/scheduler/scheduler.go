@@ -209,10 +209,15 @@ func (s *Scheduler) TriggerPageCheck(ctx context.Context, schema string, pageID 
 		return orchestrator.ErrQuotaExceeded
 	}
 
-	// Mark the page as checked now so the scheduler loop doesn't also pick it up
-	// before the async goroutine below has a chance to call UpdateLastChecked.
-	repo := persistence.NewMonitoringConfigPostgresRepository(s.db, schema)
-	if err := repo.UpdateLastCheckedAt(ctx, pageID); err != nil {
+	// Atomically claim the page so the scheduler loop doesn't also pick it up.
+	// Uses a schema-qualified query in a single statement to avoid connection-pool
+	// issues with SET search_path (two separate ExecContext calls can land on
+	// different connections, causing the UPDATE to silently affect 0 rows).
+	claimQ := fmt.Sprintf(
+		`UPDATE %s.pages SET last_checked_at = NOW() WHERE id = $1 AND deleted_at IS NULL`,
+		schema,
+	)
+	if _, err := s.db.ExecContext(ctx, claimQ, pageID); err != nil {
 		logger.Error("TriggerPageCheck: failed to pre-update last_checked_at", zap.String("page_id", pageID.String()), zap.Error(err))
 	}
 
@@ -222,15 +227,15 @@ func (s *Scheduler) TriggerPageCheck(ctx context.Context, schema string, pageID 
 		SchemaName: schema,
 	}
 
-	go func(j orchestrator.CheckJob) {
-		if err := s.orchestrator.ScheduleCheck(context.Background(), j); err != nil {
+	go func() {
+		if err := s.orchestrator.ScheduleCheck(context.Background(), job); err != nil {
 			if errors.Is(err, orchestrator.ErrQuotaExceeded) {
-				logger.Warn("Immediate check skipped due to quota", zap.String("page_id", j.PageID.String()), zap.String("schema", j.SchemaName))
+				logger.Warn("Immediate check skipped due to quota", zap.String("page_id", job.PageID.String()), zap.String("schema", job.SchemaName))
 				return
 			}
-			logger.Error("Failed to schedule immediate check", zap.String("page_id", j.PageID.String()), zap.Error(err))
+			logger.Error("Failed to schedule immediate check", zap.String("page_id", job.PageID.String()), zap.Error(err))
 		}
-	}(job)
+	}()
 
 	return nil
 }
@@ -246,31 +251,22 @@ func (s *Scheduler) processTenant(ctx context.Context, schema string) {
 	}
 
 	for _, task := range tasks {
-		// Pre-update last_checked_at synchronously so that the next scheduler
-		// iteration doesn't see this page as due again before the goroutine commits.
-		if err := repo.UpdateLastCheckedAt(ctx, task.PageID); err != nil {
-			logger.Error("Failed to pre-update last_checked_at", zap.String("page_id", task.PageID.String()), zap.Error(err))
-			continue
-		}
-
-		// Create Job (In-Memory)
+		// last_checked_at is already set to NOW() by the atomic GetDueSnapshotTasks query,
+		// so no separate pre-update is needed.
 		job := orchestrator.CheckJob{
 			PageID:     task.PageID,
 			URL:        task.URL,
 			SchemaName: schema,
 		}
-
-		// Send to Orchestrator
-		// Using goroutine to avoid blocking the scheduler loop
-		go func(j orchestrator.CheckJob) {
-			// Create a detached context for the job execution
-			if err := s.orchestrator.ScheduleCheck(context.Background(), j); err != nil {
+		go func() {
+			if err := s.orchestrator.ScheduleCheck(context.Background(), job); err != nil {
 				if errors.Is(err, orchestrator.ErrQuotaExceeded) {
-					logger.Warn("Check not scheduled due to quota", zap.String("page_id", j.PageID.String()), zap.String("schema", j.SchemaName))
+					logger.Warn("Check not scheduled due to quota", zap.String("page_id", job.PageID.String()), zap.String("schema", job.SchemaName))
 					return
 				}
-				logger.Error("Failed to schedule check", zap.String("page_id", j.PageID.String()), zap.Error(err))
+				logger.Error("Failed to schedule check", zap.String("page_id", job.PageID.String()), zap.Error(err))
 			}
-		}(job)
+		}()
 	}
 }
+

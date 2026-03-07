@@ -21,8 +21,17 @@ import {
   SelectValue,
 } from '@workspace/ui/components/atoms/select'
 import { Textarea } from '@workspace/ui/components/atoms/textarea'
-import { Link2, Sparkles, Loader2, ArrowLeft, Monitor, MousePointerClick } from 'lucide-react'
-import { useCallback, useEffect, useId, useState } from 'react'
+import {
+  Link2,
+  Sparkles,
+  Loader2,
+  ArrowLeft,
+  Monitor,
+  MousePointerClick,
+  AlertTriangle,
+  RotateCcw,
+} from 'lucide-react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { CHECK_FREQUENCY_OPTIONS } from '../domain/types'
 import type { CreatePageDto, PagePreviewResult, SelectorOffsets } from '../domain/types'
 import { PagePreviewSelector, type ElementSelection } from './page-preview-selector'
@@ -83,7 +92,7 @@ export function AddPageDialog({
   const [customAlertCondition, setCustomAlertCondition] = useState('')
 
   // Selector state
-  const [selectorType, setSelectorType] = useState<'full_page' | 'element'>('full_page')
+  const [selectorType, setSelectorType] = useState<'full_page' | 'element' | 'sections'>('full_page')
   const [cssSelector, setCssSelector] = useState('')
   const [xpathSelector, setXpathSelector] = useState('')
   const [selectorOffsets, setSelectorOffsets] = useState<SelectorOffsets>({
@@ -92,12 +101,18 @@ export function AddPageDialog({
     bottom: 0,
     left: 0,
   })
+  const [sections, setSections] = useState<ElementSelection[]>([])
   const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewProgress, setPreviewProgress] = useState<string | null>(null)
   const [previewData, setPreviewData] = useState<PagePreviewResult | null>(null)
   const [previewError, setPreviewError] = useState<string | null>(null)
+  const previewAbortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
     if (!open) {
+      // Abort any in-flight preview stream
+      previewAbortRef.current?.abort()
+      previewAbortRef.current = null
       setStep('url')
       setSelectedWorkspaceId(workspaceId ?? '')
       setName('')
@@ -113,6 +128,9 @@ export function AddPageDialog({
       setCssSelector('')
       setXpathSelector('')
       setSelectorOffsets({ top: 0, right: 0, bottom: 0, left: 0 })
+      setSections([])
+      setPreviewLoading(false)
+      setPreviewProgress(null)
       setPreviewData(null)
       setPreviewError(null)
     }
@@ -132,16 +150,30 @@ export function AddPageDialog({
 
   const handlePreviewPage = useCallback(async () => {
     if (!url.trim()) return
+    // Abort any existing preview request
+    previewAbortRef.current?.abort()
+    const controller = new AbortController()
+    previewAbortRef.current = controller
+
     setPreviewLoading(true)
+    setPreviewProgress(null)
     setPreviewError(null)
     try {
-      const result = await PageApi.previewPage(url.trim(), blockAdsCookies)
+      const result = await PageApi.previewPageWithProgress(
+        url.trim(),
+        blockAdsCookies,
+        (progress) => setPreviewProgress(progress.message),
+        controller.signal,
+      )
       setPreviewData(result)
       setStep('selector')
     } catch (err) {
+      // Don't show error for user-initiated aborts
+      if (err instanceof DOMException && err.name === 'AbortError') return
       setPreviewError(err instanceof Error ? err.message : 'Failed to preview page')
     } finally {
       setPreviewLoading(false)
+      setPreviewProgress(null)
     }
   }, [url, blockAdsCookies])
 
@@ -156,6 +188,19 @@ export function AddPageDialog({
       setCssSelector('')
       setXpathSelector('')
       setSelectorOffsets({ top: 0, right: 0, bottom: 0, left: 0 })
+    }
+  }, [])
+
+  const handleMultiSelect = useCallback((selections: ElementSelection[]) => {
+    setSections(selections)
+    if (selections.length > 0) {
+      setSelectorType('sections')
+      // Clear legacy single-selector fields
+      setCssSelector('')
+      setXpathSelector('')
+      setSelectorOffsets({ top: 0, right: 0, bottom: 0, left: 0 })
+    } else {
+      setSelectorType('full_page')
     }
   }, [])
 
@@ -178,6 +223,17 @@ export function AddPageDialog({
       cssSelector,
       xpathSelector,
       selectorOffsets,
+      sections: selectorType === 'sections'
+        ? sections.map((s, i) => ({
+          name: s.name || `Section ${i + 1}`,
+          cssSelector: s.cssSelector,
+          xpathSelector: s.xpathSelector,
+          selectorOffsets: s.offsets,
+          rect: s.rect,
+          viewportWidth: previewData?.viewport.width,
+          sortOrder: i,
+        }))
+        : undefined,
     })
   }
 
@@ -192,7 +248,7 @@ export function AddPageDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className={`${step === 'selector' ? 'max-w-[720px]' : 'max-w-[672px]'} max-h-[90vh] p-0 flex flex-col gap-0 overflow-hidden`}
+        className={`${step === 'selector' ? 'w-[95vw] max-w-6xl max-h-[95vh]' : 'max-w-[95vw] sm:max-w-[672px] max-h-[95vh] sm:max-h-[90vh]'} p-0 flex flex-col gap-0 overflow-hidden`}
       >
         {/* Header */}
         <DialogHeader className="px-6 py-5 border-b border-border shrink-0">
@@ -215,7 +271,7 @@ export function AddPageDialog({
           className="flex-1 overflow-hidden flex flex-col min-h-0"
         >
           {/* Scrollable body */}
-          <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8">
+          <div className={`flex-1 px-6 py-6 min-h-0 ${step === 'selector' ? 'flex flex-col gap-4 overflow-hidden' : 'overflow-y-auto space-y-8'}`}>
             {/* ─── STEP 1: URL Entry ─── */}
             {step === 'url' && (
               <>
@@ -273,46 +329,78 @@ export function AddPageDialog({
                 </div>
 
                 {previewError && (
-                  <p className="text-sm text-destructive">{previewError}</p>
+                  <div className="flex items-start gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4">
+                    <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+                    <div className="flex-1 space-y-2">
+                      <p className="text-sm font-medium text-destructive">Preview failed</p>
+                      <p className="text-sm text-muted-foreground">{previewError}</p>
+                      <div className="flex gap-2 pt-1">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={handlePreviewPage}
+                          disabled={previewLoading}
+                        >
+                          <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+                          Try Again
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setPreviewError(null)
+                            setStep('config')
+                          }}
+                        >
+                          Skip Preview
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
                 )}
               </>
             )}
 
             {/* ─── STEP 2: Element Selection ─── */}
             {step === 'selector' && previewData && (
-              <div className="space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  Click an element to monitor only that region, or skip to monitor the full page.
+              <>
+                <p className="text-sm text-muted-foreground shrink-0">
+                  Click elements to monitor specific sections, or skip to monitor the full page.
+                  You can select multiple sections.
                 </p>
 
-                <PagePreviewSelector
-                  screenshotBase64={previewData.screenshot_base64}
-                  viewport={previewData.viewport}
-                  pageHeight={previewData.page_height}
-                  elements={previewData.elements}
-                  onSelect={handleElementSelect}
-                  selectedSelector={cssSelector}
-                />
+                <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+                  <PagePreviewSelector
+                    screenshotBase64={previewData.screenshot_base64}
+                    viewport={previewData.viewport}
+                    pageHeight={previewData.page_height}
+                    elements={previewData.elements}
+                    onMultiSelect={handleMultiSelect}
+                    multiSelect
+                  />
+                </div>
 
-                {selectorType === 'element' && (
-                  <div className="flex items-center gap-2 text-sm text-blue-600 bg-blue-50 dark:bg-blue-950/30 px-3 py-2 rounded">
+                {selectorType === 'sections' && sections.length > 0 && (
+                  <div className="flex items-center gap-2 text-sm text-blue-600 bg-blue-50 dark:bg-blue-950/30 px-3 py-2 rounded shrink-0">
                     <MousePointerClick className="h-4 w-4 shrink-0" />
-                    <span>Monitoring selected element: <code className="text-xs">{cssSelector.slice(0, 60)}</code></span>
+                    <span>Monitoring {sections.length} section{sections.length > 1 ? 's' : ''}</span>
                   </div>
                 )}
 
                 {selectorType === 'full_page' && (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted px-3 py-2 rounded">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted px-3 py-2 rounded shrink-0">
                     <Monitor className="h-4 w-4 shrink-0" />
-                    <span>Monitoring full page (click an element above to narrow the scope)</span>
+                    <span>Monitoring full page (click elements above to select sections)</span>
                   </div>
                 )}
-              </div>
+              </>
             )}
 
             {/* ─── STEP 3: Configuration ─── */}
             {step === 'config' && (
-              <div className="grid grid-cols-2 gap-8 items-start">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-8 items-start">
                 {/* Left column: Settings */}
                 <div className="space-y-6">
                   {/* Page Name */}
@@ -499,7 +587,7 @@ export function AddPageDialog({
                     {previewLoading ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                        Loading Preview...
+                        {previewProgress ?? 'Loading Preview...'}
                       </>
                     ) : (
                       'Preview Page'

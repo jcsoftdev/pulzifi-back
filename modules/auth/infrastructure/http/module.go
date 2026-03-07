@@ -17,16 +17,18 @@ import (
 	checksubdomain "github.com/jcsoftdev/pulzifi-back/modules/auth/application/check_subdomain"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/application/get_current_user"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/application/login"
+	"github.com/jcsoftdev/pulzifi-back/modules/auth/application/logout"
 	refreshapp "github.com/jcsoftdev/pulzifi-back/modules/auth/application/refresh_token"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/application/register"
+	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/entities"
 	autherrors "github.com/jcsoftdev/pulzifi-back/modules/auth/domain/errors"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/repositories"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/services"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/cookies"
 	authmw "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/middleware"
+	oauthproviders "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/oauth"
 	emailservices "github.com/jcsoftdev/pulzifi-back/modules/email/domain/services"
 	"github.com/jcsoftdev/pulzifi-back/modules/email/infrastructure/templates"
-	oauthproviders "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/oauth"
 	orgrepos "github.com/jcsoftdev/pulzifi-back/modules/organization/domain/repositories"
 	orgservices "github.com/jcsoftdev/pulzifi-back/modules/organization/domain/services"
 	"github.com/jcsoftdev/pulzifi-back/shared/config"
@@ -37,23 +39,24 @@ import (
 )
 
 type Module struct {
-	registerHandler        *register.Handler
-	checkSubdomainHandler  *checksubdomain.Handler
-	loginHandler           *login.Handler
-	refreshHandler         *refreshapp.Handler
-	getCurrentUserHandler  *get_current_user.Handler
-	authMiddleware         *authmw.AuthMiddleware
-	tokenService           services.TokenService
-	authService            services.AuthService
-	userRepo               repositories.UserRepository
-	emailProvider          emailservices.EmailProvider
-	oauthProviders         map[string]oauthproviders.Provider
-	refreshTokenRepo       repositories.RefreshTokenRepository
-	eventBus               *eventbus.EventBus
-	cookieDomain           string
-	cookieSecure           bool
-	frontendURL            string
-	db                     *sql.DB
+	registerHandler       *register.Handler
+	checkSubdomainHandler *checksubdomain.Handler
+	loginHandler          *login.Handler
+	logoutHandler         *logout.Handler
+	refreshHandler        *refreshapp.Handler
+	getCurrentUserHandler *get_current_user.Handler
+	authMiddleware        *authmw.AuthMiddleware
+	tokenService          services.TokenService
+	authService           services.AuthService
+	userRepo              repositories.UserRepository
+	emailProvider         emailservices.EmailProvider
+	oauthProviders        map[string]oauthproviders.Provider
+	refreshTokenRepo      repositories.RefreshTokenRepository
+	eventBus              *eventbus.EventBus
+	cookieDomain          string
+	cookieSecure          bool
+	frontendURL           string
+	db                    *sql.DB
 }
 
 type ModuleDeps struct {
@@ -94,6 +97,7 @@ func NewModule(deps ModuleDeps) router.ModuleRegisterer {
 		registerHandler:       register.NewHandler(deps.UserRepo, deps.RegReqRepo, deps.OrgRepo, deps.OrgService),
 		checkSubdomainHandler: checksubdomain.NewHandler(deps.RegReqRepo, deps.OrgRepo, deps.OrgService),
 		loginHandler:          login.NewHandler(deps.AuthService, deps.UserRepo, deps.RefreshTokenRepo, deps.TokenService),
+		logoutHandler:         logout.NewHandler(deps.RefreshTokenRepo),
 		refreshHandler:        refreshapp.NewHandler(deps.RefreshTokenRepo, deps.UserRepo, deps.TokenService),
 		getCurrentUserHandler: get_current_user.NewHandler(deps.UserRepo),
 		authMiddleware:        authmw.NewAuthMiddleware(deps.TokenService),
@@ -115,11 +119,12 @@ func (m *Module) AuthMiddleware() *authmw.AuthMiddleware {
 	return m.authMiddleware
 }
 
-func (m *Module) LoginHandler() *login.Handler          { return m.loginHandler }
-func (m *Module) RefreshHandler() *refreshapp.Handler    { return m.refreshHandler }
-func (m *Module) TokenService() services.TokenService    { return m.tokenService }
-func (m *Module) CookieDomain() string                   { return m.cookieDomain }
-func (m *Module) CookieSecure() bool                     { return m.cookieSecure }
+func (m *Module) LoginHandler() *login.Handler        { return m.loginHandler }
+func (m *Module) LogoutHandler() *logout.Handler      { return m.logoutHandler }
+func (m *Module) RefreshHandler() *refreshapp.Handler { return m.refreshHandler }
+func (m *Module) TokenService() services.TokenService { return m.tokenService }
+func (m *Module) CookieDomain() string                { return m.cookieDomain }
+func (m *Module) CookieSecure() bool                  { return m.cookieSecure }
 
 func (m *Module) ModuleName() string {
 	return "Auth"
@@ -241,7 +246,7 @@ func (m *Module) handleLogin(w http.ResponseWriter, r *http.Request) {
 	accessExpires := time.Now().Add(m.tokenService.GetTokenExpiration())
 	cookies.SetAccessTokenCookie(w, r, response.AccessToken, accessExpires, m.cookieDomain, m.cookieSecure)
 
-	refreshExpires := m.tokenService.GetRefreshTokenExpiration()
+	refreshExpires := time.Now().Add(m.tokenService.GetRefreshTokenExpiration())
 	cookies.SetRefreshTokenCookie(w, r, response.RefreshToken, refreshExpires, m.cookieDomain, m.cookieSecure)
 
 	logger.Info("Login successful, JWT cookies set",
@@ -257,14 +262,16 @@ func (m *Module) handleLogin(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// handleLogout clears authentication cookies
+// handleLogout revokes the refresh token and clears authentication cookies
 // @Summary Logout
-// @Description Clear authentication cookies
+// @Description Revoke the refresh token and clear authentication cookies
 // @Tags auth
 // @Produce json
 // @Success 200 {object} map[string]string
 // @Router /auth/logout [post]
 func (m *Module) handleLogout(w http.ResponseWriter, r *http.Request) {
+	refreshTokenStr, _ := cookies.GetTokenFromCookie(r, cookies.RefreshTokenCookie)
+	m.logoutHandler.Handle(r.Context(), refreshTokenStr)
 	cookies.ClearAuthCookies(w, r, m.cookieDomain, m.cookieSecure)
 	writeJSON(w, http.StatusOK, map[string]interface{}{"message": "logged out successfully"})
 }
@@ -287,7 +294,7 @@ func (m *Module) handleRefresh(w http.ResponseWriter, r *http.Request) {
 	accessExpires := time.Now().Add(m.tokenService.GetTokenExpiration())
 	cookies.SetAccessTokenCookie(w, r, response.AccessToken, accessExpires, m.cookieDomain, m.cookieSecure)
 
-	refreshExpires := m.tokenService.GetRefreshTokenExpiration()
+	refreshExpires := time.Now().Add(m.tokenService.GetRefreshTokenExpiration())
 	cookies.SetRefreshTokenCookie(w, r, response.RefreshToken, refreshExpires, m.cookieDomain, m.cookieSecure)
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
@@ -666,10 +673,19 @@ func (m *Module) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Persist refresh token so the rotation flow (POST /auth/refresh) can find it.
+	refreshExpiry := time.Now().Add(m.tokenService.GetRefreshTokenExpiration())
+	newRefreshToken := entities.NewRefreshToken(userID, refreshTokenStr, refreshExpiry)
+	if err := m.refreshTokenRepo.Create(r.Context(), newRefreshToken); err != nil {
+		logger.Error("Failed to store refresh token for OAuth user", zap.Error(err))
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to create session"})
+		return
+	}
+
 	// Set cookies
 	accessExpires := time.Now().Add(m.tokenService.GetTokenExpiration())
 	cookies.SetAccessTokenCookie(w, r, accessTokenStr, accessExpires, m.cookieDomain, m.cookieSecure)
-	refreshExpires := m.tokenService.GetRefreshTokenExpiration()
+	refreshExpires := time.Now().Add(m.tokenService.GetRefreshTokenExpiration())
 	cookies.SetRefreshTokenCookie(w, r, refreshTokenStr, refreshExpires, m.cookieDomain, m.cookieSecure)
 
 	// Redirect to frontend

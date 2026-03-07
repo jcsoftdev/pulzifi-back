@@ -124,6 +124,14 @@ func (h *UpdateMonitoringConfigHandler) Handle(ctx context.Context, pageID uuid.
 			UpdatedAt:              time.Now(),
 		}
 
+		// Pre-claim the page before creating the config so the scheduler cannot
+		// see the page as "due" during the gap between config create and dispatch.
+		if config.CheckFrequency != "Off" {
+			if err := h.repo.UpdateLastCheckedAt(ctx, pageID); err != nil {
+				logger.Error("UpdateMonitoringConfigHandler: Failed to pre-claim page", zap.String("page_id", pageID.String()), zap.Error(err))
+			}
+		}
+
 		// Create in database
 		if err := h.repo.Create(ctx, config); err != nil {
 			return nil, err
@@ -202,15 +210,23 @@ func (h *UpdateMonitoringConfigHandler) Handle(ctx context.Context, pageID uuid.
 
 		config.UpdatedAt = time.Now()
 
-		// Save changes BEFORE triggering the check — TriggerPageCheck queries the
-		// DB for the page URL with a WHERE check_frequency != 'Off' filter.
-		// If we trigger first, the old "Off" value is still in the DB and the
-		// query returns no rows, silently skipping the dispatch.
+		// Pre-claim: set last_checked_at = NOW() BEFORE saving the config so the
+		// scheduler cannot see the page as "due" during the gap between config
+		// save and TriggerPageCheck dispatch.
+		if shouldDispatch {
+			if err := h.repo.UpdateLastCheckedAt(ctx, pageID); err != nil {
+				logger.Error("UpdateMonitoringConfigHandler: Failed to pre-claim page", zap.String("page_id", pageID.String()), zap.Error(err))
+			}
+		}
+
+		// Save the config. TriggerPageCheck queries check_frequency != 'Off',
+		// so the config must be persisted before dispatch.
 		if err := h.repo.Update(ctx, config); err != nil {
 			return nil, err
 		}
 
-		// Now that the DB has the new frequency, trigger the check.
+		// Dispatch the immediate check. The page is already claimed (last_checked_at = NOW)
+		// so the scheduler's GetDueSnapshotTasks will skip it.
 		if shouldDispatch {
 			if h.scheduler != nil {
 				if err := h.scheduler.TriggerPageCheck(ctx, h.tenant, pageID); err != nil {

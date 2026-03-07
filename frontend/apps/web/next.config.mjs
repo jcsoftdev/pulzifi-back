@@ -10,6 +10,8 @@ const nextConfig = {
     'localhost:3000',
     '*.localhost',
     '*.localhost:3000',
+    'app.local',
+    'app.local:3000',
     '*.app.local',
     '*.app.local:3000',
     '*.pulzifi.local',

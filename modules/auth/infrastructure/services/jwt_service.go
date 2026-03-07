@@ -133,6 +133,6 @@ func (s *JWTService) GetTokenExpiration() time.Duration {
 	return s.accessTokenExpiry
 }
 
-func (s *JWTService) GetRefreshTokenExpiration() time.Time {
-	return time.Now().Add(s.refreshTokenExpiry)
+func (s *JWTService) GetRefreshTokenExpiration() time.Duration {
+	return s.refreshTokenExpiry
 }

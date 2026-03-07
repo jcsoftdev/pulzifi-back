@@ -41,9 +41,9 @@ check-env:
 # LOCAL DEVELOPMENT
 # ============================================================
 
-dev: check-env ## Start local dev (postgres + extractor + API + worker with hot reload)
+dev: check-env ## Start local dev (postgres + scraper + API + worker with hot reload)
 	@echo "$(GREEN)Starting local dev environment...$(NC)"
-	@docker-compose -f docker-compose.monolith.yml up
+	@docker-compose -f docker-compose.monolith.yml up --remove-orphans
 
 dev-web: ## Start Next.js on :3001 (Go on :3000 proxies unmatched routes)
 	@echo "$(GREEN)Starting Next.js on :3001...$(NC)"

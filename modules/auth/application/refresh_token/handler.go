@@ -3,6 +3,7 @@ package refresh_token
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/entities"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/repositories"
@@ -118,7 +119,7 @@ func (h *Handler) Handle(ctx context.Context, req *Request) (*Response, error) {
 	newRefreshToken := entities.NewRefreshToken(
 		user.ID,
 		newRefreshTokenStr,
-		h.tokenService.GetRefreshTokenExpiration(),
+		time.Now().Add(h.tokenService.GetRefreshTokenExpiration()),
 	)
 
 	if err := h.refreshTokenRepo.Create(ctx, newRefreshToken); err != nil {

@@ -22,6 +22,14 @@ export interface SelectorOffsets {
   left: number
 }
 
+export interface SectionInput {
+  name: string
+  cssSelector: string
+  xpathSelector?: string
+  selectorOffsets?: SelectorOffsets
+  sortOrder?: number
+}
+
 export interface CreatePageDto {
   workspaceId: string
   name: string
@@ -33,10 +41,11 @@ export interface CreatePageDto {
   enabledInsightTypes?: string[]
   enabledAlertConditions?: string[]
   customAlertCondition?: string
-  selectorType?: 'full_page' | 'element'
+  selectorType?: 'full_page' | 'element' | 'sections'
   cssSelector?: string
   xpathSelector?: string
   selectorOffsets?: SelectorOffsets
+  sections?: SectionInput[]
 }
 
 export interface EditPageDto {
@@ -49,10 +58,11 @@ export interface EditPageDto {
   enabledInsightTypes?: string[]
   enabledAlertConditions?: string[]
   customAlertCondition?: string
-  selectorType?: 'full_page' | 'element'
+  selectorType?: 'full_page' | 'element' | 'sections'
   cssSelector?: string
   xpathSelector?: string
   selectorOffsets?: SelectorOffsets
+  sections?: SectionInput[]
 }
 
 export interface PreviewElement {

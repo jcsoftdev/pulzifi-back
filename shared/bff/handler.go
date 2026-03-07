@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/application/login"
+	"github.com/jcsoftdev/pulzifi-back/modules/auth/application/logout"
 	refreshapp "github.com/jcsoftdev/pulzifi-back/modules/auth/application/refresh_token"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/services"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/cookies"
@@ -20,6 +21,7 @@ import (
 // because it is HTTP cookie/session orchestration, not domain logic.
 type Handler struct {
 	loginHandler   *login.Handler
+	logoutHandler  *logout.Handler
 	refreshHandler *refreshapp.Handler
 	tokenService   services.TokenService
 	nonceStore     *noncestore.Store
@@ -30,6 +32,7 @@ type Handler struct {
 
 type HandlerDeps struct {
 	LoginHandler   *login.Handler
+	LogoutHandler  *logout.Handler
 	RefreshHandler *refreshapp.Handler
 	TokenService   services.TokenService
 	NonceStore     *noncestore.Store
@@ -41,6 +44,7 @@ type HandlerDeps struct {
 func NewHandler(deps HandlerDeps) *Handler {
 	return &Handler{
 		loginHandler:   deps.LoginHandler,
+		logoutHandler:  deps.LogoutHandler,
 		refreshHandler: deps.RefreshHandler,
 		tokenService:   deps.TokenService,
 		nonceStore:     deps.NonceStore,
@@ -89,7 +93,7 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 	accessExpires := time.Now().Add(h.tokenService.GetTokenExpiration())
 	cookies.SetAccessTokenCookie(w, r, response.AccessToken, accessExpires, h.cookieDomain, h.cookieSecure)
 
-	refreshExpires := h.tokenService.GetRefreshTokenExpiration()
+	refreshExpires := time.Now().Add(h.tokenService.GetRefreshTokenExpiration())
 	cookies.SetRefreshTokenCookie(w, r, response.RefreshToken, refreshExpires, h.cookieDomain, h.cookieSecure)
 
 	result := map[string]interface{}{
@@ -124,23 +128,28 @@ func (h *Handler) handleRefresh(w http.ResponseWriter, r *http.Request) {
 	accessExpires := time.Now().Add(h.tokenService.GetTokenExpiration())
 	cookies.SetAccessTokenCookie(w, r, response.AccessToken, accessExpires, h.cookieDomain, h.cookieSecure)
 
-	refreshExpires := h.tokenService.GetRefreshTokenExpiration()
+	refreshExpires := time.Now().Add(h.tokenService.GetRefreshTokenExpiration())
 	cookies.SetRefreshTokenCookie(w, r, response.RefreshToken, refreshExpires, h.cookieDomain, h.cookieSecure)
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{"success": true})
 }
 
 // POST /api/auth/logout
-// Clears auth cookies and returns {success: true}.
+// Revokes the refresh token, clears auth cookies, and returns {success: true}.
 func (h *Handler) handleLogoutPost(w http.ResponseWriter, r *http.Request) {
+	refreshTokenStr, _ := cookies.GetTokenFromCookie(r, cookies.RefreshTokenCookie)
+	h.logoutHandler.Handle(r.Context(), refreshTokenStr)
 	cookies.ClearAuthCookies(w, r, h.cookieDomain, h.cookieSecure)
 	clearTenantHintCookie(w, r, h.cookieDomain, h.cookieSecure)
 	writeJSON(w, http.StatusOK, map[string]interface{}{"success": true})
 }
 
 // GET /api/auth/logout?redirectTo=/login
-// Clears auth cookies and redirects. Used for cross-subdomain cleanup.
+// Revokes the refresh token, clears auth cookies, and redirects.
+// Used for cross-subdomain cleanup.
 func (h *Handler) handleLogoutGet(w http.ResponseWriter, r *http.Request) {
+	refreshTokenStr, _ := cookies.GetTokenFromCookie(r, cookies.RefreshTokenCookie)
+	h.logoutHandler.Handle(r.Context(), refreshTokenStr)
 	cookies.ClearAuthCookies(w, r, h.cookieDomain, h.cookieSecure)
 	clearTenantHintCookie(w, r, h.cookieDomain, h.cookieSecure)
 
@@ -170,7 +179,7 @@ func (h *Handler) handleCallback(w http.ResponseWriter, r *http.Request) {
 	accessExpires := time.Now().Add(h.tokenService.GetTokenExpiration())
 	cookies.SetAccessTokenCookie(w, r, entry.AccessToken, accessExpires, h.cookieDomain, h.cookieSecure)
 
-	refreshExpires := h.tokenService.GetRefreshTokenExpiration()
+	refreshExpires := time.Now().Add(h.tokenService.GetRefreshTokenExpiration())
 	cookies.SetRefreshTokenCookie(w, r, entry.RefreshToken, refreshExpires, h.cookieDomain, h.cookieSecure)
 
 	redirectTo := r.URL.Query().Get("redirectTo")
@@ -202,7 +211,7 @@ func (h *Handler) handleSetBaseSession(w http.ResponseWriter, r *http.Request) {
 	accessExpires := time.Now().Add(h.tokenService.GetTokenExpiration())
 	cookies.SetAccessTokenCookie(w, r, entry.AccessToken, accessExpires, h.cookieDomain, h.cookieSecure)
 
-	refreshExpires := h.tokenService.GetRefreshTokenExpiration()
+	refreshExpires := time.Now().Add(h.tokenService.GetRefreshTokenExpiration())
 	cookies.SetRefreshTokenCookie(w, r, entry.RefreshToken, refreshExpires, h.cookieDomain, h.cookieSecure)
 
 	if tenant != "" {

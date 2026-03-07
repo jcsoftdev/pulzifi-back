@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"image"
 	"image/draw"
 	"image/png"
@@ -404,4 +405,56 @@ func pixelUint32At(img *image.NRGBA, x, y int) uint32 {
 		uint32(img.Pix[offset+1])<<16 |
 		uint32(img.Pix[offset+2])<<8 |
 		uint32(img.Pix[offset+3])
+}
+
+// CropSectionImage crops a full-page PNG screenshot to the given viewport-relative rectangle.
+// x, y, w, h are in viewport pixels. viewportWidth is the width at which the coordinates were
+// recorded (0 = no scaling, coordinates map 1:1 to image pixels).
+func CropSectionImage(imgBytes []byte, x, y, w, h, viewportWidth int) ([]byte, error) {
+	img, err := png.Decode(bytes.NewReader(imgBytes))
+	if err != nil {
+		return nil, fmt.Errorf("decode image: %w", err)
+	}
+
+	bounds := img.Bounds()
+	imgW := bounds.Dx()
+
+	// Compute uniform scale from stored viewport width to actual image width.
+	scale := 1.0
+	if viewportWidth > 0 && imgW > 0 {
+		scale = float64(imgW) / float64(viewportWidth)
+	}
+
+	px := int(math.Round(float64(x) * scale))
+	py := int(math.Round(float64(y) * scale))
+	pw := int(math.Round(float64(w) * scale))
+	ph := int(math.Round(float64(h) * scale))
+
+	// Clamp to image bounds.
+	if px < 0 {
+		pw += px
+		px = 0
+	}
+	if py < 0 {
+		ph += py
+		py = 0
+	}
+	if px+pw > bounds.Dx() {
+		pw = bounds.Dx() - px
+	}
+	if py+ph > bounds.Dy() {
+		ph = bounds.Dy() - py
+	}
+	if pw <= 0 || ph <= 0 {
+		return nil, fmt.Errorf("crop rect (%d,%d,%d,%d) is outside image bounds (%dx%d)", x, y, w, h, imgW, bounds.Dy())
+	}
+
+	nrgba := toNRGBA(img)
+	cropped := nrgba.SubImage(image.Rect(px, py, px+pw, py+ph))
+
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, cropped); err != nil {
+		return nil, fmt.Errorf("encode cropped image: %w", err)
+	}
+	return buf.Bytes(), nil
 }
