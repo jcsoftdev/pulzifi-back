@@ -49,7 +49,7 @@ FROM oven/bun:1
 WORKDIR /app
 
 ENV NODE_ENV=production
-ENV PORT=3000
+ENV PORT=8080
 
 # Copy build output and runtime dependencies
 COPY --from=builder /app/node_modules ./node_modules
@@ -59,7 +59,7 @@ COPY --from=builder /app/apps/web/public ./apps/web/public
 COPY --from=builder /app/apps/web/package.json ./apps/web/package.json
 COPY --from=builder /app/apps/web/next.config.mjs ./apps/web/next.config.mjs
 
-EXPOSE 3000
+EXPOSE 8080
 
 WORKDIR /app/apps/web
 

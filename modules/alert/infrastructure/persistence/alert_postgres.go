@@ -24,7 +24,9 @@ func (r *AlertPostgresRepository) Create(ctx context.Context, alert *entities.Al
 	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
 		return err
 	}
-	q := `INSERT INTO alerts (id, workspace_id, page_id, check_id, type, title, description, change_summary, metadata, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`
+	q := `INSERT INTO alerts (id, workspace_id, page_id, check_id, type, title, description, change_summary, metadata, created_at)
+		SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+		WHERE EXISTS (SELECT 1 FROM checks WHERE id = $4)`
 	_, err := r.db.ExecContext(ctx, q, alert.ID, alert.WorkspaceID, alert.PageID, alert.CheckID, alert.Type, alert.Title, alert.Description, alert.ChangeSummary, alert.Metadata, alert.CreatedAt)
 	return err
 }
