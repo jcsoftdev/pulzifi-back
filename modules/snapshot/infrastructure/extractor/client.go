@@ -133,22 +133,51 @@ func (c *HTTPClient) Extract(ctx context.Context, url string, opts ExtractOption
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := c.streamingClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
+	var lastErr error
+	for attempt := 0; attempt < 3; attempt++ {
+		if attempt > 0 {
+			select {
+			case <-extractCtx.Done():
+				return nil, extractCtx.Err()
+			case <-time.After(time.Duration(attempt) * 2 * time.Second):
+			}
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("extractor service returned status: %d", resp.StatusCode)
+			req, err = http.NewRequestWithContext(extractCtx, "POST", c.baseURL+"/extract", bytes.NewBuffer(body))
+			if err != nil {
+				return nil, err
+			}
+			req.Header.Set("Content-Type", "application/json")
+		}
+
+		var resp *http.Response
+		resp, err = c.streamingClient.Do(req)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+
+		if resp.StatusCode >= 500 {
+			respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+			resp.Body.Close()
+			lastErr = fmt.Errorf("extractor service returned status: %d, body: %s", resp.StatusCode, string(respBody))
+			continue
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+			resp.Body.Close()
+			return nil, fmt.Errorf("extractor service returned status: %d, body: %s", resp.StatusCode, string(respBody))
+		}
+
+		defer resp.Body.Close()
+		var result ExtractorResult
+		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+			return nil, err
+		}
+		return &result, nil
 	}
 
-	var result ExtractorResult
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, err
-	}
-
-	return &result, nil
+	return nil, fmt.Errorf("extractor failed after 3 attempts: %w", lastErr)
 }
 
 func (c *HTTPClient) Preview(ctx context.Context, url string, blockAdsCookies bool) (*PreviewResult, error) {

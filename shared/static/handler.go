@@ -1,6 +1,8 @@
 package static
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -67,6 +69,10 @@ func setupProxyNotFound(router chi.Router, frontendURL string, logger *zap.Logge
 	}
 
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
+		if errors.Is(err, context.Canceled) {
+			logger.Debug("Proxy request cancelled by client", zap.String("path", r.URL.Path))
+			return
+		}
 		logger.Error("Proxy error", zap.Error(err), zap.String("url", frontendURL), zap.String("path", r.URL.Path))
 		w.WriteHeader(http.StatusBadGateway)
 		w.Write([]byte("Frontend server unavailable"))
