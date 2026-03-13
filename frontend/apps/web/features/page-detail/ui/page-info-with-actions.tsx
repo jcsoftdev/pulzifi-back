@@ -2,7 +2,7 @@
 
 import { type Page, PageApi } from '@workspace/services/page-api'
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { notification } from '@/lib/notification'
 import { DeletePageDialog } from '@/features/page/ui/delete-page-dialog'
 import { EditPageDialog } from '@/features/page/ui/edit-page-dialog'
@@ -107,6 +107,16 @@ export function PageInfoWithActions({
     }
   }
 
+  // Listen for SSE-driven check status changes from ChecksHistory.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const hasActive = (e as CustomEvent<boolean>).detail
+      if (!hasActive) setIsRunning(false)
+    }
+    window.addEventListener('checks:active', handler)
+    return () => window.removeEventListener('checks:active', handler)
+  }, [])
+
   const handleRunNow = async () => {
     setIsRunning(true)
     try {
@@ -120,7 +130,6 @@ export function PageInfoWithActions({
         title: 'Failed to run check',
         description: err instanceof Error ? err.message : 'Please try again.',
       })
-    } finally {
       setIsRunning(false)
     }
   }

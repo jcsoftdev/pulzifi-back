@@ -3,8 +3,15 @@
 import { cn } from '@workspace/ui/lib/utils'
 import type { DiffRow, DiffSegment } from '../utils/simple-diff'
 
+export interface TextChangeSection {
+  sectionName?: string
+  changes: DiffRow[]
+  /** True when the section detected a change (visual or text). */
+  changeDetected?: boolean
+}
+
 export interface TextChangesProps {
-  changes?: DiffRow[]
+  sections?: TextChangeSection[]
 }
 
 // ---------------------------------------------------------------------------
@@ -74,8 +81,55 @@ function Segments({ segments }: Readonly<{ segments: DiffSegment[] }>) {
 // Main component
 // ---------------------------------------------------------------------------
 
-export function TextChanges({ changes = [] }: Readonly<TextChangesProps>) {
-  if (!changes || changes.length === 0) {
+function SectionDiffGroups({ changes }: Readonly<{ changes: DiffRow[] }>) {
+  const groups = buildGroups(changes)
+  return (
+    <div className="space-y-2">
+      {groups.map((group, idx) => {
+        if (group.kind === 'inline') {
+          return (
+            <div
+              key={idx}
+              className="px-4 py-3 rounded-lg border border-border/40 bg-muted/10 text-sm leading-relaxed"
+            >
+              <Segments segments={group.segments} />
+            </div>
+          )
+        }
+        return (
+          <div
+            key={idx}
+            className="rounded-lg border border-border/40 overflow-hidden text-sm"
+          >
+            {group.removed !== null && (
+              <div className="flex gap-3 px-4 py-2.5 border-b border-border/30 bg-muted/10">
+                <span className="select-none shrink-0 text-foreground/25 font-mono text-xs pt-px">
+                  −
+                </span>
+                <p className="leading-relaxed line-through text-foreground/40">
+                  {group.removed}
+                </p>
+              </div>
+            )}
+            {group.added !== null && (
+              <div className="flex gap-3 px-4 py-2.5 bg-emerald-950/20">
+                <span className="select-none shrink-0 text-emerald-500/60 font-mono text-xs pt-px">
+                  +
+                </span>
+                <p className="leading-relaxed text-emerald-400">{group.added}</p>
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+export function TextChanges({ sections = [] }: Readonly<TextChangesProps>) {
+  const hasAnyChanges = sections.some((s) => s.changes.length > 0)
+
+  if (!hasAnyChanges) {
     return (
       <div className="flex items-center justify-center h-64 rounded-xl border border-border bg-muted/10">
         <p className="text-sm text-muted-foreground">No text changes detected</p>
@@ -83,52 +137,24 @@ export function TextChanges({ changes = [] }: Readonly<TextChangesProps>) {
     )
   }
 
-  const groups = buildGroups(changes)
-
   return (
     <div className="rounded-xl border border-border bg-card">
       <div className="px-5 py-3.5 border-b border-border">
         <h3 className="text-sm font-medium text-muted-foreground tracking-wide">Text Changes</h3>
       </div>
 
-      <div className="p-4 space-y-2 max-h-[520px] overflow-y-auto">
-        {groups.map((group, idx) => {
-          // ── Inline word-diff ─────────────────────────────────────────────
-          if (group.kind === 'inline') {
-            return (
-              <div
-                key={idx}
-                className="px-4 py-3 rounded-lg border border-border/40 bg-muted/10 text-sm leading-relaxed"
-              >
-                <Segments segments={group.segments} />
-              </div>
-            )
-          }
-
-          // ── Before / after block ─────────────────────────────────────────
-          // Mirrors git's unified diff: old line then new line in one hunk
+      <div className="p-4 space-y-4 max-h-[520px] overflow-y-auto">
+        {sections.map((section, si) => {
+          if (section.changes.length === 0 && !section.changeDetected) return null
           return (
-            <div
-              key={idx}
-              className="rounded-lg border border-border/40 overflow-hidden text-sm"
-            >
-              {group.removed !== null && (
-                <div className="flex gap-3 px-4 py-2.5 border-b border-border/30 bg-muted/10">
-                  <span className="select-none shrink-0 text-foreground/25 font-mono text-xs pt-px">
-                    −
-                  </span>
-                  <p className="leading-relaxed line-through text-foreground/40">
-                    {group.removed}
-                  </p>
-                </div>
+            <div key={si}>
+              {section.sectionName && (
+                <h4 className="text-sm font-medium text-muted-foreground mb-2">{section.sectionName}</h4>
               )}
-              {group.added !== null && (
-                <div className="flex gap-3 px-4 py-2.5 bg-emerald-950/20">
-                  <span className="select-none shrink-0 text-emerald-500/60 font-mono text-xs pt-px">
-                    +
-                  </span>
-                  <p className="leading-relaxed text-emerald-400">{group.added}</p>
-                </div>
+              {section.changes.length > 0 ? (
+                <SectionDiffGroups changes={section.changes} />
+              ) : (
+                <p className="text-sm text-muted-foreground italic px-4 py-2">Visual change only — no text differences</p>
               )}
             </div>
           )

@@ -51,7 +51,17 @@ export function ChecksHistory({
   const fetchChecks = useCallback(async () => {
     try {
       const freshChecks = await PageApi.listChecks(pageId)
-      setChecks(freshChecks)
+      setChecks((prev) => {
+        // Preserve in-progress checks delivered via SSE that aren't in the API response yet
+        // (the check record may not be committed to DB when this fetch runs).
+        const freshIds = new Set(freshChecks.map((c) => c.id))
+        const sseOnlyInProgress = prev.filter(
+          (c) => isCheckInProgress(c) && !freshIds.has(c.id),
+        )
+        return sseOnlyInProgress.length > 0
+          ? [...sseOnlyInProgress, ...freshChecks]
+          : freshChecks
+      })
       setHasFreshData(true)
     } catch (error) {
       console.error('Failed to fetch checks', error)
@@ -71,15 +81,20 @@ export function ChecksHistory({
     es.addEventListener('check:updated', (event) => {
       try {
         const dto: CheckBackendDto = JSON.parse(event.data)
+        // Skip section checks — only parent/full-page checks belong in the history list.
+        if (dto.section_id) return
         const updated = mapBackendCheck(dto)
         setChecks((prev) => {
           const idx = prev.findIndex((c) => c.id === updated.id)
-          if (idx >= 0) {
-            const next = [...prev]
-            next[idx] = updated
-            return next
-          }
-          return [updated, ...prev]
+          const next = idx >= 0
+            ? prev.map((c, i) => (i === idx ? updated : c))
+            : [updated, ...prev]
+          // Notify siblings after React finishes this render batch.
+          const hasActive = next.some(isCheckInProgress)
+          queueMicrotask(() => {
+            window.dispatchEvent(new CustomEvent('checks:active', { detail: hasActive }))
+          })
+          return next
         })
         setHasFreshData(true)
       } catch {

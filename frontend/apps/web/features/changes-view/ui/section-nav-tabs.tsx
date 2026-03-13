@@ -9,6 +9,7 @@ interface SectionNavTabsProps {
   selectedSectionId: string
   onSelect: (id: string) => void
   checks: Check[]
+  activeSectionChecks?: Check[]
 }
 
 export function SectionNavTabs({
@@ -16,9 +17,16 @@ export function SectionNavTabs({
   selectedSectionId,
   onSelect,
   checks,
+  activeSectionChecks = [],
 }: Readonly<SectionNavTabsProps>) {
-  // Only count section-specific changes (full-page stub checks are excluded).
-  const totalChanges = checks.filter((c) => !!c.sectionId && c.changeDetected).length
+  // Count actual content diff items (text blocks that changed) per section.
+  const diffCountBySection = new Map<string, number>()
+  let totalDiffCount = 0
+  for (const sc of activeSectionChecks) {
+    const count = sc.contentDiff?.total_changes ?? 0
+    if (sc.sectionId) diffCountBySection.set(sc.sectionId, count)
+    totalDiffCount += count
+  }
 
   return (
     <div className="overflow-x-auto pb-1 px-4 md:px-0 -mx-4 md:mx-0">
@@ -36,12 +44,12 @@ export function SectionNavTabs({
           )}
         >
           All sections
-          {totalChanges > 0 && (
+          {totalDiffCount > 0 && (
             <span className={cn(
               'ml-1.5 text-xs font-normal tabular-nums',
               selectedSectionId === 'all' ? 'text-background/60' : 'text-muted-foreground'
             )}>
-              {totalChanges}
+              {totalDiffCount}
             </span>
           )}
         </button>
@@ -50,9 +58,7 @@ export function SectionNavTabs({
 
         {/* Per-section tabs */}
         {sections.map((section) => {
-          const sectionChanges = checks.filter(
-            (c) => c.sectionId === section.id && c.changeDetected
-          ).length
+          const sectionChanges = diffCountBySection.get(section.id) ?? 0
           const color = getSectionColor(section.sortOrder)
           const isActive = selectedSectionId === section.id
 

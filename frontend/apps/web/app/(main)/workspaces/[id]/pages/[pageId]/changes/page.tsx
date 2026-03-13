@@ -1,6 +1,6 @@
 'use client'
 
-import type { Check, Insight, MonitoredSection, Page } from '@workspace/services/page-api'
+import type { Check, Insight, MonitoredSection, Page, BlockDiffDto } from '@workspace/services/page-api'
 import { PageApi, UsageApi } from '@workspace/services'
 import { Button } from '@workspace/ui/components/atoms/button'
 import { Settings, Zap } from 'lucide-react'
@@ -10,10 +10,10 @@ import { ChangesViewService } from '@/features/changes-view/domain/changes-view-
 import { ChangesViewLayout } from '@/features/changes-view/ui/changes-view-layout'
 import { IntelligentInsights } from '@/features/changes-view/ui/intelligent-insights'
 import { SectionNavTabs } from '@/features/changes-view/ui/section-nav-tabs'
-import { TextChanges } from '@/features/changes-view/ui/text-changes'
+import { TextChanges, type TextChangeSection } from '@/features/changes-view/ui/text-changes'
 import { VisualPulse } from '@/features/changes-view/ui/visual-pulse'
 import type { DiffRow } from '@/features/changes-view/utils/simple-diff'
-import { diffLines } from '@/features/changes-view/utils/simple-diff'
+import { diffWords } from '@/features/changes-view/utils/simple-diff'
 
 function VisualPulseSkeleton() {
   return (
@@ -34,28 +34,19 @@ function VisualPulseSkeleton() {
   )
 }
 
-function TextChangesSkeleton() {
-  return (
-    <div className="rounded-xl border border-border bg-card">
-      <div className="px-5 py-3.5 border-b border-border">
-        <h3 className="text-sm font-medium text-muted-foreground tracking-wide">Text Changes</h3>
-      </div>
-      <div className="p-4 space-y-2">
-        {['a', 'b', 'c', 'd'].map((i) => (
-          <div key={i} className="rounded-lg border border-border/40 overflow-hidden text-sm">
-            <div className="flex gap-3 px-4 py-2.5 border-b border-border/30 bg-muted/10">
-              <span className="select-none shrink-0 text-foreground/25 font-mono text-xs pt-px">-</span>
-              <div className="h-4 w-full bg-muted rounded animate-pulse" />
-            </div>
-            <div className="flex gap-3 px-4 py-2.5 bg-emerald-950/20">
-              <span className="select-none shrink-0 text-emerald-500/60 font-mono text-xs pt-px">+</span>
-              <div className="h-4 w-full bg-muted rounded animate-pulse" />
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
+/** Convert a pre-computed BlockDiff (from the backend) into a DiffRow for the TextChanges UI. */
+function blockDiffToDiffRow(d: BlockDiffDto): DiffRow {
+  switch (d.op) {
+    case 'added':
+      return { kind: 'added', segments: [{ type: 'added', text: d.block.text }] }
+    case 'removed':
+      return { kind: 'removed', segments: [{ type: 'removed', text: d.block.text }] }
+    case 'changed': {
+      const oldText = d.old_block?.text ?? ''
+      const segments = diffWords(oldText, d.block.text)
+      return { kind: 'inline', segments }
+    }
+  }
 }
 
 function InsightsSkeleton() {
@@ -113,8 +104,6 @@ export default function ChangesPage() {
   const [selectedSectionId, setSelectedSectionId] = useState<string>('all')
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('visual')
-  const [textChanges, setTextChanges] = useState<DiffRow[]>([])
-  const [loadingDiff, setLoadingDiff] = useState(false)
   const [storagePeriodDays, setStoragePeriodDays] = useState(7)
 
   const hasSections = sections.length > 0
@@ -248,44 +237,30 @@ export default function ChangesPage() {
     loadData()
   }, [pageId, checkIdParam])
 
-  useEffect(() => {
-    async function loadDiff() {
-      if (activeTab === 'text' && activeCheck) {
-        setLoadingDiff(true)
-        try {
-          if (!previousCheck) {
-            setTextChanges([])
-            return
-          }
-
-          const currentUrl = activeCheck.htmlSnapshotUrl
-          const prevUrl = previousCheck.htmlSnapshotUrl
-
-          if (currentUrl && prevUrl) {
-            const [currentHtml, prevHtml] = await Promise.all([
-              ChangesViewService.getHtmlContent(currentUrl),
-              ChangesViewService.getHtmlContent(prevUrl),
-            ])
-
-            const currentText = ChangesViewService.extractTextFromHtml(currentHtml)
-            const prevText = ChangesViewService.extractTextFromHtml(prevHtml)
-
-            const diff = diffLines(prevText, currentText)
-
-            setTextChanges(diff)
-          } else {
-            setTextChanges([])
-          }
-        } catch (error) {
-          console.error('Failed to calculate diff:', error)
-          setTextChanges([])
-        } finally {
-          setLoadingDiff(false)
-        }
-      }
+  // Build section-grouped text changes for the TextChanges component.
+  const textChangeSections = useMemo<TextChangeSection[]>(() => {
+    // "All sections" view: one group per section check (include all, even without text diffs)
+    if (selectedSectionId === 'all' && activeSectionChecks.length > 0) {
+      const sectionDiffs: TextChangeSection[] = activeSectionChecks.map((sc) => ({
+        sectionName: sections.find((s) => s.id === sc.sectionId)?.name,
+        changes: sc.contentDiff?.has_changes
+          ? sc.contentDiff.diffs.map(blockDiffToDiffRow)
+          : [],
+        changeDetected: sc.changeDetected,
+      }))
+      // At least one section check exists — use section-grouped view.
+      // If none have text diffs but parent has a full-page diff, fall through.
+      if (sectionDiffs.some((s) => s.changes.length > 0 || s.changeDetected)) return sectionDiffs
     }
-    loadDiff()
-  }, [activeTab, activeCheck, previousCheck])
+    // Single section or full-page: single group
+    if (!activeCheck?.contentDiff?.has_changes) return []
+    return [{
+      sectionName: activeCheck.sectionId
+        ? sections.find((s) => s.id === activeCheck.sectionId)?.name
+        : undefined,
+      changes: activeCheck.contentDiff.diffs.map(blockDiffToDiffRow),
+    }]
+  }, [activeCheck, selectedSectionId, activeSectionChecks, sections])
 
   if (loading) {
     return (
@@ -367,6 +342,7 @@ export default function ChangesPage() {
             selectedSectionId={selectedSectionId}
             onSelect={setSelectedSectionId}
             checks={checks}
+            activeSectionChecks={activeSectionChecks}
           />
         </div>
       )}
@@ -390,12 +366,7 @@ export default function ChangesPage() {
             />
           )
         )}
-        {activeTab === 'text' &&
-          (loadingDiff ? (
-            <TextChangesSkeleton />
-          ) : (
-            <TextChanges changes={textChanges} />
-          ))}
+        {activeTab === 'text' && <TextChanges sections={textChangeSections} />}
         {activeTab === 'insights' && (
           <IntelligentInsights
             insights={insights}
