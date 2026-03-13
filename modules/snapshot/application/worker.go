@@ -156,6 +156,7 @@ func (s *SnapshotWorker) ExecuteCheck(ctx context.Context, checkID uuid.UUID, ta
 	extractOpts := extractor.ExtractOptions{}
 	if pageConfig != nil {
 		extractOpts.BlockAdsCookies = pageConfig.BlockAdsCookies
+		extractOpts.IgnoreSelectors = pageConfig.IgnoreSelectors
 
 		switch pageConfig.SelectorType {
 		case "element":
@@ -277,9 +278,14 @@ func (s *SnapshotWorker) ExecuteCheck(ctx context.Context, checkID uuid.UUID, ta
 		return markError(fmt.Sprintf("failed to upload html snapshot: %v", err), duration)
 	}
 
-	// Content hash (text-based, for backwards compatibility)
-	contentHash := sha256.Sum256([]byte(res.Text))
+	// Content hash — extract text from HTML (deterministic) instead of
+	// Playwright's innerText (rendering-dependent, varies across runs).
+	contentHash := sha256.Sum256([]byte(sharedHTML.ExtractText(res.HTML)))
 	contentHashStr := hex.EncodeToString(contentHash[:])
+
+	// Content block hash — structural content representation for content-first detection.
+	contentBlocks := sharedHTML.ExtractContentBlocks(res.HTML)
+	contentBlockHash := sharedHTML.HashContentBlocks(contentBlocks)
 
 	// Screenshot hash (pixel-based)
 	screenshotHash := imagecompare.HashScreenshot(imgBytes)
@@ -290,6 +296,7 @@ func (s *SnapshotWorker) ExecuteCheck(ctx context.Context, checkID uuid.UUID, ta
 	check.ScreenshotURL = imgURL
 	check.HTMLSnapshotURL = htmlURL
 	check.ContentHash = contentHashStr
+	check.ContentBlockHash = contentBlockHash
 	check.ScreenshotHash = screenshotHash
 	check.ChangeDetected = false
 	check.ChangeType = ""
@@ -298,12 +305,19 @@ func (s *SnapshotWorker) ExecuteCheck(ctx context.Context, checkID uuid.UUID, ta
 	prevCheck := s.getPreviousSuccessfulCheck(ctx, checkRepo, check.PageID, check.ID)
 
 	if prevCheck != nil {
-		changeDetected, changeSummary := s.detectChange(ctx, prevCheck, check, imgBytes, res.ScreenshotBase64, targetURL)
+		changeDetected, changeSummary, contentDiff := s.detectChange(ctx, prevCheck, check, imgBytes, res.ScreenshotBase64, targetURL, res.HTML)
 
 		if changeDetected {
 			check.ChangeDetected = true
 			check.ChangeType = "content"
 			check.VisionChangeSummary = changeSummary
+
+			// Store pre-computed content diff for the frontend
+			if contentDiff != nil && contentDiff.HasChanges {
+				if diffJSON, err := json.Marshal(contentDiff); err == nil {
+					check.ContentDiffJSON = string(diffJSON)
+				}
+			}
 
 			// Only alert if "any_changes" is an enabled alert condition
 			if sliceContains(enabledAlertConditions, "any_changes") {
@@ -312,8 +326,12 @@ func (s *SnapshotWorker) ExecuteCheck(ctx context.Context, checkID uuid.UUID, ta
 
 			// Generate insights for enabled types
 			if s.insightHandler != nil && len(enabledInsightTypes) > 0 {
+				var diffText string
+				if contentDiff != nil && contentDiff.HasChanges {
+					diffText = sharedHTML.FormatDiffForAI(contentDiff)
+				}
 				prevText := s.fetchTextFromURL(prevCheck.HTMLSnapshotURL)
-				go s.generateInsightsAsync(check, targetURL, prevText, res.Text, schemaName, enabledInsightTypes)
+				go s.generateInsightsAsync(check, targetURL, prevText, res.Text, schemaName, enabledInsightTypes, diffText)
 			}
 		}
 	}
@@ -331,103 +349,157 @@ func (s *SnapshotWorker) ExecuteCheck(ctx context.Context, checkID uuid.UUID, ta
 	return nil
 }
 
-// detectChange runs the two-stage change detection pipeline:
-// Stage 1: Pixel hash/diff comparison
-// Stage 2: Vision AI analysis (if configured and pixel diff exceeds threshold)
-// Returns (changeDetected, changeSummary)
-func (s *SnapshotWorker) detectChange(ctx context.Context, prevCheck, currCheck *entities.Check, currImgBytes []byte, currBase64 string, pageURL string) (bool, string) {
-	pixelComparisonSucceeded := false
+// detectChange runs a multi-stage content-first change detection pipeline:
+//
+//	Stage 1: Content block hash (fast structural identity)
+//	Stage 2: Content block diff (structural comparison for diff text)
+//	Stage 3: Pixel comparison (visual-only changes when content is unchanged)
+//	Stage 4: Vision AI semantic analysis (optional)
+//	Stage 5: Normalized text hash fallback (legacy compatibility)
+//
+// Returns (changeDetected, changeSummary, contentDiff)
+func (s *SnapshotWorker) detectChange(ctx context.Context, prevCheck, currCheck *entities.Check, currImgBytes []byte, currBase64 string, pageURL string, currHTML string) (bool, string, *sharedHTML.ContentDiff) {
+	pageID := currCheck.PageID.String()
 
-	// Stage 1: Try pixel comparison if previous screenshot hash is available
-	if prevCheck.ScreenshotHash != "" {
-		// Fast path: if hashes are identical, no change
-		if prevCheck.ScreenshotHash == currCheck.ScreenshotHash {
-			logger.Info("Screenshot hash identical — no change", zap.String("page_id", currCheck.PageID.String()))
-			return false, ""
+	// ── Stage 1: Content block hash comparison ───────────────────────────
+	if prevCheck.ContentBlockHash != "" {
+		if prevCheck.ContentBlockHash == currCheck.ContentBlockHash {
+			logger.Info("Content block hash identical — checking visual changes",
+				zap.String("page_id", pageID))
+
+			// Content is structurally identical — check for visual-only changes.
+			// ── Stage 3: Pixel comparison (secondary) ────────────────────
+			if prevCheck.ScreenshotHash != "" && prevCheck.ScreenshotHash != currCheck.ScreenshotHash {
+				if prevCheck.ScreenshotURL != "" {
+					prevImgBytes := s.downloadScreenshot(prevCheck.ScreenshotURL)
+					if len(prevImgBytes) > 0 {
+						result, err := imagecompare.CompareScreenshots(prevImgBytes, currImgBytes, s.pixelDiffThreshold)
+						if err == nil && !result.Identical && result.DiffRatio >= s.pixelDiffThreshold {
+							// ── Stage 4: Vision AI (optional) ────────────
+							if s.visionAnalyzer != nil {
+								prevB64 := base64.StdEncoding.EncodeToString(prevImgBytes)
+								visionResult, vErr := s.visionAnalyzer.AnalyzeChange(ctx, prevB64, currBase64, pageURL)
+								if vErr != nil {
+									logger.Error("Vision AI failed, reporting visual change",
+										zap.Error(vErr), zap.String("page_id", pageID))
+									return true, "", nil
+								}
+								if !visionResult.HasMeaningfulChange {
+									logger.Info("Vision AI says no meaningful visual change",
+										zap.String("page_id", pageID))
+									return false, "", nil
+								}
+								return true, visionResult.ChangeSummary, nil
+							}
+							logger.Info("Visual-only change detected via pixel diff",
+								zap.String("page_id", pageID),
+								zap.Float64("diff_ratio", result.DiffRatio))
+							return true, "", nil
+						}
+					}
+				}
+			}
+			return false, "", nil
 		}
 
-		// Hashes differ — try pixel-level comparison
+		// ── Stage 2: Content block diff ──────────────────────────────────
+		// Content block hashes differ — compute structural diff.
+		logger.Info("Content block hash differs, computing structural diff",
+			zap.String("page_id", pageID))
+
+		prevHTML := s.fetchHTMLFromURL(prevCheck.HTMLSnapshotURL)
+		var contentDiff *sharedHTML.ContentDiff
+		if prevHTML != "" {
+			prevBlocks := sharedHTML.ExtractContentBlocks(prevHTML)
+			currBlocks := sharedHTML.ExtractContentBlocks(currHTML)
+			contentDiff = sharedHTML.DiffContentBlocks(prevBlocks, currBlocks)
+		}
+
+		if contentDiff != nil && contentDiff.HasChanges {
+			logger.Info("Content change detected via structural diff",
+				zap.String("page_id", pageID),
+				zap.Int("total_changes", contentDiff.TotalChanges))
+			return true, "", contentDiff
+		}
+
+		// Diff computation failed or showed no changes despite hash difference.
+		// Fall through to pixel comparison.
+		logger.Info("Content block hash differed but diff empty, falling through to pixel",
+			zap.String("page_id", pageID))
+	}
+
+	// ── Stage 3: Pixel comparison ────────────────────────────────────────
+	if prevCheck.ScreenshotHash != "" {
+		if prevCheck.ScreenshotHash == currCheck.ScreenshotHash {
+			logger.Info("Screenshot hash identical — no change", zap.String("page_id", pageID))
+			return false, "", nil
+		}
+
 		if prevCheck.ScreenshotURL != "" {
 			prevImgBytes := s.downloadScreenshot(prevCheck.ScreenshotURL)
 			if len(prevImgBytes) > 0 {
 				result, err := imagecompare.CompareScreenshots(prevImgBytes, currImgBytes, s.pixelDiffThreshold)
 				if err == nil {
-					pixelComparisonSucceeded = true
-					if result.Identical {
-						return false, ""
-					}
-					if result.DiffRatio < s.pixelDiffThreshold {
+					if result.Identical || result.DiffRatio < s.pixelDiffThreshold {
 						logger.Info("Pixel diff below threshold — no meaningful change",
-							zap.String("page_id", currCheck.PageID.String()),
-							zap.Float64("diff_ratio", result.DiffRatio),
-							zap.Float64("threshold", s.pixelDiffThreshold))
-						return false, ""
+							zap.String("page_id", pageID),
+							zap.Float64("diff_ratio", result.DiffRatio))
+						return false, "", nil
 					}
 
-					// Stage 2: Vision AI analysis (only if configured)
+					// ── Stage 4: Vision AI analysis (optional) ───────────
 					if s.visionAnalyzer != nil {
-						logger.Info("Pixel diff above threshold, running Vision AI",
-							zap.String("page_id", currCheck.PageID.String()),
-							zap.Float64("diff_ratio", result.DiffRatio))
-
 						prevB64 := base64.StdEncoding.EncodeToString(prevImgBytes)
-						visionResult, err := s.visionAnalyzer.AnalyzeChange(ctx, prevB64, currBase64, pageURL)
-						if err != nil {
-							logger.Error("Vision AI analysis failed, reporting change based on pixel diff",
-								zap.Error(err), zap.String("page_id", currCheck.PageID.String()))
-							return true, ""
+						visionResult, vErr := s.visionAnalyzer.AnalyzeChange(ctx, prevB64, currBase64, pageURL)
+						if vErr != nil {
+							logger.Error("Vision AI failed, reporting change based on pixel diff",
+								zap.Error(vErr), zap.String("page_id", pageID))
+							return true, "", nil
 						}
 						if !visionResult.HasMeaningfulChange {
-							logger.Info("Vision AI says no meaningful change",
-								zap.String("page_id", currCheck.PageID.String()))
-							return false, ""
+							return false, "", nil
 						}
-						return true, visionResult.ChangeSummary
+						return true, visionResult.ChangeSummary, nil
 					}
 
-					// No vision analyzer — pixel diff above threshold is sufficient
-					logger.Info("Pixel diff above threshold (no Vision AI configured), reporting change",
-						zap.String("page_id", currCheck.PageID.String()),
+					logger.Info("Pixel diff above threshold, reporting change",
+						zap.String("page_id", pageID),
 						zap.Float64("diff_ratio", result.DiffRatio))
-					return true, ""
+					return true, "", nil
 				}
+				logger.Error("Pixel comparison failed", zap.Error(err), zap.String("page_id", pageID))
 			}
 		}
 	}
 
-	// Fallback: text hash comparison (only when pixel comparison was not performed successfully)
-	if !pixelComparisonSucceeded && prevCheck.ContentHash != "" && prevCheck.ContentHash != currCheck.ContentHash {
-		return true, ""
+	// ── Stage 5: Normalized text hash fallback ───────────────────────────
+	// Used when previous check has no content block hash (legacy checks).
+	if prevCheck.ContentHash != "" && prevCheck.ContentHash != currCheck.ContentHash {
+		logger.Info("Change detected via normalized text hash",
+			zap.String("page_id", pageID))
+		return true, "", nil
 	}
 
-	return false, ""
+	return false, "", nil
 }
 
-// downloadScreenshot fetches a screenshot from object storage URL.
+// downloadScreenshot fetches a screenshot using the object storage client.
 func (s *SnapshotWorker) downloadScreenshot(url string) []byte {
 	if url == "" {
+		return nil
+	}
+
+	if s.objectStorage == nil {
+		logger.Error("Object storage not configured, cannot download screenshot", zap.String("url", url))
 		return nil
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	data, err := s.objectStorage.Download(ctx, url)
 	if err != nil {
-		logger.Error("Failed to create request for screenshot download", zap.String("url", url), zap.Error(err))
-		return nil
-	}
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		logger.Error("Failed to download screenshot", zap.String("url", url), zap.Error(err))
-		return nil
-	}
-	defer resp.Body.Close()
-
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		logger.Error("Failed to read screenshot body", zap.String("url", url), zap.Error(err))
+		logger.Error("Failed to download screenshot via object storage client", zap.String("url", url), zap.Error(err))
 		return nil
 	}
 
@@ -572,7 +644,7 @@ func (s *SnapshotWorker) dispatchWebhooks(schemaName string, check *entities.Che
 }
 
 // generateInsightsAsync calls the insight handler in the background after a change is detected.
-func (s *SnapshotWorker) generateInsightsAsync(check *entities.Check, pageURL, prevText, newText, schemaName string, enabledTypes []string) {
+func (s *SnapshotWorker) generateInsightsAsync(check *entities.Check, pageURL, prevText, newText, schemaName string, enabledTypes []string, diffText string) {
 	genCtx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 
@@ -582,6 +654,7 @@ func (s *SnapshotWorker) generateInsightsAsync(check *entities.Check, pageURL, p
 		PageURL:             pageURL,
 		PrevText:            prevText,
 		NewText:             newText,
+		DiffText:            diffText,
 		SchemaName:          schemaName,
 		EnabledInsightTypes: enabledTypes,
 	})
@@ -669,6 +742,29 @@ func (s *SnapshotWorker) fetchTextFromURL(rawURL string) string {
 	return ""
 }
 
+// fetchHTMLFromURL downloads raw HTML from the given URL. Uses the object storage
+// client. Returns empty string on failure.
+func (s *SnapshotWorker) fetchHTMLFromURL(rawURL string) string {
+	if rawURL == "" {
+		return ""
+	}
+
+	if s.objectStorage == nil {
+		return ""
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	data, err := s.objectStorage.Download(ctx, rawURL)
+	if err != nil {
+		logger.Error("Failed to download HTML snapshot", zap.String("url", rawURL), zap.Error(err))
+		return ""
+	}
+
+	return string(data)
+}
+
 // processSectionsFromExtractor creates one check per monitored section using the
 // section screenshots returned by the extractor (single page load). Returns true
 // if any section detected a change. Alerts are aggregated into a single notification
@@ -727,8 +823,11 @@ func (s *SnapshotWorker) processSectionsFromExtractor(
 			htmlURL, _ = s.objectStorage.Upload(ctx, htmlName, strings.NewReader(sec.HTML), int64(len(sec.HTML)), "text/html")
 		}
 
-		contentHash := sha256.Sum256([]byte(sec.Text))
+		contentHash := sha256.Sum256([]byte(sharedHTML.ExtractText(sec.HTML)))
 		contentHashStr := hex.EncodeToString(contentHash[:])
+
+		sectionContentBlocks := sharedHTML.ExtractContentBlocks(sec.HTML)
+		sectionContentBlockHash := sharedHTML.HashContentBlocks(sectionContentBlocks)
 
 		sectionCheck := entities.NewCheck(pageID, "success", false)
 		sectionCheck.SectionID = &section.ID
@@ -736,15 +835,21 @@ func (s *SnapshotWorker) processSectionsFromExtractor(
 		sectionCheck.ScreenshotURL = imgURL
 		sectionCheck.HTMLSnapshotURL = htmlURL
 		sectionCheck.ContentHash = contentHashStr
+		sectionCheck.ContentBlockHash = sectionContentBlockHash
 		sectionCheck.ScreenshotHash = imagecompare.HashScreenshot(imgBytes)
 
 		prevSectionCheck, _ := checkRepo.GetPreviousSuccessfulBySection(ctx, pageID, &section.ID, uuid.Nil)
 		if prevSectionCheck != nil {
-			changeDetected, changeSummary := s.detectChange(ctx, prevSectionCheck, sectionCheck, imgBytes, sec.ScreenshotBase64, targetURL)
+			changeDetected, changeSummary, contentDiff := s.detectChange(ctx, prevSectionCheck, sectionCheck, imgBytes, sec.ScreenshotBase64, targetURL, sec.HTML)
 			if changeDetected {
 				sectionCheck.ChangeDetected = true
 				sectionCheck.ChangeType = "content"
 				sectionCheck.VisionChangeSummary = changeSummary
+				if contentDiff != nil && contentDiff.HasChanges {
+					if diffJSON, err := json.Marshal(contentDiff); err == nil {
+						sectionCheck.ContentDiffJSON = string(diffJSON)
+					}
+				}
 				anyChanged = true
 				if changeSummary != "" {
 					changeSummaries = append(changeSummaries, changeSummary)
