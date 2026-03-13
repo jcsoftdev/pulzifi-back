@@ -1,20 +1,22 @@
+import { AuthApi } from '@workspace/services'
+import { extractTenantFromHostname } from '@workspace/shared-http'
 import type { Metadata } from 'next'
+import { isRedirectError } from 'next/dist/client/components/redirect-error'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
-import { extractTenantFromHostname } from '@workspace/shared-http'
 
 import {
-  Navbar,
-  HeroSection,
-  StatsSection,
-  HowItWorksSection,
-  FeaturesSection,
-  InsightsSection,
-  IndustriesSection,
-  PricingSection,
-  TestimonialsSection,
   FaqSection,
+  FeaturesSection,
   FooterSection,
+  HeroSection,
+  HowItWorksSection,
+  IndustriesSection,
+  InsightsSection,
+  Navbar,
+  PricingSection,
+  StatsSection,
+  TestimonialsSection,
 } from '@/features/landing'
 
 export const metadata: Metadata = {
@@ -33,7 +35,11 @@ export const metadata: Metadata = {
     'web scraping',
     'business intelligence',
   ],
-  authors: [{ name: 'Pulzifi' }],
+  authors: [
+    {
+      name: 'Pulzifi',
+    },
+  ],
   creator: 'Pulzifi',
   openGraph: {
     title: 'Pulzifi — AI-Powered Competitive Intelligence & Website Monitoring',
@@ -55,7 +61,9 @@ export const metadata: Metadata = {
     description:
       'Monitor any website for changes and get AI-powered strategic insights. Know what competitors do before it impacts your business.',
     card: 'summary_large_image',
-    images: ['/images/landing/hero-dashboard.png'],
+    images: [
+      '/images/landing/hero-dashboard.png',
+    ],
   },
   alternates: {
     canonical: '/',
@@ -79,7 +87,13 @@ export default async function HomePage() {
   const tenant = extractTenantFromHostname(hostname)
 
   if (tenant) {
-    redirect('/workspaces')
+    try {
+      await AuthApi.getCurrentUser()
+      redirect('/workspaces')
+    } catch (error: unknown) {
+      if (isRedirectError(error)) throw error
+      // Not authenticated — fall through to show landing page
+    }
   }
 
   return (

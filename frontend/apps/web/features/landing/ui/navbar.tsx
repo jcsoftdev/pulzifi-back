@@ -1,14 +1,37 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { createPortal } from 'react-dom'
-import Link from 'next/link'
-import { Menu, X } from 'lucide-react'
 import { cn } from '@workspace/ui/lib/utils'
+import { Menu, X } from 'lucide-react'
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { NAV_LINKS } from '../lib/data'
 import { LandingButton } from './components/landing-button'
 
-function MobileMenu({ open, onClose }: { open: boolean; onClose: () => void }) {
+const NAV_LINK_PATHS: Record<string, string> = {
+  Pricing: '/pricing',
+}
+
+function resolveHref(href: string, isHome: boolean) {
+  if (!isHome && href.startsWith('#')) return `/${href}`
+  return href
+}
+
+function isLinkActive(label: string, pathname: string) {
+  if (NAV_LINK_PATHS[label]) return pathname === NAV_LINK_PATHS[label]
+  return false
+}
+
+function MobileMenu({
+  open,
+  onClose,
+  isHome,
+}: {
+  open: boolean
+  onClose: () => void
+  isHome: boolean
+}) {
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
@@ -60,7 +83,7 @@ function MobileMenu({ open, onClose }: { open: boolean; onClose: () => void }) {
           {NAV_LINKS.map((link) => (
             <Link
               key={link.label}
-              href={link.href}
+              href={NAV_LINK_PATHS[link.label] || resolveHref(link.href, isHome)}
               className="rounded-xl px-4 py-3 text-base font-medium text-[#121217] transition-colors hover:bg-gray-50"
               onClick={onClose}
             >
@@ -86,6 +109,8 @@ function MobileMenu({ open, onClose }: { open: boolean; onClose: () => void }) {
 
 export function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false)
+  const pathname = usePathname()
+  const isHome = pathname === '/'
 
   return (
     <>
@@ -100,15 +125,22 @@ export function Navbar() {
 
           {/* Desktop Nav */}
           <div className="hidden items-center gap-1 md:flex">
-            {NAV_LINKS.map((link) => (
-              <Link
-                key={link.label}
-                href={link.href}
-                className="rounded-lg px-3 py-2 text-sm font-medium leading-5 tracking-tight text-[#121217] transition-colors hover:bg-gray-100"
-              >
-                {link.label}
-              </Link>
-            ))}
+            {NAV_LINKS.map((link) => {
+              const href = NAV_LINK_PATHS[link.label] || resolveHref(link.href, isHome)
+              const active = isLinkActive(link.label, pathname)
+              return (
+                <Link
+                  key={link.label}
+                  href={href}
+                  className={cn(
+                    'rounded-lg px-3 py-2 text-sm font-medium leading-5 tracking-tight text-[#121217] transition-colors hover:bg-gray-100',
+                    active && 'border-b-[3px] border-[#121217] rounded-b-none'
+                  )}
+                >
+                  {link.label}
+                </Link>
+              )
+            })}
           </div>
 
           <div className="hidden items-center gap-2.5 md:flex">
@@ -132,7 +164,7 @@ export function Navbar() {
         </div>
       </nav>
 
-      <MobileMenu open={mobileOpen} onClose={() => setMobileOpen(false)} />
+      <MobileMenu open={mobileOpen} onClose={() => setMobileOpen(false)} isHome={isHome} />
     </>
   )
 }

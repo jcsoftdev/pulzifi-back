@@ -1,16 +1,43 @@
 export const NAV_LINKS = [
-  { label: 'Home', href: '#' },
-  { label: 'Product', href: '#how-it-works' },
-  { label: 'How to use', href: '#industries' },
-  { label: 'Pricing', href: '#pricing' },
-  { label: 'Contact', href: '#footer' },
+  {
+    label: 'Home',
+    href: '#',
+  },
+  {
+    label: 'Product',
+    href: '#how-it-works',
+  },
+  {
+    label: 'How to use',
+    href: '#industries',
+  },
+  {
+    label: 'Pricing',
+    href: '#pricing',
+  },
+  {
+    label: 'Contact',
+    href: '/contact',
+  },
 ] as const
 
 export const STATS = [
-  { value: '25,000+', label: 'Strategy Decisions Created' },
-  { value: '150,493', label: 'Monitored Pages' },
-  { value: '5.0', label: 'Customer Review' },
-  { value: '205+', label: 'Industries' },
+  {
+    value: '25,000+',
+    label: 'Strategy Decisions Created',
+  },
+  {
+    value: '150,493',
+    label: 'Monitored Pages',
+  },
+  {
+    value: '5.0',
+    label: 'Customer Review',
+  },
+  {
+    value: '205+',
+    label: 'Industries',
+  },
 ] as const
 
 export const HOW_IT_WORKS_STEPS = [
@@ -60,10 +87,26 @@ export const FEATURE_CARDS = [
 ] as const
 
 export const INSIGHT_CARDS = [
-  { label: 'Analyze alerts with...', color: 'bg-white', tagColor: '' },
-  { label: 'Marketing Lens', color: 'bg-white', tagColor: 'bg-[#ebf0ff]' },
-  { label: 'Brand and Pricing Strategy', color: 'bg-white', tagColor: 'bg-[#ebfff5]' },
-  { label: 'Business Opportunities', color: 'bg-white', tagColor: 'bg-[#fff9f5]' },
+  {
+    label: 'Analyze alerts with...',
+    color: 'bg-white',
+    tagColor: '',
+  },
+  {
+    label: 'Marketing Lens',
+    color: 'bg-white',
+    tagColor: 'bg-[#ebf0ff]',
+  },
+  {
+    label: 'Brand and Pricing Strategy',
+    color: 'bg-white',
+    tagColor: 'bg-[#ebfff5]',
+  },
+  {
+    label: 'Business Opportunities',
+    color: 'bg-white',
+    tagColor: 'bg-[#fff9f5]',
+  },
 ] as const
 
 export const PRICING_PLANS = [
@@ -104,6 +147,7 @@ export const PRICING_PLANS = [
     price: 'Custom',
     description: 'Comprehensive and Scalable Solutions for Growing Large Organizations',
     cta: 'Schedule a Call',
+    ctaHref: '/contact',
     features: [
       'Unlimited Workspaces',
       'Unlimited user accounts',
@@ -152,8 +196,7 @@ export const TESTIMONIALS = [
 export const FAQ_ITEMS = [
   {
     question: 'What is Pulzifi and how does it work?',
-    answer:
-      `Pulzifi is an AI-powered website monitoring and market intelligence platform that tracks changes across websites, competitor pages, news sources, and industry portals in real time.
+    answer: `Pulzifi is an AI-powered website monitoring and market intelligence platform that tracks changes across websites, competitor pages, news sources, and industry portals in real time.
 
 You simply add the pages you want to monitor, choose what to track such as price updates, content changes, new listings, or policy updates, and Pulzifi sends instant alerts with AI insights explaining what changed and why it matters.
 
@@ -161,8 +204,7 @@ Pulzifi helps real estate professionals, marketing agencies, and business teams 
   },
   {
     question: 'What types of changes can Pulzifi detect?',
-    answer:
-      `Pulzifi can detect a wide range of website and market changes, including:
+    answer: `Pulzifi can detect a wide range of website and market changes, including:
 Content updates on competitor websites
 Real estate price changes or new property listings
 Marketing campaign or messaging updates
@@ -175,8 +217,7 @@ With Pulzifi’s AI analysis, you also get business insights like new target aud
   },
   {
     question: 'How is Pulzifi different from other website monitoring tools?',
-    answer:
-      `Most website monitoring tools only show that something changed. Pulzifi goes further with AI-driven market intelligence.
+    answer: `Most website monitoring tools only show that something changed. Pulzifi goes further with AI-driven market intelligence.
 
 Pulzifi explains what changed, why it matters, and what action you can take. It is built for business use cases like real estate trend tracking, marketing agency client monitoring, and competitive intelligence.
 
@@ -190,8 +231,7 @@ Instead of raw alerts, Pulzifi gives strategic insights.`,
   },
   {
     question: 'How secure is my data with Pulzifi?',
-    answer:
-      `Pulzifi is built with enterprise-level security and privacy best practices.
+    answer: `Pulzifi is built with enterprise-level security and privacy best practices.
 
 Your monitored pages, alerts, and insights are encrypted in transit and at rest. Access is protected with secure authentication, and we never sell or share your data with third parties.
 
@@ -201,17 +241,41 @@ For institutions like real estate education programs or agencies managing client
 
 export const FOOTER_LINKS = {
   Features: [
-    { label: 'Product', href: '#how-it-works' },
-    { label: 'Use Cases', href: '#industries' },
-    { label: 'Pricing', href: '#pricing' },
+    {
+      label: 'Product',
+      href: '#how-it-works',
+    },
+    {
+      label: 'Use Cases',
+      href: '#industries',
+    },
+    {
+      label: 'Pricing',
+      href: '#pricing',
+    },
   ],
   Support: [
-    { label: 'Help', href: '#' },
-    { label: 'FAQ', href: '#faq' },
-    { label: 'Contact', href: '#' },
+    {
+      label: 'Help',
+      href: '#',
+    },
+    {
+      label: 'FAQ',
+      href: '#faq',
+    },
+    {
+      label: 'Contact',
+      href: '/contact',
+    },
   ],
   Legal: [
-    { label: 'Privacy Policy', href: '#' },
-    { label: 'Terms of Services', href: '#' },
+    {
+      label: 'Privacy Policy',
+      href: '#',
+    },
+    {
+      label: 'Terms of Services',
+      href: '#',
+    },
   ],
 } as const
