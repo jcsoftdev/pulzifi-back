@@ -6,7 +6,8 @@ import (
 )
 
 // checkCacheTTL is how long a published payload is kept for late subscribers.
-const checkCacheTTL = 2 * time.Minute
+// Set to 5 minutes to survive SSE reconnections (auth refresh + new EventSource).
+const checkCacheTTL = 5 * time.Minute
 
 // CheckBroker is a lightweight pub/sub broker that routes check-status
 // notifications to SSE subscribers, keyed by page ID.

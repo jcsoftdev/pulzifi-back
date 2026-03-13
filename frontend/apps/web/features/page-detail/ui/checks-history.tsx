@@ -6,12 +6,13 @@ import {
   mapBackendCheck,
   PageApi,
 } from '@workspace/services/page-api'
+import { refreshAndRetry } from '@workspace/shared-http'
 import { formatDateTime, formatRelativeTime } from '@workspace/ui'
 import { Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 
-const REFRESH_DELAY = 2_000
+const MAX_SSE_RETRIES = 5
 
 function isCheckInProgress(check: Check) {
   return check.status === 'pending' || check.status === 'running'
@@ -35,11 +36,10 @@ export function ChecksHistory({
   const sectionId = useId()
   const [checks, setChecks] = useState(initialChecks)
   const [hasFreshData, setHasFreshData] = useState(false)
-  const timeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined)
   const eventSourceRef = useRef<EventSource | null>(null)
+  const sseRetryCount = useRef(0)
 
   // Sync server-rendered data when it changes (e.g. after router.refresh() or navigation).
-  // Compare count + first ID since array references change on every RSC render.
   const initialSyncKey = `${initialChecks.length}:${initialChecks[0]?.id}`
   const [prevSyncKey, setPrevSyncKey] = useState(initialSyncKey)
   if (initialSyncKey !== prevSyncKey) {
@@ -59,8 +59,10 @@ export function ChecksHistory({
     }
   }, [pageId])
 
-  // Connect EventSource for real-time check updates.
-  useEffect(() => {
+  // Connect (or reconnect) the EventSource for real-time check updates.
+  const connectSSE = useCallback(() => {
+    eventSourceRef.current?.close()
+
     const es = new EventSource(
       `/api/v1/monitoring/checks/page/${pageId}/stream`,
     )
@@ -85,11 +87,40 @@ export function ChecksHistory({
       }
     })
 
+    es.onopen = () => {
+      sseRetryCount.current = 0
+    }
+
+    es.onerror = async () => {
+      if (es.readyState === EventSource.CLOSED) {
+        // Connection permanently closed (likely 401 from expired JWT).
+        es.close()
+        eventSourceRef.current = null
+
+        if (sseRetryCount.current < MAX_SSE_RETRIES) {
+          sseRetryCount.current++
+          // Reuse shared refresh utility (deduplicates with Axios interceptor,
+          // redirects to login on failure).
+          const refreshed = await refreshAndRetry()
+          if (refreshed) {
+            connectSSE()
+          }
+        }
+      }
+      // CONNECTING state = browser auto-retry, do nothing.
+    }
+
+    return es
+  }, [pageId])
+
+  // SSE lifecycle
+  useEffect(() => {
+    connectSSE()
     return () => {
-      es.close()
+      eventSourceRef.current?.close()
       eventSourceRef.current = null
     }
-  }, [pageId])
+  }, [connectSSE])
 
   // Fetch fresh data on mount and when page becomes visible again.
   useEffect(() => {
@@ -99,23 +130,22 @@ export function ChecksHistory({
     const onVisible = () => {
       if (document.visibilityState === 'visible') {
         fetchChecks()
+        // Reconnect SSE in case it died while tab was hidden.
+        if (!eventSourceRef.current || eventSourceRef.current.readyState === EventSource.CLOSED) {
+          sseRetryCount.current = 0
+          connectSSE()
+        }
       }
     }
     document.addEventListener('visibilitychange', onVisible)
     return () => document.removeEventListener('visibilitychange', onVisible)
-  }, [fetchChecks])
+  }, [fetchChecks, connectSSE])
 
-  // Listen for frequency change events to trigger a delayed refetch
+  // Listen for "checks:refresh" (fired by Run Now) — single fetch as safety net.
   useEffect(() => {
-    const handler = () => {
-      clearTimeout(timeoutRef.current)
-      timeoutRef.current = setTimeout(fetchChecks, REFRESH_DELAY)
-    }
+    const handler = () => fetchChecks()
     window.addEventListener('checks:refresh', handler)
-    return () => {
-      window.removeEventListener('checks:refresh', handler)
-      clearTimeout(timeoutRef.current)
-    }
+    return () => window.removeEventListener('checks:refresh', handler)
   }, [fetchChecks])
 
   const isCheckFailed = (check: Check) =>
