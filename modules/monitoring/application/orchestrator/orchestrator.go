@@ -59,6 +59,7 @@ type Orchestrator struct {
 }
 
 var ErrQuotaExceeded = errors.New("quota exceeded")
+var ErrPageNotFound = errors.New("page not found")
 
 func NewOrchestrator(repoFactory RepositoryFactory, dispatcher JobDispatcher) *Orchestrator {
 	return &Orchestrator{

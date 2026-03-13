@@ -651,6 +651,11 @@ export const PageApi = {
     return transformMonitoringConfig(response)
   },
 
+  async triggerCheck(pageId: string): Promise<void> {
+    const http = await getHttpClient()
+    await http.post(`/api/v1/monitoring/checks/page/${pageId}/run`, {})
+  },
+
   async listChecks(pageId: string, sectionId?: string): Promise<Check[]> {
     const http = await getHttpClient()
     const query = sectionId ? `?section_id=${sectionId}` : ''

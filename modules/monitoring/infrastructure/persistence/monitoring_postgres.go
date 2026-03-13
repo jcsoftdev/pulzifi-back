@@ -230,3 +230,13 @@ func (r *MonitoringConfigPostgresRepository) MarkPageDueNow(ctx context.Context,
 	_, err := r.db.ExecContext(ctx, q, pageID)
 	return err
 }
+
+func (r *MonitoringConfigPostgresRepository) GetLastCheckedAt(ctx context.Context, pageID uuid.UUID) (*time.Time, error) {
+	q := fmt.Sprintf(`SELECT last_checked_at FROM %s.pages WHERE id = $1 AND deleted_at IS NULL`, r.tenant)
+	var lastCheckedAt *time.Time
+	err := r.db.QueryRowContext(ctx, q, pageID).Scan(&lastCheckedAt)
+	if err != nil {
+		return nil, err
+	}
+	return lastCheckedAt, nil
+}

@@ -2,13 +2,15 @@
 
 import type { Page } from '@workspace/services/page-api'
 import { Button } from '@workspace/ui/components/atoms/button'
-import { Pencil, Trash2 } from 'lucide-react'
+import { Pencil, Play, Trash2 } from 'lucide-react'
 
 interface PageInfoCardProps {
   page: Page
   onEdit: () => void
   onDelete: () => void
   onViewChanges: () => void
+  onRunNow?: () => void
+  isRunning?: boolean
 }
 
 export function PageInfoCard({
@@ -16,6 +18,8 @@ export function PageInfoCard({
   onEdit,
   onDelete,
   onViewChanges,
+  onRunNow,
+  isRunning,
 }: Readonly<PageInfoCardProps>) {
   return (
     <div className="flex flex-col gap-6 bg-card p-6 rounded-xl shadow-sm border border-border">
@@ -48,6 +52,17 @@ export function PageInfoCard({
         </div>
 
         <div className="flex items-center gap-3">
+          {onRunNow && (
+            <Button
+              variant="outline"
+              className="h-9 px-4 gap-2 bg-transparent border-border text-foreground hover:bg-muted hover:text-foreground"
+              onClick={onRunNow}
+              disabled={isRunning}
+            >
+              <Play className="h-4 w-4" />
+              {isRunning ? 'Running...' : 'Run Now'}
+            </Button>
+          )}
           <Button
             variant="outline"
             className="h-9 px-4 gap-2 bg-transparent border-border text-foreground hover:bg-muted hover:text-foreground"
