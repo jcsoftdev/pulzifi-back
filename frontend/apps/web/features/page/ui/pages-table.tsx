@@ -28,6 +28,7 @@ export interface PagesTableProps {
   onCheckFrequencyChange?: (pageId: string, frequency: string) => void
   onEdit?: (page: Page) => void
   onDelete?: (page: Page) => void
+  onRunNow?: (page: Page) => void
   onBulkDelete?: (pageIds: string[]) => void
   onBulkFrequencyChange?: (pageIds: string[], frequency: string) => void
 }
@@ -39,6 +40,7 @@ export function PagesTable({
   onCheckFrequencyChange,
   onEdit,
   onDelete,
+  onRunNow,
   onBulkDelete,
   onBulkFrequencyChange,
 }: Readonly<PagesTableProps>) {
@@ -366,6 +368,9 @@ export function PagesTable({
                           </button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => onRunNow?.(page)}>
+                            Run Now
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => onEdit?.(page)}>
                             Edit Page
                           </DropdownMenuItem>

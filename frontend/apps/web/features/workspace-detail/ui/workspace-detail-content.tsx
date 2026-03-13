@@ -172,6 +172,19 @@ export function WorkspaceDetailContent({
     }
   }
 
+  const handleRunNow = async (page: Page) => {
+    try {
+      await PageApi.triggerCheck(page.id)
+      notification.success({ title: 'Check triggered', description: `Running check for "${page.name}".` })
+    } catch (err) {
+      console.error('Failed to trigger check:', err)
+      notification.error({
+        title: 'Failed to run check',
+        description: err instanceof Error ? err.message : 'Please try again.',
+      })
+    }
+  }
+
   const handleViewChanges = (pageId: string) => {
     router.push(`/workspaces/${workspace.id}/pages/${pageId}/changes`)
   }
@@ -352,6 +365,7 @@ export function WorkspaceDetailContent({
           onCheckFrequencyChange={handleCheckFrequencyChange}
           onEdit={handleEditPageClick}
           onDelete={handleDeletePageClick}
+          onRunNow={handleRunNow}
           onBulkDelete={handleBulkDelete}
           onBulkFrequencyChange={handleBulkFrequencyChange}
         />

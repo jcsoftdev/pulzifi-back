@@ -124,34 +124,17 @@ func (h *UpdateMonitoringConfigHandler) Handle(ctx context.Context, pageID uuid.
 			UpdatedAt:              time.Now(),
 		}
 
-		// Pre-claim the page before creating the config so the scheduler cannot
-		// see the page as "due" during the gap between config create and dispatch.
-		if config.CheckFrequency != "Off" {
-			if err := h.repo.UpdateLastCheckedAt(ctx, pageID); err != nil {
-				logger.Error("UpdateMonitoringConfigHandler: Failed to pre-claim page", zap.String("page_id", pageID.String()), zap.Error(err))
-			}
-		}
-
-		// Create in database
+		// Create in database — the scheduler will pick up the page on its
+		// next tick (last_checked_at is NULL, so it is immediately "due").
 		if err := h.repo.Create(ctx, config); err != nil {
 			return nil, err
 		}
 
 		if config.CheckFrequency != "Off" {
-			shouldDispatch = true
+			// Wake the scheduler so it re-evaluates next run time and picks
+			// up this newly created config promptly.
 			if h.scheduler != nil {
-				if err := h.scheduler.TriggerPageCheck(ctx, h.tenant, pageID); err != nil {
-					if errors.Is(err, orchestrator.ErrQuotaExceeded) {
-						quotaExceeded = true
-						logger.Warn("UpdateMonitoringConfigHandler: Quota exceeded", zap.String("page_id", pageID.String()))
-					} else {
-						logger.Error("UpdateMonitoringConfigHandler: Failed to trigger immediate check", zap.String("page_id", pageID.String()), zap.Error(err))
-					}
-				}
-			} else {
-				if err := h.repo.MarkPageDueNow(ctx, pageID); err != nil {
-					logger.Error("UpdateMonitoringConfigHandler: Failed to mark page due now", zap.String("page_id", pageID.String()), zap.Error(err))
-				}
+				h.scheduler.WakeUp()
 			}
 		}
 	} else {
@@ -162,7 +145,10 @@ func (h *UpdateMonitoringConfigHandler) Handle(ctx context.Context, pageID uuid.
 			logger.Info("UpdateMonitoringConfigHandler: Updating CheckFrequency", zap.String("new_frequency", normalizedFrequency))
 			config.CheckFrequency = normalizedFrequency
 			if config.CheckFrequency != "Off" {
-				shouldDispatch = true
+				// Only dispatch immediately if the page is overdue under the new frequency.
+				// If the user increased the interval (e.g. 5m -> 1h) and the last check
+				// was recent, skip the immediate check and let the scheduler handle it.
+				shouldDispatch = h.isPageDueForCheck(ctx, pageID, normalizedFrequency)
 			}
 		} else {
 			logger.Info("UpdateMonitoringConfigHandler: CheckFrequency not provided in request")
@@ -245,15 +231,6 @@ func (h *UpdateMonitoringConfigHandler) Handle(ctx context.Context, pageID uuid.
 		}
 	}
 
-	// Dispatch snapshot request if needed
-	// REFACTOR: The API should NOT dispatch execution directly. The Scheduler is responsible for this.
-	// We just log that the config was updated.
-	if shouldDispatch {
-		logger.Info("UpdateMonitoringConfigHandler: Config updated, Scheduler will pick up next run", zap.String("page_id", pageID.String()))
-		// We can optionally trigger a scheduler "poke" if we want immediate feedback, but the requirement says "API does not dispatch executions".
-		// So we do nothing here regarding dispatch.
-	}
-
 	// Build selector offsets DTO
 	var selectorOffsetsDTO *SelectorOffsetsDTO
 	if config.SelectorOffsets != nil {
@@ -283,6 +260,33 @@ func (h *UpdateMonitoringConfigHandler) Handle(ctx context.Context, pageID uuid.
 		UpdatedAt:              config.UpdatedAt,
 		QuotaExceeded:          quotaExceeded,
 	}, nil
+}
+
+// isPageDueForCheck returns true only if the page has been checked before AND
+// is overdue under the given frequency. Never-checked pages are left for the
+// scheduler to pick up at the natural interval.
+func (h *UpdateMonitoringConfigHandler) isPageDueForCheck(ctx context.Context, pageID uuid.UUID, frequency string) bool {
+	interval, ok := entities.ResolveFrequency(frequency)
+	if !ok {
+		return false
+	}
+
+	lastCheckedAt, err := h.repo.GetLastCheckedAt(ctx, pageID)
+	if err != nil || lastCheckedAt == nil {
+		// Never checked — let the scheduler handle the first check
+		return false
+	}
+
+	elapsed := time.Since(*lastCheckedAt)
+	isDue := elapsed >= interval
+	if !isDue {
+		logger.Info("UpdateMonitoringConfigHandler: Page not overdue under new frequency, skipping immediate check",
+			zap.String("page_id", pageID.String()),
+			zap.String("frequency", frequency),
+			zap.Duration("elapsed", elapsed),
+			zap.Duration("interval", interval))
+	}
+	return isDue
 }
 
 // NormalizeCheckFrequency converts various frequency input formats to a canonical form.

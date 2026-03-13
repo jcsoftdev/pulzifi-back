@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/domain/entities"
@@ -17,4 +18,5 @@ type MonitoringConfigRepository interface {
 	GetPageURL(ctx context.Context, pageID uuid.UUID) (string, error)
 	UpdateLastCheckedAt(ctx context.Context, pageID uuid.UUID) error
 	MarkPageDueNow(ctx context.Context, pageID uuid.UUID) error
+	GetLastCheckedAt(ctx context.Context, pageID uuid.UUID) (*time.Time, error)
 }

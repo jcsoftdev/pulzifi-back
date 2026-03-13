@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -184,18 +185,21 @@ func (m *Module) RegisterHTTPRoutes(router chi.Router) {
 	router.Route("/monitoring", func(r chi.Router) {
 		r.Use(middleware.AuthMiddleware.Authenticate)
 
-		// SSE endpoint — auth only (no org/tenant needed, pageId is globally unique).
-		r.Get("/checks/page/{pageId}/stream", m.handleCheckSSE)
+		// /checks sub-router: all routes require org+tenant authorization.
+		r.Route("/checks", func(cr chi.Router) {
+			cr.Use(middleware.OrgMiddleware.RequireOrganizationMembership)
+			cr.Use(middleware.RequireTenant)
+			cr.Get("/page/{pageId}/stream", m.handleCheckSSE)
+			cr.Post("/", m.handleCreateCheck)
+			cr.Get("/", m.handleListChecks)
+			cr.Get("/{id}", m.handleGetCheck)
+			cr.Get("/page/{pageId}", m.handleListChecksByPage)
+			cr.Post("/page/{pageId}/run", m.handleRunNow)
+		})
 
 		r.Group(func(r chi.Router) {
 			r.Use(middleware.OrgMiddleware.RequireOrganizationMembership)
 			r.Use(middleware.RequireTenant)
-			r.Route("/checks", func(cr chi.Router) {
-				cr.Post("/", m.handleCreateCheck)
-				cr.Get("/", m.handleListChecks)
-				cr.Get("/{id}", m.handleGetCheck)
-				cr.Get("/page/{pageId}", m.handleListChecksByPage)
-			})
 			r.Route("/configs", func(cr chi.Router) {
 				cr.Post("/", m.handleCreateMonitoringConfig)
 				cr.Put("/bulk", m.handleBulkUpdateMonitoringConfig)
@@ -308,6 +312,52 @@ func (m *Module) handleListChecksByPage(w http.ResponseWriter, r *http.Request) 
 	repo := persistence.NewCheckPostgresRepository(m.db, tenant)
 	handler := listchecks.NewListChecksHandler(repo)
 	handler.HandleHTTP(w, r)
+}
+
+// handleRunNow triggers an immediate monitoring check for a page
+// @Summary Run Check Now
+// @Description Trigger an immediate monitoring check for a page
+// @Tags monitoring
+// @Security BearerAuth
+// @Param pageId path string true "Page ID"
+// @Success 202
+// @Failure 400 {object} map[string]string
+// @Failure 402 {object} map[string]string
+// @Router /monitoring/checks/page/{pageId}/run [post]
+func (m *Module) handleRunNow(w http.ResponseWriter, r *http.Request) {
+	if m.db == nil || m.scheduler == nil {
+		http.Error(w, "Service not initialized", http.StatusInternalServerError)
+		return
+	}
+
+	pageID, err := uuid.Parse(chi.URLParam(r, "pageId"))
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "invalid pageId"})
+		return
+	}
+
+	tenant := middleware.GetTenantFromContext(r.Context())
+
+	if err := m.scheduler.TriggerPageCheck(r.Context(), tenant, pageID); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		if errors.Is(err, orchestrator.ErrPageNotFound) {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{"error": "page not found"})
+			return
+		}
+		if errors.Is(err, orchestrator.ErrQuotaExceeded) {
+			w.WriteHeader(http.StatusPaymentRequired)
+			json.NewEncoder(w).Encode(map[string]string{"error": "monthly check quota exceeded"})
+			return
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "failed to trigger check"})
+		return
+	}
+
+	w.WriteHeader(http.StatusAccepted)
 }
 
 // handleGetCheck gets a monitoring check by ID
@@ -645,6 +695,17 @@ func (m *Module) handleCheckSSE(w http.ResponseWriter, r *http.Request) {
 	if _, err := uuid.Parse(pageIDStr); err != nil {
 		http.Error(w, "invalid pageId", http.StatusBadRequest)
 		return
+	}
+
+	// Verify the page exists in the current tenant's schema.
+	tenant := middleware.GetTenantFromContext(r.Context())
+	if tenant != "" {
+		q := fmt.Sprintf(`SELECT EXISTS(SELECT 1 FROM %s.pages WHERE id = $1 AND deleted_at IS NULL)`, tenant)
+		var exists bool
+		if err := m.db.QueryRowContext(r.Context(), q, pageIDStr).Scan(&exists); err != nil || !exists {
+			http.Error(w, "page not found", http.StatusNotFound)
+			return
+		}
 	}
 
 	w.Header().Set("Content-Type", "text/event-stream")

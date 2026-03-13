@@ -179,23 +179,20 @@ func (s *Scheduler) runCheck(ctx context.Context) {
 }
 
 // TriggerPageCheck schedules one immediate check for a specific page within a tenant schema.
-// This is used when a user updates monitoring frequency and expects an immediate run.
+// This is used for manual "Run Now" actions — no monitoring config is required.
 func (s *Scheduler) TriggerPageCheck(ctx context.Context, schema string, pageID uuid.UUID) error {
 	q := fmt.Sprintf(`
 		SELECT p.url
 		FROM %s.pages p
-		JOIN %s.monitoring_configs mc ON mc.page_id = p.id
 		WHERE p.id = $1
 		  AND p.deleted_at IS NULL
-		  AND mc.deleted_at IS NULL
-		  AND mc.check_frequency != 'Off'
 		LIMIT 1
-	`, schema, schema)
+	`, schema)
 
 	var url string
 	if err := s.db.QueryRowContext(ctx, q, pageID).Scan(&url); err != nil {
 		if err == sql.ErrNoRows {
-			return nil
+			return orchestrator.ErrPageNotFound
 		}
 		return err
 	}

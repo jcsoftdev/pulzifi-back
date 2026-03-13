@@ -2,6 +2,7 @@ package mocks
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/domain/entities"
@@ -17,7 +18,9 @@ type MockMonitoringConfigRepository struct {
 	GetPageURLResult     string
 	GetPageURLErr        error
 	UpdateLastCheckedErr error
-	MarkPageDueNowErr   error
+	MarkPageDueNowErr    error
+	GetLastCheckedAtResult *time.Time
+	GetLastCheckedAtErr    error
 
 	CreateFn func(ctx context.Context, config *entities.MonitoringConfig) error
 
@@ -62,4 +65,8 @@ func (m *MockMonitoringConfigRepository) BulkUpdateFrequency(_ context.Context, 
 func (m *MockMonitoringConfigRepository) MarkPageDueNow(_ context.Context, _ uuid.UUID) error {
 	m.MarkPageDueNowCalls++
 	return m.MarkPageDueNowErr
+}
+
+func (m *MockMonitoringConfigRepository) GetLastCheckedAt(_ context.Context, _ uuid.UUID) (*time.Time, error) {
+	return m.GetLastCheckedAtResult, m.GetLastCheckedAtErr
 }

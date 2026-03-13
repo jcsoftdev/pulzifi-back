@@ -23,6 +23,7 @@ export function PageInfoWithActions({
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [isActionLoading, setIsActionLoading] = useState(false)
+  const [isRunning, setIsRunning] = useState(false)
   const [editError, setEditError] = useState<Error | null>(null)
 
   const handleUpdatePage = async (id: string, data: EditPageDto) => {
@@ -106,6 +107,24 @@ export function PageInfoWithActions({
     }
   }
 
+  const handleRunNow = async () => {
+    setIsRunning(true)
+    try {
+      await PageApi.triggerCheck(page.id)
+      notification.success({ title: 'Check triggered', description: 'A new check is running now.' })
+      // Signal ChecksHistory to refresh (fallback in case SSE is delayed).
+      window.dispatchEvent(new Event('checks:refresh'))
+    } catch (err) {
+      console.error('Failed to trigger check:', err)
+      notification.error({
+        title: 'Failed to run check',
+        description: err instanceof Error ? err.message : 'Please try again.',
+      })
+    } finally {
+      setIsRunning(false)
+    }
+  }
+
   const handleViewChanges = () => {
     router.push(`/workspaces/${workspaceId}/pages/${page.id}/changes`)
   }
@@ -117,6 +136,8 @@ export function PageInfoWithActions({
         onEdit={() => setIsEditOpen(true)}
         onDelete={() => setIsDeleteOpen(true)}
         onViewChanges={handleViewChanges}
+        onRunNow={handleRunNow}
+        isRunning={isRunning}
       />
 
       <EditPageDialog
