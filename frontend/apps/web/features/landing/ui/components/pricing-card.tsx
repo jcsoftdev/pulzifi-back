@@ -7,6 +7,7 @@ interface PricingCardProps {
   period?: string
   description: string
   cta: string
+  ctaHref?: string
   features: readonly string[]
   popular?: boolean
 }
@@ -17,6 +18,7 @@ export function PricingCard({
   period,
   description,
   cta,
+  ctaHref = '/register',
   features,
   popular,
 }: Readonly<PricingCardProps>) {
@@ -46,7 +48,7 @@ export function PricingCard({
         <p className="text-sm leading-5 text-[#444141]">{description}</p>
       </div>
 
-      <LandingButton href="/register" variant="dark" className="w-full rounded-[10px]">
+      <LandingButton href={ctaHref} variant="dark" className="w-full rounded-[10px]">
         {cta}
       </LandingButton>
 
