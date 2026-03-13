@@ -235,7 +235,12 @@ func (s *SnapshotWorker) ExecuteCheck(ctx context.Context, checkID uuid.UUID, ta
 			if anyChanged {
 				check.ChangeDetected = true
 				check.ChangeType = "content"
-				_ = checkRepo.Update(ctx, check)
+				if err := checkRepo.Update(ctx, check); err != nil {
+					logger.Error("Failed to update parent check with section changes",
+						zap.Error(err), zap.String("check_id", check.ID.String()))
+				}
+				// Re-notify SSE with updated change status
+				s.notifyCheckDone(check)
 			}
 			return nil
 		}
@@ -331,6 +336,8 @@ func (s *SnapshotWorker) ExecuteCheck(ctx context.Context, checkID uuid.UUID, ta
 // Stage 2: Vision AI analysis (if configured and pixel diff exceeds threshold)
 // Returns (changeDetected, changeSummary)
 func (s *SnapshotWorker) detectChange(ctx context.Context, prevCheck, currCheck *entities.Check, currImgBytes []byte, currBase64 string, pageURL string) (bool, string) {
+	pixelComparisonSucceeded := false
+
 	// Stage 1: Try pixel comparison if previous screenshot hash is available
 	if prevCheck.ScreenshotHash != "" {
 		// Fast path: if hashes are identical, no change
@@ -339,12 +346,13 @@ func (s *SnapshotWorker) detectChange(ctx context.Context, prevCheck, currCheck 
 			return false, ""
 		}
 
-		// Hashes differ — try pixel-level comparison if we can download previous screenshot
-		if prevCheck.ScreenshotURL != "" && s.visionAnalyzer != nil {
+		// Hashes differ — try pixel-level comparison
+		if prevCheck.ScreenshotURL != "" {
 			prevImgBytes := s.downloadScreenshot(prevCheck.ScreenshotURL)
 			if len(prevImgBytes) > 0 {
 				result, err := imagecompare.CompareScreenshots(prevImgBytes, currImgBytes, s.pixelDiffThreshold)
 				if err == nil {
+					pixelComparisonSucceeded = true
 					if result.Identical {
 						return false, ""
 					}
@@ -356,18 +364,19 @@ func (s *SnapshotWorker) detectChange(ctx context.Context, prevCheck, currCheck 
 						return false, ""
 					}
 
-					// Stage 2: Vision AI analysis
-					logger.Info("Pixel diff above threshold, running Vision AI",
-						zap.String("page_id", currCheck.PageID.String()),
-						zap.Float64("diff_ratio", result.DiffRatio))
+					// Stage 2: Vision AI analysis (only if configured)
+					if s.visionAnalyzer != nil {
+						logger.Info("Pixel diff above threshold, running Vision AI",
+							zap.String("page_id", currCheck.PageID.String()),
+							zap.Float64("diff_ratio", result.DiffRatio))
 
-					prevB64 := base64.StdEncoding.EncodeToString(prevImgBytes)
-					visionResult, err := s.visionAnalyzer.AnalyzeChange(ctx, prevB64, currBase64, pageURL)
-					if err != nil {
-						logger.Error("Vision AI analysis failed, falling back to text hash",
-							zap.Error(err), zap.String("page_id", currCheck.PageID.String()))
-						// Fall through to text hash comparison
-					} else {
+						prevB64 := base64.StdEncoding.EncodeToString(prevImgBytes)
+						visionResult, err := s.visionAnalyzer.AnalyzeChange(ctx, prevB64, currBase64, pageURL)
+						if err != nil {
+							logger.Error("Vision AI analysis failed, reporting change based on pixel diff",
+								zap.Error(err), zap.String("page_id", currCheck.PageID.String()))
+							return true, ""
+						}
 						if !visionResult.HasMeaningfulChange {
 							logger.Info("Vision AI says no meaningful change",
 								zap.String("page_id", currCheck.PageID.String()))
@@ -375,13 +384,19 @@ func (s *SnapshotWorker) detectChange(ctx context.Context, prevCheck, currCheck 
 						}
 						return true, visionResult.ChangeSummary
 					}
+
+					// No vision analyzer — pixel diff above threshold is sufficient
+					logger.Info("Pixel diff above threshold (no Vision AI configured), reporting change",
+						zap.String("page_id", currCheck.PageID.String()),
+						zap.Float64("diff_ratio", result.DiffRatio))
+					return true, ""
 				}
 			}
 		}
 	}
 
-	// Fallback: text hash comparison (original behavior)
-	if prevCheck.ContentHash != "" && prevCheck.ContentHash != currCheck.ContentHash {
+	// Fallback: text hash comparison (only when pixel comparison was not performed successfully)
+	if !pixelComparisonSucceeded && prevCheck.ContentHash != "" && prevCheck.ContentHash != currCheck.ContentHash {
 		return true, ""
 	}
 
@@ -485,6 +500,17 @@ func (s *SnapshotWorker) sendAlertEmails(schemaName string, check *entities.Chec
 		return
 	}
 
+	// Filter preferences by change_types: empty means all types, otherwise must include "page_change"
+	var filteredPrefs []*entities.NotificationPreference
+	for _, pref := range prefs {
+		if len(pref.ChangeTypes) == 0 || sliceContains(pref.ChangeTypes, "page_change") {
+			filteredPrefs = append(filteredPrefs, pref)
+		}
+	}
+	if len(filteredPrefs) == 0 {
+		return
+	}
+
 	dashboardURL := fmt.Sprintf("%s/workspaces", s.frontendURL)
 	changeType := check.ChangeType
 	if changeType == "" {
@@ -496,7 +522,7 @@ func (s *SnapshotWorker) sendAlertEmails(schemaName string, check *entities.Chec
 	}
 	subject, html := templates.AlertNotification(pageURL, changeType, dashboardURL)
 
-	for _, pref := range prefs {
+	for _, pref := range filteredPrefs {
 		// Look up user email
 		var email string
 		if err := s.db.QueryRowContext(ctx, `SELECT email FROM public.users WHERE id = $1`, pref.UserID).Scan(&email); err != nil {
@@ -645,7 +671,8 @@ func (s *SnapshotWorker) fetchTextFromURL(rawURL string) string {
 
 // processSectionsFromExtractor creates one check per monitored section using the
 // section screenshots returned by the extractor (single page load). Returns true
-// if any section detected a change.
+// if any section detected a change. Alerts are aggregated into a single notification
+// per page instead of one per section.
 func (s *SnapshotWorker) processSectionsFromExtractor(
 	ctx context.Context,
 	checkRepo *monPersistence.CheckPostgresRepository,
@@ -659,6 +686,7 @@ func (s *SnapshotWorker) processSectionsFromExtractor(
 ) bool {
 	anyChanged := false
 	firstScreenshotURL := ""
+	var changeSummaries []string
 
 	for i := range sectionResults {
 		sec := &sectionResults[i]
@@ -718,8 +746,8 @@ func (s *SnapshotWorker) processSectionsFromExtractor(
 				sectionCheck.ChangeType = "content"
 				sectionCheck.VisionChangeSummary = changeSummary
 				anyChanged = true
-				if sliceContains(enabledAlertConditions, "any_changes") {
-					s.createAlert(ctx, schemaName, sectionCheck, targetURL, changeSummary)
+				if changeSummary != "" {
+					changeSummaries = append(changeSummaries, changeSummary)
 				}
 			}
 		}
@@ -732,6 +760,20 @@ func (s *SnapshotWorker) processSectionsFromExtractor(
 
 		if firstScreenshotURL == "" {
 			firstScreenshotURL = imgURL
+		}
+	}
+
+	// Create a single aggregated alert for all section changes
+	if anyChanged && sliceContains(enabledAlertConditions, "any_changes") {
+		aggregatedSummary := strings.Join(changeSummaries, "; ")
+		// Use the parent check for the alert to avoid FK issues with section checks
+		parentCheck, err := checkRepo.GetByID(ctx, parentCheckID)
+		if err != nil {
+			logger.Error("Failed to retrieve parent check for aggregated alert",
+				zap.Error(err), zap.String("parent_check_id", parentCheckID.String()))
+		}
+		if parentCheck != nil {
+			s.createAlert(ctx, schemaName, parentCheck, targetURL, aggregatedSummary)
 		}
 	}
 

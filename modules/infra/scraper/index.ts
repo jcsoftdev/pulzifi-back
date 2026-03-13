@@ -28,6 +28,9 @@ async function main() {
   const server = serve({
     fetch: app.fetch,
     port: PORT,
+    // Default idleTimeout is 10s which kills long-running SSE streams
+    // (e.g. preview scrolling step can take 15s+ without writing data).
+    idleTimeout: 120,
   });
 
   console.log(`[scraper] Listening on http://0.0.0.0:${PORT}`);

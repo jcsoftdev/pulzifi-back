@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	bulkdeletepages "github.com/jcsoftdev/pulzifi-back/modules/page/application/bulk_delete_pages"
@@ -117,21 +118,61 @@ func (m *Module) handlePreviewPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Stream the extractor response to the client, flushing after each chunk.
-	buf := make([]byte, 4096)
-	for {
-		n, readErr := resp.Body.Read(buf)
-		if n > 0 {
-			if _, writeErr := w.Write(buf[:n]); writeErr != nil {
-				return
+	// A keepalive ticker sends SSE comments every 15s to prevent intermediate
+	// proxies (Railway, Cloudflare, etc.) from killing idle connections.
+	keepalive := time.NewTicker(15 * time.Second)
+	defer keepalive.Stop()
+
+	// readCh delivers chunks from the extractor body in a goroutine so we can
+	// select between data arriving and the keepalive ticker firing.
+	type readResult struct {
+		data []byte
+		err  error
+	}
+	readCh := make(chan readResult, 1)
+
+	go func() {
+		buf := make([]byte, 4096)
+		for {
+			n, err := resp.Body.Read(buf)
+			if n > 0 {
+				chunk := make([]byte, n)
+				copy(chunk, buf[:n])
+				readCh <- readResult{data: chunk}
 			}
-			if flushErr := rc.Flush(); flushErr != nil {
+			if err != nil {
+				readCh <- readResult{err: err}
 				return
 			}
 		}
-		if readErr != nil {
-			if readErr != io.EOF {
-				logger.Error("Error reading preview stream", zap.Error(readErr))
+	}()
+
+	for {
+		select {
+		case rr := <-readCh:
+			if rr.data != nil {
+				if _, writeErr := w.Write(rr.data); writeErr != nil {
+					return
+				}
+				if flushErr := rc.Flush(); flushErr != nil {
+					return
+				}
 			}
+			if rr.err != nil {
+				if rr.err != io.EOF {
+					logger.Error("Error reading preview stream", zap.Error(rr.err))
+				}
+				return
+			}
+		case <-keepalive.C:
+			// SSE comment — ignored by clients, keeps the connection alive.
+			if _, err := w.Write([]byte(":keepalive\n\n")); err != nil {
+				return
+			}
+			if err := rc.Flush(); err != nil {
+				return
+			}
+		case <-r.Context().Done():
 			return
 		}
 	}

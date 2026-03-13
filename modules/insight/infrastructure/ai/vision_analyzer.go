@@ -8,6 +8,8 @@ import (
 
 	"github.com/jcsoftdev/pulzifi-back/modules/insight/domain/services"
 	sharedAI "github.com/jcsoftdev/pulzifi-back/shared/ai"
+	"github.com/jcsoftdev/pulzifi-back/shared/logger"
+	"go.uber.org/zap"
 )
 
 // OpenRouterVisionAnalyzer implements VisionAnalyzer using OpenRouter's multimodal API.
@@ -82,11 +84,17 @@ func parseVisionResponse(response string) (*services.VisionChangeResult, error) 
 	}
 
 	if err := json.Unmarshal([]byte(response), &result); err != nil {
-		// If parsing fails, treat the whole response as the summary
+		// If parsing fails, default to no change (fail-closed) to avoid false positives
+		truncated := response
+		if len(truncated) > 200 {
+			truncated = truncated[:200]
+		}
+		logger.Warn("Vision AI returned unparseable JSON, defaulting to no-change",
+			zap.Error(err), zap.String("raw_response_prefix", truncated))
 		return &services.VisionChangeResult{
-			HasMeaningfulChange: true,
-			ChangeSummary:       response,
-			ChangeDetails:       response,
+			HasMeaningfulChange: false,
+			ChangeSummary:       "",
+			ChangeDetails:       "",
 		}, nil
 	}
 
