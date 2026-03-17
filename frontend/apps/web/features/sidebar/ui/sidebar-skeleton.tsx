@@ -4,7 +4,7 @@ import Link from 'next/link'
 
 export function SidebarSkeleton() {
   return (
-    <aside className="w-60 h-screen bg-sidebar border-r border-border flex flex-col p-1">
+    <aside className="min-w-60 max-w-80 w-fit h-screen bg-sidebar border-r border-border flex flex-col p-1">
       {/* Logo — static */}
       <div className="py-2.5 px-3">
         <Button asChild variant="ghost" className="px-1.5 py-1.5 h-auto font-extrabold">

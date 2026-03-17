@@ -34,7 +34,7 @@ const WorkspaceItem = memo(function WorkspaceItem({
           : 'text-foreground hover:bg-muted'
       )}
     >
-      <Link href={`/workspaces/${workspace.id}`} aria-current={isActive ? 'page' : undefined}>
+      <Link href={`/workspaces/${workspace.id}`} aria-current={isActive ? 'page' : undefined} className="break-words">
         {workspace.name}
       </Link>
     </Button>
