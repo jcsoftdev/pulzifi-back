@@ -36,5 +36,10 @@
         ]
       }
     ]
+  },
+  "agents": {
+    "skillDirs": [
+      "./.claude/skills"
+    ]
   }
 }
