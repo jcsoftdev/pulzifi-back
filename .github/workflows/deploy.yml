@@ -1,0 +1,49 @@
+name: CI / Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Go tests
+        run: go test ./...
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install frontend deps
+        working-directory: frontend
+        run: bun install --frozen-lockfile
+
+      - name: TypeScript type check
+        working-directory: frontend
+        run: bun run type-check
+
+  deploy:
+    name: Deploy
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy API
+        run: curl -fsSL -X POST "${{ secrets.DOKPLOY_WEBHOOK_API }}"
+
+      - name: Deploy Worker
+        run: curl -fsSL -X POST "${{ secrets.DOKPLOY_WEBHOOK_WORKER }}"
+
+      - name: Deploy Scraper
+        run: curl -fsSL -X POST "${{ secrets.DOKPLOY_WEBHOOK_SCRAPER }}"
+
+      - name: Deploy Frontend
+        run: curl -fsSL -X POST "${{ secrets.DOKPLOY_WEBHOOK_FRONTEND }}"
