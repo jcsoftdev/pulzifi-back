@@ -166,9 +166,11 @@ func main() {
 	bffHandler := registerAllModulesInternal(registry, db, eventBus, enableWorkers)
 
 	// Mount BFF auth routes BEFORE /api/v1 (these handle cookies/nonces)
+	logger.Info("Registering BFF auth handler at /api/auth")
 	httpRouter.Route("/api/auth", func(r chi.Router) {
 		bffHandler.RegisterRoutes(r)
 	})
+	logger.Info("BFF auth handler registered successfully")
 
 	// Register routes from all modules under /api/v1
 	v1Router := chi.NewRouter()
