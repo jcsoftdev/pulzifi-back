@@ -27,11 +27,9 @@ export async function AuthGuard({ children }: AuthGuardProps) {
       throw error
     }
     if (error instanceof UnauthorizedError) {
-      // Don't redirect to login — the browser still has a valid refresh_token
-      // cookie. Render a client component that refreshes the session and then
-      // triggers a full page reload with fresh cookies.
       return <SessionRefresher />
     }
+    console.error('[AuthGuard] Unexpected error, redirecting to /login:', error)
     redirect('/login')
   }
 
