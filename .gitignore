@@ -76,7 +76,6 @@ coverage.html
 
 
 tmp
-.env.docker
 
 docs/
 

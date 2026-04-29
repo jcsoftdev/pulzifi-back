@@ -206,7 +206,7 @@ Uses **the same environment variables as the API Server**, but only reads:
 
 ### Development (localhost)
 **Single `docker-compose.monolith.yml` with all services**
-- Use `.env` + `.env.docker` (overrides)
+- Use `.env` (docker overrides are inline in `docker-compose.yml`)
 - DB: local postgres service
 - Storage: localstack (S3 emulation)
 - Scraper: local container
@@ -276,8 +276,7 @@ Frontend (frontend/Dockerfile)
 ## Configuration Files
 
 - **`.env.example`** — Template with all possible variables and descriptions
-- **`.env.docker`** — Docker compose overrides (DB_HOST: postgres/Railway, EXTRACTOR_URL: http://scraper:3000)
-- **`.env`** — Your actual values (git-ignored) — merge of above with your secrets
+- **`.env`** — Your actual values (git-ignored); docker-specific overrides (DB_HOST, EXTRACTOR_URL, etc.) are set inline in `docker-compose.yml`
 
 For staging/production, create separate config files per environment and pass via `--env-file` flag or deployment platform's secret manager (Railway, Kubernetes, etc.).
 
