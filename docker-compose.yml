@@ -1,5 +1,5 @@
-# Docker Compose for Monolith Development
-# Provides: PostgreSQL 17, Redis 7, Monolith with hot reload
+# Docker Compose — Local Development Only
+# Prod uses Dokploy (self-hosted VPS). This file is dev-only.
 
 networks:
   pulzifi-network:
@@ -13,16 +13,9 @@ volumes:
 
 services:
 
-  # ============================================================
-  # DATABASE SERVICES
-  # ============================================================
-  # TOGGLE: Comment/uncomment the postgres service below for LOCAL mode
-  # For LOCAL: uncomment postgres + use DB_HOST: postgres in monolith/worker
-  # For PRODUCTION (Railway): comment out postgres + use DB_HOST: shinkansen.proxy.rlwy.net
-
   postgres:
     image: postgres:17-alpine
-    container_name: pulzifi-postgres-monolith
+    container_name: pulzifi-postgres
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${DB_NAME:-pulzifi}
@@ -43,21 +36,21 @@ services:
       timeout: 5s
       retries: 5
 
-  # redis:
-  #   image: redis:7-alpine
-  #   container_name: pulzifi-redis-monolith
-  #   restart: unless-stopped
-  #   ports:
-  #     - "6381:6379"
-  #   volumes:
-  #     - redis-data:/data
-  #   networks:
-  #     - pulzifi-network
-  #   healthcheck:
-  #     test: ["CMD", "redis-cli", "ping"]
-  #     interval: 10s
-  #     timeout: 5s
-  #     retries: 5
+  redis:
+    image: redis:7-alpine
+    container_name: pulzifi-redis
+    restart: unless-stopped
+    ports:
+      - "6381:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - pulzifi-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   localstack:
     image: localstack/localstack:3.0
@@ -106,10 +99,6 @@ services:
       timeout: 10s
       retries: 3
 
-  # ============================================================
-  # MONOLITH APPLICATION
-  # ============================================================
-
   monolith:
     build:
       context: .
@@ -120,6 +109,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
       localstack:
         condition: service_healthy
       scraper:
@@ -127,21 +118,21 @@ services:
     environment:
       HTTP_PORT: 3000
       NEXTJS_URL: http://host.docker.internal:3001
-      # All DB config comes from .env
-      # For LOCAL: DB_HOST=postgres (service name)
-      # For PROD: DB_HOST=shinkansen.proxy.rlwy.net
+      ENVIRONMENT: development
+      ENABLE_WORKERS: "false"
+      DB_HOST: postgres
+      DB_PORT: 5432
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
       MINIO_ENDPOINT: localstack:4566
       MINIO_ACCESS_KEY: test
       MINIO_SECRET_KEY: test
       MINIO_BUCKET: ${MINIO_BUCKET:-pulzifi-snapshots}
-      MINIO_USE_SSL: ${MINIO_USE_SSL:-false}
+      MINIO_USE_SSL: "false"
       MINIO_PUBLIC_URL: http://localhost:4566
       EXTRACTOR_URL: http://scraper:3000
-      ENVIRONMENT: development
-      ENABLE_WORKERS: "false"
     env_file:
       - .env
-      - .env.docker  # Overrides DB_HOST for docker (postgres/Railway)
     ports:
       - "3000:3000"
     volumes:
@@ -166,28 +157,29 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
       localstack:
         condition: service_healthy
       scraper:
         condition: service_healthy
     environment:
-      # All DB config comes from .env
-      # For LOCAL: DB_HOST=postgres (service name)
-      # For PROD: DB_HOST=shinkansen.proxy.rlwy.net
+      ENVIRONMENT: development
+      ENABLE_WORKERS: "true"
+      DB_HOST: postgres
+      DB_PORT: 5432
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
       MINIO_ENDPOINT: localstack:4566
       MINIO_ACCESS_KEY: test
       MINIO_SECRET_KEY: test
       MINIO_BUCKET: ${MINIO_BUCKET:-pulzifi-snapshots}
-      MINIO_USE_SSL: ${MINIO_USE_SSL:-false}
+      MINIO_USE_SSL: "false"
       EXTRACTOR_URL: http://scraper:3000
-      ENVIRONMENT: development
-      ENABLE_WORKERS: "true"
     env_file:
       - .env
-      - .env.docker  # Overrides DB_HOST for docker (postgres/Railway)
     volumes:
       - .:/workspace
     networks:
       - pulzifi-network
     command: air -c .air.worker.toml
-
