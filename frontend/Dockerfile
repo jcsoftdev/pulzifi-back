@@ -46,6 +46,9 @@ RUN bun run build
 # ============================================================
 FROM oven/bun:1
 
+ARG SERVER_API_URL
+ENV SERVER_API_URL=$SERVER_API_URL
+
 WORKDIR /app
 
 ENV NODE_ENV=production
