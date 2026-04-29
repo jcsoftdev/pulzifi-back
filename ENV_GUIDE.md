@@ -142,7 +142,7 @@ Uses **the same environment variables as the API Server**, but only reads:
 
 ---
 
-## 5. **PostgreSQL** (`docker-compose.monolith.yml`)
+## 5. **PostgreSQL** (`docker-compose.yml`)
 
 **Postgres 17 service (development only)**
 
@@ -153,13 +153,13 @@ Uses **the same environment variables as the API Server**, but only reads:
 - `POSTGRES_INITDB_ARGS` — encoding and locale settings
 
 ### Notes
-- **Not deployed to production** — Railway uses managed PostgreSQL
+- **Not deployed to production** — Dokploy uses a built-in PostgreSQL 17 service
 - Postgres reads these from Docker environment in compose file, not from .env
-- In production, API/Worker servers connect to Railway's managed database via `DB_HOST` etc.
+- In production, API/Worker servers connect to Dokploy's managed database via `DB_HOST` etc.
 
 ---
 
-## 6. **LocalStack** (MinIO S3 emulation, `docker-compose.monolith.yml`)
+## 6. **LocalStack** (MinIO S3 emulation, `docker-compose.yml`)
 
 **AWS S3 emulator for local development (development only)**
 
@@ -178,7 +178,7 @@ Uses **the same environment variables as the API Server**, but only reads:
 
 ---
 
-## 7. **Redis** (`docker-compose.monolith.yml`)
+## 7. **Redis** (`docker-compose.yml`)
 
 **Redis 7 service (currently commented out in compose)**
 
@@ -198,14 +198,14 @@ Uses **the same environment variables as the API Server**, but only reads:
 ### Notes
 - **Optional in development** — application works without Redis but with limited features
 - **Should be required in production** — for multi-instance deployments
-- Currently commented out in docker-compose.monolith.yml (uncomment if needed)
+- Currently commented out in docker-compose.yml (uncomment if needed)
 
 ---
 
 ## Stage-Specific Configuration
 
 ### Development (localhost)
-**Single `docker-compose.monolith.yml` with all services**
+**Single `docker-compose.yml` with all services**
 - Use `.env` (docker overrides are inline in `docker-compose.yml`)
 - DB: local postgres service
 - Storage: localstack (S3 emulation)
@@ -233,14 +233,14 @@ Frontend (frontend/Dockerfile)
 └─ SERVER_API_URL → https://api.staging.pulzifi.com
 ```
 
-### Production (Railway or Kubernetes)
-**Managed services**
+### Production (Dokploy VPS)
+**Managed services via Dokploy built-in PostgreSQL 17 + Redis 7**
 ```
 API Server (Dockerfile.api)
-├─ DB_HOST → shinkansen.proxy.rlwy.net (Railway managed PostgreSQL)
-├─ EXTRACTOR_URL → https://scraper.production.internal
-├─ MINIO_ENDPOINT → production-s3.internal:9000 (or S3/Cloudinary)
-├─ REDIS_HOST → production-redis.internal:6379 (required)
+├─ DB_HOST → Dokploy internal PostgreSQL hostname
+├─ EXTRACTOR_URL → http://scraper:3000 (Dokploy internal network)
+├─ MINIO_ENDPOINT → minio:9000 (Dokploy internal network)
+├─ REDIS_HOST → Dokploy internal Redis hostname (required)
 └─ JWT_SECRET, CORS_ALLOWED_ORIGINS, etc. → production values
 
 Worker (Dockerfile.worker)
@@ -278,7 +278,7 @@ Frontend (frontend/Dockerfile)
 - **`.env.example`** — Template with all possible variables and descriptions
 - **`.env`** — Your actual values (git-ignored); docker-specific overrides (DB_HOST, EXTRACTOR_URL, etc.) are set inline in `docker-compose.yml`
 
-For staging/production, create separate config files per environment and pass via `--env-file` flag or deployment platform's secret manager (Railway, Kubernetes, etc.).
+For staging/production, create separate config files per environment and pass via `--env-file` flag or deployment platform's secret manager (Dokploy, Kubernetes, etc.).
 
 ---
 

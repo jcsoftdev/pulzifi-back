@@ -58,7 +58,7 @@ bun run type-check # TypeScript type checking
 **Backend:** Go 1.25 + Chi router + Hexagonal Architecture + Vertical Slicing + Multi-Tenant by subdomain
 **Frontend:** Next.js 16 + React 19 + Tailwind CSS + Bun + Turborepo + Biome
 **Entry points:** `cmd/server/` (HTTP :3000 + gRPC :9000), `cmd/worker/` (background jobs), `cmd/migrate/` (DB migrations)
-**Deployment:** Railway (4 services: api, worker, extractor, frontend)
+**Deployment:** Dokploy on self-hosted VPS (5 apps: api, worker, scraper, frontend, minio)
 
 ### Entry Points (`cmd/`)
 
@@ -233,7 +233,7 @@ account-settings, auth, changes-view, dashboard, landing, navigation, notificati
 
 ### Docker & Deployment
 
-#### Docker Compose (`docker-compose.monolith.yml`)
+#### Docker Compose (`docker-compose.yml`)
 5 services: `postgres` (17-alpine, port 5434), `localstack` (S3 emulator, port 4566), `extractor` (Playwright, port 3005), `monolith` (API with air hot reload, port 3000), `worker` (background worker with air hot reload)
 
 #### Dockerfiles
@@ -246,8 +246,8 @@ account-settings, auth, changes-view, dashboard, landing, navigation, notificati
 | `modules/snapshot/Dockerfile` | Snapshot worker with Chromium |
 | `frontend/Dockerfile` | Production Next.js (multi-stage Turborepo build) |
 
-#### Railway (production)
-4 service configs in `railway/`: api, worker, extractor, frontend — each with Dockerfile builder and restart policy (ON_FAILURE, 3 retries).
+#### Dokploy (production)
+5 apps configured in Dokploy UI: api (`Dockerfile.api`), worker (`Dockerfile.worker`), scraper (`modules/infra/scraper/Dockerfile`), frontend (`frontend/Dockerfile`), minio (official image). PostgreSQL 17 and Redis 7 run as Dokploy built-in services. Traefik handles SSL automatically.
 
 ### Key Config Variables
 
@@ -255,7 +255,7 @@ See `shared/config/config.go` and `.env.example` for all 43+ variables. Critical
 
 | Category | Variables | Notes |
 |----------|-----------|-------|
-| **Database** | `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` | Required. Also supports `DATABASE_URL` (Railway) |
+| **Database** | `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` | Required |
 | **Server** | `HTTP_PORT` (default 3000), `GRPC_PORT` (default 9000), `ENVIRONMENT`, `ENABLE_WORKERS` | |
 | **Auth (JWT)** | `JWT_SECRET`, `JWT_EXPIRATION` (15min), `JWT_REFRESH_EXPIRATION` (7d) | `JWT_SECRET` required in production |
 | **CORS** | `CORS_ALLOWED_ORIGINS` | Required. Comma-separated |
