@@ -43,6 +43,6 @@ Environment variable loading with defaults for all application configuration.
 
 ## Notes
 
-- Supports `PORT` env var as fallback for `HTTP_PORT` (Railway compatibility)
-- Supports `DATABASE_URL` env var for direct connection string (Railway)
+- Supports `PORT` env var as fallback for `HTTP_PORT`
+- Supports `DATABASE_URL` env var for direct connection string (overrides individual DB_* vars)
 - Uses `godotenv` to load `.env` file (non-fatal if missing)
