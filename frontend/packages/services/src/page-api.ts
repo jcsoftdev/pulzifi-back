@@ -63,6 +63,27 @@ export interface ListPagesParams {
   limit?: number
 }
 
+export interface ContentBlockDto {
+  type: string
+  level?: number
+  text: string
+  href?: string
+  src?: string
+  alt?: string
+}
+
+export interface BlockDiffDto {
+  op: 'added' | 'removed' | 'changed'
+  block: ContentBlockDto
+  old_block?: ContentBlockDto
+}
+
+export interface ContentDiffDto {
+  has_changes: boolean
+  total_changes: number
+  diffs: BlockDiffDto[]
+}
+
 export interface Check {
   id: string
   pageId: string
@@ -76,6 +97,8 @@ export interface Check {
   errorMessage?: string
   extractorFailed: boolean
   checkedAt: string
+  contentDiff?: ContentDiffDto
+  diffImageUrl?: string
   sections?: Check[]
 }
 
@@ -90,6 +113,8 @@ export interface CheckBackendDto {
   change_detected: boolean
   change_type: string
   error_message?: string
+  content_diff?: ContentDiffDto
+  diff_image_url?: string
   checked_at: string
   sections?: CheckBackendDto[]
 }
@@ -111,6 +136,8 @@ export function mapBackendCheck(c: CheckBackendDto): Check {
       typeof c.error_message === 'string' &&
       c.error_message.toLowerCase().includes('extractor'),
     checkedAt: c.checked_at,
+    contentDiff: c.content_diff,
+    diffImageUrl: c.diff_image_url,
     sections: c.sections?.map(mapBackendCheck),
   }
 }

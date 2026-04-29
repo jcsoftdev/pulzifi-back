@@ -13,6 +13,7 @@ interface SectionOverlay {
 interface VisualPulseProps {
   currentScreenshotUrl?: string
   previousScreenshotUrl?: string
+  diffImageUrl?: string
   sectionOverlay?: SectionOverlay
   /** @deprecated Use sectionOverlay instead */
   sectionName?: string
@@ -21,9 +22,11 @@ interface VisualPulseProps {
 export function VisualPulse({
   currentScreenshotUrl,
   previousScreenshotUrl,
+  diffImageUrl,
   sectionOverlay,
   sectionName,
 }: Readonly<VisualPulseProps>) {
+  const [viewMode, setViewMode] = useState<'slider' | 'diff'>('slider')
   const [sliderPosition, setSliderPosition] = useState(50)
   const [isResizing, setIsResizing] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -179,8 +182,48 @@ export function VisualPulse({
 
   return (
     <div className="flex flex-col gap-6">
+      {/* View mode toggle — only shown when diff image is available */}
+      {diffImageUrl && (
+        <div className="flex items-center gap-1 bg-muted/30 rounded-lg p-1 w-fit border border-border">
+          <button
+            type="button"
+            onClick={() => setViewMode('slider')}
+            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+              viewMode === 'slider'
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Before / After
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('diff')}
+            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+              viewMode === 'diff'
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Show Changes
+          </button>
+        </div>
+      )}
+
+      {/* Diff image view */}
+      {viewMode === 'diff' && diffImageUrl && (
+        <div className="relative w-full max-w-4xl mx-auto border border-border rounded-xl overflow-hidden shadow-sm">
+          {/* biome-ignore lint/performance/noImgElement: diff image URL is dynamic external URL */}
+          <img
+            src={diffImageUrl}
+            alt="Diff overlay highlighting changed regions"
+            className="w-full h-auto object-contain"
+          />
+        </div>
+      )}
+
       {/* Section indicator — text badge when no rect available (legacy), hidden when overlay handles it */}
-      {displaySectionName && !overlayStyle && (
+      {viewMode === 'slider' && displaySectionName && !overlayStyle && (
         <div className="flex items-center gap-2 text-sm bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 px-4 py-2.5 rounded-lg border border-blue-200 dark:border-blue-800">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0" aria-hidden="true">
             <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
@@ -191,7 +234,7 @@ export function VisualPulse({
           </span>
         </div>
       )}
-      <div
+      {viewMode === 'slider' && <div
         ref={containerRef}
         className="relative w-full select-none overflow-hidden rounded-lg border border-border shadow-sm bg-muted/10"
         style={
@@ -305,7 +348,7 @@ export function VisualPulse({
             </svg>
           </div>
         </button>
-      </div>
+      </div>}
     </div>
   )
 }

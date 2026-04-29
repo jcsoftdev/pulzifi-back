@@ -7,8 +7,10 @@ import (
 	"strings"
 
 	"github.com/jcsoftdev/pulzifi-back/shared/config"
+	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
+	"go.uber.org/zap"
 )
 
 type Client struct {
@@ -64,4 +66,42 @@ func (c *Client) Upload(ctx context.Context, objectName string, reader io.Reader
 		baseURL += "/"
 	}
 	return fmt.Sprintf("%s%s/%s", baseURL, c.bucketName, objectName), nil
+}
+
+// Download retrieves an object via the internal MinIO client, bypassing the public URL.
+// This avoids issues where the public URL (e.g. http://localhost:4566) is unreachable
+// from within Docker containers.
+func (c *Client) Download(ctx context.Context, objectURL string) ([]byte, error) {
+	objectName := c.extractObjectName(objectURL)
+	if objectName == "" {
+		return nil, fmt.Errorf("could not extract object name from URL: %s", objectURL)
+	}
+
+	obj, err := c.minioClient.GetObject(ctx, c.bucketName, objectName, minio.GetObjectOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("minio GetObject failed: %w", err)
+	}
+	defer obj.Close()
+
+	data, err := io.ReadAll(obj)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read object body: %w", err)
+	}
+
+	logger.Debug("Downloaded object via internal MinIO client",
+		zap.String("object", objectName), zap.Int("bytes", len(data)))
+
+	return data, nil
+}
+
+// extractObjectName parses the object name from a public URL.
+// E.g. "http://localhost:4566/snapshots/page-id/123.png" → "page-id/123.png"
+func (c *Client) extractObjectName(objectURL string) string {
+	// Look for the bucket name in the URL path and return everything after it.
+	marker := "/" + c.bucketName + "/"
+	idx := strings.Index(objectURL, marker)
+	if idx >= 0 {
+		return objectURL[idx+len(marker):]
+	}
+	return ""
 }

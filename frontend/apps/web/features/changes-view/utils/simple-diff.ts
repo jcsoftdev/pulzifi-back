@@ -63,7 +63,7 @@ function backtrackLcs(
   return rawOps
 }
 
-function diffWords(oldLine: string, newLine: string): DiffSegment[] {
+export function diffWords(oldLine: string, newLine: string): DiffSegment[] {
   const oldWords = oldLine.split(/\s+/).filter(Boolean)
   const newWords = newLine.split(/\s+/).filter(Boolean)
 

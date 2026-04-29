@@ -51,6 +51,7 @@ func (h *GetMonitoringConfigHandler) Handle(ctx context.Context, pageID uuid.UUI
 		CSSSelector:            config.CSSSelector,
 		XPathSelector:          config.XPathSelector,
 		SelectorOffsets:        selectorOffsetsDTO,
+		IgnoreSelectors:        config.IgnoreSelectors,
 		CreatedAt:              config.CreatedAt,
 		UpdatedAt:              config.UpdatedAt,
 	}, nil

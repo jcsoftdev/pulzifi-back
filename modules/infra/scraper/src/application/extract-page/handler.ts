@@ -27,6 +27,7 @@ export class ExtractPageHandler {
       blockAdsCookies: request.block_ads_cookies ?? false,
       selector: selectorConfig,
       sections,
+      ignoreSelectors: request.ignore_selectors,
     });
   }
 }

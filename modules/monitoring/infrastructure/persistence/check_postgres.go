@@ -10,7 +10,7 @@ import (
 	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
 )
 
-const checkSelectColumns = `id, page_id, section_id, parent_check_id, status, COALESCE(screenshot_url, ''), COALESCE(html_snapshot_url, ''), COALESCE(content_hash, ''), COALESCE(change_detected, false), COALESCE(change_type, ''), COALESCE(error_message, ''), COALESCE(duration_ms, 0), COALESCE(screenshot_hash, ''), COALESCE(vision_change_summary, ''), checked_at`
+const checkSelectColumns = `id, page_id, section_id, parent_check_id, status, COALESCE(screenshot_url, ''), COALESCE(html_snapshot_url, ''), COALESCE(content_hash, ''), COALESCE(change_detected, false), COALESCE(change_type, ''), COALESCE(error_message, ''), COALESCE(duration_ms, 0), COALESCE(screenshot_hash, ''), COALESCE(vision_change_summary, ''), COALESCE(content_block_hash, ''), COALESCE(content_diff::text, ''), COALESCE(diff_image_url, ''), checked_at`
 
 func scanCheck(row interface{ Scan(...interface{}) error }, check *entities.Check) error {
 	return row.Scan(
@@ -28,6 +28,9 @@ func scanCheck(row interface{ Scan(...interface{}) error }, check *entities.Chec
 		&check.DurationMs,
 		&check.ScreenshotHash,
 		&check.VisionChangeSummary,
+		&check.ContentBlockHash,
+		&check.ContentDiffJSON,
+		&check.DiffImageURL,
 		&check.CheckedAt,
 	)
 }
@@ -52,8 +55,8 @@ func (r *CheckPostgresRepository) Create(ctx context.Context, check *entities.Ch
 		return err
 	}
 
-	q := `INSERT INTO checks (id, page_id, section_id, parent_check_id, status, screenshot_url, html_snapshot_url, content_hash, change_detected, change_type, error_message, duration_ms, screenshot_hash, vision_change_summary, checked_at)
-	      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`
+	q := `INSERT INTO checks (id, page_id, section_id, parent_check_id, status, screenshot_url, html_snapshot_url, content_hash, change_detected, change_type, error_message, duration_ms, screenshot_hash, vision_change_summary, content_block_hash, content_diff, diff_image_url, checked_at)
+	      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NULLIF($16, '')::jsonb, $17, $18)`
 
 	_, err := r.db.ExecContext(ctx, q,
 		check.ID,
@@ -70,6 +73,9 @@ func (r *CheckPostgresRepository) Create(ctx context.Context, check *entities.Ch
 		check.DurationMs,
 		check.ScreenshotHash,
 		check.VisionChangeSummary,
+		check.ContentBlockHash,
+		check.ContentDiffJSON,
+		check.DiffImageURL,
 		check.CheckedAt,
 	)
 	return err
@@ -111,9 +117,12 @@ func (r *CheckPostgresRepository) Update(ctx context.Context, check *entities.Ch
 		duration_ms = $8,
 		screenshot_hash = $9,
 		vision_change_summary = $10,
-		section_id = $11,
-		parent_check_id = $12
-		WHERE id = $13`
+		content_block_hash = $11,
+		section_id = $12,
+		parent_check_id = $13,
+		content_diff = NULLIF($14, '')::jsonb,
+		diff_image_url = $15
+		WHERE id = $16`
 
 	_, err := r.db.ExecContext(ctx, q,
 		check.Status,
@@ -126,8 +135,11 @@ func (r *CheckPostgresRepository) Update(ctx context.Context, check *entities.Ch
 		check.DurationMs,
 		check.ScreenshotHash,
 		check.VisionChangeSummary,
+		check.ContentBlockHash,
 		check.SectionID,
 		check.ParentCheckID,
+		check.ContentDiffJSON,
+		check.DiffImageURL,
 		check.ID,
 	)
 	return err

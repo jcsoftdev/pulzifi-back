@@ -140,6 +140,32 @@ func (c *Client) Upload(ctx context.Context, objectName string, reader io.Reader
 	return "", fmt.Errorf("cloudinary upload did not return a URL")
 }
 
+// Download retrieves an object by fetching its public URL via HTTP.
+// Cloudinary URLs are always publicly accessible CDN endpoints.
+func (c *Client) Download(ctx context.Context, objectURL string) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, objectURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("create request: %w", err)
+	}
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("download failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("download returned status %d", resp.StatusCode)
+	}
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read body: %w", err)
+	}
+
+	return data, nil
+}
+
 func (c *Client) sign(params map[string]string) string {
 	keys := make([]string, 0, len(params))
 	for key := range params {

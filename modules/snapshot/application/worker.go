@@ -305,12 +305,22 @@ func (s *SnapshotWorker) ExecuteCheck(ctx context.Context, checkID uuid.UUID, ta
 	prevCheck := s.getPreviousSuccessfulCheck(ctx, checkRepo, check.PageID, check.ID)
 
 	if prevCheck != nil {
-		changeDetected, changeSummary, contentDiff := s.detectChange(ctx, prevCheck, check, imgBytes, res.ScreenshotBase64, targetURL, res.HTML)
+		changeDetected, changeSummary, contentDiff, diffImgBytes := s.detectChange(ctx, prevCheck, check, imgBytes, res.ScreenshotBase64, targetURL, res.HTML)
 
 		if changeDetected {
 			check.ChangeDetected = true
 			check.ChangeType = "content"
 			check.VisionChangeSummary = changeSummary
+
+			// Upload diff image if generated
+			if len(diffImgBytes) > 0 {
+				diffName := fmt.Sprintf("%s/diffs/%d.png", check.PageID, ts)
+				if diffURL, upErr := s.objectStorage.Upload(ctx, diffName, bytes.NewReader(diffImgBytes), int64(len(diffImgBytes)), "image/png"); upErr == nil {
+					check.DiffImageURL = diffURL
+				} else {
+					logger.Error("Failed to upload diff image", zap.Error(upErr), zap.String("page_id", check.PageID.String()))
+				}
+			}
 
 			// Store pre-computed content diff for the frontend
 			if contentDiff != nil && contentDiff.HasChanges {
@@ -357,8 +367,8 @@ func (s *SnapshotWorker) ExecuteCheck(ctx context.Context, checkID uuid.UUID, ta
 //	Stage 4: Vision AI semantic analysis (optional)
 //	Stage 5: Normalized text hash fallback (legacy compatibility)
 //
-// Returns (changeDetected, changeSummary, contentDiff)
-func (s *SnapshotWorker) detectChange(ctx context.Context, prevCheck, currCheck *entities.Check, currImgBytes []byte, currBase64 string, pageURL string, currHTML string) (bool, string, *sharedHTML.ContentDiff) {
+// Returns (changeDetected, changeSummary, contentDiff, diffImageBytes)
+func (s *SnapshotWorker) detectChange(ctx context.Context, prevCheck, currCheck *entities.Check, currImgBytes []byte, currBase64 string, pageURL string, currHTML string) (bool, string, *sharedHTML.ContentDiff, []byte) {
 	pageID := currCheck.PageID.String()
 
 	// ── Stage 1: Content block hash comparison ───────────────────────────
@@ -374,38 +384,46 @@ func (s *SnapshotWorker) detectChange(ctx context.Context, prevCheck, currCheck 
 					prevImgBytes := s.downloadScreenshot(prevCheck.ScreenshotURL)
 					if len(prevImgBytes) > 0 {
 						result, err := imagecompare.CompareScreenshots(prevImgBytes, currImgBytes, s.pixelDiffThreshold)
-						if err == nil && !result.Identical && result.DiffRatio >= s.pixelDiffThreshold {
+						if err != nil {
+							logger.Error("Pixel comparison failed (image decode error)",
+								zap.Error(err), zap.String("page_id", pageID))
+						} else if !result.Identical && result.DiffRatio >= s.pixelDiffThreshold {
 							// ── Stage 4: Vision AI (optional) ────────────
+							diffImg := imagecompare.GenerateDiffImage(prevImgBytes, currImgBytes)
 							if s.visionAnalyzer != nil {
 								prevB64 := base64.StdEncoding.EncodeToString(prevImgBytes)
 								visionResult, vErr := s.visionAnalyzer.AnalyzeChange(ctx, prevB64, currBase64, pageURL)
 								if vErr != nil {
 									logger.Error("Vision AI failed, reporting visual change",
 										zap.Error(vErr), zap.String("page_id", pageID))
-									return true, "", nil
+									return true, "", nil, diffImg
 								}
 								if !visionResult.HasMeaningfulChange {
 									logger.Info("Vision AI says no meaningful visual change",
 										zap.String("page_id", pageID))
-									return false, "", nil
+									return false, "", nil, nil
 								}
-								return true, visionResult.ChangeSummary, nil
+								return true, visionResult.ChangeSummary, nil, diffImg
 							}
 							logger.Info("Visual-only change detected via pixel diff",
 								zap.String("page_id", pageID),
-								zap.Float64("diff_ratio", result.DiffRatio))
-							return true, "", nil
+								zap.Float64("diff_ratio", result.DiffRatio),
+								zap.Int("diff_count", result.DiffCount),
+								zap.Int("total_pixels", result.TotalPixels))
+							return true, "", nil, diffImg
 						}
 					}
 				}
 			}
-			return false, "", nil
+			return false, "", nil, nil
 		}
 
 		// ── Stage 2: Content block diff ──────────────────────────────────
 		// Content block hashes differ — compute structural diff.
 		logger.Info("Content block hash differs, computing structural diff",
-			zap.String("page_id", pageID))
+			zap.String("page_id", pageID),
+			zap.String("prev_hash", prevCheck.ContentBlockHash),
+			zap.String("curr_hash", currCheck.ContentBlockHash))
 
 		prevHTML := s.fetchHTMLFromURL(prevCheck.HTMLSnapshotURL)
 		var contentDiff *sharedHTML.ContentDiff
@@ -416,10 +434,73 @@ func (s *SnapshotWorker) detectChange(ctx context.Context, prevCheck, currCheck 
 		}
 
 		if contentDiff != nil && contentDiff.HasChanges {
+			// Log the first few actual differences for diagnosis
+			for i, d := range contentDiff.Diffs {
+				if i >= 5 {
+					logger.Info("... and more content diffs",
+						zap.String("page_id", pageID),
+						zap.Int("remaining", contentDiff.TotalChanges-5))
+					break
+				}
+				switch d.Op {
+				case sharedHTML.DiffAdded:
+					logger.Info("Content diff: ADDED",
+						zap.String("page_id", pageID),
+						zap.String("type", string(d.Block.Type)),
+						zap.String("text", truncateForLog(d.Block.Text, 120)))
+				case sharedHTML.DiffRemoved:
+					logger.Info("Content diff: REMOVED",
+						zap.String("page_id", pageID),
+						zap.String("type", string(d.Block.Type)),
+						zap.String("text", truncateForLog(d.Block.Text, 120)))
+				case sharedHTML.DiffChanged:
+					oldText := ""
+					if d.OldBlock != nil {
+						oldText = truncateForLog(d.OldBlock.Text, 80)
+					}
+					logger.Info("Content diff: CHANGED",
+						zap.String("page_id", pageID),
+						zap.String("type", string(d.Block.Type)),
+						zap.String("old_text", oldText),
+						zap.String("new_text", truncateForLog(d.Block.Text, 80)))
+				}
+			}
 			logger.Info("Content change detected via structural diff",
 				zap.String("page_id", pageID),
 				zap.Int("total_changes", contentDiff.TotalChanges))
-			return true, "", contentDiff
+
+			// Cross-validate: if the visual appearance hasn't changed meaningfully,
+			// treat the content diff as noise (e.g., typewriter animations, counters,
+			// live clocks, ad rotation). This prevents false positives from dynamic
+			// text that doesn't affect the user-visible page.
+			if prevCheck.ScreenshotURL != "" {
+				prevImgBytes := s.downloadScreenshot(prevCheck.ScreenshotURL)
+				if len(prevImgBytes) > 0 {
+					pixResult, pixErr := imagecompare.CompareScreenshots(prevImgBytes, currImgBytes, s.pixelDiffThreshold)
+					if pixErr == nil {
+						if pixResult.Identical || pixResult.DiffRatio < s.pixelDiffThreshold {
+							logger.Info("Content diff suppressed — pixel diff below threshold (likely animation noise)",
+								zap.String("page_id", pageID),
+								zap.Int("content_changes", contentDiff.TotalChanges),
+								zap.Float64("pixel_diff_ratio", pixResult.DiffRatio),
+								zap.Float64("threshold", s.pixelDiffThreshold))
+							return false, "", nil, nil
+						}
+						// Visual change confirmed — report as real content change
+						logger.Info("Content diff confirmed by pixel comparison",
+							zap.String("page_id", pageID),
+							zap.Float64("pixel_diff_ratio", pixResult.DiffRatio))
+						diffImg := imagecompare.GenerateDiffImage(prevImgBytes, currImgBytes)
+						return true, "", contentDiff, diffImg
+					}
+					logger.Error("Cross-validation pixel comparison failed, reporting content change",
+						zap.Error(pixErr), zap.String("page_id", pageID))
+					diffImg := imagecompare.GenerateDiffImage(prevImgBytes, currImgBytes)
+					return true, "", contentDiff, diffImg
+				}
+			}
+			// No previous screenshot available for cross-validation — report change
+			return true, "", contentDiff, nil
 		}
 
 		// Diff computation failed or showed no changes despite hash difference.
@@ -432,20 +513,23 @@ func (s *SnapshotWorker) detectChange(ctx context.Context, prevCheck, currCheck 
 	if prevCheck.ScreenshotHash != "" {
 		if prevCheck.ScreenshotHash == currCheck.ScreenshotHash {
 			logger.Info("Screenshot hash identical — no change", zap.String("page_id", pageID))
-			return false, "", nil
+			return false, "", nil, nil
 		}
 
 		if prevCheck.ScreenshotURL != "" {
 			prevImgBytes := s.downloadScreenshot(prevCheck.ScreenshotURL)
 			if len(prevImgBytes) > 0 {
 				result, err := imagecompare.CompareScreenshots(prevImgBytes, currImgBytes, s.pixelDiffThreshold)
-				if err == nil {
-					if result.Identical || result.DiffRatio < s.pixelDiffThreshold {
-						logger.Info("Pixel diff below threshold — no meaningful change",
-							zap.String("page_id", pageID),
-							zap.Float64("diff_ratio", result.DiffRatio))
-						return false, "", nil
-					}
+				if err != nil {
+					logger.Error("Pixel comparison failed (image decode error)",
+						zap.Error(err), zap.String("page_id", pageID))
+				} else if result.Identical || result.DiffRatio < s.pixelDiffThreshold {
+					logger.Info("Pixel diff below threshold — no meaningful change",
+						zap.String("page_id", pageID),
+						zap.Float64("diff_ratio", result.DiffRatio))
+					return false, "", nil, nil
+				} else {
+					diffImg := imagecompare.GenerateDiffImage(prevImgBytes, currImgBytes)
 
 					// ── Stage 4: Vision AI analysis (optional) ───────────
 					if s.visionAnalyzer != nil {
@@ -454,20 +538,22 @@ func (s *SnapshotWorker) detectChange(ctx context.Context, prevCheck, currCheck 
 						if vErr != nil {
 							logger.Error("Vision AI failed, reporting change based on pixel diff",
 								zap.Error(vErr), zap.String("page_id", pageID))
-							return true, "", nil
+							return true, "", nil, diffImg
 						}
 						if !visionResult.HasMeaningfulChange {
-							return false, "", nil
+							return false, "", nil, nil
 						}
-						return true, visionResult.ChangeSummary, nil
+						return true, visionResult.ChangeSummary, nil, diffImg
 					}
 
 					logger.Info("Pixel diff above threshold, reporting change",
 						zap.String("page_id", pageID),
-						zap.Float64("diff_ratio", result.DiffRatio))
-					return true, "", nil
+						zap.Float64("diff_ratio", result.DiffRatio),
+						zap.Int("diff_count", result.DiffCount),
+						zap.Int("total_pixels", result.TotalPixels),
+						zap.Float64("threshold", s.pixelDiffThreshold))
+					return true, "", nil, diffImg
 				}
-				logger.Error("Pixel comparison failed", zap.Error(err), zap.String("page_id", pageID))
 			}
 		}
 	}
@@ -475,12 +561,22 @@ func (s *SnapshotWorker) detectChange(ctx context.Context, prevCheck, currCheck 
 	// ── Stage 5: Normalized text hash fallback ───────────────────────────
 	// Used when previous check has no content block hash (legacy checks).
 	if prevCheck.ContentHash != "" && prevCheck.ContentHash != currCheck.ContentHash {
-		logger.Info("Change detected via normalized text hash",
-			zap.String("page_id", pageID))
-		return true, "", nil
+		logger.Info("Change detected via normalized text hash (Stage 5 fallback)",
+			zap.String("page_id", pageID),
+			zap.String("prev_content_hash", prevCheck.ContentHash[:16]+"..."),
+			zap.String("curr_content_hash", currCheck.ContentHash[:16]+"..."))
+		// Generate diff image if previous screenshot is available
+		var diffImg []byte
+		if prevCheck.ScreenshotURL != "" {
+			prevImgBytes := s.downloadScreenshot(prevCheck.ScreenshotURL)
+			if len(prevImgBytes) > 0 {
+				diffImg = imagecompare.GenerateDiffImage(prevImgBytes, currImgBytes)
+			}
+		}
+		return true, "", nil, diffImg
 	}
 
-	return false, "", nil
+	return false, "", nil, nil
 }
 
 // downloadScreenshot fetches a screenshot using the object storage client.
@@ -665,6 +761,14 @@ func (s *SnapshotWorker) generateInsightsAsync(check *entities.Check, pageURL, p
 	}
 }
 
+// truncateForLog truncates a string for log output.
+func truncateForLog(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+	return s[:max] + "..."
+}
+
 // sliceContains reports whether s contains target.
 func sliceContains(s []string, target string) bool {
 	for _, v := range s {
@@ -840,11 +944,18 @@ func (s *SnapshotWorker) processSectionsFromExtractor(
 
 		prevSectionCheck, _ := checkRepo.GetPreviousSuccessfulBySection(ctx, pageID, &section.ID, uuid.Nil)
 		if prevSectionCheck != nil {
-			changeDetected, changeSummary, contentDiff := s.detectChange(ctx, prevSectionCheck, sectionCheck, imgBytes, sec.ScreenshotBase64, targetURL, sec.HTML)
+			changeDetected, changeSummary, contentDiff, diffImgBytes := s.detectChange(ctx, prevSectionCheck, sectionCheck, imgBytes, sec.ScreenshotBase64, targetURL, sec.HTML)
 			if changeDetected {
 				sectionCheck.ChangeDetected = true
 				sectionCheck.ChangeType = "content"
 				sectionCheck.VisionChangeSummary = changeSummary
+				// Upload diff image for section check
+				if len(diffImgBytes) > 0 {
+					diffName := fmt.Sprintf("%s/sections/%s/%d_diff.png", pageID, sectionID, ts)
+					if diffURL, upErr := s.objectStorage.Upload(ctx, diffName, bytes.NewReader(diffImgBytes), int64(len(diffImgBytes)), "image/png"); upErr == nil {
+						sectionCheck.DiffImageURL = diffURL
+					}
+				}
 				if contentDiff != nil && contentDiff.HasChanges {
 					if diffJSON, err := json.Marshal(contentDiff); err == nil {
 						sectionCheck.ContentDiffJSON = string(diffJSON)

@@ -12,6 +12,8 @@ import (
 	"runtime"
 	"sync"
 	"sync/atomic"
+
+	_ "golang.org/x/image/webp" // Register WebP decoder for image.Decode
 )
 
 // ImageCompareResult holds the result of comparing two screenshots.
@@ -53,20 +55,16 @@ func CompareScreenshots(prevBytes, currBytes []byte, diffThreshold float64) (*Im
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		prevImg, prevErr = png.Decode(bytes.NewReader(prevBytes))
+		prevImg, _, prevErr = image.Decode(bytes.NewReader(prevBytes))
 	}()
 	go func() {
 		defer wg.Done()
-		currImg, currErr = png.Decode(bytes.NewReader(currBytes))
+		currImg, _, currErr = image.Decode(bytes.NewReader(currBytes))
 	}()
 	wg.Wait()
 
 	if prevErr != nil || currErr != nil {
-		return &ImageCompareResult{
-			Identical:      false,
-			ScreenshotHash: currHashStr,
-			DiffRatio:      1.0,
-		}, nil
+		return nil, fmt.Errorf("image decode failed: prev=%v, curr=%v", prevErr, currErr)
 	}
 
 	// Convert to NRGBA for direct .Pix access
@@ -407,11 +405,125 @@ func pixelUint32At(img *image.NRGBA, x, y int) uint32 {
 		uint32(img.Pix[offset+3])
 }
 
+// GenerateDiffImage creates a PNG where the current screenshot is overlaid with
+// semi-transparent red on every pixel that differs from the previous screenshot.
+// Uses the same YIQ perceptual comparison and anti-aliasing detection as CompareScreenshots.
+// Returns nil if the images are identical or on decode error.
+func GenerateDiffImage(prevBytes, currBytes []byte) []byte {
+	var (
+		prevImg, currImg image.Image
+		prevErr, currErr error
+		wg               sync.WaitGroup
+	)
+
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		prevImg, _, prevErr = image.Decode(bytes.NewReader(prevBytes))
+	}()
+	go func() {
+		defer wg.Done()
+		currImg, _, currErr = image.Decode(bytes.NewReader(currBytes))
+	}()
+	wg.Wait()
+
+	if prevErr != nil || currErr != nil {
+		return nil
+	}
+
+	a := toNRGBA(prevImg)
+	b := toNRGBA(currImg)
+
+	boundsA := a.Bounds()
+	boundsB := b.Bounds()
+
+	minX := max(boundsA.Min.X, boundsB.Min.X)
+	minY := max(boundsA.Min.Y, boundsB.Min.Y)
+	maxX := min(boundsA.Max.X, boundsB.Max.X)
+	maxY := min(boundsA.Max.Y, boundsB.Max.Y)
+
+	w := maxX - minX
+	h := maxY - minY
+	if w <= 0 || h <= 0 {
+		return nil
+	}
+
+	// Start with a copy of the current screenshot
+	out := image.NewNRGBA(b.Bounds())
+	copy(out.Pix, b.Pix)
+
+	// Parallel band processing (same pattern as compareNRGBA)
+	numBands := runtime.NumCPU()
+	if numBands > 16 {
+		numBands = 16
+	}
+	minBandHeight := 64
+	if h/numBands < minBandHeight {
+		numBands = h / minBandHeight
+		if numBands < 1 {
+			numBands = 1
+		}
+	}
+
+	bandHeight := h / numBands
+	wg.Add(numBands)
+	for band := 0; band < numBands; band++ {
+		band := band
+		startY := minY + band*bandHeight
+		endY := startY + bandHeight
+		if band == numBands-1 {
+			endY = maxY
+		}
+
+		go func() {
+			defer wg.Done()
+			for y := startY; y < endY; y++ {
+				for x := minX; x < maxX; x++ {
+					r1, g1, b1, a1 := pixelAt(a, x, y)
+					r2, g2, b2, a2 := pixelAt(b, x, y)
+
+					if r1 == r2 && g1 == g2 && b1 == b2 && a1 == a2 {
+						continue
+					}
+
+					delta := colorDelta(r1, g1, b1, a1, r2, g2, b2, a2, false)
+					if delta <= 0.1 {
+						continue
+					}
+
+					if isAntialiased(a, x, y, w, h, minX, minY, b) ||
+						isAntialiased(b, x, y, w, h, minX, minY, a) {
+						continue
+					}
+
+					// Paint semi-transparent red (alpha blend over current pixel)
+					offset := (y-out.Rect.Min.Y)*out.Stride + (x-out.Rect.Min.X)*4
+					origR := float64(out.Pix[offset])
+					origG := float64(out.Pix[offset+1])
+					origB := float64(out.Pix[offset+2])
+					const overlayAlpha = 0.4
+					out.Pix[offset] = uint8(origR*(1-overlayAlpha) + 255*overlayAlpha)
+					out.Pix[offset+1] = uint8(origG * (1 - overlayAlpha))
+					out.Pix[offset+2] = uint8(origB * (1 - overlayAlpha))
+					out.Pix[offset+3] = 255
+				}
+			}
+		}()
+	}
+	wg.Wait()
+
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, out); err != nil {
+		return nil
+	}
+	return buf.Bytes()
+}
+
 // CropSectionImage crops a full-page PNG screenshot to the given viewport-relative rectangle.
 // x, y, w, h are in viewport pixels. viewportWidth is the width at which the coordinates were
 // recorded (0 = no scaling, coordinates map 1:1 to image pixels).
 func CropSectionImage(imgBytes []byte, x, y, w, h, viewportWidth int) ([]byte, error) {
-	img, err := png.Decode(bytes.NewReader(imgBytes))
+	img, _, err := image.Decode(bytes.NewReader(imgBytes))
 	if err != nil {
 		return nil, fmt.Errorf("decode image: %w", err)
 	}

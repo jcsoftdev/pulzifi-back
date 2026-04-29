@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jcsoftdev/pulzifi-back/modules/insight/domain/entities"
 	"github.com/jcsoftdev/pulzifi-back/modules/insight/domain/services"
 	insightPersistence "github.com/jcsoftdev/pulzifi-back/modules/insight/infrastructure/persistence"
 )
@@ -28,13 +29,22 @@ func NewGenerateInsightsHandler(generator services.InsightGenerator, db *sql.DB)
 }
 
 // Handle generates insights for a detected page change and stores them.
+// When DiffText is provided (from content block diffing), it uses the more
+// token-efficient GenerateFromDiff path. Falls back to full-text Generate.
 func (h *GenerateInsightsHandler) Handle(ctx context.Context, req *Request) error {
 	enabledTypes := req.EnabledInsightTypes
 	if len(enabledTypes) == 0 {
 		enabledTypes = defaultInsightTypes
 	}
 
-	insights, err := h.generator.Generate(ctx, req.PageURL, req.PrevText, req.NewText, enabledTypes)
+	var insights []*entities.Insight
+	var err error
+
+	if req.DiffText != "" {
+		insights, err = h.generator.GenerateFromDiff(ctx, req.PageURL, req.DiffText, enabledTypes)
+	} else {
+		insights, err = h.generator.Generate(ctx, req.PageURL, req.PrevText, req.NewText, enabledTypes)
+	}
 	if err != nil {
 		return fmt.Errorf("generate insights: %w", err)
 	}

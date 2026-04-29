@@ -7,6 +7,7 @@ export interface ExtractOptions {
   blockAdsCookies: boolean;
   selector?: SelectorConfig;
   sections?: SectionConfig[];
+  ignoreSelectors?: string[];
 }
 
 export interface PreviewOptions {

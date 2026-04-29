@@ -55,7 +55,7 @@ func (h *ListChecksHandler) HandleBySection(ctx context.Context, pageID uuid.UUI
 }
 
 func toCheckResponse(check *entities.Check) *CheckResponse {
-	return &CheckResponse{
+	resp := &CheckResponse{
 		ID:              check.ID,
 		PageID:          check.PageID,
 		SectionID:       check.SectionID,
@@ -66,8 +66,13 @@ func toCheckResponse(check *entities.Check) *CheckResponse {
 		ChangeDetected:  check.ChangeDetected,
 		ChangeType:      check.ChangeType,
 		ErrorMessage:    check.ErrorMessage,
+		DiffImageURL:    check.DiffImageURL,
 		CheckedAt:       check.CheckedAt,
 	}
+	if check.ContentDiffJSON != "" {
+		resp.ContentDiff = json.RawMessage(check.ContentDiffJSON)
+	}
+	return resp
 }
 
 func buildResponse(checks []*entities.Check) *ListChecksResponse {

@@ -313,6 +313,7 @@ export default function ChangesPage() {
               <VisualPulse
                 currentScreenshotUrl={sc.screenshotUrl}
                 previousScreenshotUrl={prevSc?.screenshotUrl}
+                diffImageUrl={sc.diffImageUrl}
                 sectionName={sectionMeta?.name}
               />
             </div>
@@ -325,6 +326,7 @@ export default function ChangesPage() {
             <VisualPulse
               currentScreenshotUrl={activeCheck.screenshotUrl}
               previousScreenshotUrl={previousCheck?.screenshotUrl}
+              diffImageUrl={activeCheck?.diffImageUrl}
             />
           </div>
         )}
@@ -362,6 +364,7 @@ export default function ChangesPage() {
             <VisualPulse
               currentScreenshotUrl={activeCheck?.screenshotUrl}
               previousScreenshotUrl={previousCheck?.screenshotUrl}
+              diffImageUrl={activeCheck?.diffImageUrl}
               sectionName={activeSectionName}
             />
           )

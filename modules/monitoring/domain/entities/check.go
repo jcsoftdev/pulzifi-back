@@ -22,6 +22,9 @@ type Check struct {
 	DurationMs          int
 	ScreenshotHash      string // SHA-256 of screenshot bytes for pixel comparison
 	VisionChangeSummary string // AI-generated change description from vision model
+	ContentBlockHash    string // SHA-256 of content blocks for structural comparison
+	ContentDiffJSON     string // JSON-serialized ContentDiff for the frontend
+	DiffImageURL        string // URL of the diff image highlighting changed pixels
 	CheckedAt           time.Time
 }
 

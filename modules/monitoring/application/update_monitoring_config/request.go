@@ -19,4 +19,5 @@ type UpdateMonitoringConfigRequest struct {
 	CSSSelector            *string            `json:"css_selector,omitempty"`
 	XPathSelector          *string            `json:"xpath_selector,omitempty"`
 	SelectorOffsets        *SelectorOffsetsDTO `json:"selector_offsets,omitempty"`
+	IgnoreSelectors        []string            `json:"ignore_selectors,omitempty"`
 }

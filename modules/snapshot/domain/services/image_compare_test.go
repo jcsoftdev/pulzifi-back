@@ -59,6 +59,7 @@ func TestCompareScreenshots(t *testing.T) {
 		wantIdent   bool
 		wantMinDiff float64
 		wantMaxDiff float64
+		wantErr     bool
 	}{
 		{
 			name:      "identical images",
@@ -146,20 +147,18 @@ func TestCompareScreenshots(t *testing.T) {
 			wantMaxDiff: 0.0,
 		},
 		{
-			name:        "corrupt PNG prev",
-			prev:        []byte("not a png"),
-			curr:        encodePNG(makeImage(100, 100, white)),
-			threshold:   1.0,
-			wantMinDiff: 1.0,
-			wantMaxDiff: 1.0,
+			name:      "corrupt PNG prev",
+			prev:      []byte("not a png"),
+			curr:      encodePNG(makeImage(100, 100, white)),
+			threshold: 1.0,
+			wantErr:   true,
 		},
 		{
-			name:        "corrupt PNG curr",
-			prev:        encodePNG(makeImage(100, 100, white)),
-			curr:        []byte("not a png"),
-			threshold:   1.0,
-			wantMinDiff: 1.0,
-			wantMaxDiff: 1.0,
+			name:      "corrupt PNG curr",
+			prev:      encodePNG(makeImage(100, 100, white)),
+			curr:      []byte("not a png"),
+			threshold: 1.0,
+			wantErr:   true,
 		},
 		{
 			name: "early termination with low threshold",
@@ -189,6 +188,12 @@ func TestCompareScreenshots(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := CompareScreenshots(tt.prev, tt.curr, tt.threshold)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("expected error, got nil")
+				}
+				return
+			}
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}

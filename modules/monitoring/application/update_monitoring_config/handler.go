@@ -120,6 +120,7 @@ func (h *UpdateMonitoringConfigHandler) Handle(ctx context.Context, pageID uuid.
 			CSSSelector:            cssSelector,
 			XPathSelector:          xpathSelector,
 			SelectorOffsets:        selectorOffsets,
+			IgnoreSelectors:        req.IgnoreSelectors,
 			CreatedAt:              time.Now(),
 			UpdatedAt:              time.Now(),
 		}
@@ -193,6 +194,9 @@ func (h *UpdateMonitoringConfigHandler) Handle(ctx context.Context, pageID uuid.
 				Left:   req.SelectorOffsets.Left,
 			}
 		}
+		if req.IgnoreSelectors != nil {
+			config.IgnoreSelectors = req.IgnoreSelectors
+		}
 
 		config.UpdatedAt = time.Now()
 
@@ -257,6 +261,7 @@ func (h *UpdateMonitoringConfigHandler) Handle(ctx context.Context, pageID uuid.
 		CSSSelector:            config.CSSSelector,
 		XPathSelector:          config.XPathSelector,
 		SelectorOffsets:        selectorOffsetsDTO,
+		IgnoreSelectors:        config.IgnoreSelectors,
 		UpdatedAt:              config.UpdatedAt,
 		QuotaExceeded:          quotaExceeded,
 	}, nil

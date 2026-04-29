@@ -28,6 +28,7 @@ type MonitoringConfig struct {
 	CSSSelector            string
 	XPathSelector          string
 	SelectorOffsets        *SelectorOffsets // pixel offsets for element bounding box
+	IgnoreSelectors        []string         // CSS selectors for elements to strip before extraction
 	CreatedAt              time.Time
 	UpdatedAt              time.Time
 }

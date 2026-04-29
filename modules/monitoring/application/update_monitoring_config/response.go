@@ -20,6 +20,7 @@ type UpdateMonitoringConfigResponse struct {
 	CSSSelector            string              `json:"css_selector"`
 	XPathSelector          string              `json:"xpath_selector"`
 	SelectorOffsets        *SelectorOffsetsDTO `json:"selector_offsets,omitempty"`
+	IgnoreSelectors        []string            `json:"ignore_selectors"`
 	UpdatedAt              time.Time           `json:"updated_at"`
 	QuotaExceeded          bool                `json:"quota_exceeded"`
 }

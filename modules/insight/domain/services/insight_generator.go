@@ -10,4 +10,7 @@ import (
 // enabledTypes controls which insight types are produced (e.g. ["marketing","market_analysis"]).
 type InsightGenerator interface {
 	Generate(ctx context.Context, pageURL, prevText, newText string, enabledTypes []string) ([]*entities.Insight, error)
+	// GenerateFromDiff generates insights from a compact structural diff text
+	// instead of full previous/new text. Uses significantly fewer tokens.
+	GenerateFromDiff(ctx context.Context, pageURL, diffText string, enabledTypes []string) ([]*entities.Insight, error)
 }

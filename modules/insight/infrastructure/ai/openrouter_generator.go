@@ -161,6 +161,86 @@ Return ONLY a valid JSON array with exactly %d object(s). No markdown fences, no
 	return insights, nil
 }
 
+// GenerateFromDiff generates insights from a compact structural diff text.
+// This uses significantly fewer tokens than Generate since the diff only includes
+// changed/added/removed content blocks rather than full page text.
+func (g *OpenRouterGenerator) GenerateFromDiff(ctx context.Context, pageURL, diffText string, enabledTypes []string) ([]*entities.Insight, error) {
+	if len(enabledTypes) == 0 {
+		return nil, nil
+	}
+
+	allTypes := buildOrderedTypes(enabledTypes)
+
+	var sections []string
+	var jsonTemplate []string
+	for i, t := range allTypes {
+		desc, ok := insightTypeDescriptions[t]
+		if !ok {
+			desc = fmt.Sprintf("%s: analyse this aspect of the changes", t)
+		}
+		title := insightTitles[t]
+		if title == "" {
+			title = t
+		}
+		sections = append(sections, fmt.Sprintf("%d. %s", i+1, desc))
+		jsonTemplate = append(jsonTemplate, fmt.Sprintf(`  {"insight_type": %q, "title": %q, "content": "<your analysis here>"}`, t, title))
+	}
+
+	prompt := fmt.Sprintf(`You are a senior competitive intelligence analyst. A monitoring system detected content changes on: %s
+
+DETECTED CHANGES:
+%s
+
+Based on these specific changes, produce exactly %d insight(s) in the order listed.
+
+WRITING GUIDELINES
+- Be specific and concrete — reference the actual changes shown above.
+- Each insight must be substantive: 2–4 paragraphs or clearly formatted numbered points.
+- Do NOT pad with generic observations. Every sentence must add analytical value.
+- Use plain text only in the "content" field — no markdown bold, no asterisks, no headers.
+- Write in a confident, professional analyst voice.
+
+INSIGHTS TO GENERATE (%d total, in this exact order):
+%s
+
+Return ONLY a valid JSON array with exactly %d object(s). No markdown fences, no explanation outside the array — pure JSON:
+[
+%s
+]`,
+		pageURL,
+		diffText,
+		len(allTypes),
+		len(allTypes),
+		strings.Join(sections, "\n\n"),
+		len(allTypes),
+		strings.Join(jsonTemplate, ",\n"),
+	)
+
+	messages := []sharedAI.Message{
+		{Role: "user", Content: prompt},
+	}
+
+	raw, err := g.client.Complete(ctx, messages)
+	if err != nil {
+		return nil, fmt.Errorf("openrouter generator (diff): %w", err)
+	}
+
+	payloads, err := parseInsights(raw)
+	if err != nil {
+		return nil, fmt.Errorf("openrouter generator (diff): parse response: %w", err)
+	}
+
+	insights := make([]*entities.Insight, 0, len(payloads))
+	for _, p := range payloads {
+		insights = append(insights, &entities.Insight{
+			InsightType: p.InsightType,
+			Title:       p.Title,
+			Content:     p.Content,
+		})
+	}
+	return insights, nil
+}
+
 // buildOrderedTypes returns [overview, ...rest] deduplicating overview.
 func buildOrderedTypes(enabled []string) []string {
 	out := []string{"overview"}

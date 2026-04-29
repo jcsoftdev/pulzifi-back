@@ -14,4 +14,5 @@ export interface ExtractPageRequest {
   selector_xpath?: string;
   selector_offsets?: SelectorOffsets;
   sections?: SectionRequest[];
+  ignore_selectors?: string[];
 }

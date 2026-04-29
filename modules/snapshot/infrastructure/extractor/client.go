@@ -47,6 +47,7 @@ type ExtractOptions struct {
 	SelectorXPath   string
 	SelectorOffsets *SelectorOffsets
 	Sections        []SectionExtractOption
+	IgnoreSelectors []string
 }
 
 type PreviewElement struct {
@@ -117,6 +118,9 @@ func (c *HTTPClient) Extract(ctx context.Context, url string, opts ExtractOption
 	}
 	if len(opts.Sections) > 0 {
 		payload["sections"] = opts.Sections
+	}
+	if len(opts.IgnoreSelectors) > 0 {
+		payload["ignore_selectors"] = opts.IgnoreSelectors
 	}
 
 	body, err := json.Marshal(payload)

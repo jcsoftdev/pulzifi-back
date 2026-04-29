@@ -9,6 +9,7 @@ type Request struct {
 	PageURL             string
 	PrevText            string
 	NewText             string
+	DiffText            string   // compact structural diff text (from content block diffing)
 	SchemaName          string
 	EnabledInsightTypes []string // subset to generate; defaults to ["marketing","market_analysis"]
 }

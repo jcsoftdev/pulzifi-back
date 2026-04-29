@@ -16,6 +16,9 @@ import { extractSections } from "./section-extractor";
 import { mapSemanticElements } from "./element-mapper";
 import { scrollFullPage } from "./page-scroller";
 import { waitForRenderStable } from "./render-waiter";
+import { freezeJsTimers, freezeAnimations } from "./animation-freezer";
+import { waitForImages } from "./image-load-waiter";
+import { dismissPopups } from "./popup-dismisser";
 import { log, logError, createTimer } from "../logger";
 
 const MAX_CONCURRENT = parseInt(process.env.MAX_CONCURRENT_PAGES || "3", 10);
@@ -141,6 +144,42 @@ export class PatchrightBrowserService implements IBrowserService {
       await waitForRenderStable(page);
       log("extract", "render stabilized", { url, elapsed: renderTimer.elapsed() });
 
+      const imgTimer = createTimer();
+      await waitForImages(page);
+      log("extract", "images loaded", { url, elapsed: imgTimer.elapsed() });
+
+      // Phase 1: Wait for text animations (typewriters, tickers) to finish
+      // typing the current word, then freeze JS timers to lock DOM state.
+      // Must run AFTER scroll/render/images so lazy content loads properly.
+      const jsTimerFreezeTimer = createTimer();
+      await freezeJsTimers(page);
+      log("extract", "JS timers frozen after text stable", { url, elapsed: jsTimerFreezeTimer.elapsed() });
+
+      const popupTimer = createTimer();
+      const popupsRemoved = await dismissPopups(page);
+      log("extract", "popups dismissed", { url, elapsed: popupTimer.elapsed(), removed: popupsRemoved });
+
+      // Phase 2: Freeze CSS animations, media, Web Animations API
+      const freezeTimer = createTimer();
+      await freezeAnimations(page);
+      log("extract", "animations frozen", { url, elapsed: freezeTimer.elapsed() });
+
+      // Strip ignored elements before extraction
+      if (options.ignoreSelectors && options.ignoreSelectors.length > 0) {
+        const stripTimer = createTimer();
+        const removedCount = await page.evaluate((selectors: string[]) => {
+          let count = 0;
+          for (const s of selectors) {
+            document.querySelectorAll(s).forEach((el) => {
+              el.remove();
+              count++;
+            });
+          }
+          return count;
+        }, options.ignoreSelectors);
+        log("extract", "ignored elements stripped", { url, elapsed: stripTimer.elapsed(), selectors: options.ignoreSelectors.length, removed: removedCount });
+      }
+
       // Extract content
       const selectorConfig = options.selector
         ? {
@@ -254,6 +293,9 @@ export class PatchrightBrowserService implements IBrowserService {
       await scrollFullPage(page);
       await waitForRenderStable(page);
       log("preview", "step 2/5: scroll + render stable", { url, elapsed: scrollTimer.elapsed() });
+
+      // Freeze JS timers after scroll/render so lazy content loads properly
+      await freezeJsTimers(page);
 
       onProgress?.(3, totalSteps, "Capturing screenshot...");
       const screenshotTimer = createTimer();
