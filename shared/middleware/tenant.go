@@ -100,6 +100,7 @@ func isPublicPath(path string) bool {
 		"/docs",
 		"/auth/login",
 		"/auth/register",
+		"/auth/callback",
 		"/auth/check-subdomain",
 		"/auth/me",
 		"/auth/refresh",
