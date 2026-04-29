@@ -165,17 +165,21 @@ func (h *Handler) handleLogoutGet(w http.ResponseWriter, r *http.Request) {
 // redirects to the app root.
 func (h *Handler) handleCallback(w http.ResponseWriter, r *http.Request) {
 	nonce := r.URL.Query().Get("nonce")
+	h.logger.Info("BFF callback received", zap.String("nonce", nonce), zap.String("host", r.Host))
 	if nonce == "" {
+		h.logger.Warn("BFF callback missing nonce")
 		http.Redirect(w, r, "/login", http.StatusFound)
 		return
 	}
 
 	entry := h.nonceStore.Consume(nonce)
 	if entry == nil {
+		h.logger.Warn("BFF callback nonce not found or expired", zap.String("nonce", nonce))
 		http.Redirect(w, r, "/login?error=SessionExpired", http.StatusFound)
 		return
 	}
 
+	h.logger.Info("BFF callback nonce consumed successfully", zap.String("nonce", nonce))
 	accessExpires := time.Now().Add(h.tokenService.GetTokenExpiration())
 	cookies.SetAccessTokenCookie(w, r, entry.AccessToken, accessExpires, h.cookieDomain, h.cookieSecure)
 
@@ -186,6 +190,7 @@ func (h *Handler) handleCallback(w http.ResponseWriter, r *http.Request) {
 	if redirectTo == "" {
 		redirectTo = "/"
 	}
+	h.logger.Info("BFF callback redirecting", zap.String("to", redirectTo))
 	http.Redirect(w, r, redirectTo, http.StatusFound)
 }
 
