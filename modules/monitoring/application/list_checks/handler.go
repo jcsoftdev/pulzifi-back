@@ -66,11 +66,9 @@ func toCheckResponse(check *entities.Check) *CheckResponse {
 		ChangeDetected:  check.ChangeDetected,
 		ChangeType:      check.ChangeType,
 		ErrorMessage:    check.ErrorMessage,
+		ContentDiff:     check.ContentDiffJSON,
 		DiffImageURL:    check.DiffImageURL,
 		CheckedAt:       check.CheckedAt,
-	}
-	if check.ContentDiffJSON != "" {
-		resp.ContentDiff = json.RawMessage(check.ContentDiffJSON)
 	}
 	return resp
 }
