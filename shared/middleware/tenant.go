@@ -126,7 +126,7 @@ func extractSubdomain(r *http.Request) string {
 		return subdomain
 	}
 
-	// Fallback: try X-Forwarded-Host (passed by Node.js server-side requests)
+	// Fallback: try X-Forwarded-Host (passed by Node.js server-side requests or Traefik)
 	if forwardedHost := r.Header.Get("X-Forwarded-Host"); forwardedHost != "" {
 		host := strings.Split(forwardedHost, ":")[0]
 		parts := strings.Split(host, ".")
@@ -141,6 +141,13 @@ func extractSubdomain(r *http.Request) string {
 	if len(parts) > 1 {
 		return parts[0]
 	}
+
+	// Debug: log all headers if subdomain empty
+	logger.Debug("Failed to extract subdomain",
+		zap.String("host", r.Host),
+		zap.String("x-forwarded-host", r.Header.Get("X-Forwarded-Host")),
+		zap.String("x-tenant", r.Header.Get("X-Tenant")),
+		zap.String("x-forwarded-proto", r.Header.Get("X-Forwarded-Proto")))
 
 	return ""
 }
