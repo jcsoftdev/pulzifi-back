@@ -27,11 +27,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 # Install dependencies
-COPY modules/infra/scraper/package.json modules/infra/scraper/bun.lock* ./
+COPY package.json bun.lock* ./
 RUN bun install --frozen-lockfile || bun install
 
 # Copy source
-COPY modules/infra/scraper/ .
+COPY . .
 
 # Create non-root user
 RUN groupadd -r scraper && useradd -r -g scraper -G audio,video scraper \
