@@ -1,6 +1,9 @@
 package templates
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 func wrap(title, body string) string {
 	return fmt.Sprintf(`<!DOCTYPE html>
@@ -80,5 +83,26 @@ func PasswordReset(firstName, resetURL string) (subject, html string) {
 <p><a href="%s" style="display:inline-block;background:#4F46E5;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;">Reset Password</a></p>
 <p>If you didn't request this, you can safely ignore this email.</p>
 `, firstName, resetURL))
+	return
+}
+
+// SuperAdminInvite generates the super-admin platform invitation email.
+// When isResend is true, the copy is reworded as a reminder.
+func SuperAdminInvite(inviterName, acceptURL string, expiresAt time.Time, isResend bool) (subject, html string) {
+	heading := "You're invited to Pulzifi"
+	intro := fmt.Sprintf("<strong>%s</strong> invited you to create an organization on Pulzifi.", inviterName)
+	subject = "You're invited to Pulzifi"
+	if isResend {
+		heading = "Reminder: your Pulzifi invitation"
+		intro = fmt.Sprintf("<strong>%s</strong> re-sent your invitation to create an organization on Pulzifi.", inviterName)
+		subject = "Reminder: invitation to Pulzifi"
+	}
+	html = wrap(subject, fmt.Sprintf(`
+<h2>%s</h2>
+<p>%s</p>
+<p><a href="%s" style="display:inline-block;background:#4F46E5;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;">Accept invitation</a></p>
+<p style="font-size:13px;color:#666;">This link expires on %s.</p>
+<p style="font-size:13px;color:#666;">If you weren't expecting this invitation, you can safely ignore this email.</p>
+`, heading, intro, acceptURL, expiresAt.Format(time.RFC1123)))
 	return
 }

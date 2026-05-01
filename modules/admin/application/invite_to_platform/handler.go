@@ -12,6 +12,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jcsoftdev/pulzifi-back/modules/admin/domain/repositories"
+	"github.com/jcsoftdev/pulzifi-back/modules/email/infrastructure/templates"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 )
 
@@ -64,10 +65,7 @@ func (h *Handler) Handle(ctx context.Context, req Request, inviterID uuid.UUID) 
 	sendCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	acceptURL := fmt.Sprintf("%s/invite/platform/%s", h.frontendURL, token)
-	subject := "You're invited to Pulzifi"
-	body := fmt.Sprintf(`<p>%s invited you to create an organization on Pulzifi.</p><p><a href="%s">Accept invitation</a></p><p>Expires %s.</p>`,
-		h.inviterName, acceptURL, expiresAt.Format(time.RFC1123))
-	// NOTE: HTML inlined here for Phase 5; Phase 8 swaps to a real template.
+	subject, body := templates.SuperAdminInvite(h.inviterName, acceptURL, expiresAt, false)
 
 	delivery := "sent"
 	now := time.Now().UTC()

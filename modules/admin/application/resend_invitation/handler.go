@@ -11,6 +11,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jcsoftdev/pulzifi-back/modules/admin/domain/repositories"
+	"github.com/jcsoftdev/pulzifi-back/modules/email/infrastructure/templates"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 )
 
@@ -62,9 +63,7 @@ func (h *Handler) Handle(ctx context.Context, id uuid.UUID) (*Response, error) {
 	sendCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	acceptURL := fmt.Sprintf("%s/invite/platform/%s", h.frontendURL, inv.Token)
-	subject := "Reminder: invitation to Pulzifi"
-	body := fmt.Sprintf(`<p>%s re-sent your invitation. <a href="%s">Accept invitation</a></p><p>Expires %s.</p>`,
-		h.inviterName, acceptURL, inv.ExpiresAt.Format(time.RFC1123))
+	subject, body := templates.SuperAdminInvite(h.inviterName, acceptURL, inv.ExpiresAt, true)
 
 	delivery := "sent"
 	now := time.Now().UTC()
