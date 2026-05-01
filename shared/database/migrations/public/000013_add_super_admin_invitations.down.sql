@@ -4,6 +4,7 @@ DROP INDEX IF EXISTS public.idx_reg_req_invited_by;
 DROP INDEX IF EXISTS public.idx_reg_req_active_invite_email;
 DROP INDEX IF EXISTS public.idx_reg_req_invitation_token;
 
+ALTER TABLE public.registration_requests DROP CONSTRAINT IF EXISTS registration_requests_invite_has_expiry;
 ALTER TABLE public.registration_requests DROP CONSTRAINT IF EXISTS registration_requests_email_lowercase;
 
 ALTER TABLE public.registration_requests
