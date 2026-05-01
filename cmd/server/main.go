@@ -50,6 +50,7 @@ import (
 func main() {
 	// Load configuration
 	cfg := config.Load()
+	logger.InitEmailHashKey(cfg.LogHashKey)
 	logger.Info("Starting Pulzifi Backend - Unified Monolith",
 		zap.String("environment", cfg.Environment),
 		zap.String("cookie_domain", cfg.CookieDomain),

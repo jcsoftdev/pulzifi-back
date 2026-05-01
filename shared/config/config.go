@@ -86,6 +86,9 @@ type Config struct {
 	// Rate Limiting
 	RateLimitRequests int
 	RateLimitWindow   time.Duration
+
+	// Observability
+	LogHashKey string
 }
 
 func Load() *Config {
@@ -153,6 +156,7 @@ func Load() *Config {
 		OAuthRedirectBaseURL:  getEnv("OAUTH_REDIRECT_BASE_URL", ""),
 		RateLimitRequests:     getEnvInt("RATE_LIMIT_REQUESTS", 500),
 		RateLimitWindow:       getEnvDuration("RATE_LIMIT_WINDOW", 60*time.Second),
+		LogHashKey:            getEnv("LOG_HASH_KEY", ""),
 	}
 }
 
