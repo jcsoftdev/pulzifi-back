@@ -106,6 +106,7 @@ func isPublicPath(path string) bool {
 		"/auth/refresh",
 		"/auth/logout",
 		"/auth/forgot-password",
+		"/auth/invitations",
 		"/auth/reset-password",
 		"/auth/oauth",
 		"/auth/providers",
@@ -170,7 +171,11 @@ func isGenericDomain(subdomain string) bool {
 }
 
 func resolveSchema(db *sql.DB, subdomain string) (string, error) {
-	query := `SELECT schema_name FROM public.organizations WHERE subdomain = $1 AND deleted_at IS NULL LIMIT 1`
+	query := `SELECT schema_name FROM public.organizations
+              WHERE subdomain = $1
+                AND deleted_at IS NULL
+                AND schema_provisioning_failed_at IS NULL
+              LIMIT 1`
 	var schemaName string
 	err := db.QueryRow(query, subdomain).Scan(&schemaName)
 	return schemaName, err
