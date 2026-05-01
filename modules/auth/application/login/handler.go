@@ -39,15 +39,9 @@ func (h *Handler) Handle(ctx context.Context, req *Request) (*Response, error) {
 		return nil, err
 	}
 
-	accessToken, err := h.tokenService.GenerateAccessToken(ctx, user.ID, user.Email)
+	accessToken, refreshTokenStr, expiresIn, err := h.tokenService.GenerateTokenPairForUser(ctx, user.ID)
 	if err != nil {
-		logger.Error("Failed to generate access token", zap.Error(err))
-		return nil, err
-	}
-
-	refreshTokenStr, err := h.tokenService.GenerateRefreshToken(ctx, user.ID)
-	if err != nil {
-		logger.Error("Failed to generate refresh token", zap.Error(err))
+		logger.Error("Failed to generate token pair", zap.Error(err))
 		return nil, err
 	}
 
@@ -66,9 +60,10 @@ func (h *Handler) Handle(ctx context.Context, req *Request) (*Response, error) {
 	logger.Info("User logged in successfully", zap.String("email", user.Email))
 
 	return &Response{
+		UserID:       user.ID,
 		AccessToken:  accessToken,
 		RefreshToken: refreshTokenStr,
-		ExpiresIn:    int64(h.tokenService.GetTokenExpiration().Seconds()),
+		ExpiresIn:    expiresIn,
 		Tenant:       tenant,
 	}, nil
 }

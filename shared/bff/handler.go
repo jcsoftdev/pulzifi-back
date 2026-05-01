@@ -1,6 +1,7 @@
 package bff
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"time"
@@ -81,30 +82,63 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Generate nonce for cross-subdomain token exchange
-	nonce := uuid.New().String()
-	h.nonceStore.Save(nonce, noncestore.NonceEntry{
-		AccessToken:  response.AccessToken,
-		RefreshToken: response.RefreshToken,
-		ExpiresIn:    response.ExpiresIn,
-	})
-
-	// Set HttpOnly cookies on the current origin
-	accessExpires := time.Now().Add(h.tokenService.GetTokenExpiration())
-	cookies.SetAccessTokenCookie(w, r, response.AccessToken, accessExpires, h.cookieDomain, h.cookieSecure)
-
-	refreshExpires := time.Now().Add(h.tokenService.GetRefreshTokenExpiration())
-	cookies.SetRefreshTokenCookie(w, r, response.RefreshToken, refreshExpires, h.cookieDomain, h.cookieSecure)
+	tenant := ""
+	if response.Tenant != nil {
+		tenant = *response.Tenant
+	}
+	nonce, expIn, err := h.IssueSessionForUser(r.Context(), w, r, response.UserID, tenant)
+	if err != nil {
+		h.logger.Error("BFF login: issue session failed", zap.Error(err))
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "session_issue_failed"})
+		return
+	}
 
 	result := map[string]interface{}{
 		"nonce":      nonce,
-		"expires_in": response.ExpiresIn,
+		"expires_in": expIn,
 	}
 	if response.Tenant != nil {
 		result["tenant"] = *response.Tenant
 	}
 
 	writeJSON(w, http.StatusOK, result)
+}
+
+// IssueSessionForUser generates JWTs for the given user, sets HttpOnly cookies,
+// and saves a nonce for cross-subdomain redirect. Returns nonce and expires_in.
+// Used by both /api/auth/login and /api/auth/invitations/{token}/accept.
+//
+// The tenantSubdomain parameter is currently unused inside the helper (the nonce
+// store doesn't care about tenant) but kept in the signature so the auth/invitation
+// route has a forward-compatible API.
+func (h *Handler) IssueSessionForUser(
+	ctx context.Context,
+	w http.ResponseWriter,
+	r *http.Request,
+	userID uuid.UUID,
+	tenantSubdomain string,
+) (nonce string, expiresIn int64, err error) {
+	_ = tenantSubdomain // reserved for future tenant-scoped nonce/cookie behavior
+
+	access, refresh, exp, err := h.tokenService.GenerateTokenPairForUser(ctx, userID)
+	if err != nil {
+		return "", 0, err
+	}
+
+	nonce = uuid.New().String()
+	h.nonceStore.Save(nonce, noncestore.NonceEntry{
+		AccessToken:  access,
+		RefreshToken: refresh,
+		ExpiresIn:    exp,
+	})
+
+	accessExpires := time.Now().Add(h.tokenService.GetTokenExpiration())
+	cookies.SetAccessTokenCookie(w, r, access, accessExpires, h.cookieDomain, h.cookieSecure)
+
+	refreshExpires := time.Now().Add(h.tokenService.GetRefreshTokenExpiration())
+	cookies.SetRefreshTokenCookie(w, r, refresh, refreshExpires, h.cookieDomain, h.cookieSecure)
+
+	return nonce, exp, nil
 }
 
 // POST /api/auth/refresh

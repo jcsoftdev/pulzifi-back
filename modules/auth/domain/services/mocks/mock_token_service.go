@@ -18,11 +18,13 @@ type MockTokenService struct {
 	TokenExpiration            time.Duration
 	RefreshTokenExpiration     time.Duration
 
-	GenerateAccessTokenFn  func(ctx context.Context, userID uuid.UUID, email string) (string, error)
-	GenerateRefreshTokenFn func(ctx context.Context, userID uuid.UUID) (string, error)
+	GenerateAccessTokenFn      func(ctx context.Context, userID uuid.UUID, email string) (string, error)
+	GenerateRefreshTokenFn     func(ctx context.Context, userID uuid.UUID) (string, error)
+	GenerateTokenPairForUserFn func(ctx context.Context, userID uuid.UUID) (string, string, int64, error)
 
-	GenerateAccessTokenCalls  int
-	GenerateRefreshTokenCalls int
+	GenerateAccessTokenCalls      int
+	GenerateRefreshTokenCalls     int
+	GenerateTokenPairForUserCalls int
 }
 
 func (m *MockTokenService) GenerateAccessToken(ctx context.Context, userID uuid.UUID, email string) (string, error) {
@@ -39,6 +41,24 @@ func (m *MockTokenService) GenerateRefreshToken(ctx context.Context, userID uuid
 		return m.GenerateRefreshTokenFn(ctx, userID)
 	}
 	return m.GenerateRefreshTokenResult, m.GenerateRefreshTokenErr
+}
+
+func (m *MockTokenService) GenerateTokenPairForUser(ctx context.Context, userID uuid.UUID) (string, string, int64, error) {
+	m.GenerateTokenPairForUserCalls++
+	if m.GenerateTokenPairForUserFn != nil {
+		return m.GenerateTokenPairForUserFn(ctx, userID)
+	}
+	if m.GenerateAccessTokenErr != nil {
+		return "", "", 0, m.GenerateAccessTokenErr
+	}
+	if m.GenerateRefreshTokenErr != nil {
+		return "", "", 0, m.GenerateRefreshTokenErr
+	}
+	exp := m.TokenExpiration
+	if exp == 0 {
+		exp = 15 * time.Minute
+	}
+	return m.GenerateAccessTokenResult, m.GenerateRefreshTokenResult, int64(exp.Seconds()), nil
 }
 
 func (m *MockTokenService) ValidateToken(_ context.Context, _ string) (*services.TokenClaims, error) {

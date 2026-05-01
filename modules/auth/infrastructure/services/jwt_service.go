@@ -19,6 +19,7 @@ type JWTService struct {
 	refreshTokenExpiry time.Duration
 	roleRepo           repositories.RoleRepository
 	permRepo           repositories.PermissionRepository
+	userRepo           repositories.UserRepository
 }
 
 func NewJWTService(
@@ -26,6 +27,7 @@ func NewJWTService(
 	accessTokenExpiry, refreshTokenExpiry time.Duration,
 	roleRepo repositories.RoleRepository,
 	permRepo repositories.PermissionRepository,
+	userRepo repositories.UserRepository,
 ) *JWTService {
 	return &JWTService{
 		secretKey:          []byte(secretKey),
@@ -33,6 +35,7 @@ func NewJWTService(
 		refreshTokenExpiry: refreshTokenExpiry,
 		roleRepo:           roleRepo,
 		permRepo:           permRepo,
+		userRepo:           userRepo,
 	}
 }
 
@@ -127,6 +130,30 @@ func (s *JWTService) ValidateToken(ctx context.Context, tokenString string) (*se
 		Roles:       claims.Roles,
 		Permissions: claims.Permissions,
 	}, nil
+}
+
+// GenerateTokenPairForUser issues an access+refresh token pair for the given user.
+// Looks up the user's email via the UserRepository (required for the access-token claims)
+// and returns the access-token lifetime in seconds. Does not persist the refresh token —
+// callers are responsible for persistence (so this can also be used for cookie-only flows
+// like the invitation accept handler, which mirrors the login persistence behavior).
+func (s *JWTService) GenerateTokenPairForUser(ctx context.Context, userID uuid.UUID) (string, string, int64, error) {
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return "", "", 0, err
+	}
+
+	accessToken, err := s.GenerateAccessToken(ctx, userID, user.Email)
+	if err != nil {
+		return "", "", 0, err
+	}
+
+	refreshToken, err := s.GenerateRefreshToken(ctx, userID)
+	if err != nil {
+		return "", "", 0, err
+	}
+
+	return accessToken, refreshToken, int64(s.accessTokenExpiry.Seconds()), nil
 }
 
 func (s *JWTService) GetTokenExpiration() time.Duration {

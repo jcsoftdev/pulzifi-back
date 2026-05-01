@@ -27,6 +27,10 @@ func (m *mockTokenService) GenerateRefreshToken(_ context.Context, _ uuid.UUID) 
 	return "", nil
 }
 
+func (m *mockTokenService) GenerateTokenPairForUser(_ context.Context, _ uuid.UUID) (string, string, int64, error) {
+	return "", "", 0, nil
+}
+
 func (m *mockTokenService) ValidateToken(ctx context.Context, token string) (*services.TokenClaims, error) {
 	return m.validateFn(ctx, token)
 }
