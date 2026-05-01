@@ -56,7 +56,7 @@ func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus 
 	orgService := orgservices.NewOrganizationService()
 
 	authService := authservices.NewBcryptAuthService(userRepo, permRepo)
-	jwtService := authservices.NewJWTService(cfg.JWTSecret, cfg.JWTExpiration, cfg.JWTRefreshExpiration, roleRepo, permRepo, userRepo)
+	jwtService := authservices.NewJWTService(cfg.JWTSecret, cfg.JWTExpiration, cfg.JWTRefreshExpiration, roleRepo, permRepo, userRepo, refreshTokenRepo)
 	cookieSecure := cfg.Environment == "production"
 
 	// Create email provider (shared across modules)

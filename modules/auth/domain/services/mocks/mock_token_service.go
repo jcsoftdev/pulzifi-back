@@ -17,14 +17,17 @@ type MockTokenService struct {
 	ValidateTokenErr           error
 	TokenExpiration            time.Duration
 	RefreshTokenExpiration     time.Duration
+	SaveRefreshTokenErr        error
 
 	GenerateAccessTokenFn      func(ctx context.Context, userID uuid.UUID, email string) (string, error)
 	GenerateRefreshTokenFn     func(ctx context.Context, userID uuid.UUID) (string, error)
 	GenerateTokenPairForUserFn func(ctx context.Context, userID uuid.UUID) (string, string, int64, error)
+	SaveRefreshTokenFn         func(ctx context.Context, userID uuid.UUID, refreshToken string) error
 
 	GenerateAccessTokenCalls      int
 	GenerateRefreshTokenCalls     int
 	GenerateTokenPairForUserCalls int
+	SaveRefreshTokenCalls         int
 }
 
 func (m *MockTokenService) GenerateAccessToken(ctx context.Context, userID uuid.UUID, email string) (string, error) {
@@ -59,6 +62,14 @@ func (m *MockTokenService) GenerateTokenPairForUser(ctx context.Context, userID 
 		exp = 15 * time.Minute
 	}
 	return m.GenerateAccessTokenResult, m.GenerateRefreshTokenResult, int64(exp.Seconds()), nil
+}
+
+func (m *MockTokenService) SaveRefreshToken(ctx context.Context, userID uuid.UUID, refreshToken string) error {
+	m.SaveRefreshTokenCalls++
+	if m.SaveRefreshTokenFn != nil {
+		return m.SaveRefreshTokenFn(ctx, userID, refreshToken)
+	}
+	return m.SaveRefreshTokenErr
 }
 
 func (m *MockTokenService) ValidateToken(_ context.Context, _ string) (*services.TokenClaims, error) {

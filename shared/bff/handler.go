@@ -125,6 +125,15 @@ func (h *Handler) IssueSessionForUser(
 		return "", 0, err
 	}
 
+	// Persist the refresh token so /api/auth/refresh can validate it later.
+	// This is the single source of truth for refresh-token persistence in the
+	// BFF flow — the refresh token issued in the cookie/nonce here is the same
+	// one stored in the DB. (The login handler also persists its own pair for
+	// legacy /api/v1/auth/login callers; that pair is harmless but unused here.)
+	if err := h.tokenService.SaveRefreshToken(ctx, userID, refresh); err != nil {
+		return "", 0, err
+	}
+
 	nonce = uuid.New().String()
 	h.nonceStore.Save(nonce, noncestore.NonceEntry{
 		AccessToken:  access,

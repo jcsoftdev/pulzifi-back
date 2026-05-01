@@ -7,6 +7,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/entities"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/repositories"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/services"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
@@ -20,6 +21,7 @@ type JWTService struct {
 	roleRepo           repositories.RoleRepository
 	permRepo           repositories.PermissionRepository
 	userRepo           repositories.UserRepository
+	refreshTokenRepo   repositories.RefreshTokenRepository
 }
 
 func NewJWTService(
@@ -28,6 +30,7 @@ func NewJWTService(
 	roleRepo repositories.RoleRepository,
 	permRepo repositories.PermissionRepository,
 	userRepo repositories.UserRepository,
+	refreshTokenRepo repositories.RefreshTokenRepository,
 ) *JWTService {
 	return &JWTService{
 		secretKey:          []byte(secretKey),
@@ -36,6 +39,7 @@ func NewJWTService(
 		roleRepo:           roleRepo,
 		permRepo:           permRepo,
 		userRepo:           userRepo,
+		refreshTokenRepo:   refreshTokenRepo,
 	}
 }
 
@@ -154,6 +158,19 @@ func (s *JWTService) GenerateTokenPairForUser(ctx context.Context, userID uuid.U
 	}
 
 	return accessToken, refreshToken, int64(s.accessTokenExpiry.Seconds()), nil
+}
+
+// SaveRefreshToken persists a refresh token string for the given user. Provides a
+// single source-of-truth so callers (the BFF session helper) don't need to wire up a
+// RefreshTokenRepository directly or know how to construct the RefreshToken entity.
+func (s *JWTService) SaveRefreshToken(ctx context.Context, userID uuid.UUID, refreshToken string) error {
+	expiresAt := time.Now().Add(s.refreshTokenExpiry)
+	rt := entities.NewRefreshToken(userID, refreshToken, expiresAt)
+	if err := s.refreshTokenRepo.Create(ctx, rt); err != nil {
+		logger.Error("Failed to store refresh token", zap.Error(err))
+		return err
+	}
+	return nil
 }
 
 func (s *JWTService) GetTokenExpiration() time.Duration {

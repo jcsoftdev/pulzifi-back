@@ -2,19 +2,25 @@ package login
 
 import (
 	"context"
-	"time"
 
-	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/entities"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/repositories"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/services"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"go.uber.org/zap"
 )
 
+// Handler authenticates a user and returns a token pair plus tenant hint.
+//
+// NOTE: This handler does NOT persist the refresh token. Callers are responsible
+// for calling tokenService.SaveRefreshToken(ctx, userID, refreshToken) on the
+// pair they actually use, so a single source-of-truth exists between cookies
+// and DB. The BFF flow (shared/bff/handler.go) generates and persists its own
+// pair via IssueSessionForUser; the legacy /api/v1/auth/login route persists
+// the pair returned here directly.
 type Handler struct {
 	authService      services.AuthService
 	userRepo         repositories.UserRepository
-	refreshTokenRepo repositories.RefreshTokenRepository
+	refreshTokenRepo repositories.RefreshTokenRepository // retained for backwards-compatible NewHandler signature; unused
 	tokenService     services.TokenService
 }
 
@@ -42,13 +48,6 @@ func (h *Handler) Handle(ctx context.Context, req *Request) (*Response, error) {
 	accessToken, refreshTokenStr, expiresIn, err := h.tokenService.GenerateTokenPairForUser(ctx, user.ID)
 	if err != nil {
 		logger.Error("Failed to generate token pair", zap.Error(err))
-		return nil, err
-	}
-
-	refreshTokenExpiry := time.Now().Add(h.tokenService.GetRefreshTokenExpiration())
-	refreshToken := entities.NewRefreshToken(user.ID, refreshTokenStr, refreshTokenExpiry)
-	if err := h.refreshTokenRepo.Create(ctx, refreshToken); err != nil {
-		logger.Error("Failed to store refresh token", zap.Error(err))
 		return nil, err
 	}
 

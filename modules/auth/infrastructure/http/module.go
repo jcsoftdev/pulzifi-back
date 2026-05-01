@@ -243,6 +243,15 @@ func (m *Module) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Persist the refresh token so subsequent /auth/refresh calls can validate it.
+	// The login handler intentionally does not persist (BFF callers persist their own
+	// pair); this legacy route uses the handler's pair directly so it must persist here.
+	if err := m.tokenService.SaveRefreshToken(r.Context(), response.UserID, response.RefreshToken); err != nil {
+		logger.Error("Failed to store refresh token", zap.Error(err))
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to issue session"})
+		return
+	}
+
 	accessExpires := time.Now().Add(m.tokenService.GetTokenExpiration())
 	cookies.SetAccessTokenCookie(w, r, response.AccessToken, accessExpires, m.cookieDomain, m.cookieSecure)
 

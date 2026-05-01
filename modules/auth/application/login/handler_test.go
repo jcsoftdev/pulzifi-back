@@ -73,17 +73,6 @@ func TestLoginHandler_Handle(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "refresh token storage failure",
-			req:  &Request{Email: "alice@example.com", Password: "password"},
-			setupMocks: func(authSvc *svcmocks.MockAuthService, tokenSvc *svcmocks.MockTokenService, userRepo *repomocks.MockUserRepository, rtRepo *repomocks.MockRefreshTokenRepository) {
-				authSvc.AuthenticateResult = testUser
-				tokenSvc.GenerateAccessTokenResult = "access-token-123"
-				tokenSvc.GenerateRefreshTokenResult = "refresh-token-456"
-				rtRepo.CreateErr = errors.New("db error")
-			},
-			wantErr: true,
-		},
-		{
 			name: "login succeeds even if org lookup fails",
 			req:  &Request{Email: "alice@example.com", Password: "password"},
 			setupMocks: func(authSvc *svcmocks.MockAuthService, tokenSvc *svcmocks.MockTokenService, userRepo *repomocks.MockUserRepository, rtRepo *repomocks.MockRefreshTokenRepository) {
