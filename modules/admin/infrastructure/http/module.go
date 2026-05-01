@@ -10,8 +10,12 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	approveuser "github.com/jcsoftdev/pulzifi-back/modules/admin/application/approve_user"
+	invitetoplatform "github.com/jcsoftdev/pulzifi-back/modules/admin/application/invite_to_platform"
+	listinvitations "github.com/jcsoftdev/pulzifi-back/modules/admin/application/list_invitations"
 	listpendingusers "github.com/jcsoftdev/pulzifi-back/modules/admin/application/list_pending_users"
 	rejectuser "github.com/jcsoftdev/pulzifi-back/modules/admin/application/reject_user"
+	resendinvitation "github.com/jcsoftdev/pulzifi-back/modules/admin/application/resend_invitation"
+	revokeinvitation "github.com/jcsoftdev/pulzifi-back/modules/admin/application/revoke_invitation"
 	adminerrors "github.com/jcsoftdev/pulzifi-back/modules/admin/domain/errors"
 	"github.com/jcsoftdev/pulzifi-back/modules/admin/domain/repositories"
 	authrepos "github.com/jcsoftdev/pulzifi-back/modules/auth/domain/repositories"
@@ -26,35 +30,47 @@ import (
 )
 
 type Module struct {
-	listPendingHandler *listpendingusers.Handler
-	approveHandler     *approveuser.Handler
-	rejectHandler      *rejectuser.Handler
-	authMiddleware     *authmw.AuthMiddleware
-	emailProvider      emailservices.EmailProvider
-	userRepo           authrepos.UserRepository
-	frontendURL        string
+	listPendingHandler     *listpendingusers.Handler
+	approveHandler         *approveuser.Handler
+	rejectHandler          *rejectuser.Handler
+	inviteHandler          *invitetoplatform.Handler
+	listInvitationsHandler *listinvitations.Handler
+	revokeHandler          *revokeinvitation.Handler
+	resendHandler          *resendinvitation.Handler
+	authMiddleware         *authmw.AuthMiddleware
+	emailProvider          emailservices.EmailProvider
+	userRepo               authrepos.UserRepository
+	frontendURL            string
 }
 
 type ModuleDeps struct {
-	DB             *sql.DB
-	RegReqRepo     repositories.RegistrationRequestRepository
-	UserRepo       authrepos.UserRepository
-	OrgRepo        orgrepos.OrganizationRepository
-	OrgService     *orgservices.OrganizationService
-	AuthMiddleware *authmw.AuthMiddleware
-	EmailProvider  emailservices.EmailProvider
-	FrontendURL    string
+	DB                     *sql.DB
+	RegReqRepo             repositories.RegistrationRequestRepository
+	UserRepo               authrepos.UserRepository
+	OrgRepo                orgrepos.OrganizationRepository
+	OrgService             *orgservices.OrganizationService
+	AuthMiddleware         *authmw.AuthMiddleware
+	EmailProvider          emailservices.EmailProvider
+	FrontendURL            string
+	InviteHandler          *invitetoplatform.Handler
+	ListInvitationsHandler *listinvitations.Handler
+	RevokeHandler          *revokeinvitation.Handler
+	ResendHandler          *resendinvitation.Handler
 }
 
 func NewModule(deps ModuleDeps) router.ModuleRegisterer {
 	return &Module{
-		listPendingHandler: listpendingusers.NewHandler(deps.RegReqRepo, deps.UserRepo),
-		approveHandler:     approveuser.NewHandler(deps.DB, deps.RegReqRepo, deps.UserRepo, deps.OrgRepo, deps.OrgService),
-		rejectHandler:      rejectuser.NewHandler(deps.DB, deps.RegReqRepo, deps.UserRepo),
-		authMiddleware:     deps.AuthMiddleware,
-		emailProvider:      deps.EmailProvider,
-		userRepo:           deps.UserRepo,
-		frontendURL:        deps.FrontendURL,
+		listPendingHandler:     listpendingusers.NewHandler(deps.RegReqRepo, deps.UserRepo),
+		approveHandler:         approveuser.NewHandler(deps.DB, deps.RegReqRepo, deps.UserRepo, deps.OrgRepo, deps.OrgService),
+		rejectHandler:          rejectuser.NewHandler(deps.DB, deps.RegReqRepo, deps.UserRepo),
+		inviteHandler:          deps.InviteHandler,
+		listInvitationsHandler: deps.ListInvitationsHandler,
+		revokeHandler:          deps.RevokeHandler,
+		resendHandler:          deps.ResendHandler,
+		authMiddleware:         deps.AuthMiddleware,
+		emailProvider:          deps.EmailProvider,
+		userRepo:               deps.UserRepo,
+		frontendURL:            deps.FrontendURL,
 	}
 }
 
@@ -70,6 +86,13 @@ func (m *Module) RegisterHTTPRoutes(r chi.Router) {
 		r.Get("/users/pending", m.handleListPendingUsers)
 		r.Put("/users/{id}/approve", m.handleApproveUser)
 		r.Put("/users/{id}/reject", m.handleRejectUser)
+
+		r.Route("/invitations", func(r chi.Router) {
+			r.Post("/", m.handleCreateInvitation)
+			r.Get("/", m.handleListInvitations)
+			r.Delete("/{id}", m.handleRevokeInvitation)
+			r.Post("/{id}/resend", m.handleResendInvitation)
+		})
 	})
 }
 
@@ -181,6 +204,114 @@ func (m *Module) handleRejectUser(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	writeJSON(w, http.StatusOK, map[string]string{"message": "user rejected successfully"})
+}
+
+// handleCreateInvitation creates a new platform invitation (SUPER_ADMIN only).
+func (m *Module) handleCreateInvitation(w http.ResponseWriter, r *http.Request) {
+	var req invitetoplatform.Request
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+	if req.Email == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "email is required"})
+		return
+	}
+
+	inviterIDStr, _ := r.Context().Value(authmw.UserIDKey).(string)
+	inviterID, err := uuid.Parse(inviterIDStr)
+	if err != nil {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	resp, err := m.inviteHandler.Handle(r.Context(), req, inviterID)
+	if err != nil {
+		switch {
+		case errors.Is(err, adminerrors.ErrCannotInviteEmail):
+			writeJSON(w, http.StatusConflict, map[string]string{"error": "cannot_invite_email"})
+		case errors.Is(err, adminerrors.ErrDailyCapExceeded):
+			writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": "daily_cap_exceeded"})
+		default:
+			logger.Error("Failed to create invitation", zap.Error(err))
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to create invitation"})
+		}
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, resp)
+}
+
+// handleListInvitations lists platform invitations with optional status filter.
+func (m *Module) handleListInvitations(w http.ResponseWriter, r *http.Request) {
+	status := r.URL.Query().Get("status")
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	resp, err := m.listInvitationsHandler.Handle(r.Context(), status, limit, offset)
+	if err != nil {
+		logger.Error("Failed to list invitations", zap.Error(err))
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to list invitations"})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// handleRevokeInvitation revokes a pending invitation by id.
+func (m *Module) handleRevokeInvitation(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid invitation id"})
+		return
+	}
+
+	revokerIDStr, _ := r.Context().Value(authmw.UserIDKey).(string)
+	revokerID, err := uuid.Parse(revokerIDStr)
+	if err != nil {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	if err := m.revokeHandler.Handle(r.Context(), id, revokerID); err != nil {
+		if errors.Is(err, adminerrors.ErrInvitationAlreadyDecided) {
+			writeJSON(w, http.StatusGone, map[string]string{"error": "invitation_already_decided"})
+			return
+		}
+		logger.Error("Failed to revoke invitation", zap.Error(err))
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to revoke invitation"})
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleResendInvitation re-issues a token and sends a fresh email for a pending invitation.
+func (m *Module) handleResendInvitation(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid invitation id"})
+		return
+	}
+
+	resp, err := m.resendHandler.Handle(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, adminerrors.ErrInvitationAlreadyDecided) {
+			writeJSON(w, http.StatusGone, map[string]string{"error": "invitation_already_decided"})
+			return
+		}
+		logger.Error("Failed to resend invitation", zap.Error(err))
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to resend invitation"})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

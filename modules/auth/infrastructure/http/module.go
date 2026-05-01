@@ -9,13 +9,17 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	adminrepos "github.com/jcsoftdev/pulzifi-back/modules/admin/domain/repositories"
+	adminerrors "github.com/jcsoftdev/pulzifi-back/modules/admin/domain/errors"
+	acceptinvitation "github.com/jcsoftdev/pulzifi-back/modules/auth/application/accept_invitation"
 	checksubdomain "github.com/jcsoftdev/pulzifi-back/modules/auth/application/check_subdomain"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/application/get_current_user"
+	getinvitation "github.com/jcsoftdev/pulzifi-back/modules/auth/application/get_invitation"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/application/login"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/application/logout"
 	refreshapp "github.com/jcsoftdev/pulzifi-back/modules/auth/application/refresh_token"
@@ -31,50 +35,58 @@ import (
 	"github.com/jcsoftdev/pulzifi-back/modules/email/infrastructure/templates"
 	orgrepos "github.com/jcsoftdev/pulzifi-back/modules/organization/domain/repositories"
 	orgservices "github.com/jcsoftdev/pulzifi-back/modules/organization/domain/services"
+	"github.com/jcsoftdev/pulzifi-back/shared/bff"
 	"github.com/jcsoftdev/pulzifi-back/shared/config"
 	"github.com/jcsoftdev/pulzifi-back/shared/eventbus"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
+	sharedmw "github.com/jcsoftdev/pulzifi-back/shared/middleware"
 	"github.com/jcsoftdev/pulzifi-back/shared/router"
 	"go.uber.org/zap"
 )
 
 type Module struct {
-	registerHandler       *register.Handler
-	checkSubdomainHandler *checksubdomain.Handler
-	loginHandler          *login.Handler
-	logoutHandler         *logout.Handler
-	refreshHandler        *refreshapp.Handler
-	getCurrentUserHandler *get_current_user.Handler
-	authMiddleware        *authmw.AuthMiddleware
-	tokenService          services.TokenService
-	authService           services.AuthService
-	userRepo              repositories.UserRepository
-	emailProvider         emailservices.EmailProvider
-	oauthProviders        map[string]oauthproviders.Provider
-	refreshTokenRepo      repositories.RefreshTokenRepository
-	eventBus              *eventbus.EventBus
-	cookieDomain          string
-	cookieSecure          bool
-	frontendURL           string
-	db                    *sql.DB
+	registerHandler         *register.Handler
+	checkSubdomainHandler   *checksubdomain.Handler
+	loginHandler            *login.Handler
+	logoutHandler           *logout.Handler
+	refreshHandler          *refreshapp.Handler
+	getCurrentUserHandler   *get_current_user.Handler
+	getInvitationHandler    *getinvitation.Handler
+	acceptInvitationHandler *acceptinvitation.Handler
+	bffHandler              *bff.Handler
+	authMiddleware          *authmw.AuthMiddleware
+	tokenService            services.TokenService
+	authService             services.AuthService
+	userRepo                repositories.UserRepository
+	emailProvider           emailservices.EmailProvider
+	oauthProviders          map[string]oauthproviders.Provider
+	refreshTokenRepo        repositories.RefreshTokenRepository
+	eventBus                *eventbus.EventBus
+	cookieDomain            string
+	cookieSecure            bool
+	frontendURL             string
+	db                      *sql.DB
 }
 
 type ModuleDeps struct {
-	UserRepo         repositories.UserRepository
-	RefreshTokenRepo repositories.RefreshTokenRepository
-	RoleRepo         repositories.RoleRepository
-	PermRepo         repositories.PermissionRepository
-	RegReqRepo       adminrepos.RegistrationRequestRepository
-	OrgRepo          orgrepos.OrganizationRepository
-	OrgService       *orgservices.OrganizationService
-	AuthService      services.AuthService
-	TokenService     services.TokenService
-	CookieDomain     string
-	CookieSecure     bool
-	FrontendURL      string
-	EmailProvider    emailservices.EmailProvider
-	EventBus         *eventbus.EventBus
-	DB               *sql.DB
+	UserRepo                repositories.UserRepository
+	RefreshTokenRepo        repositories.RefreshTokenRepository
+	RoleRepo                repositories.RoleRepository
+	PermRepo                repositories.PermissionRepository
+	RegReqRepo              adminrepos.RegistrationRequestRepository
+	OrgRepo                 orgrepos.OrganizationRepository
+	OrgService              *orgservices.OrganizationService
+	AuthService             services.AuthService
+	TokenService            services.TokenService
+	CookieDomain            string
+	CookieSecure            bool
+	FrontendURL             string
+	EmailProvider           emailservices.EmailProvider
+	EventBus                *eventbus.EventBus
+	DB                      *sql.DB
+	GetInvitationHandler    *getinvitation.Handler
+	AcceptInvitationHandler *acceptinvitation.Handler
+	BFFHandler              *bff.Handler
 }
 
 func NewModule(deps ModuleDeps) router.ModuleRegisterer {
@@ -94,25 +106,35 @@ func NewModule(deps ModuleDeps) router.ModuleRegisterer {
 	}
 
 	return &Module{
-		registerHandler:       register.NewHandler(deps.UserRepo, deps.RegReqRepo, deps.OrgRepo, deps.OrgService),
-		checkSubdomainHandler: checksubdomain.NewHandler(deps.RegReqRepo, deps.OrgRepo, deps.OrgService),
-		loginHandler:          login.NewHandler(deps.AuthService, deps.UserRepo, deps.RefreshTokenRepo, deps.TokenService),
-		logoutHandler:         logout.NewHandler(deps.RefreshTokenRepo),
-		refreshHandler:        refreshapp.NewHandler(deps.RefreshTokenRepo, deps.UserRepo, deps.TokenService),
-		getCurrentUserHandler: get_current_user.NewHandler(deps.UserRepo),
-		authMiddleware:        authmw.NewAuthMiddleware(deps.TokenService),
-		tokenService:          deps.TokenService,
-		authService:           deps.AuthService,
-		userRepo:              deps.UserRepo,
-		emailProvider:         deps.EmailProvider,
-		eventBus:              deps.EventBus,
-		oauthProviders:        oauthProviderMap,
-		refreshTokenRepo:      deps.RefreshTokenRepo,
-		cookieDomain:          deps.CookieDomain,
-		cookieSecure:          deps.CookieSecure,
-		frontendURL:           deps.FrontendURL,
-		db:                    deps.DB,
+		registerHandler:         register.NewHandler(deps.UserRepo, deps.RegReqRepo, deps.OrgRepo, deps.OrgService),
+		checkSubdomainHandler:   checksubdomain.NewHandler(deps.RegReqRepo, deps.OrgRepo, deps.OrgService),
+		loginHandler:            login.NewHandler(deps.AuthService, deps.UserRepo, deps.RefreshTokenRepo, deps.TokenService),
+		logoutHandler:           logout.NewHandler(deps.RefreshTokenRepo),
+		refreshHandler:          refreshapp.NewHandler(deps.RefreshTokenRepo, deps.UserRepo, deps.TokenService),
+		getCurrentUserHandler:   get_current_user.NewHandler(deps.UserRepo),
+		getInvitationHandler:    deps.GetInvitationHandler,
+		acceptInvitationHandler: deps.AcceptInvitationHandler,
+		bffHandler:              deps.BFFHandler,
+		authMiddleware:          authmw.NewAuthMiddleware(deps.TokenService),
+		tokenService:            deps.TokenService,
+		authService:             deps.AuthService,
+		userRepo:                deps.UserRepo,
+		emailProvider:           deps.EmailProvider,
+		eventBus:                deps.EventBus,
+		oauthProviders:          oauthProviderMap,
+		refreshTokenRepo:        deps.RefreshTokenRepo,
+		cookieDomain:            deps.CookieDomain,
+		cookieSecure:            deps.CookieSecure,
+		frontendURL:             deps.FrontendURL,
+		db:                      deps.DB,
 	}
+}
+
+// SetBFFHandler injects the BFF handler after construction.
+// Used because the BFF handler is built from this module's own
+// login/logout/refresh handlers, creating an init-order cycle.
+func (m *Module) SetBFFHandler(h *bff.Handler) {
+	m.bffHandler = h
 }
 
 func (m *Module) AuthMiddleware() *authmw.AuthMiddleware {
@@ -144,6 +166,14 @@ func (m *Module) RegisterHTTPRoutes(r chi.Router) {
 		r.Get("/oauth/{provider}", m.handleOAuthRedirect)
 		r.Get("/oauth/{provider}/callback", m.handleOAuthCallback)
 
+		// Public invitation routes — rate-limited per IP to prevent enumeration.
+		inviteLimiter := sharedmw.NewRateLimiter(10, time.Minute)
+		r.Group(func(r chi.Router) {
+			r.Use(inviteLimiter.Handler)
+			r.Get("/invitations/{token}", m.handleGetInvitation)
+			r.Post("/invitations/{token}/accept", m.handleAcceptInvitation)
+		})
+
 		r.Group(func(r chi.Router) {
 			r.Use(m.authMiddleware.Authenticate)
 			r.Get("/me", m.handleGetCurrentUser)
@@ -151,6 +181,92 @@ func (m *Module) RegisterHTTPRoutes(r chi.Router) {
 			r.Put("/me/password", m.handleChangePassword)
 			r.Delete("/me", m.handleDeleteCurrentUser)
 		})
+	})
+}
+
+// handleGetInvitation returns a public preview of an invitation token.
+// Returns 410 Gone if the invitation is missing/expired/already-decided.
+func (m *Module) handleGetInvitation(w http.ResponseWriter, r *http.Request) {
+	token := chi.URLParam(r, "token")
+	if token == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "missing token"})
+		return
+	}
+
+	resp, err := m.getInvitationHandler.Handle(r.Context(), token)
+	if err != nil {
+		if errors.Is(err, adminerrors.ErrInvitationNotFound) {
+			writeJSON(w, http.StatusGone, map[string]string{"error": "invitation_not_found"})
+			return
+		}
+		logger.Error("Failed to get invitation", zap.Error(err))
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to get invitation"})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// handleAcceptInvitation accepts a platform invitation: creates the user,
+// organization, owner membership, provisions the tenant schema, and issues
+// a session via the BFF handler so the caller can redirect into the new tenant.
+func (m *Module) handleAcceptInvitation(w http.ResponseWriter, r *http.Request) {
+	token := chi.URLParam(r, "token")
+	if token == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "missing token"})
+		return
+	}
+
+	var req acceptinvitation.Request
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+
+	out, err := m.acceptInvitationHandler.Handle(r.Context(), token, req)
+	if err != nil {
+		switch {
+		case errors.Is(err, adminerrors.ErrInvitationNotFound):
+			writeJSON(w, http.StatusGone, map[string]string{"error": "invitation_not_found"})
+		case errors.Is(err, adminerrors.ErrCannotInviteEmail):
+			writeJSON(w, http.StatusConflict, map[string]string{"error": "cannot_invite_email"})
+		case errors.Is(err, adminerrors.ErrSubdomainTaken):
+			writeJSON(w, http.StatusConflict, map[string]string{"error": "subdomain_taken"})
+		case errors.Is(err, adminerrors.ErrInvalidSubdomain):
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid_subdomain"})
+		case errors.Is(err, adminerrors.ErrSchemaProvisioning):
+			logger.Error("Schema provisioning failed during invitation accept", zap.Error(err))
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "schema_provisioning_failed"})
+		default:
+			logger.Error("Failed to accept invitation", zap.Error(err))
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to accept invitation"})
+		}
+		return
+	}
+
+	userID, err := uuid.Parse(out.UserID)
+	if err != nil {
+		logger.Error("invalid user id from accept_invitation use case", zap.Error(err))
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+		return
+	}
+
+	nonce, expiresIn, err := m.bffHandler.IssueSessionForUser(r.Context(), w, r, userID, out.OrgSubdomain)
+	if err != nil {
+		logger.Error("Failed to issue session after invitation accept", zap.Error(err))
+		baseDomain := strings.TrimPrefix(m.cookieDomain, ".")
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
+			"error":           "session_issue_failed",
+			"org_provisioned": true,
+			"login_url":       fmt.Sprintf("http://%s.%s/login", out.OrgSubdomain, baseDomain),
+		})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"nonce":      nonce,
+		"tenant":     out.OrgSubdomain,
+		"expires_in": expiresIn,
 	})
 }
 

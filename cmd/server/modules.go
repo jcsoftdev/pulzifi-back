@@ -4,9 +4,15 @@ import (
 	"context"
 	"database/sql"
 
+	invitetoplatform "github.com/jcsoftdev/pulzifi-back/modules/admin/application/invite_to_platform"
+	listinvitations "github.com/jcsoftdev/pulzifi-back/modules/admin/application/list_invitations"
+	resendinvitation "github.com/jcsoftdev/pulzifi-back/modules/admin/application/resend_invitation"
+	revokeinvitation "github.com/jcsoftdev/pulzifi-back/modules/admin/application/revoke_invitation"
 	admin "github.com/jcsoftdev/pulzifi-back/modules/admin/infrastructure/http"
 	adminpersistence "github.com/jcsoftdev/pulzifi-back/modules/admin/infrastructure/persistence"
 	alert "github.com/jcsoftdev/pulzifi-back/modules/alert/infrastructure/http"
+	acceptinvitation "github.com/jcsoftdev/pulzifi-back/modules/auth/application/accept_invitation"
+	getinvitation "github.com/jcsoftdev/pulzifi-back/modules/auth/application/get_invitation"
 	auth "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/http"
 	authpersistence "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/persistence"
 	authservices "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/services"
@@ -29,6 +35,7 @@ import (
 	workspace "github.com/jcsoftdev/pulzifi-back/modules/workspace/infrastructure/http"
 	"github.com/jcsoftdev/pulzifi-back/shared/bff"
 	"github.com/jcsoftdev/pulzifi-back/shared/config"
+	"github.com/jcsoftdev/pulzifi-back/shared/database"
 	"github.com/jcsoftdev/pulzifi-back/shared/eventbus"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
@@ -43,6 +50,19 @@ func createEmailProvider(cfg *config.Config) emailservices.EmailProvider {
 	return emailproviders.NewResendProvider(cfg.ResendAPIKey, cfg.EmailFromAddress, cfg.EmailFromName)
 }
 
+// invitationDailyCapPerInviter is the per-inviter rolling 24h cap on platform
+// invitations. Hard-coded for now; can be promoted to config when needed.
+const invitationDailyCapPerInviter = 50
+
+// invitationDailyCapGlobal is the platform-wide rolling 24h cap on platform
+// invitations. Hard-coded for now; can be promoted to config when needed.
+const invitationDailyCapGlobal = 500
+
+// invitationInviterDisplayName is the "From" name surfaced inside the
+// invitation email template. Sourcing this from the authenticated SUPER_ADMIN
+// user is a future improvement; for now we use a generic platform label.
+const invitationInviterDisplayName = "Pulzifi Admin"
+
 func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus *eventbus.EventBus, enableWorkers bool) *bff.Handler {
 	cfg := config.Load()
 
@@ -53,6 +73,7 @@ func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus 
 	orgRepo := orgpersistence.NewOrganizationPostgresRepository(db)
 
 	regReqRepo := adminpersistence.NewRegistrationRequestPostgresRepository(db)
+	invRepo := adminpersistence.NewInvitationPostgres(db)
 	orgService := orgservices.NewOrganizationService()
 
 	authService := authservices.NewBcryptAuthService(userRepo, permRepo)
@@ -62,23 +83,54 @@ func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus 
 	// Create email provider (shared across modules)
 	emailProvider := createEmailProvider(cfg)
 
-	// Create auth module and set global middleware
+	// Invitation use cases — admin (create/list/revoke/resend) + auth (get/accept).
+	// The use case packages declare a local Emailer interface satisfied
+	// structurally by emailservices.EmailProvider (same Send signature).
+	inviteHandler := invitetoplatform.New(
+		invRepo,
+		emailProvider,
+		invitationInviterDisplayName,
+		cfg.FrontendURL,
+		invitationDailyCapPerInviter,
+		invitationDailyCapGlobal,
+	)
+	listInvitationsHandler := listinvitations.New(invRepo)
+	revokeHandler := revokeinvitation.New(invRepo)
+	resendHandler := resendinvitation.New(
+		invRepo,
+		emailProvider,
+		invitationInviterDisplayName,
+		cfg.FrontendURL,
+	)
+
+	getInvitationHandler := getinvitation.New(invRepo, userRepo)
+	provisionFunc := func(schema string) error {
+		return database.ProvisionTenantSchema(db, schema)
+	}
+	acceptHandler := acceptinvitation.New(invRepo, authService, provisionFunc)
+
+	// Create auth module and set global middleware.
+	// The BFF handler is constructed below from this module's handlers and
+	// then injected back via SetBFFHandler — this avoids a constructor cycle.
 	authModule := auth.NewModule(auth.ModuleDeps{
-		UserRepo:         userRepo,
-		RefreshTokenRepo: refreshTokenRepo,
-		RoleRepo:         roleRepo,
-		PermRepo:         permRepo,
-		RegReqRepo:       regReqRepo,
-		OrgRepo:          orgRepo,
-		OrgService:       orgService,
-		AuthService:      authService,
-		TokenService:     jwtService,
-		CookieDomain:     cfg.CookieDomain,
-		CookieSecure:     cookieSecure,
-		FrontendURL:      cfg.FrontendURL,
-		EmailProvider:    emailProvider,
-		EventBus:         eventBus,
-		DB:               db,
+		UserRepo:                userRepo,
+		RefreshTokenRepo:        refreshTokenRepo,
+		RoleRepo:                roleRepo,
+		PermRepo:                permRepo,
+		RegReqRepo:              regReqRepo,
+		OrgRepo:                 orgRepo,
+		OrgService:              orgService,
+		AuthService:             authService,
+		TokenService:            jwtService,
+		CookieDomain:            cfg.CookieDomain,
+		CookieSecure:            cookieSecure,
+		FrontendURL:             cfg.FrontendURL,
+		EmailProvider:           emailProvider,
+		EventBus:                eventBus,
+		DB:                      db,
+		GetInvitationHandler:    getInvitationHandler,
+		AcceptInvitationHandler: acceptHandler,
+		// BFFHandler is injected after construction (see SetBFFHandler below).
 	})
 	authMod := authModule.(*auth.Module)
 	authMiddleware := authMod.AuthMiddleware()
@@ -93,14 +145,18 @@ func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus 
 	}{
 		{"Auth", authModule},
 		{"Admin", admin.NewModule(admin.ModuleDeps{
-			DB:             db,
-			RegReqRepo:     regReqRepo,
-			UserRepo:       userRepo,
-			OrgRepo:        orgRepo,
-			OrgService:     orgService,
-			AuthMiddleware: authMiddleware,
-			EmailProvider:  emailProvider,
-			FrontendURL:    cfg.FrontendURL,
+			DB:                     db,
+			RegReqRepo:             regReqRepo,
+			UserRepo:               userRepo,
+			OrgRepo:                orgRepo,
+			OrgService:             orgService,
+			AuthMiddleware:         authMiddleware,
+			EmailProvider:          emailProvider,
+			FrontendURL:            cfg.FrontendURL,
+			InviteHandler:          inviteHandler,
+			ListInvitationsHandler: listInvitationsHandler,
+			RevokeHandler:          revokeHandler,
+			ResendHandler:          resendHandler,
 		})},
 		{"Email", email.NewModule(emailProvider)},
 		{"Organization", organization.NewModule(orgRepo)},
@@ -151,6 +207,10 @@ func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus 
 		CookieSecure:   authMod.CookieSecure(),
 		Logger:         logger.Logger,
 	})
+
+	// Inject the BFF handler back into the auth module so the
+	// /api/v1/auth/invitations/{token}/accept handler can issue a session.
+	authMod.SetBFFHandler(bffHandler)
 
 	return bffHandler
 }
