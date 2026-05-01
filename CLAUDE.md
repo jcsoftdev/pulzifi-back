@@ -268,7 +268,7 @@ See `shared/config/config.go` and `.env.example` for all 43+ variables. Critical
 | **OAuth** | `GOOGLE_CLIENT_ID/SECRET`, `GITHUB_CLIENT_ID/SECRET`, `OAUTH_REDIRECT_BASE_URL` | Optional |
 | **Redis** | `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD` | Optional (graceful degradation) |
 | **Rate Limiting** | `RATE_LIMIT_REQUESTS` (500), `RATE_LIMIT_WINDOW` (60s) | |
-| **Logging** | `LOG_LEVEL` (debug/info/warn/error) | |
+| **Logging** | `LOG_LEVEL` (debug/info/warn/error), `LOG_HASH_KEY` | `LOG_HASH_KEY` is the HMAC key for hashing emails in invite logs |
 
 ### Architecture Improvements & Scaling Strategy
 

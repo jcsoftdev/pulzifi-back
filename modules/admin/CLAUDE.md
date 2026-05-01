@@ -11,12 +11,20 @@ Manages user registration requests and admin approval workflow.
 - `list_pending_users` — list pending registrations (with pagination)
 - `approve_user` — approve a registration and create organization
 - `reject_user` — reject a registration request
+- `invite_to_platform` — super-admin sends platform invite by email
+- `list_invitations` — list platform invitations with filter
+- `revoke_invitation` — revoke a pending invite
+- `resend_invitation` — rotate token + resend email
 
 ## HTTP Routes (`/admin/*`, requires SUPER_ADMIN role)
 
 - GET `/admin/users/pending` — list pending registrations
 - PUT `/admin/users/{id}/approve` — approve registration
 - PUT `/admin/users/{id}/reject` — reject registration
+- POST `/admin/invitations` — create platform invitation
+- GET `/admin/invitations` — list platform invitations
+- DELETE `/admin/invitations/{id}` — revoke invitation
+- POST `/admin/invitations/{id}/resend` — rotate token + resend email
 
 ## Infrastructure
 

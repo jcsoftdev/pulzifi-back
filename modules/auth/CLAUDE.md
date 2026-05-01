@@ -16,6 +16,8 @@ User authentication, JWT token management, and OAuth providers.
 - `login` — authenticate with email/password
 - `refresh_token` — refresh JWT tokens
 - `get_current_user` — fetch authenticated user
+- `get_invitation` — public token-based lookup of pending invitation
+- `accept_invitation` — public; creates user + org + provisions schema; issues session
 
 ## HTTP Routes (`/auth/*`)
 
@@ -32,6 +34,8 @@ User authentication, JWT token management, and OAuth providers.
 - PUT `/auth/me` (authenticated, inline) — update profile
 - PUT `/auth/me/password` (authenticated, inline) — change password
 - DELETE `/auth/me` (authenticated, inline) — delete account
+- GET `/auth/invitations/{token}` — public lookup of pending invitation
+- POST `/auth/invitations/{token}/accept` — public; creates user + org + session
 
 ## Domain Services
 
