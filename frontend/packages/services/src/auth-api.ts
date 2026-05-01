@@ -29,6 +29,24 @@ interface RegisterBackendResponse {
   message: string
 }
 
+interface PlatformInvitationDetailsBackendDto {
+  email: string
+  invited_by_name: string
+  expires_at: string
+}
+
+interface AcceptInvitationSuccessBackendDto {
+  nonce: string
+  tenant: string
+  expires_in: number
+}
+
+interface AcceptInvitationSessionFailureBackendDto {
+  error: 'session_issue_failed'
+  org_provisioned: true
+  login_url: string
+}
+
 // Exported: Frontend types (camelCase)
 export interface User {
   id: string
@@ -52,6 +70,34 @@ export interface LoginResponse {
   tenant?: string
   nonce?: string
 }
+
+export interface PlatformInvitationDetails {
+  email: string
+  invitedByName: string
+  expiresAt: string
+}
+
+export interface AcceptInvitationPayload {
+  firstName: string
+  lastName: string
+  password: string
+  organizationName: string
+  organizationSubdomain: string
+}
+
+export interface AcceptInvitationSuccess {
+  nonce: string
+  tenant: string
+  expiresIn: number
+}
+
+export interface AcceptInvitationSessionFailure {
+  error: 'session_issue_failed'
+  orgProvisioned: true
+  loginUrl: string
+}
+
+export type AcceptInvitationResponse = AcceptInvitationSuccess | AcceptInvitationSessionFailure
 
 // Helper: Transform backend to frontend format
 function transformUser(backend: UserBackendDto): User {
@@ -111,12 +157,77 @@ export const AuthApi = {
     })
   },
 
-  async checkSubdomain(subdomain: string): Promise<{ available: boolean; message?: string }> {
+  async checkSubdomain(subdomain: string): Promise<{
+    available: boolean
+    message?: string
+  }> {
     const http = await createBffHttpClient()
-    return http.post<{ available: boolean; message?: string }>(
-      '/api/v1/auth/check-subdomain',
-      { subdomain }
+    return http.post<{
+      available: boolean
+      message?: string
+    }>('/api/v1/auth/check-subdomain', {
+      subdomain,
+    })
+  },
+
+  async getInvitation(token: string): Promise<PlatformInvitationDetails> {
+    const http = await getHttpClient()
+    const response = await http.get<PlatformInvitationDetailsBackendDto>(
+      `/api/v1/auth/invitations/${encodeURIComponent(token)}`
     )
+    return {
+      email: response.email,
+      invitedByName: response.invited_by_name,
+      expiresAt: response.expires_at,
+    }
+  },
+
+  async acceptInvitation(
+    token: string,
+    payload: AcceptInvitationPayload
+  ): Promise<AcceptInvitationResponse> {
+    const http = await getHttpClient()
+    const body = {
+      first_name: payload.firstName,
+      last_name: payload.lastName,
+      password: payload.password,
+      organization_name: payload.organizationName,
+      organization_subdomain: payload.organizationSubdomain,
+    }
+
+    try {
+      const response = await http.post<AcceptInvitationSuccessBackendDto>(
+        `/api/v1/auth/invitations/${encodeURIComponent(token)}/accept`,
+        body
+      )
+      return {
+        nonce: response.nonce,
+        tenant: response.tenant,
+        expiresIn: response.expires_in,
+      }
+    } catch (err: unknown) {
+      // Backend returns 500 with { error: "session_issue_failed", org_provisioned, login_url }
+      // when org/user creation succeeded but session issuance failed.
+      const axiosErr = err as {
+        response?: {
+          status?: number
+          data?:
+            | AcceptInvitationSessionFailureBackendDto
+            | {
+                error?: string
+              }
+        }
+      }
+      const data = axiosErr?.response?.data as AcceptInvitationSessionFailureBackendDto | undefined
+      if (data?.error === 'session_issue_failed' && data.org_provisioned) {
+        return {
+          error: 'session_issue_failed',
+          orgProvisioned: true,
+          loginUrl: data.login_url,
+        }
+      }
+      throw err
+    }
   },
 
   async register(data: {
@@ -126,7 +237,10 @@ export const AuthApi = {
     lastName: string
     organizationName: string
     organizationSubdomain: string
-  }): Promise<{ status: string; message: string }> {
+  }): Promise<{
+    status: string
+    message: string
+  }> {
     const http = await createBffHttpClient()
     const response = await http.post<RegisterBackendResponse>('/api/v1/auth/register', {
       email: data.email,
