@@ -51,6 +51,14 @@ func seedInviter(t *testing.T, db *sql.DB) uuid.UUID {
 	); err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() {
+		if _, err := db.Exec(`DELETE FROM public.registration_requests WHERE invited_by = $1`, id); err != nil {
+			t.Logf("cleanup invitations: %v", err)
+		}
+		if _, err := db.Exec(`DELETE FROM public.users WHERE id = $1`, id); err != nil {
+			t.Logf("cleanup inviter: %v", err)
+		}
+	})
 	return id
 }
 
