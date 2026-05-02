@@ -22,6 +22,7 @@ import (
 	intoauth "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/oauth"
 	intpersistence "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/persistence"
 	intproviders "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers"
+	emailprovider "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers/email"
 	slackprovider "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers/slack"
 	monitoring "github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/http"
 	orgservices "github.com/jcsoftdev/pulzifi-back/modules/organization/domain/services"
@@ -119,9 +120,10 @@ func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus 
 	intRepo := intpersistence.NewIntegrationPostgresRepository(db, intEnc)
 	intStateSigner := intoauth.NewStateSigner(intKey, 10*time.Minute)
 
-	// Provider registry — Slack only in T24; email adapter added in T25.
+	// Provider registry — Slack + email (via adapter wrapping the existing email module).
 	slackClient := slackprovider.New(cfg.SlackClientID, cfg.SlackClientSecret)
-	intRegistry := intproviders.NewRegistry(slackClient)
+	intEmailClient := emailprovider.New(intwiring.NewEmailAdapter(emailProvider))
+	intRegistry := intproviders.NewRegistry(slackClient, intEmailClient)
 
 	intRepoFactory := intwiring.NewTenantRepoFactory(db)
 	intOrgGuard := intwiring.NewOrgGuard(orgRepo)
