@@ -360,6 +360,25 @@ func TestDeliveryWorker_TickProcessesAllOutcomes(t *testing.T) {
 		t.Errorf("delivery 2: next_attempt_at should be in the future, got %v", d2.NextAttemptAt)
 	}
 
+	// Re-fetch delivery 2 via repo to get AttemptHistory populated.
+	delRepo2 := factory.DeliveryRepoForTenant(workerTestTenant)
+	d2Full, err := delRepo2.GetByID(ctx, del2)
+	if err != nil {
+		t.Fatalf("GetByID delivery 2: %v", err)
+	}
+	if d2Full == nil {
+		t.Fatal("GetByID delivery 2 returned nil")
+	}
+	if len(d2Full.AttemptHistory) != 1 {
+		t.Errorf("delivery 2: want AttemptHistory len=1, got %d", len(d2Full.AttemptHistory))
+	} else {
+		h := d2Full.AttemptHistory[0]
+		want503 := 503
+		if h.Code == nil || *h.Code != want503 {
+			t.Errorf("delivery 2: AttemptHistory[0].Code want 503, got %v", h.Code)
+		}
+	}
+
 	// Assert delivery 3 → dead (401 auth failure)
 	d3 := fetchWorkerDelivery(t, ctx, db, del3)
 	if d3.Status != entities.DeliveryDead {
@@ -367,5 +386,24 @@ func TestDeliveryWorker_TickProcessesAllOutcomes(t *testing.T) {
 	}
 	if d3.ErrorMessage == nil || *d3.ErrorMessage == "" {
 		t.Errorf("delivery 3: error_message should be set")
+	}
+
+	// Re-fetch delivery 3 via repo to get AttemptHistory populated.
+	delRepo3 := factory.DeliveryRepoForTenant(workerTestTenant)
+	d3Full, err := delRepo3.GetByID(ctx, del3)
+	if err != nil {
+		t.Fatalf("GetByID delivery 3: %v", err)
+	}
+	if d3Full == nil {
+		t.Fatal("GetByID delivery 3 returned nil")
+	}
+	if len(d3Full.AttemptHistory) != 1 {
+		t.Errorf("delivery 3: want AttemptHistory len=1, got %d", len(d3Full.AttemptHistory))
+	} else {
+		h := d3Full.AttemptHistory[0]
+		want401 := 401
+		if h.Code == nil || *h.Code != want401 {
+			t.Errorf("delivery 3: AttemptHistory[0].Code want 401, got %v", h.Code)
+		}
 	}
 }
