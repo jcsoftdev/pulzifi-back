@@ -86,6 +86,15 @@ type Config struct {
 	// Rate Limiting
 	RateLimitRequests int
 	RateLimitWindow   time.Duration
+
+	// Integrations
+	IntegrationTokenKey          string // 32-byte hex; validated at wiring if any provider configured
+	IntegrationOAuthRedirectBase string // e.g. https://app.com (root domain)
+	SlackClientID                string
+	SlackClientSecret            string
+	DeliveryMaxAttempts          int
+	DeliveryPollInterval         time.Duration
+	DeliveryWorkerPoolSize       int
 }
 
 func Load() *Config {
@@ -153,6 +162,14 @@ func Load() *Config {
 		OAuthRedirectBaseURL:  getEnv("OAUTH_REDIRECT_BASE_URL", ""),
 		RateLimitRequests:     getEnvInt("RATE_LIMIT_REQUESTS", 500),
 		RateLimitWindow:       getEnvDuration("RATE_LIMIT_WINDOW", 60*time.Second),
+
+		IntegrationTokenKey:          getEnv("INTEGRATION_TOKEN_KEY", ""),
+		IntegrationOAuthRedirectBase: getEnv("INTEGRATION_OAUTH_REDIRECT_BASE", ""),
+		SlackClientID:                getEnv("SLACK_CLIENT_ID", ""),
+		SlackClientSecret:            getEnv("SLACK_CLIENT_SECRET", ""),
+		DeliveryMaxAttempts:          getEnvInt("DELIVERY_MAX_ATTEMPTS", 5),
+		DeliveryPollInterval:         getEnvDuration("DELIVERY_POLL_INTERVAL", 5*time.Second),
+		DeliveryWorkerPoolSize:       getEnvInt("DELIVERY_WORKER_POOL_SIZE", 10),
 	}
 }
 
