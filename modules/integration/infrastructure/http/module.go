@@ -4,12 +4,15 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	domerrors "github.com/jcsoftdev/pulzifi-back/modules/integration/domain/errors"
 	authmw "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/middleware"
 	bulkretrydeliveries "github.com/jcsoftdev/pulzifi-back/modules/integration/application/bulk_retry_deliveries"
 	connectbyo "github.com/jcsoftdev/pulzifi-back/modules/integration/application/connect_byo"
@@ -105,6 +108,30 @@ func (m *Module) RegisterHTTPRoutes(r chi.Router) {
 func (m *Module) HandleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	provider := chi.URLParam(r, "provider")
 	q := r.URL.Query()
+
+	// Phase 3: Microsoft Teams consent_required → redirect to friendly modal.
+	if oauthErr := q.Get("error"); oauthErr == "consent_required" || oauthErr == "AADSTS65001" {
+		redirectURI := m.deps.OAuthRedirectBase + "/api/v1/integrations/oauth/" + provider + "/callback"
+
+		// Try to extract a typed admin-consent URL via the provider client.
+		// Discoverable via interface upcast — works only for Teams provider in Phase 3.
+		if client, ok := m.deps.Registry.Get(provider); ok {
+			if teamsLike, ok := client.(interface {
+				BuildAdminConsentURL(redirect string) *domerrors.ErrConsentRequired
+			}); ok {
+				consentErr := teamsLike.BuildAdminConsentURL(redirectURI)
+				target := fmt.Sprintf("%s/settings/integrations?integration_error=consent_required&admin_url=%s",
+					m.deps.OAuthRedirectBase, url.QueryEscape(consentErr.AdminConsentURL))
+				http.Redirect(w, r, target, http.StatusFound)
+				return
+			}
+		}
+		// Fallback: provider doesn't expose admin-consent URL synthesis.
+		http.Redirect(w, r,
+			m.deps.OAuthRedirectBase+"/settings/integrations?integration_error=consent_required",
+			http.StatusFound)
+		return
+	}
 
 	// Slack error param — try to get tenant redirect from state, fall back to root.
 	if oauthErr := q.Get("error"); oauthErr != "" {
