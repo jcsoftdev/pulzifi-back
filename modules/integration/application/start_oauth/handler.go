@@ -15,6 +15,7 @@ type Request struct {
 	Tenant      string
 	ReturnPath  string
 	RedirectURI string
+	ReturnHost  string
 	OrgID       uuid.UUID
 	UserID      uuid.UUID
 }
@@ -44,6 +45,7 @@ func (h *Handler) Handle(ctx context.Context, req Request) (*Response, error) {
 		UserID:      req.UserID,
 		ReturnPath:  req.ReturnPath,
 		RedirectURI: req.RedirectURI,
+		ReturnHost:  req.ReturnHost,
 	})
 	if err != nil {
 		return nil, err
