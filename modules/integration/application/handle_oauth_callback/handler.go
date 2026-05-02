@@ -84,5 +84,10 @@ func (h *Handler) Handle(ctx context.Context, req Request) (*Response, error) {
 		}
 	}
 
-	return &Response{Tenant: st.Tenant, ReturnPath: st.ReturnPath, Provider: req.Provider, ReturnHost: st.ReturnHost}, nil
+	return &Response{
+		Tenant:     st.Tenant,
+		ReturnPath: st.ReturnPath,
+		Provider:   req.Provider,
+		ReturnHost: st.ReturnHost,
+	}, nil
 }
