@@ -26,6 +26,7 @@ func fullClaims() StateClaims {
 		ReturnPath:  "/dashboard",
 		RedirectURI: "https://acme.app.com/callback",
 		Nonce:       "explicit-nonce",
+		ReturnHost:  "http://acme.pulzifi.local:3000",
 	}
 }
 
@@ -63,6 +64,9 @@ func TestSign_Verify_RoundTrip(t *testing.T) {
 	}
 	if got.Nonce != original.Nonce {
 		t.Errorf("Nonce mismatch: got %q, want %q", got.Nonce, original.Nonce)
+	}
+	if got.ReturnHost != original.ReturnHost {
+		t.Errorf("ReturnHost mismatch: got %q, want %q", got.ReturnHost, original.ReturnHost)
 	}
 
 	// Test auto-generated nonce: sign with empty Nonce

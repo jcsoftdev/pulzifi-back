@@ -21,6 +21,7 @@ type StateClaims struct {
 	RedirectURI string    `json:"d"`
 	Nonce       string    `json:"n"`
 	ExpiresAt   int64     `json:"e"`
+	ReturnHost  string    `json:"h"`
 }
 
 // StateSigner creates and verifies HMAC-SHA256-signed, stateless OAuth state tokens.
