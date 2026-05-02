@@ -8,9 +8,10 @@ interface ConnectButtonProps {
   providerKey: string
   integration?: Integration
   label: string
+  planCode?: string
 }
 
-export function ConnectButton({ providerKey, integration, label }: Readonly<ConnectButtonProps>) {
+export function ConnectButton({ providerKey, integration, label, planCode: _planCode }: Readonly<ConnectButtonProps>) {
   const handleConnect = () => {
     window.location.href = IntegrationsApi.startOAuthURL(providerKey)
   }

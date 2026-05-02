@@ -1,16 +1,69 @@
 'use client'
 
-import type { Integration } from '../domain/types'
-import { PROVIDERS } from '../domain/types'
+import type { User } from '@workspace/services'
+import type { Integration, ProviderConfig } from '../domain/types'
 import { ProviderCard } from './provider-card'
 
 interface IntegrationsPanelProps {
   integrations: Integration[]
+  me?: User | null
 }
 
-export function IntegrationsPanel({ integrations }: Readonly<IntegrationsPanelProps>) {
+export function IntegrationsPanel({ integrations, me }: Readonly<IntegrationsPanelProps>) {
   const getIntegration = (key: string): Integration | undefined =>
     integrations.find((i) => i.serviceType === key && i.status === 'active')
+
+  const integrationsFlags = (
+    me?.organization?.featureFlags as
+      | { integrations?: { discord?: boolean; twilio?: boolean } }
+      | undefined
+  )?.integrations
+
+  const discordEnabled = Boolean(integrationsFlags?.discord)
+  const twilioEnabled = Boolean(integrationsFlags?.twilio)
+
+  const providers: ProviderConfig[] = [
+    {
+      key: 'slack',
+      label: 'Slack',
+      description: 'Send alerts to a Slack channel.',
+      enabled: true,
+    },
+    {
+      key: 'email',
+      label: 'Email',
+      description: 'Send alerts to email recipients.',
+      enabled: true,
+    },
+    {
+      key: 'discord',
+      label: 'Discord',
+      description: 'Send alerts to a Discord channel.',
+      enabled: discordEnabled,
+      soon: !discordEnabled,
+    },
+    {
+      key: 'twilio',
+      label: 'SMS (Twilio)',
+      description: 'Send SMS notifications via Twilio.',
+      enabled: twilioEnabled,
+      soon: !twilioEnabled,
+    },
+    {
+      key: 'teams',
+      label: 'Microsoft Teams',
+      description: 'Coming soon.',
+      enabled: false,
+      soon: true,
+    },
+    {
+      key: 'google_sheets',
+      label: 'Google Sheets',
+      description: 'Coming soon.',
+      enabled: false,
+      soon: true,
+    },
+  ]
 
   return (
     <div className="px-4 md:px-8 lg:px-24 py-8 max-w-4xl">
@@ -22,14 +75,16 @@ export function IntegrationsPanel({ integrations }: Readonly<IntegrationsPanelPr
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {PROVIDERS.map((provider) => (
+        {providers.map((provider) => (
           <ProviderCard
             key={provider.key}
             providerKey={provider.key}
             label={provider.label}
             description={provider.description}
             enabled={provider.enabled}
+            soon={provider.soon}
             integration={getIntegration(provider.key)}
+            planCode={me?.organization?.planCode}
           />
         ))}
       </div>
