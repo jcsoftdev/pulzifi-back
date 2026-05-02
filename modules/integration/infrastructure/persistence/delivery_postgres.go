@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -188,6 +189,30 @@ func (r *DeliveryPostgresRepository) ListByDestination(ctx context.Context, dest
 		return nil, fmt.Errorf("delivery repo: list by destination rows: %w", err)
 	}
 	return result, nil
+}
+
+// Retry resets a 'dead' delivery back to 'pending' so the worker will attempt it again.
+// Returns an error if the delivery does not exist or is not in 'dead' state.
+func (r *DeliveryPostgresRepository) Retry(ctx context.Context, id uuid.UUID) error {
+	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
+		return fmt.Errorf("delivery repo: set search path: %w", err)
+	}
+
+	q := `UPDATE integration_deliveries
+	   SET status = 'pending', next_attempt_at = NOW(), attempts = 0,
+	       error_message = NULL, response_code = NULL, response_body = NULL,
+	       last_attempt_at = NULL
+	 WHERE id = $1 AND status = 'dead'`
+
+	res, err := r.db.ExecContext(ctx, q, id)
+	if err != nil {
+		return fmt.Errorf("delivery repo: retry: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return errors.New("delivery repo: not found or not in dead state")
+	}
+	return nil
 }
 
 // --- internal helpers ---

@@ -5,6 +5,7 @@ package persistence_test
 import (
 	"context"
 	"database/sql"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -23,6 +24,7 @@ func newDelivRepo(t *testing.T) (interface {
 	MarkFailed(ctx context.Context, id uuid.UUID, code *int, body, errMsg string, nextAttempt time.Time) error
 	MarkDead(ctx context.Context, id uuid.UUID, errMsg string) error
 	ListByDestination(ctx context.Context, destinationID uuid.UUID, limit, offset int) ([]*entities.Delivery, error)
+	Retry(ctx context.Context, id uuid.UUID) error
 }, *sql.DB) {
 	t.Helper()
 	db := openTestDB(t)
@@ -493,5 +495,72 @@ func TestDeliveryRepo_ListByDestination(t *testing.T) {
 	}
 	if len(list2) != 1 {
 		t.Errorf("want 1 row for dest2, got %d", len(list2))
+	}
+}
+
+// --------------------------------------------------------------------------
+// TestDeliveryRepo_Retry
+// --------------------------------------------------------------------------
+
+func TestDeliveryRepo_Retry(t *testing.T) {
+	ctx := context.Background()
+	repo, db := newDelivRepo(t)
+	destID := insertDestForDelivery(t, ctx, db)
+
+	d := &entities.Delivery{
+		ID:            uuid.New(),
+		DestinationID: destID,
+		EventType:     "retry.test",
+		EventPayload:  map[string]any{"x": 1},
+	}
+	if err := repo.Create(ctx, d); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	// Claim so we can call MarkDead (requires in_flight status implied by the worker flow;
+	// MarkDead updates by id with no status check in the SQL, so we can call it directly).
+	now := time.Now().UTC()
+	_, err := repo.ClaimPending(ctx, 10, now)
+	if err != nil {
+		t.Fatalf("ClaimPending: %v", err)
+	}
+
+	// Mark dead.
+	if err := repo.MarkDead(ctx, d.ID, "max retries exceeded"); err != nil {
+		t.Fatalf("MarkDead: %v", err)
+	}
+
+	got := fetchDelivery(t, ctx, db, d.ID)
+	if got.Status != entities.DeliveryDead {
+		t.Fatalf("pre-condition: want dead, got %q", got.Status)
+	}
+
+	// Retry → no error.
+	if err := repo.Retry(ctx, d.ID); err != nil {
+		t.Fatalf("Retry: %v", err)
+	}
+
+	// Re-query: status='pending', attempts=0, nullable fields cleared.
+	got = fetchDelivery(t, ctx, db, d.ID)
+	if got.Status != entities.DeliveryPending {
+		t.Errorf("status after Retry: want pending, got %q", got.Status)
+	}
+	if got.Attempts != 0 {
+		t.Errorf("attempts after Retry: want 0, got %d", got.Attempts)
+	}
+	if got.ErrorMessage != nil {
+		t.Errorf("error_message should be NULL after Retry, got %q", *got.ErrorMessage)
+	}
+	if got.LastAttemptAt != nil {
+		t.Errorf("last_attempt_at should be NULL after Retry, got %v", got.LastAttemptAt)
+	}
+
+	// Second Retry on now-pending row → "not found or not in dead state" error.
+	err = repo.Retry(ctx, d.ID)
+	if err == nil {
+		t.Fatal("expected error retrying non-dead delivery, got nil")
+	}
+	if !strings.Contains(err.Error(), "not found or not in dead state") {
+		t.Errorf("unexpected error message: %v", err)
 	}
 }

@@ -15,4 +15,5 @@ type DeliveryRepository interface {
 	MarkFailed(ctx context.Context, id uuid.UUID, code *int, body, errMsg string, nextAttempt time.Time) error
 	MarkDead(ctx context.Context, id uuid.UUID, errMsg string) error
 	ListByDestination(ctx context.Context, destinationID uuid.UUID, limit, offset int) ([]*entities.Delivery, error)
+	Retry(ctx context.Context, id uuid.UUID) error
 }
