@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -95,6 +96,14 @@ type Config struct {
 	DeliveryMaxAttempts          int
 	DeliveryPollInterval         time.Duration
 	DeliveryWorkerPoolSize       int
+
+	// Phase 2: additional integration providers
+	DiscordClientID     string
+	DiscordClientSecret string
+	TwilioAccountSID    string
+	TwilioAuthToken     string
+	TwilioFromNumber    string
+	TwilioPaidPlans     []string // comma-separated env (TWILIO_PAID_PLANS)
 }
 
 func Load() *Config {
@@ -170,7 +179,29 @@ func Load() *Config {
 		DeliveryMaxAttempts:          getEnvInt("DELIVERY_MAX_ATTEMPTS", 5),
 		DeliveryPollInterval:         getEnvDuration("DELIVERY_POLL_INTERVAL", 5*time.Second),
 		DeliveryWorkerPoolSize:       getEnvInt("DELIVERY_WORKER_POOL_SIZE", 10),
+
+		DiscordClientID:     getEnv("DISCORD_CLIENT_ID", ""),
+		DiscordClientSecret: getEnv("DISCORD_CLIENT_SECRET", ""),
+		TwilioAccountSID:    getEnv("TWILIO_ACCOUNT_SID", ""),
+		TwilioAuthToken:     getEnv("TWILIO_AUTH_TOKEN", ""),
+		TwilioFromNumber:    getEnv("TWILIO_FROM_NUMBER", ""),
+		TwilioPaidPlans:     splitCSV(getEnv("TWILIO_PAID_PLANS", "pro,business")),
 	}
+}
+
+func splitCSV(s string) []string {
+	if s == "" {
+		return nil
+	}
+	parts := strings.Split(s, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 func getEnv(key, defaultValue string) string {
