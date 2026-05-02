@@ -10,6 +10,8 @@ const AVAILABLE_EVENTS = [
   { value: 'alert.created', label: 'Alert created' },
 ]
 
+const E164_REGEX = /^\+[1-9]\d{6,14}$/
+
 interface DestinationFormProps {
   providerKey: string
   integrationId?: string
@@ -44,6 +46,14 @@ export function DestinationForm({
       : ''
   )
 
+  // Twilio: comma-separated phone numbers
+  const [phoneInput, setPhoneInput] = useState<string>(
+    destination?.target?.phone_numbers
+      ? (destination.target.phone_numbers as string[]).join(', ')
+      : ''
+  )
+  const [phoneErrors, setPhoneErrors] = useState<string[]>([])
+
   // Events checkboxes
   const [selectedEvents, setSelectedEvents] = useState<string[]>(
     destination?.events ?? ['change.detected', 'alert.created']
@@ -76,10 +86,23 @@ export function DestinationForm({
     )
   }
 
+  const parsePhones = (): string[] =>
+    phoneInput
+      .split(',')
+      .map((p) => p.trim())
+      .filter(Boolean)
+
+  const validatePhones = (phones: string[]): string[] =>
+    phones.filter((p) => !E164_REGEX.test(p))
+
   const buildTarget = (): Record<string, unknown> => {
     if (providerKey === 'slack') {
       const found = targets.find((t) => t.id === selectedTarget)
       return { channel_id: selectedTarget, channel_name: found?.name ?? '' }
+    }
+    if (providerKey === 'twilio') {
+      const phones = parsePhones()
+      return { phone_numbers: phones }
     }
     // email
     const emails = emailInput
@@ -108,6 +131,23 @@ export function DestinationForm({
         notification.error({ title: 'Enter at least one email address' })
         return
       }
+    }
+    if (providerKey === 'twilio') {
+      const phones = parsePhones()
+      if (phones.length === 0) {
+        notification.error({ title: 'Enter at least one phone number' })
+        return
+      }
+      const invalid = validatePhones(phones)
+      if (invalid.length > 0) {
+        setPhoneErrors(invalid)
+        notification.error({
+          title: 'Invalid phone numbers',
+          description: `These numbers are not in E.164 format: ${invalid.join(', ')}`,
+        })
+        return
+      }
+      setPhoneErrors([])
     }
 
     setSaving(true)
@@ -183,6 +223,41 @@ export function DestinationForm({
             className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none"
           />
           <p className="text-xs text-muted-foreground mt-1">Separate multiple addresses with commas.</p>
+        </div>
+      )}
+
+      {/* Twilio: phone numbers */}
+      {providerKey === 'twilio' && (
+        <div>
+          <label className="text-xs font-medium text-muted-foreground block mb-1.5">
+            Phone numbers (E.164)
+          </label>
+          <textarea
+            value={phoneInput}
+            onChange={(e) => {
+              setPhoneInput(e.target.value)
+              setPhoneErrors([])
+            }}
+            placeholder="+15551234567, +447700900123"
+            rows={2}
+            className={`w-full rounded-lg border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 resize-none ${
+              phoneErrors.length > 0
+                ? 'border-destructive focus:ring-destructive/40'
+                : 'border-border focus:ring-primary/40'
+            }`}
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            Separate multiple numbers with commas. Must be in E.164 format (e.g. +15551234567).
+          </p>
+          {phoneErrors.length > 0 && (
+            <ul className="mt-1 space-y-0.5">
+              {phoneErrors.map((p) => (
+                <li key={p} className="text-xs text-destructive">
+                  {p} — invalid format
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
 
