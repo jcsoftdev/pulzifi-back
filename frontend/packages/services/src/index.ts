@@ -23,7 +23,17 @@ export type { InviteMemberDto, TeamMember, UpdateMemberDto } from './team-api'
 export { TeamApi } from './team-api'
 export type { CreateWorkspaceDto, ListWorkspacesResponse, Workspace } from './workspace-api'
 export { WorkspaceApi } from './workspace-api'
-export type { Integration, UpsertIntegrationDto } from './integration-api'
-export { IntegrationApi } from './integration-api'
+export type {
+  Integration,
+  Target,
+  Destination,
+  Delivery,
+  IntegrationStatus,
+  DeliveryStatus,
+  ScopeType,
+  CreateDestinationInput,
+  UpdateDestinationInput,
+} from './integration-api'
+export { IntegrationsApi, DestinationsApi, DeliveriesApi } from './integration-api'
 export type { CreateReportDto, Report } from './report-api'
 export { ReportApi } from './report-api'
