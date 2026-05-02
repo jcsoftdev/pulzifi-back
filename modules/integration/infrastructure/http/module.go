@@ -1,17 +1,30 @@
 package http
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	authmw "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/middleware"
-	deleteintegration "github.com/jcsoftdev/pulzifi-back/modules/integration/application/delete_integration"
-	listintegrations "github.com/jcsoftdev/pulzifi-back/modules/integration/application/list_integrations"
-	upsertintegration "github.com/jcsoftdev/pulzifi-back/modules/integration/application/upsert_integration"
+	createdestination "github.com/jcsoftdev/pulzifi-back/modules/integration/application/create_destination"
+	deletedestination "github.com/jcsoftdev/pulzifi-back/modules/integration/application/delete_destination"
+	disconnectintegration "github.com/jcsoftdev/pulzifi-back/modules/integration/application/disconnect_integration"
+	handleoauthcallback "github.com/jcsoftdev/pulzifi-back/modules/integration/application/handle_oauth_callback"
+	listdeliveries "github.com/jcsoftdev/pulzifi-back/modules/integration/application/list_deliveries"
+	listdestinations "github.com/jcsoftdev/pulzifi-back/modules/integration/application/list_destinations"
+	listprovidertargets "github.com/jcsoftdev/pulzifi-back/modules/integration/application/list_provider_targets"
+	retrydelivery "github.com/jcsoftdev/pulzifi-back/modules/integration/application/retry_delivery"
+	startoauth "github.com/jcsoftdev/pulzifi-back/modules/integration/application/start_oauth"
+	updatedestination "github.com/jcsoftdev/pulzifi-back/modules/integration/application/update_destination"
 	"github.com/jcsoftdev/pulzifi-back/modules/integration/domain/entities"
+	"github.com/jcsoftdev/pulzifi-back/modules/integration/domain/repositories"
+	"github.com/jcsoftdev/pulzifi-back/modules/integration/domain/services"
+	intoauth "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/oauth"
 	"github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/persistence"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
@@ -19,88 +32,151 @@ import (
 	"go.uber.org/zap"
 )
 
-type Module struct {
-	db *sql.DB
+// Compile-time interface check.
+var _ router.ModuleRegisterer = (*Module)(nil)
+
+// Deps holds all dependencies for the Integration HTTP module.
+type Deps struct {
+	DB                *sql.DB
+	IntRepo           repositories.IntegrationRepository // public-schema, encryption-aware
+	Registry          services.ProviderRegistry
+	StateSigner       *intoauth.StateSigner
+	OAuthRedirectBase string // e.g. "http://localhost:3000"
 }
 
+// Module is the Integration HTTP module.
+type Module struct{ deps Deps }
+
+// NewModule constructs the module with fully wired dependencies.
+func NewModule(deps Deps) *Module { return &Module{deps: deps} }
+
+// Deprecated: use NewModule with full Deps. Shim for the brief window before T24 wiring lands.
 func NewModuleWithDB(db *sql.DB) router.ModuleRegisterer {
-	return &Module{db: db}
+	return &Module{deps: Deps{DB: db}}
 }
 
-func (m *Module) ModuleName() string {
-	return "Integration"
-}
+// ModuleName satisfies router.ModuleRegisterer.
+func (m *Module) ModuleName() string { return "Integration" }
 
+// RegisterHTTPRoutes registers tenant-scoped routes under the /api/v1 prefix.
+// The OAuth callback route is registered separately at root via HandleOAuthCallback
+// (not under tenant middleware) by the caller in cmd/server/main.go.
 func (m *Module) RegisterHTTPRoutes(r chi.Router) {
 	r.Route("/integrations", func(r chi.Router) {
-		r.Use(middleware.AuthMiddleware.Authenticate)
 		r.Use(middleware.OrgMiddleware.RequireOrganizationMembership)
-
 		r.Get("/", m.handleListIntegrations)
-		r.Post("/", m.handleUpsertIntegration)
-		r.Delete("/{id}", m.handleDeleteIntegration)
-
-		r.Route("/webhooks", func(r chi.Router) {
-			r.Post("/", m.handleCreateWebhook)
-			r.Get("/", m.handleListWebhooks)
-			r.Get("/{id}", m.handleGetWebhook)
-		})
+		r.Delete("/{id}", m.handleDisconnect)
+		r.Get("/oauth/{provider}/start", m.handleStartOAuth)
+		r.Get("/{id}/targets", m.handleListTargets)
+	})
+	r.Route("/destinations", func(r chi.Router) {
+		r.Use(middleware.OrgMiddleware.RequireOrganizationMembership)
+		r.Get("/", m.handleListDestinations)
+		r.Post("/", m.handleCreateDestination)
+		r.Patch("/{id}", m.handleUpdateDestination)
+		r.Delete("/{id}", m.handleDeleteDestination)
+	})
+	r.Route("/deliveries", func(r chi.Router) {
+		r.Use(middleware.OrgMiddleware.RequireOrganizationMembership)
+		r.Get("/", m.handleListDeliveries)
+		r.Post("/{id}/retry", m.handleRetryDelivery)
 	})
 }
 
+// HandleOAuthCallback is exposed for root-mounting (no tenant middleware).
+// It validates the HMAC-signed state internally and redirects the browser back
+// to the tenant subdomain with the integration result.
+func (m *Module) HandleOAuthCallback(w http.ResponseWriter, r *http.Request) {
+	provider := chi.URLParam(r, "provider")
+	q := r.URL.Query()
+	oauthErr := q.Get("error")
+	if oauthErr != "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": oauthErr})
+		return
+	}
+	code := q.Get("code")
+	state := q.Get("state")
+
+	handler := handleoauthcallback.NewHandler(m.deps.Registry, m.deps.StateSigner, m.deps.IntRepo)
+	resp, err := handler.Handle(r.Context(), handleoauthcallback.Request{
+		Provider: provider,
+		Code:     code,
+		State:    state,
+	})
+	if err != nil {
+		logger.Error("OAuth callback failed", zap.Error(err))
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	// Redirect to <OAuthRedirectBase>/<ReturnPath>?integration=<provider>&status=connected&tenant=<tenant>
+	returnPath := strings.TrimPrefix(resp.ReturnPath, "/")
+	redirectURL := strings.TrimRight(m.deps.OAuthRedirectBase, "/") + "/" + returnPath +
+		"?integration=" + resp.Provider + "&status=connected&tenant=" + resp.Tenant
+	http.Redirect(w, r, redirectURL, http.StatusFound)
+}
+
+// orgIDFromTenant resolves the org UUID from the tenant schema name.
+func (m *Module) orgIDFromTenant(ctx context.Context, tenant string) (uuid.UUID, error) {
+	var orgID uuid.UUID
+	err := m.deps.DB.QueryRowContext(ctx,
+		`SELECT id FROM public.organizations WHERE schema_name = $1 AND deleted_at IS NULL`,
+		tenant,
+	).Scan(&orgID)
+	return orgID, err
+}
+
+// ---------------------------------------------------------------------------
+// Integration handlers
+// ---------------------------------------------------------------------------
+
+// integrationResponse is the safe JSON representation of an integration (no tokens).
+type integrationResponse struct {
+	ID           uuid.UUID              `json:"id"`
+	ServiceType  string                 `json:"service_type"`
+	Status       entities.IntegrationStatus `json:"status"`
+	ProviderMeta map[string]any         `json:"provider_meta"`
+	CreatedAt    string                 `json:"created_at"`
+	UpdatedAt    string                 `json:"updated_at"`
+}
+
+func toIntegrationResponse(i *entities.Integration) integrationResponse {
+	return integrationResponse{
+		ID:           i.ID,
+		ServiceType:  i.ServiceType,
+		Status:       i.Status,
+		ProviderMeta: i.ProviderMeta,
+		CreatedAt:    i.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		UpdatedAt:    i.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+	}
+}
+
+// GET /integrations
 func (m *Module) handleListIntegrations(w http.ResponseWriter, r *http.Request) {
 	tenant := middleware.GetSubdomainFromContext(r.Context())
-	repo := persistence.NewIntegrationPostgresRepository(m.db, tenant)
-	handler := listintegrations.NewHandler(repo)
+	orgID, err := m.orgIDFromTenant(r.Context(), tenant)
+	if err != nil {
+		logger.Error("Failed to resolve org from tenant", zap.Error(err), zap.String("tenant", tenant))
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
 
-	resp, err := handler.Handle(r.Context())
+	integrations, err := m.deps.IntRepo.ListByOrg(r.Context(), orgID)
 	if err != nil {
 		logger.Error("Failed to list integrations", zap.Error(err))
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}
 
-	writeJSON(w, http.StatusOK, resp)
+	result := make([]integrationResponse, 0, len(integrations))
+	for _, i := range integrations {
+		result = append(result, toIntegrationResponse(i))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"data": result})
 }
 
-func (m *Module) handleUpsertIntegration(w http.ResponseWriter, r *http.Request) {
-	tenant := middleware.GetSubdomainFromContext(r.Context())
-
-	userIDStr, ok := r.Context().Value(authmw.UserIDKey).(string)
-	if !ok {
-		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
-		return
-	}
-	userID, err := uuid.Parse(userIDStr)
-	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid user id"})
-		return
-	}
-
-	var req upsertintegration.Request
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
-		return
-	}
-
-	repo := persistence.NewIntegrationPostgresRepository(m.db, tenant)
-	handler := upsertintegration.NewHandler(repo)
-
-	resp, err := handler.Handle(r.Context(), &req, userID)
-	if err != nil {
-		if err == upsertintegration.ErrInvalidServiceType {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
-			return
-		}
-		logger.Error("Failed to upsert integration", zap.Error(err))
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
-		return
-	}
-
-	writeJSON(w, http.StatusOK, resp)
-}
-
-func (m *Module) handleDeleteIntegration(w http.ResponseWriter, r *http.Request) {
+// DELETE /integrations/{id}
+func (m *Module) handleDisconnect(w http.ResponseWriter, r *http.Request) {
 	tenant := middleware.GetSubdomainFromContext(r.Context())
 
 	idStr := chi.URLParam(r, "id")
@@ -110,11 +186,10 @@ func (m *Module) handleDeleteIntegration(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	repo := persistence.NewIntegrationPostgresRepository(m.db, tenant)
-	handler := deleteintegration.NewHandler(repo)
-
-	if err := handler.Handle(r.Context(), id); err != nil {
-		logger.Error("Failed to delete integration", zap.Error(err))
+	destRepo := persistence.NewDestinationPostgresRepository(m.deps.DB, tenant)
+	handler := disconnectintegration.NewHandler(m.deps.IntRepo, destRepo)
+	if _, err := handler.Handle(r.Context(), disconnectintegration.Request{IntegrationID: id}); err != nil {
+		logger.Error("Failed to disconnect integration", zap.Error(err))
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}
@@ -122,106 +197,290 @@ func (m *Module) handleDeleteIntegration(w http.ResponseWriter, r *http.Request)
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (m *Module) handleCreateWebhook(w http.ResponseWriter, r *http.Request) {
+// GET /integrations/oauth/{provider}/start
+func (m *Module) handleStartOAuth(w http.ResponseWriter, r *http.Request) {
+	provider := chi.URLParam(r, "provider")
 	tenant := middleware.GetSubdomainFromContext(r.Context())
 
-	userIDStr, ok := r.Context().Value(authmw.UserIDKey).(string)
-	if !ok {
-		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
-		return
+	returnPath := r.URL.Query().Get("return_path")
+	if returnPath == "" {
+		returnPath = "/settings/integrations"
 	}
-	userID, err := uuid.Parse(userIDStr)
+
+	orgID, err := m.orgIDFromTenant(r.Context(), tenant)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid user id"})
-		return
-	}
-
-	var req struct {
-		URL    string   `json:"url"`
-		Secret string   `json:"secret"`
-		Events []string `json:"events"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
-		return
-	}
-
-	if req.URL == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "url is required"})
-		return
-	}
-
-	config := map[string]interface{}{
-		"url":    req.URL,
-		"secret": req.Secret,
-		"events": req.Events,
-	}
-
-	repo := persistence.NewIntegrationPostgresRepository(m.db, tenant)
-	integration := entities.NewIntegration("webhook", config, userID)
-
-	if err := repo.Create(r.Context(), integration); err != nil {
-		logger.Error("Failed to create webhook integration", zap.Error(err))
+		logger.Error("Failed to resolve org from tenant", zap.Error(err), zap.String("tenant", tenant))
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, map[string]interface{}{
-		"id":           integration.ID,
-		"service_type": integration.ServiceType,
-		"config":       integration.Config,
-		"enabled":      integration.Enabled,
-		"created_at":   integration.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+	userIDStr, _ := r.Context().Value(authmw.UserIDKey).(string)
+	userID, _ := uuid.Parse(userIDStr)
+
+	redirectURI := strings.TrimRight(m.deps.OAuthRedirectBase, "/") +
+		"/api/v1/integrations/oauth/" + provider + "/callback"
+
+	handler := startoauth.NewHandler(m.deps.Registry, m.deps.StateSigner)
+	resp, err := handler.Handle(r.Context(), startoauth.Request{
+		Provider:    provider,
+		Tenant:      tenant,
+		ReturnPath:  returnPath,
+		RedirectURI: redirectURI,
+		OrgID:       orgID,
+		UserID:      userID,
 	})
-}
-
-func (m *Module) handleListWebhooks(w http.ResponseWriter, r *http.Request) {
-	tenant := middleware.GetSubdomainFromContext(r.Context())
-	repo := persistence.NewIntegrationPostgresRepository(m.db, tenant)
-
-	webhooks, err := repo.ListByServiceType(r.Context(), "webhook")
 	if err != nil {
-		logger.Error("Failed to list webhook integrations", zap.Error(err))
+		if strings.Contains(err.Error(), "unknown provider") {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "unknown provider: " + provider})
+			return
+		}
+		logger.Error("Failed to start OAuth", zap.Error(err))
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}
 
-	if webhooks == nil {
-		webhooks = []*entities.Integration{}
-	}
-
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"data":  webhooks,
-		"count": len(webhooks),
-	})
+	http.Redirect(w, r, resp.AuthorizeURL, http.StatusFound)
 }
 
-func (m *Module) handleGetWebhook(w http.ResponseWriter, r *http.Request) {
+// GET /integrations/{id}/targets
+func (m *Module) handleListTargets(w http.ResponseWriter, r *http.Request) {
 	tenant := middleware.GetSubdomainFromContext(r.Context())
 
-	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	idStr := chi.URLParam(r, "id")
+	id, err := uuid.Parse(idStr)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid id"})
 		return
 	}
 
-	repo := persistence.NewIntegrationPostgresRepository(m.db, tenant)
-	integration, err := repo.GetByID(r.Context(), id)
+	orgID, err := m.orgIDFromTenant(r.Context(), tenant)
 	if err != nil {
-		logger.Error("Failed to get webhook integration", zap.Error(err))
+		logger.Error("Failed to resolve org from tenant", zap.Error(err))
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}
-	if integration == nil || integration.ServiceType != "webhook" {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "webhook not found"})
+
+	// Verify the integration belongs to this org.
+	integ, err := m.deps.IntRepo.GetByID(r.Context(), id)
+	if err != nil {
+		logger.Error("Failed to get integration", zap.Error(err))
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+	if integ == nil || integ.OrgID != orgID {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "integration not found"})
 		return
 	}
 
-	writeJSON(w, http.StatusOK, integration)
+	handler := listprovidertargets.NewHandler(m.deps.IntRepo, m.deps.Registry)
+	resp, err := handler.Handle(r.Context(), listprovidertargets.Request{
+		OrgID:       orgID,
+		ServiceType: integ.ServiceType,
+	})
+	if err != nil {
+		logger.Error("Failed to list targets", zap.Error(err))
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"targets": resp.Targets})
 }
 
-func writeJSON(w http.ResponseWriter, status int, v interface{}) {
+// ---------------------------------------------------------------------------
+// Destination handlers
+// ---------------------------------------------------------------------------
+
+// GET /destinations
+func (m *Module) handleListDestinations(w http.ResponseWriter, r *http.Request) {
+	tenant := middleware.GetSubdomainFromContext(r.Context())
+	q := r.URL.Query()
+
+	scopeTypeStr := q.Get("scope_type")
+	if scopeTypeStr == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "scope_type required"})
+		return
+	}
+	scopeIDStr := q.Get("scope_id")
+	if scopeIDStr == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "scope_id required"})
+		return
+	}
+	scopeID, err := uuid.Parse(scopeIDStr)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid scope_id"})
+		return
+	}
+
+	destRepo := persistence.NewDestinationPostgresRepository(m.deps.DB, tenant)
+	handler := listdestinations.NewHandler(destRepo)
+	resp, err := handler.Handle(r.Context(), listdestinations.Request{
+		ScopeType: entities.ScopeType(scopeTypeStr),
+		ScopeID:   scopeID,
+	})
+	if err != nil {
+		logger.Error("Failed to list destinations", zap.Error(err))
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"data": resp.Destinations})
+}
+
+// POST /destinations
+func (m *Module) handleCreateDestination(w http.ResponseWriter, r *http.Request) {
+	tenant := middleware.GetSubdomainFromContext(r.Context())
+
+	var req createdestination.Request
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+
+	destRepo := persistence.NewDestinationPostgresRepository(m.deps.DB, tenant)
+	handler := createdestination.NewHandler(destRepo)
+	resp, err := handler.Handle(r.Context(), req)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, resp.Destination)
+}
+
+// PATCH /destinations/{id}
+func (m *Module) handleUpdateDestination(w http.ResponseWriter, r *http.Request) {
+	tenant := middleware.GetSubdomainFromContext(r.Context())
+
+	idStr := chi.URLParam(r, "id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid id"})
+		return
+	}
+
+	var req updatedestination.Request
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+	req.ID = id // override from URL param
+
+	destRepo := persistence.NewDestinationPostgresRepository(m.deps.DB, tenant)
+	handler := updatedestination.NewHandler(destRepo)
+	resp, err := handler.Handle(r.Context(), req)
+	if err != nil {
+		if err.Error() == "destination not found" {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "destination not found"})
+			return
+		}
+		logger.Error("Failed to update destination", zap.Error(err))
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, resp.Destination)
+}
+
+// DELETE /destinations/{id}
+func (m *Module) handleDeleteDestination(w http.ResponseWriter, r *http.Request) {
+	tenant := middleware.GetSubdomainFromContext(r.Context())
+
+	idStr := chi.URLParam(r, "id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid id"})
+		return
+	}
+
+	destRepo := persistence.NewDestinationPostgresRepository(m.deps.DB, tenant)
+	handler := deletedestination.NewHandler(destRepo)
+	if _, err := handler.Handle(r.Context(), deletedestination.Request{ID: id}); err != nil {
+		logger.Error("Failed to delete destination", zap.Error(err))
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// ---------------------------------------------------------------------------
+// Delivery handlers
+// ---------------------------------------------------------------------------
+
+// GET /deliveries
+func (m *Module) handleListDeliveries(w http.ResponseWriter, r *http.Request) {
+	tenant := middleware.GetSubdomainFromContext(r.Context())
+	q := r.URL.Query()
+
+	destIDStr := q.Get("destination_id")
+	if destIDStr == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "destination_id required"})
+		return
+	}
+	destID, err := uuid.Parse(destIDStr)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid destination_id"})
+		return
+	}
+
+	limit := 50
+	offset := 0
+	if v := q.Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			limit = n
+		}
+	}
+	if v := q.Get("offset"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			offset = n
+		}
+	}
+
+	deliveryRepo := persistence.NewDeliveryPostgresRepository(m.deps.DB, tenant)
+	handler := listdeliveries.NewHandler(deliveryRepo)
+	resp, err := handler.Handle(r.Context(), listdeliveries.Request{
+		DestinationID: destID,
+		Limit:         limit,
+		Offset:        offset,
+	})
+	if err != nil {
+		logger.Error("Failed to list deliveries", zap.Error(err))
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"data": resp.Deliveries})
+}
+
+// POST /deliveries/{id}/retry
+// Phase 2: gate behind RequireRole('OWNER').
+func (m *Module) handleRetryDelivery(w http.ResponseWriter, r *http.Request) {
+	tenant := middleware.GetSubdomainFromContext(r.Context())
+
+	idStr := chi.URLParam(r, "id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid id"})
+		return
+	}
+
+	deliveryRepo := persistence.NewDeliveryPostgresRepository(m.deps.DB, tenant)
+	handler := retrydelivery.NewHandler(deliveryRepo)
+	if _, err := handler.Handle(r.Context(), retrydelivery.Request{ID: id}); err != nil {
+		logger.Error("Failed to retry delivery", zap.Error(err))
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// ---------------------------------------------------------------------------
+// Helper
+// ---------------------------------------------------------------------------
+
+func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v)
+	json.NewEncoder(w).Encode(v) //nolint:errcheck
 }

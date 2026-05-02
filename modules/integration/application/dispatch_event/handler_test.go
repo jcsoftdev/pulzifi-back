@@ -150,6 +150,8 @@ func (r *inMemDelRepo) ListByDestination(_ context.Context, destinationID uuid.U
 	return nil, nil
 }
 
+func (r *inMemDelRepo) Retry(_ context.Context, id uuid.UUID) error { return nil }
+
 // ---------------------------------------------------------------------------
 // RepoFactory stub
 // ---------------------------------------------------------------------------

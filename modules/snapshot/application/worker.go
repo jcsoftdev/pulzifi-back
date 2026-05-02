@@ -21,8 +21,6 @@ import (
 	"github.com/jcsoftdev/pulzifi-back/modules/email/infrastructure/templates"
 	generateinsights "github.com/jcsoftdev/pulzifi-back/modules/insight/application/generate_insights"
 	insightservices "github.com/jcsoftdev/pulzifi-back/modules/insight/domain/services"
-	integrationPersistence "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/persistence"
-	"github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/webhook"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/domain/entities"
 	monPersistence "github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/persistence"
 	"github.com/jcsoftdev/pulzifi-back/modules/snapshot/domain/repositories"
@@ -703,40 +701,16 @@ func (s *SnapshotWorker) sendAlertEmails(schemaName string, check *entities.Chec
 	}
 }
 
-// dispatchWebhooks sends webhook notifications to enabled Slack/Discord/Teams integrations.
+// dispatchWebhooks is a stub pending T27 (Publisher change.detected from snapshot).
+// The legacy webhook sender has been removed in T23; the dispatch_event use case
+// will replace this path once the event bus wiring lands in T27.
 func (s *SnapshotWorker) dispatchWebhooks(schemaName string, check *entities.Check, pageURL string, changeSummary string) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	integrationRepo := integrationPersistence.NewIntegrationPostgresRepository(s.db, schemaName)
-	sender := webhook.NewSender()
-
-	changeType := check.ChangeType
-	if changeType == "" {
-		changeType = "content"
-	}
-	if changeSummary != "" {
-		changeType = changeSummary
-	}
-
-	for _, serviceType := range []string{"slack", "discord", "teams"} {
-		integrations, err := integrationRepo.ListByServiceType(ctx, serviceType)
-		if err != nil {
-			logger.Error("Failed to list integrations", zap.Error(err), zap.String("service_type", serviceType))
-			continue
-		}
-		for _, integration := range integrations {
-			if !integration.Enabled {
-				continue
-			}
-			if err := sender.Dispatch(ctx, integration, pageURL, changeType); err != nil {
-				logger.Error("Failed to dispatch webhook",
-					zap.Error(err),
-					zap.String("service_type", serviceType),
-					zap.String("integration_id", integration.ID.String()))
-			}
-		}
-	}
+	// TODO(T27): publish a "change.detected" event via EventBus so the
+	// dispatch_event use case can fan-out to all enabled destinations.
+	logger.Info("dispatchWebhooks: event dispatch deferred to T27",
+		zap.String("schema", schemaName),
+		zap.String("page_url", pageURL),
+	)
 }
 
 // generateInsightsAsync calls the insight handler in the background after a change is detected.
