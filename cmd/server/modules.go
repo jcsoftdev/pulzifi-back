@@ -163,7 +163,7 @@ func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus 
 	twilioValidator := twilioprovider.NewValidator()
 
 	baseProviders := []intdomainservices.ProviderClient{slackClient, intEmailClient, discordClient, twilioClient, sheetsClient, teamsClient}
-	if cfg.GmailIntegrationEnabled {
+	if cfg.GmailIntegrationEnabled && cfg.GoogleClientID != "" && cfg.GoogleClientSecret != "" {
 		baseProviders = append(baseProviders, gmailprovider.New(cfg.GoogleClientID, cfg.GoogleClientSecret, cfg.IntegrationOAuthRedirectBase))
 	}
 	if cfg.MicrosoftClientID != "" && cfg.MicrosoftClientSecret != "" {

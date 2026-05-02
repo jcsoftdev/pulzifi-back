@@ -96,7 +96,7 @@ func main() {
 		PlatformFromNumber: cfg.TwilioFromNumber,
 	}, twilioPlanLookup, twilioQuotaAdapter)
 	workerProviders := []services.ProviderClient{slackClient, intEmailClient, discordClient, twilioClient, sheetsClient, teamsClient}
-	if cfg.GmailIntegrationEnabled {
+	if cfg.GmailIntegrationEnabled && cfg.GoogleClientID != "" && cfg.GoogleClientSecret != "" {
 		workerProviders = append(workerProviders, gmailprovider.New(cfg.GoogleClientID, cfg.GoogleClientSecret, cfg.IntegrationOAuthRedirectBase))
 	}
 	if cfg.MicrosoftClientID != "" && cfg.MicrosoftClientSecret != "" {
