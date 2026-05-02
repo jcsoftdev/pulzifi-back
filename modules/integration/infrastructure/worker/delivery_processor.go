@@ -172,11 +172,25 @@ func (w *Worker) process(
 			client, ok := w.registry.Get(integ.ServiceType)
 			if ok {
 				newTok, refreshErr := client.RefreshAccessToken(ctx, integ.RefreshToken)
-				if refreshErr != nil || newTok == nil {
+				if refreshErr != nil {
 					integ.Status = entities.IntegrationExpired
 					_ = w.intRepo.Update(ctx, integ)
 					_ = delRepo.MarkDead(ctx, d.ID, "token refresh failed",
 						appendAttempt(d.AttemptHistory, nil, "token refresh failed", w.cfg.MaxAttempts))
+					return
+				}
+				if newTok == nil {
+					// Programmer error: the provider returned (nil, nil) which violates
+					// the RefreshAccessToken contract. This should never happen for
+					// providers that opt-in to refresh (i.e. set TokenExpiresAt).
+					// Defensively mark the integration expired so the issue surfaces.
+					logger.ErrorWithContext(ctx, "refresh contract violation: provider returned (nil, nil)",
+						zap.String("service_type", integ.ServiceType),
+						zap.String("integration_id", integ.ID.String()))
+					integ.Status = entities.IntegrationExpired
+					_ = w.intRepo.Update(ctx, integ)
+					_ = delRepo.MarkDead(ctx, d.ID, "refresh contract violation",
+						appendAttempt(d.AttemptHistory, nil, "refresh contract violation", w.cfg.MaxAttempts))
 					return
 				}
 				integ.AccessToken = newTok.AccessToken

@@ -15,12 +15,14 @@ export function IntegrationsPanel({ integrations, me }: Readonly<IntegrationsPan
 
   const integrationsFlags = (
     me?.organization?.featureFlags as
-      | { integrations?: { discord?: boolean; twilio?: boolean } }
+      | { integrations?: { discord?: boolean; twilio?: boolean; sheets?: boolean; teams?: boolean } }
       | undefined
   )?.integrations
 
   const discordEnabled = Boolean(integrationsFlags?.discord)
   const twilioEnabled = Boolean(integrationsFlags?.twilio)
+  const sheetsEnabled = Boolean(integrationsFlags?.sheets)
+  const teamsEnabled = Boolean(integrationsFlags?.teams)
 
   const providers: ProviderConfig[] = [
     {
@@ -50,18 +52,18 @@ export function IntegrationsPanel({ integrations, me }: Readonly<IntegrationsPan
       soon: !twilioEnabled,
     },
     {
-      key: 'teams',
-      label: 'Microsoft Teams',
-      description: 'Coming soon.',
-      enabled: false,
-      soon: true,
+      key: 'sheets',
+      label: 'Google Sheets',
+      description: 'Append change data to a Google spreadsheet.',
+      enabled: sheetsEnabled,
+      soon: !sheetsEnabled,
     },
     {
-      key: 'google_sheets',
-      label: 'Google Sheets',
-      description: 'Coming soon.',
-      enabled: false,
-      soon: true,
+      key: 'teams',
+      label: 'Microsoft Teams',
+      description: 'Post alerts to a Microsoft Teams channel.',
+      enabled: teamsEnabled,
+      soon: !teamsEnabled,
     },
   ]
 

@@ -31,6 +31,19 @@ type OrgPlanLookup interface {
 	PlanCode(ctx context.Context, orgID uuid.UUID) (string, error)
 }
 
+// QuotaTracker enforces per-org monthly send limits. Implementation lives in
+// cmd/wiring/integration/ and wraps shared/integrationusage.Tracker with a
+// plan-driven AllowedFor closure.
+type QuotaTracker interface {
+	CheckAndIncrement(ctx context.Context, orgID uuid.UUID, serviceType string) error
+}
+
+// ErrQuotaExceeded is the user-facing sentinel surfaced when the org's
+// monthly Twilio quota is exhausted. The wiring adapter wraps
+// integrationusage.ErrQuotaExceeded; this provider-local sentinel lets
+// callers switch on it without importing the shared package.
+var ErrQuotaExceeded = errors.New("twilio: monthly SMS quota exceeded")
+
 type Config struct {
 	PaidPlans          []string // plan codes that grant access to platform Twilio
 	PlatformAccountSID string
@@ -39,16 +52,18 @@ type Config struct {
 }
 
 type Client struct {
-	cfg   Config
-	plans OrgPlanLookup
-	http  *http.Client
+	cfg    Config
+	plans  OrgPlanLookup
+	quotas QuotaTracker // nil-safe (skipped when nil — for tests / pre-T12)
+	http   *http.Client
 }
 
-func New(cfg Config, plans OrgPlanLookup) *Client {
+func New(cfg Config, plans OrgPlanLookup, quotas QuotaTracker) *Client {
 	return &Client{
-		cfg:   cfg,
-		plans: plans,
-		http:  &http.Client{Timeout: 15 * time.Second},
+		cfg:    cfg,
+		plans:  plans,
+		quotas: quotas,
+		http:   &http.Client{Timeout: 15 * time.Second},
 	}
 }
 
@@ -122,6 +137,15 @@ func (c *Client) Send(ctx context.Context, integ *entities.Integration, dest *en
 	case TierFree:
 		return nil, errors.New("twilio: SMS not available on free plan")
 	case TierPaid:
+		if c.quotas != nil {
+			if err := c.quotas.CheckAndIncrement(ctx, dest.ScopeID, "twilio"); err != nil {
+				// Map shared package's ErrQuotaExceeded (string-match avoids importing it here)
+				if strings.Contains(err.Error(), "quota exceeded") {
+					return nil, ErrQuotaExceeded
+				}
+				return nil, fmt.Errorf("twilio quota: %w", err)
+			}
+		}
 		sid, token, from = c.cfg.PlatformAccountSID, c.cfg.PlatformAuthToken, c.cfg.PlatformFromNumber
 		if sid == "" || token == "" || from == "" {
 			return nil, errors.New("twilio: platform credentials not configured")

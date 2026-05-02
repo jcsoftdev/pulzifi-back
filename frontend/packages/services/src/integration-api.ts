@@ -42,6 +42,8 @@ interface DestinationBackendDto {
   Enabled: boolean
   CreatedAt: string
   UpdatedAt: string
+  WorkspaceName?: string
+  PageName?: string
 }
 
 interface DeliveryBackendDto {
@@ -91,6 +93,8 @@ export interface Destination {
   enabled: boolean
   createdAt: string
   updatedAt: string
+  workspaceName?: string
+  pageName?: string
 }
 
 export interface Attempt {
@@ -169,6 +173,8 @@ function transformDestination(dto: DestinationBackendDto): Destination {
     enabled: dto.Enabled,
     createdAt: dto.CreatedAt,
     updatedAt: dto.UpdatedAt,
+    workspaceName: dto.WorkspaceName,
+    pageName: dto.PageName,
   }
 }
 

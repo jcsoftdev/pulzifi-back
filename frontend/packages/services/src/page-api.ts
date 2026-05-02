@@ -722,6 +722,10 @@ export const PageApi = {
     await http.delete(`/api/v1/monitoring/sections/page/${pageId}/${sectionId}`)
   },
 
+  async listByWorkspace(workspaceId: string): Promise<Page[]> {
+    return PageApi.listPages({ workspaceId })
+  },
+
   async listInsights(pageId: string, checkId?: string): Promise<Insight[]> {
     const http = await getHttpClient()
     const query = checkId ? `check_id=${checkId}` : `page_id=${pageId}`

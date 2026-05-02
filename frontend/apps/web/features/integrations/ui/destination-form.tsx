@@ -1,6 +1,7 @@
 'use client'
 
-import { DestinationsApi } from '@workspace/services'
+import { DestinationsApi, PageApi, WorkspaceApi } from '@workspace/services'
+import type { Page, Workspace } from '@workspace/services'
 import type { CreateDestinationInput, Destination, ScopeType, Target } from '../domain/types'
 import { useCallback, useEffect, useState } from 'react'
 import { notification } from '@/lib/notification'
@@ -25,8 +26,8 @@ interface DestinationFormProps {
 export function DestinationForm({
   providerKey,
   integrationId,
-  scopeType,
-  scopeId,
+  scopeType: defaultScopeType,
+  scopeId: defaultScopeId,
   destination,
   onSuccess,
 }: Readonly<DestinationFormProps>) {
@@ -59,6 +60,13 @@ export function DestinationForm({
     destination?.events ?? ['change.detected', 'alert.created']
   )
 
+  // Scope picker (create mode only)
+  const [scope, setScope] = useState<ScopeType>('org')
+  const [workspaceId, setWorkspaceId] = useState<string>('')
+  const [pageId, setPageId] = useState<string>('')
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([])
+  const [pages, setPages] = useState<Page[]>([])
+
   const [saving, setSaving] = useState(false)
 
   const fetchTargets = useCallback(async () => {
@@ -79,6 +87,25 @@ export function DestinationForm({
   useEffect(() => {
     fetchTargets()
   }, [fetchTargets])
+
+  // Load workspaces when scope is workspace or page
+  useEffect(() => {
+    if (isEdit || scope === 'org') return
+    WorkspaceApi.listWorkspaces()
+      .then((res) => setWorkspaces(res.workspaces))
+      .catch(() => setWorkspaces([]))
+  }, [scope, isEdit])
+
+  // Load pages when workspace is selected in page scope
+  useEffect(() => {
+    if (isEdit || scope !== 'page' || !workspaceId) {
+      setPages([])
+      return
+    }
+    PageApi.listByWorkspace(workspaceId)
+      .then(setPages)
+      .catch(() => setPages([]))
+  }, [scope, workspaceId, isEdit])
 
   const toggleEvent = (value: string) => {
     setSelectedEvents((prev) =>
@@ -117,6 +144,18 @@ export function DestinationForm({
     if (selectedEvents.length === 0) {
       notification.error({ title: 'Select at least one event' })
       return
+    }
+
+    // Validate scope picker
+    if (!isEdit) {
+      if (scope === 'workspace' && !workspaceId) {
+        notification.error({ title: 'Select a workspace' })
+        return
+      }
+      if (scope === 'page' && (!workspaceId || !pageId)) {
+        notification.error({ title: 'Select a workspace and a page' })
+        return
+      }
     }
 
     const target = buildTarget()
@@ -160,10 +199,17 @@ export function DestinationForm({
         })
         notification.success({ title: 'Destination updated' })
       } else {
+        // Resolve scope_type and scope_id from picker (create mode)
+        const resolvedScopeType: ScopeType = scope
+        const resolvedScopeId =
+          scope === 'org' ? defaultScopeId
+          : scope === 'workspace' ? workspaceId
+          : pageId
+
         const body: CreateDestinationInput = {
           service_type: providerKey,
-          scope_type: scopeType,
-          scope_id: scopeId,
+          scope_type: resolvedScopeType,
+          scope_id: resolvedScopeId,
           target,
           events: selectedEvents,
           ...(integrationId ? { integration_id: integrationId } : {}),
@@ -259,6 +305,79 @@ export function DestinationForm({
             </ul>
           )}
         </div>
+      )}
+
+      {/* Scope picker (create mode only) */}
+      {!isEdit && (
+        <fieldset className="space-y-2">
+          <legend className="text-xs font-medium text-muted-foreground mb-1.5">
+            Notify scope
+          </legend>
+          <div className="flex gap-4">
+            {(['org', 'workspace', 'page'] as ScopeType[]).map((s) => (
+              <label key={s} className="flex items-center gap-1.5 cursor-pointer select-none">
+                <input
+                  type="radio"
+                  name="scope"
+                  value={s}
+                  checked={scope === s}
+                  onChange={() => {
+                    setScope(s)
+                    setWorkspaceId('')
+                    setPageId('')
+                  }}
+                  className="text-primary focus:ring-primary/40"
+                />
+                <span className="text-sm text-foreground capitalize">
+                  {s === 'org' ? 'Org-wide' : s === 'workspace' ? 'Workspace' : 'Page'}
+                </span>
+              </label>
+            ))}
+          </div>
+
+          {(scope === 'workspace' || scope === 'page') && (
+            <div className="mt-2">
+              <label className="text-xs font-medium text-muted-foreground block mb-1">
+                Workspace
+              </label>
+              <select
+                value={workspaceId}
+                onChange={(e) => {
+                  setWorkspaceId(e.target.value)
+                  setPageId('')
+                }}
+                className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+              >
+                <option value="">Select a workspace...</option>
+                {workspaces.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {scope === 'page' && workspaceId && (
+            <div className="mt-2">
+              <label className="text-xs font-medium text-muted-foreground block mb-1">
+                Page
+              </label>
+              <select
+                value={pageId}
+                onChange={(e) => setPageId(e.target.value)}
+                className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+              >
+                <option value="">Select a page...</option>
+                {pages.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </fieldset>
       )}
 
       {/* Events */}

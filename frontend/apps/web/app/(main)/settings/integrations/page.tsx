@@ -3,20 +3,36 @@
 import { AuthApi, IntegrationsApi } from '@workspace/services'
 import type { Integration, User } from '@workspace/services'
 import { useEffect, useState } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { notification } from '@/lib/notification'
 import { IntegrationsPanel } from '@/features/integrations/ui/integrations-panel'
+import { TeamsConsentModal } from '@/features/integrations/ui/teams-consent-modal'
 
 export default function IntegrationsPage() {
   const searchParams = useSearchParams()
+  const router = useRouter()
   const [integrations, setIntegrations] = useState<Integration[]>([])
   const [me, setMe] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
+  const [consentModal, setConsentModal] = useState<{ open: boolean; url: string }>({
+    open: false,
+    url: '',
+  })
 
   // After OAuth callback: ?integration=slack&status=connected
+  // Or Teams admin consent required: ?integration_error=consent_required&admin_url=...
   useEffect(() => {
     const integration = searchParams.get('integration')
     const status = searchParams.get('status')
+    const integrationError = searchParams.get('integration_error')
+    const adminUrl = searchParams.get('admin_url')
+
+    if (integrationError === 'consent_required') {
+      setConsentModal({ open: true, url: adminUrl ?? '' })
+      router.replace('/settings/integrations')
+      return
+    }
+
     if (integration && status === 'connected') {
       notification.success({
         title: 'Integration connected',
@@ -29,7 +45,7 @@ export default function IntegrationsPage() {
       url.searchParams.delete('tenant')
       window.history.replaceState({}, '', url.toString())
     }
-  }, [searchParams])
+  }, [searchParams, router])
 
   useEffect(() => {
     Promise.all([IntegrationsApi.list(), AuthApi.getCurrentUser()])
@@ -59,5 +75,16 @@ export default function IntegrationsPage() {
     )
   }
 
-  return <IntegrationsPanel integrations={integrations} me={me} />
+  return (
+    <>
+      <IntegrationsPanel integrations={integrations} me={me} />
+      {consentModal.open && (
+        <TeamsConsentModal
+          open={consentModal.open}
+          adminURL={consentModal.url}
+          onClose={() => setConsentModal({ open: false, url: '' })}
+        />
+      )}
+    </>
+  )
 }

@@ -25,4 +25,10 @@ type Destination struct {
 	Enabled       bool
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
+
+	// Phase 3 additions — populated only by ListByScope when scope_type is
+	// 'workspace' or 'page' (resolved from joined tables for response transport).
+	// Empty for org scope.
+	WorkspaceName string `json:"workspace_name,omitempty"`
+	PageName      string `json:"page_name,omitempty"`
 }

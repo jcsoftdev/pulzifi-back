@@ -27,6 +27,17 @@ func (s *stubPlans) PlanCode(_ context.Context, _ uuid.UUID) (string, error) {
 	return s.code, s.err
 }
 
+// stubQuotas is a test double for QuotaTracker.
+type stubQuotas struct {
+	err   error
+	calls int
+}
+
+func (s *stubQuotas) CheckAndIncrement(_ context.Context, _ uuid.UUID, _ string) error {
+	s.calls++
+	return s.err
+}
+
 // newPaidClient builds a Client configured for paid-tier testing.
 func newPaidClient(plans *stubPlans) *twilioprovider.Client {
 	return twilioprovider.New(twilioprovider.Config{
@@ -34,7 +45,7 @@ func newPaidClient(plans *stubPlans) *twilioprovider.Client {
 		PlatformAccountSID: "ACplatform",
 		PlatformAuthToken:  "platformToken",
 		PlatformFromNumber: "+10000000000",
-	}, plans)
+	}, plans, nil)
 }
 
 // orgDest returns a Destination scoped to an org.
@@ -76,7 +87,7 @@ func swapAPIBase(t *testing.T, base string) {
 // ─── OAuth no-op tests ────────────────────────────────────────────────────────
 
 func TestTwilio_OAuthIsNoOp(t *testing.T) {
-	c := twilioprovider.New(twilioprovider.Config{}, &stubPlans{})
+	c := twilioprovider.New(twilioprovider.Config{}, &stubPlans{}, nil)
 	ctx := context.Background()
 
 	// OAuthAuthorizeURL returns empty string and non-nil error.
@@ -122,7 +133,7 @@ func TestTwilio_TierFor_Enterprise(t *testing.T) {
 	c := twilioprovider.New(twilioprovider.Config{
 		PaidPlans: []string{"pro"},
 		// No platform creds — enterprise must use integ creds only.
-	}, &stubPlans{code: "free"}) // plan is "free" but integ != nil → enterprise
+	}, &stubPlans{code: "free"}, nil) // plan is "free" but integ != nil → enterprise
 
 	integ := &entities.Integration{
 		RefreshToken: "ACenterprise",
@@ -186,7 +197,7 @@ func TestTwilio_TierFor_Free(t *testing.T) {
 	plans := &stubPlans{code: "starter"}
 	c := twilioprovider.New(twilioprovider.Config{
 		PaidPlans: []string{"pro"},
-	}, plans)
+	}, plans, nil)
 
 	_, err := c.Send(context.Background(), nil, orgDest("+12345678901"), payload())
 	if err == nil {
@@ -202,7 +213,7 @@ func TestTwilio_TierFor_Free(t *testing.T) {
 
 func TestTwilio_TierFor_PlanLookupError(t *testing.T) {
 	plans := &stubPlans{err: errors.New("db down")}
-	c := twilioprovider.New(twilioprovider.Config{}, plans)
+	c := twilioprovider.New(twilioprovider.Config{}, plans, nil)
 
 	_, err := c.Send(context.Background(), nil, orgDest("+12345678901"), payload())
 	if err == nil {
@@ -266,7 +277,7 @@ func TestTwilio_Send_EnterpriseUsesIntegCreds(t *testing.T) {
 		PlatformAccountSID: "ACplatform",
 		PlatformAuthToken:  "platformToken",
 		PlatformFromNumber: "+10000000000",
-	}, &stubPlans{code: "pro"})
+	}, &stubPlans{code: "pro"}, nil)
 
 	integ := &entities.Integration{
 		RefreshToken: "ACenterprise",
@@ -481,7 +492,7 @@ func TestTwilio_Send_PaidWithoutPlatformCreds(t *testing.T) {
 		PlatformAccountSID: "", // missing
 		PlatformAuthToken:  "platformToken",
 		PlatformFromNumber: "+10000000000",
-	}, plans)
+	}, plans, nil)
 
 	_, err := c.Send(context.Background(), nil, orgDest("+12345678901"), payload())
 	if err == nil {
@@ -505,7 +516,7 @@ func TestTwilio_Send_EnterpriseMissingFromNumber(t *testing.T) {
 
 	c := twilioprovider.New(twilioprovider.Config{
 		PaidPlans: []string{"pro"},
-	}, &stubPlans{code: "pro"})
+	}, &stubPlans{code: "pro"}, nil)
 
 	// Enterprise integ with valid SID+token but missing from_number.
 	integ := &entities.Integration{
@@ -525,5 +536,128 @@ func TestTwilio_Send_EnterpriseMissingFromNumber(t *testing.T) {
 	}
 	if hit {
 		t.Error("expected no HTTP call when from_number missing")
+	}
+}
+
+// ─── Quota check tests ────────────────────────────────────────────────────────
+
+func TestTwilio_Send_QuotaExceeded(t *testing.T) {
+	var apiHit bool
+	srv := newMockServer(t, func(w http.ResponseWriter, r *http.Request) {
+		apiHit = true
+		w.WriteHeader(201)
+		fmt.Fprint(w, `{}`)
+	})
+	swapAPIBase(t, srv.URL)
+
+	cfg := twilioprovider.Config{
+		PaidPlans:          []string{"pro"},
+		PlatformAccountSID: "ACplatform",
+		PlatformAuthToken:  "tokplatform",
+		PlatformFromNumber: "+15555550100",
+	}
+	plans := &stubPlans{code: "pro"}
+	quotas := &stubQuotas{err: errors.New("integration usage: monthly quota exceeded")}
+	c := twilioprovider.New(cfg, plans, quotas)
+
+	dest := &entities.Destination{
+		ScopeType: entities.ScopeOrg,
+		ScopeID:   uuid.New(),
+		Target:    map[string]any{"phone_numbers": []any{"+15555551111"}},
+	}
+	p := &entities.NotificationPayload{Title: "T", Body: "B"}
+
+	_, err := c.Send(context.Background(), nil, dest, p)
+	if !errors.Is(err, twilioprovider.ErrQuotaExceeded) {
+		t.Errorf("expected ErrQuotaExceeded, got %v", err)
+	}
+	if apiHit {
+		t.Error("twilio API should NOT be called when quota exceeded")
+	}
+	if quotas.calls != 1 {
+		t.Errorf("expected 1 quota check, got %d", quotas.calls)
+	}
+}
+
+func TestTwilio_Send_QuotaCheckPassesAndCallsAPI(t *testing.T) {
+	var apiHit bool
+	srv := newMockServer(t, func(w http.ResponseWriter, r *http.Request) {
+		apiHit = true
+		w.WriteHeader(201)
+		fmt.Fprint(w, `{"sid":"SMxxx","status":"queued"}`)
+	})
+	swapAPIBase(t, srv.URL)
+
+	cfg := twilioprovider.Config{
+		PaidPlans:          []string{"pro"},
+		PlatformAccountSID: "ACplatform",
+		PlatformAuthToken:  "tokplatform",
+		PlatformFromNumber: "+15555550100",
+	}
+	plans := &stubPlans{code: "pro"}
+	quotas := &stubQuotas{} // returns nil — passes
+	c := twilioprovider.New(cfg, plans, quotas)
+
+	dest := &entities.Destination{
+		ScopeType: entities.ScopeOrg,
+		ScopeID:   uuid.New(),
+		Target:    map[string]any{"phone_numbers": []any{"+15555551111"}},
+	}
+	p := &entities.NotificationPayload{Title: "T", Body: "B"}
+
+	result, err := c.Send(context.Background(), nil, dest, p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !apiHit {
+		t.Error("twilio API should be called when quota passes")
+	}
+	if result == nil || result.Code != 201 {
+		t.Errorf("expected result.Code=201, got %+v", result)
+	}
+	if quotas.calls != 1 {
+		t.Errorf("expected 1 quota check, got %d", quotas.calls)
+	}
+}
+
+func TestTwilio_Send_EnterpriseTierBypassesQuota(t *testing.T) {
+	var apiHit bool
+	srv := newMockServer(t, func(w http.ResponseWriter, r *http.Request) {
+		apiHit = true
+		w.WriteHeader(201)
+		fmt.Fprint(w, `{}`)
+	})
+	swapAPIBase(t, srv.URL)
+
+	cfg := twilioprovider.Config{PaidPlans: []string{"pro"}} // platform creds intentionally empty (enterprise uses BYO)
+	plans := &stubPlans{}
+	quotas := &stubQuotas{err: errors.New("integration usage: monthly quota exceeded")}
+	c := twilioprovider.New(cfg, plans, quotas)
+
+	integ := &entities.Integration{
+		ServiceType:  "twilio",
+		AccessToken:  "enterpriseToken",
+		RefreshToken: "ACenterprise",
+		ProviderMeta: map[string]any{"from_number": "+19999999999"},
+	}
+	dest := &entities.Destination{
+		ScopeType: entities.ScopeOrg,
+		ScopeID:   uuid.New(),
+		Target:    map[string]any{"phone_numbers": []any{"+15555551111"}},
+	}
+	p := &entities.NotificationPayload{Title: "T", Body: "B"}
+
+	result, err := c.Send(context.Background(), integ, dest, p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !apiHit {
+		t.Error("api should be called for enterprise tier despite quotas being exhausted")
+	}
+	if result == nil || result.Code != 201 {
+		t.Errorf("expected 201, got %+v", result)
+	}
+	if quotas.calls != 0 {
+		t.Errorf("expected 0 quota checks for enterprise tier (BYO bypasses), got %d", quotas.calls)
 	}
 }

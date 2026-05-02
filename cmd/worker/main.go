@@ -11,7 +11,9 @@ import (
 	intproviders "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers"
 	discordprovider "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers/discord"
 	emailprovider "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers/email"
+	sheetsprovider "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers/sheets"
 	slackprovider "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers/slack"
+	teamsprovider "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers/teams"
 	twilioprovider "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers/twilio"
 	deliveryworker "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/worker"
 	monitoring "github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/http"
@@ -22,6 +24,7 @@ import (
 	"github.com/jcsoftdev/pulzifi-back/shared/crypto"
 	"github.com/jcsoftdev/pulzifi-back/shared/database"
 	"github.com/jcsoftdev/pulzifi-back/shared/eventbus"
+	"github.com/jcsoftdev/pulzifi-back/shared/integrationusage"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"go.uber.org/zap"
 )
@@ -75,13 +78,22 @@ func main() {
 	intEmailClient := emailprovider.New(intwiring.NewEmailAdapter(emailProvider))
 	discordClient := discordprovider.New(cfg.DiscordClientID, cfg.DiscordClientSecret)
 	twilioPlanLookup := intwiring.NewOrgPlanLookup(db)
+
+	// Phase 3 additions
+	sheetsClient := sheetsprovider.New(cfg.SheetsClientID, cfg.SheetsClientSecret)
+	teamsClient := teamsprovider.New(cfg.MicrosoftClientID, cfg.MicrosoftClientSecret)
+
+	quotaTracker := integrationusage.NewTracker(db)
+	twilioAllowedFor := intwiring.TwilioAllowedFor(twilioPlanLookup, cfg.TwilioPaidPlans, cfg.TwilioQuotaPaidPerMonth)
+	twilioQuotaAdapter := intwiring.NewTwilioQuotaAdapter(quotaTracker, twilioAllowedFor)
+
 	twilioClient := twilioprovider.New(twilioprovider.Config{
 		PaidPlans:          cfg.TwilioPaidPlans,
 		PlatformAccountSID: cfg.TwilioAccountSID,
 		PlatformAuthToken:  cfg.TwilioAuthToken,
 		PlatformFromNumber: cfg.TwilioFromNumber,
-	}, twilioPlanLookup)
-	intRegistry := intproviders.NewRegistry(slackClient, intEmailClient, discordClient, twilioClient)
+	}, twilioPlanLookup, twilioQuotaAdapter)
+	intRegistry := intproviders.NewRegistry(slackClient, intEmailClient, discordClient, twilioClient, sheetsClient, teamsClient)
 
 	intRepoFactory := intwiring.NewTenantRepoFactory(db)
 
