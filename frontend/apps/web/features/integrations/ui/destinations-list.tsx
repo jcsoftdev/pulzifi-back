@@ -15,6 +15,28 @@ interface DestinationsListProps {
   onUpdated: (destinations: Destination[]) => void
 }
 
+function ScopeChip({ destination }: { destination: Destination }) {
+  if (destination.scopeType === 'org') {
+    return (
+      <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+        Org-wide
+      </span>
+    )
+  }
+  if (destination.scopeType === 'workspace') {
+    return (
+      <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+        Workspace: {destination.workspaceName || '(unknown)'}
+      </span>
+    )
+  }
+  return (
+    <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-300">
+      Page: {destination.pageName || '(unknown)'}
+    </span>
+  )
+}
+
 function destinationSummary(d: Destination): string {
   if (d.serviceType === 'slack') {
     const name = ((d.target?.channel_name as string | undefined) ?? (d.target?.channel_id as string | undefined)) ?? '—'
@@ -96,9 +118,12 @@ export function DestinationsList({
                 <p className="text-sm font-medium text-foreground truncate">
                   {destinationSummary(d)}
                 </p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Events: {d.events.join(', ')}
-                </p>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <p className="text-xs text-muted-foreground">
+                    Events: {d.events.join(', ')}
+                  </p>
+                  <ScopeChip destination={d} />
+                </div>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
                 <button
