@@ -13,13 +13,17 @@ import (
 	markallalerts "github.com/jcsoftdev/pulzifi-back/modules/alert/application/mark_all_alerts_read"
 	"github.com/jcsoftdev/pulzifi-back/modules/alert/infrastructure/persistence"
 
+	"github.com/jcsoftdev/pulzifi-back/shared/eventbus"
+	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
 	"github.com/jcsoftdev/pulzifi-back/shared/router"
+	"go.uber.org/zap"
 )
 
 // Module implements the router.ModuleRegisterer interface for the Alert module
 type Module struct {
-	db *sql.DB
+	db  *sql.DB
+	bus eventbus.MessageBus
 }
 
 // NewModule creates a new instance of the Alert module
@@ -32,6 +36,11 @@ func NewModuleWithDB(db *sql.DB) router.ModuleRegisterer {
 	return &Module{
 		db: db,
 	}
+}
+
+// SetEventBus enables alert.created publishing for the create_alert use case.
+func (m *Module) SetEventBus(bus eventbus.MessageBus) {
+	m.bus = bus
 }
 
 // ModuleName returns the name of the module
@@ -85,6 +94,20 @@ func (m *Module) handleCreateAlert(w http.ResponseWriter, r *http.Request) {
 
 	// Use real handler
 	handler := createalert.NewCreateAlertHandler(repo)
+
+	// Wire event publishing if a bus is configured.
+	if m.bus != nil {
+		var orgID uuid.UUID
+		if err := m.db.QueryRowContext(r.Context(),
+			`SELECT id FROM public.organizations WHERE schema_name = $1 AND deleted_at IS NULL`,
+			tenant,
+		).Scan(&orgID); err != nil {
+			logger.Error("alert: org lookup failed", zap.Error(err), zap.String("tenant", tenant))
+		} else {
+			handler.SetEventContext(m.bus, tenant, orgID)
+		}
+	}
+
 	handler.HandleHTTP(w, r)
 }
 

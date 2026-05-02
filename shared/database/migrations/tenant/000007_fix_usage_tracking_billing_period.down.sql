@@ -1,0 +1,2 @@
+-- No-op: the up migration only inserts a row if one was missing.
+-- We cannot safely determine which row to delete without losing data.

@@ -1,0 +1,3 @@
+-- Reverse 000006_normalize_frequencies.up.sql
+-- No-op: frequency normalization cannot be reliably reversed
+-- since we cannot distinguish user-entered short formats from migrated ones.

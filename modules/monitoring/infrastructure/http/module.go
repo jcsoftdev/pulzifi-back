@@ -89,6 +89,11 @@ func NewModuleWithDB(db *sql.DB, eventBus *eventbus.EventBus, emailProvider emai
 	// Set pixel diff threshold from config
 	snapshotWorker.SetPixelDiffThreshold(cfg.PixelDiffThreshold)
 
+	// Wire the EventBus so publishChangeDetected can fan-out to integration destinations.
+	if m.eventBus != nil {
+		snapshotWorker.SetMessageBus(m.eventBus)
+	}
+
 	// Initialize Vision AI analyzer if vision model is configured
 	if cfg.OpenRouterAPIKey != "" && cfg.OpenRouterVisionModel != "" {
 		visionClient := sharedAI.NewOpenRouterClient(cfg.OpenRouterAPIKey, cfg.OpenRouterVisionModel)

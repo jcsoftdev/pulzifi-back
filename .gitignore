@@ -47,6 +47,7 @@ ssl/*.pem
 *.sql
 !database_setup.sql
 !update_admin_password.sql
+!shared/database/migrations/**/*.sql
 *.db
 *.sqlite
 
