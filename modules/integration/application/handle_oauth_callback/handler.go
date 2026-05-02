@@ -23,6 +23,7 @@ type Response struct {
 	Tenant     string
 	ReturnPath string
 	Provider   string
+	ReturnHost string
 }
 
 // Handler verifies the OAuth state token, exchanges the code for tokens, and
@@ -83,5 +84,5 @@ func (h *Handler) Handle(ctx context.Context, req Request) (*Response, error) {
 		}
 	}
 
-	return &Response{Tenant: st.Tenant, ReturnPath: st.ReturnPath, Provider: req.Provider}, nil
+	return &Response{Tenant: st.Tenant, ReturnPath: st.ReturnPath, Provider: req.Provider, ReturnHost: st.ReturnHost}, nil
 }
