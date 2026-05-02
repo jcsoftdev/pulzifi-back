@@ -15,8 +15,43 @@ export interface ProviderConfig {
   label: string
   description: string
   enabled: boolean // false = coming soon
+  soon?: boolean   // show "Coming soon" badge
 }
 
+export const BASE_PROVIDERS: Omit<ProviderConfig, 'enabled' | 'soon'>[] = [
+  {
+    key: 'slack',
+    label: 'Slack',
+    description: 'Send alerts to a Slack channel.',
+  },
+  {
+    key: 'email',
+    label: 'Email',
+    description: 'Send alerts to email recipients.',
+  },
+  {
+    key: 'discord',
+    label: 'Discord',
+    description: 'Send alerts to a Discord channel.',
+  },
+  {
+    key: 'twilio',
+    label: 'SMS (Twilio)',
+    description: 'Send SMS notifications via Twilio.',
+  },
+  {
+    key: 'teams',
+    label: 'Microsoft Teams',
+    description: 'Coming soon.',
+  },
+  {
+    key: 'google_sheets',
+    label: 'Google Sheets',
+    description: 'Coming soon.',
+  },
+]
+
+// Static fallback (all disabled for dynamic providers)
 export const PROVIDERS: ProviderConfig[] = [
   {
     key: 'slack',
@@ -31,27 +66,31 @@ export const PROVIDERS: ProviderConfig[] = [
     enabled: true,
   },
   {
+    key: 'discord',
+    label: 'Discord',
+    description: 'Send alerts to a Discord channel.',
+    enabled: false,
+    soon: true,
+  },
+  {
+    key: 'twilio',
+    label: 'SMS (Twilio)',
+    description: 'Send SMS notifications via Twilio.',
+    enabled: false,
+    soon: true,
+  },
+  {
     key: 'teams',
     label: 'Microsoft Teams',
     description: 'Coming soon.',
     enabled: false,
-  },
-  {
-    key: 'discord',
-    label: 'Discord',
-    description: 'Coming soon.',
-    enabled: false,
-  },
-  {
-    key: 'webhook',
-    label: 'Webhook',
-    description: 'Coming soon.',
-    enabled: false,
+    soon: true,
   },
   {
     key: 'google_sheets',
     label: 'Google Sheets',
     description: 'Coming soon.',
     enabled: false,
+    soon: true,
   },
 ]

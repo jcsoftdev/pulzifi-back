@@ -75,6 +75,7 @@ type ModuleDeps struct {
 	EmailProvider    emailservices.EmailProvider
 	EventBus         *eventbus.EventBus
 	DB               *sql.DB
+	OrgContextLookup services.OrgContextLookup // optional; nil → org omitted from /me
 }
 
 func NewModule(deps ModuleDeps) router.ModuleRegisterer {
@@ -99,7 +100,7 @@ func NewModule(deps ModuleDeps) router.ModuleRegisterer {
 		loginHandler:          login.NewHandler(deps.AuthService, deps.UserRepo, deps.RefreshTokenRepo, deps.TokenService),
 		logoutHandler:         logout.NewHandler(deps.RefreshTokenRepo),
 		refreshHandler:        refreshapp.NewHandler(deps.RefreshTokenRepo, deps.UserRepo, deps.TokenService),
-		getCurrentUserHandler: get_current_user.NewHandler(deps.UserRepo),
+		getCurrentUserHandler: get_current_user.NewHandler(deps.UserRepo, deps.OrgContextLookup),
 		authMiddleware:        authmw.NewAuthMiddleware(deps.TokenService),
 		tokenService:          deps.TokenService,
 		authService:           deps.AuthService,

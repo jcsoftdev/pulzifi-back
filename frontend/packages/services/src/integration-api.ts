@@ -58,6 +58,7 @@ interface DeliveryBackendDto {
   ErrorMessage?: string | null
   DeliveredAt?: string | null
   CreatedAt: string
+  AttemptHistory?: Array<{ at: string; code?: number; error?: string }> | null
 }
 
 // ---------------------------------------------------------------------------
@@ -92,6 +93,12 @@ export interface Destination {
   updatedAt: string
 }
 
+export interface Attempt {
+  at: string
+  code?: number
+  error?: string
+}
+
 export interface Delivery {
   id: string
   destinationId: string
@@ -106,6 +113,10 @@ export interface Delivery {
   errorMessage?: string | null
   deliveredAt?: string | null
   createdAt: string
+}
+
+export interface DeliveryDetail extends Delivery {
+  attemptHistory?: Attempt[]
 }
 
 export interface CreateDestinationInput {
@@ -179,6 +190,17 @@ function transformDelivery(dto: DeliveryBackendDto): Delivery {
   }
 }
 
+function transformDeliveryDetail(dto: DeliveryBackendDto): DeliveryDetail {
+  return {
+    ...transformDelivery(dto),
+    attemptHistory: (dto.AttemptHistory ?? []).map((a) => ({
+      at: a.at,
+      code: a.code,
+      error: a.error,
+    })),
+  }
+}
+
 // ---------------------------------------------------------------------------
 // API objects
 // ---------------------------------------------------------------------------
@@ -206,6 +228,18 @@ export const IntegrationsApi = {
       `/api/v1/integrations/${id}/targets`
     )
     return (response.targets ?? []).map(transformTarget)
+  },
+
+  async connectBYO(
+    provider: string,
+    credentials: Record<string, string>
+  ): Promise<Integration> {
+    const http = await getHttpClient()
+    const response = await http.post<IntegrationBackendDto>('/api/v1/integrations/connect', {
+      provider,
+      credentials,
+    })
+    return transformIntegration(response)
   },
 }
 
@@ -266,5 +300,21 @@ export const DeliveriesApi = {
   async retry(id: string): Promise<void> {
     const http = await getHttpClient()
     await http.post(`/api/v1/deliveries/${id}/retry`, {})
+  },
+
+  async bulkRetry(
+    ids: string[]
+  ): Promise<{ retried: number; skipped: number; failed: number }> {
+    const http = await getHttpClient()
+    return http.post<{ retried: number; skipped: number; failed: number }>(
+      '/api/v1/deliveries/bulk-retry',
+      { ids }
+    )
+  },
+
+  async get(id: string): Promise<DeliveryDetail> {
+    const http = await getHttpClient()
+    const dto = await http.get<DeliveryBackendDto>(`/api/v1/deliveries/${id}`)
+    return transformDeliveryDetail(dto)
   },
 }

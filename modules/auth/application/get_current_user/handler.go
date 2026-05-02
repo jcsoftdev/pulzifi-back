@@ -6,31 +6,44 @@ import (
 	"github.com/google/uuid"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/entities"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/repositories"
+	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/services"
 )
 
-// Handler handles the get current user use case
-type Handler struct {
-	userRepo repositories.UserRepository
-}
-
-// NewHandler creates a new get current user handler
-func NewHandler(userRepo repositories.UserRepository) *Handler {
-	return &Handler{
-		userRepo: userRepo,
-	}
+// OrganizationResponse is the org-context section of /me (Phase 2).
+type OrganizationResponse struct {
+	ID           string         `json:"id"`
+	Name         string         `json:"name"`
+	Subdomain    string         `json:"subdomain"`
+	PlanCode     string         `json:"planCode"`
+	FeatureFlags map[string]any `json:"featureFlags"`
 }
 
 // Response represents the current user response
 type Response struct {
-	ID        string  `json:"id"`
-	Name      string  `json:"name"`
-	Email     string  `json:"email"`
-	Role      string  `json:"role"`
-	Status    string  `json:"status"`
-	Avatar    *string `json:"avatar,omitempty"`
-	Tenant    *string `json:"tenant,omitempty"`
-	CreatedAt string  `json:"created_at"`
-	UpdatedAt string  `json:"updated_at"`
+	ID           string                `json:"id"`
+	Name         string                `json:"name"`
+	Email        string                `json:"email"`
+	Role         string                `json:"role"`
+	Status       string                `json:"status"`
+	Avatar       *string               `json:"avatar,omitempty"`
+	Tenant       *string               `json:"tenant,omitempty"`       // KEEP for backward compat
+	Organization *OrganizationResponse `json:"organization,omitempty"` // NEW
+	CreatedAt    string                `json:"created_at"`
+	UpdatedAt    string                `json:"updated_at"`
+}
+
+// Handler handles the get current user use case
+type Handler struct {
+	userRepo  repositories.UserRepository
+	orgLookup services.OrgContextLookup // optional; nil → Organization omitted
+}
+
+// NewHandler creates a new get current user handler
+func NewHandler(userRepo repositories.UserRepository, orgLookup services.OrgContextLookup) *Handler {
+	return &Handler{
+		userRepo:  userRepo,
+		orgLookup: orgLookup,
+	}
 }
 
 // Handle executes the get current user use case.
@@ -47,9 +60,23 @@ func (h *Handler) Handle(ctx context.Context, userID uuid.UUID, roles []string) 
 
 	resp := h.toResponse(user, highestRole(roles))
 
+	// Backward-compat tenant string (subdomain only)
 	tenant, err := h.userRepo.GetUserFirstOrganization(ctx, userID)
 	if err == nil {
 		resp.Tenant = tenant
+	}
+
+	// Phase 2: org context (planCode + featureFlags). Fail-open on error.
+	if h.orgLookup != nil {
+		if oc, err := h.orgLookup.Lookup(ctx, userID); err == nil && oc != nil {
+			resp.Organization = &OrganizationResponse{
+				ID:           oc.ID.String(),
+				Name:         oc.Name,
+				Subdomain:    oc.Subdomain,
+				PlanCode:     oc.PlanCode,
+				FeatureFlags: oc.FeatureFlags,
+			}
+		}
 	}
 
 	return resp, nil

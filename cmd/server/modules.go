@@ -22,8 +22,11 @@ import (
 	intoauth "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/oauth"
 	intpersistence "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/persistence"
 	intproviders "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers"
+	discordprovider "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers/discord"
 	emailprovider "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers/email"
 	slackprovider "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers/slack"
+	twilioprovider "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers/twilio"
+	"github.com/jcsoftdev/pulzifi-back/shared/featureflags"
 	monitoring "github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/http"
 	orgservices "github.com/jcsoftdev/pulzifi-back/modules/organization/domain/services"
 	organization "github.com/jcsoftdev/pulzifi-back/modules/organization/infrastructure/http"
@@ -72,6 +75,9 @@ func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus 
 	// Create email provider (shared across modules)
 	emailProvider := createEmailProvider(cfg)
 
+	// Composed org-context lookup for /me (flags + plan + identity in one query).
+	orgContextLookup := intwiring.NewOrgContextLookup(db)
+
 	// Create auth module and set global middleware
 	authModule := auth.NewModule(auth.ModuleDeps{
 		UserRepo:         userRepo,
@@ -89,6 +95,7 @@ func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus 
 		EmailProvider:    emailProvider,
 		EventBus:         eventBus,
 		DB:               db,
+		OrgContextLookup: orgContextLookup,
 	})
 	authMod := authModule.(*auth.Module)
 	authMiddleware := authMod.AuthMiddleware()
@@ -123,7 +130,24 @@ func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus 
 	// Provider registry — Slack + email (via adapter wrapping the existing email module).
 	slackClient := slackprovider.New(cfg.SlackClientID, cfg.SlackClientSecret)
 	intEmailClient := emailprovider.New(intwiring.NewEmailAdapter(emailProvider))
-	intRegistry := intproviders.NewRegistry(slackClient, intEmailClient)
+
+	// ---------------------------------------------------------------------------
+	// Phase 2 integration providers
+	// ---------------------------------------------------------------------------
+	flagsReader := featureflags.NewReader(db)
+
+	discordClient := discordprovider.New(cfg.DiscordClientID, cfg.DiscordClientSecret)
+
+	twilioPlanLookup := intwiring.NewOrgPlanLookup(db)
+	twilioClient := twilioprovider.New(twilioprovider.Config{
+		PaidPlans:          cfg.TwilioPaidPlans,
+		PlatformAccountSID: cfg.TwilioAccountSID,
+		PlatformAuthToken:  cfg.TwilioAuthToken,
+		PlatformFromNumber: cfg.TwilioFromNumber,
+	}, twilioPlanLookup)
+	twilioValidator := twilioprovider.NewValidator()
+
+	intRegistry := intproviders.NewRegistry(slackClient, intEmailClient, discordClient, twilioClient)
 
 	intRepoFactory := intwiring.NewTenantRepoFactory(db)
 	intOrgGuard := intwiring.NewOrgGuard(orgRepo)
@@ -151,6 +175,10 @@ func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus 
 		Registry:          intRegistry,
 		StateSigner:       intStateSigner,
 		OAuthRedirectBase: cfg.IntegrationOAuthRedirectBase,
+		Flags:             flagsReader,
+		Validator:         twilioValidator,
+		PlanLookup:        twilioPlanLookup,
+		TwilioPaidPlans:   cfg.TwilioPaidPlans,
 	})
 
 	moduleInstances := []struct {

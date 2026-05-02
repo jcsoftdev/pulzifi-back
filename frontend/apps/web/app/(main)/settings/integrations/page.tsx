@@ -1,7 +1,7 @@
 'use client'
 
-import { IntegrationsApi } from '@workspace/services'
-import type { Integration } from '@workspace/services'
+import { AuthApi, IntegrationsApi } from '@workspace/services'
+import type { Integration, User } from '@workspace/services'
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { notification } from '@/lib/notification'
@@ -10,6 +10,7 @@ import { IntegrationsPanel } from '@/features/integrations/ui/integrations-panel
 export default function IntegrationsPage() {
   const searchParams = useSearchParams()
   const [integrations, setIntegrations] = useState<Integration[]>([])
+  const [me, setMe] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
 
   // After OAuth callback: ?integration=slack&status=connected
@@ -31,8 +32,11 @@ export default function IntegrationsPage() {
   }, [searchParams])
 
   useEffect(() => {
-    IntegrationsApi.list()
-      .then(setIntegrations)
+    Promise.all([IntegrationsApi.list(), AuthApi.getCurrentUser()])
+      .then(([integrationList, user]) => {
+        setIntegrations(integrationList)
+        setMe(user)
+      })
       .catch(() => {
         notification.error({
           title: 'Failed to load integrations',
@@ -55,5 +59,5 @@ export default function IntegrationsPage() {
     )
   }
 
-  return <IntegrationsPanel integrations={integrations} />
+  return <IntegrationsPanel integrations={integrations} me={me} />
 }

@@ -1,5 +1,5 @@
 export type { HttpError } from '@workspace/shared-http'
-export type { LoginDto, LoginResponse, User } from './auth-api'
+export type { LoginDto, LoginResponse, User, UserOrganization } from './auth-api'
 export { AuthApi } from './auth-api'
 export type {
   DashboardStats,
@@ -28,6 +28,8 @@ export type {
   Target,
   Destination,
   Delivery,
+  DeliveryDetail,
+  Attempt,
   IntegrationStatus,
   DeliveryStatus,
   ScopeType,

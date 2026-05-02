@@ -1,6 +1,14 @@
 import { createBffHttpClient, getHttpClient } from '@workspace/shared-http'
 
 // Internal: Backend response types (snake_case from Go)
+interface OrganizationBackendDto {
+  id: string
+  name: string
+  subdomain: string
+  planCode: string
+  featureFlags: Record<string, unknown>
+}
+
 interface UserBackendDto {
   id: string
   name: string
@@ -9,6 +17,7 @@ interface UserBackendDto {
   status?: string
   avatar?: string
   tenant?: string | null
+  organization?: OrganizationBackendDto | null
   created_at: string
   updated_at?: string
 }
@@ -30,6 +39,14 @@ interface RegisterBackendResponse {
 }
 
 // Exported: Frontend types (camelCase)
+export interface UserOrganization {
+  id: string
+  name: string
+  subdomain: string
+  planCode: string
+  featureFlags: Record<string, unknown>
+}
+
 export interface User {
   id: string
   name: string
@@ -38,6 +55,7 @@ export interface User {
   status?: string
   avatar?: string
   tenant?: string
+  organization?: UserOrganization
   createdAt: string
   updatedAt?: string
 }
@@ -63,6 +81,15 @@ function transformUser(backend: UserBackendDto): User {
     status: backend.status,
     avatar: backend.avatar,
     tenant: backend.tenant ?? undefined,
+    organization: backend.organization
+      ? {
+          id: backend.organization.id,
+          name: backend.organization.name,
+          subdomain: backend.organization.subdomain,
+          planCode: backend.organization.planCode,
+          featureFlags: backend.organization.featureFlags ?? {},
+        }
+      : undefined,
     createdAt: backend.created_at,
     updatedAt: backend.updated_at,
   }

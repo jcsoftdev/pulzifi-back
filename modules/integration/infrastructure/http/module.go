@@ -11,9 +11,12 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	authmw "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/middleware"
+	bulkretrydeliveries "github.com/jcsoftdev/pulzifi-back/modules/integration/application/bulk_retry_deliveries"
+	connectbyo "github.com/jcsoftdev/pulzifi-back/modules/integration/application/connect_byo"
 	createdestination "github.com/jcsoftdev/pulzifi-back/modules/integration/application/create_destination"
 	deletedestination "github.com/jcsoftdev/pulzifi-back/modules/integration/application/delete_destination"
 	disconnectintegration "github.com/jcsoftdev/pulzifi-back/modules/integration/application/disconnect_integration"
+	getdelivery "github.com/jcsoftdev/pulzifi-back/modules/integration/application/get_delivery"
 	handleoauthcallback "github.com/jcsoftdev/pulzifi-back/modules/integration/application/handle_oauth_callback"
 	listdeliveries "github.com/jcsoftdev/pulzifi-back/modules/integration/application/list_deliveries"
 	listdestinations "github.com/jcsoftdev/pulzifi-back/modules/integration/application/list_destinations"
@@ -26,6 +29,7 @@ import (
 	"github.com/jcsoftdev/pulzifi-back/modules/integration/domain/services"
 	intoauth "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/oauth"
 	"github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/persistence"
+	"github.com/jcsoftdev/pulzifi-back/shared/featureflags"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
 	"github.com/jcsoftdev/pulzifi-back/shared/router"
@@ -42,6 +46,12 @@ type Deps struct {
 	Registry          services.ProviderRegistry
 	StateSigner       *intoauth.StateSigner
 	OAuthRedirectBase string // e.g. "http://localhost:3000"
+
+	// Phase 2 additions:
+	Flags           *featureflags.Reader
+	Validator       connectbyo.Validator
+	PlanLookup      connectbyo.PlanLookup
+	TwilioPaidPlans []string
 }
 
 // Module is the Integration HTTP module.
@@ -66,6 +76,7 @@ func (m *Module) RegisterHTTPRoutes(r chi.Router) {
 		r.Use(middleware.AuthMiddleware.Authenticate)
 		r.Use(middleware.OrgMiddleware.RequireOrganizationMembership)
 		r.Get("/", m.handleListIntegrations)
+		r.Post("/connect", m.handleConnectBYO)
 		r.Delete("/{id}", m.handleDisconnect)
 		r.Get("/oauth/{provider}/start", m.handleStartOAuth)
 		r.Get("/{id}/targets", m.handleListTargets)
@@ -82,6 +93,8 @@ func (m *Module) RegisterHTTPRoutes(r chi.Router) {
 		r.Use(middleware.AuthMiddleware.Authenticate)
 		r.Use(middleware.OrgMiddleware.RequireOrganizationMembership)
 		r.Get("/", m.handleListDeliveries)
+		r.Get("/{id}", m.handleGetDelivery)
+		r.Post("/bulk-retry", m.handleBulkRetry)
 		r.Post("/{id}/retry", m.handleRetryDelivery)
 	})
 }
@@ -164,23 +177,31 @@ func toIntegrationResponse(i *entities.Integration) integrationResponse {
 
 // GET /integrations
 func (m *Module) handleListIntegrations(w http.ResponseWriter, r *http.Request) {
-	tenant := middleware.GetSubdomainFromContext(r.Context())
-	orgID, err := m.orgIDFromTenant(r.Context(), tenant)
+	ctx := r.Context()
+	tenant := middleware.GetSubdomainFromContext(ctx)
+	orgID, err := m.orgIDFromTenant(ctx, tenant)
 	if err != nil {
 		logger.Error("Failed to resolve org from tenant", zap.Error(err), zap.String("tenant", tenant))
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}
 
-	integrations, err := m.deps.IntRepo.ListByOrg(r.Context(), orgID)
+	integrations, err := m.deps.IntRepo.ListByOrg(ctx, orgID)
 	if err != nil {
 		logger.Error("Failed to list integrations", zap.Error(err))
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
 	}
 
+	alwaysVisible := map[string]bool{"slack": true, "email": true}
 	result := make([]integrationResponse, 0, len(integrations))
 	for _, i := range integrations {
+		if !alwaysVisible[i.ServiceType] && m.deps.Flags != nil {
+			on, _ := m.deps.Flags.IsOn(ctx, orgID, "integrations."+i.ServiceType)
+			if !on {
+				continue
+			}
+		}
 		result = append(result, toIntegrationResponse(i))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"data": result})
@@ -234,6 +255,14 @@ func (m *Module) handleStartOAuth(w http.ResponseWriter, r *http.Request) {
 		logger.Error("Failed to resolve org from tenant", zap.Error(err), zap.String("tenant", tenant))
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
 		return
+	}
+
+	if provider != "slack" && provider != "email" && m.deps.Flags != nil {
+		on, _ := m.deps.Flags.IsOn(r.Context(), orgID, "integrations."+provider)
+		if !on {
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": "provider not enabled for this organization"})
+			return
+		}
 	}
 
 	userIDStr, _ := r.Context().Value(authmw.UserIDKey).(string)
@@ -496,6 +525,100 @@ func (m *Module) handleRetryDelivery(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// POST /integrations/connect
+func (m *Module) handleConnectBYO(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	var body struct {
+		Provider    string            `json:"provider"`
+		Credentials map[string]string `json:"credentials"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid body"})
+		return
+	}
+
+	tenant := middleware.GetSubdomainFromContext(ctx)
+	orgID, err := m.orgIDFromTenant(ctx, tenant)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "org lookup failed"})
+		return
+	}
+
+	userIDStr, ok := ctx.Value(authmw.UserIDKey).(string)
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid user id"})
+		return
+	}
+
+	h := connectbyo.NewHandler(m.deps.IntRepo, m.deps.Validator, m.deps.Flags, m.deps.PlanLookup, m.deps.TwilioPaidPlans)
+	resp, err := h.Handle(ctx, connectbyo.Request{
+		Provider:    body.Provider,
+		OrgID:       orgID,
+		UserID:      userID,
+		Credentials: body.Credentials,
+	})
+	if err != nil {
+		if strings.Contains(err.Error(), "plan lookup") {
+			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "plan lookup unavailable"})
+			return
+		}
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, toIntegrationResponse(resp.Integration))
+}
+
+// GET /deliveries/{id}
+func (m *Module) handleGetDelivery(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid id"})
+		return
+	}
+	tenant := middleware.GetSubdomainFromContext(r.Context())
+	repo := persistence.NewDeliveryPostgresRepository(m.deps.DB, tenant)
+
+	h := getdelivery.NewHandler(repo)
+	resp, err := h.Handle(r.Context(), getdelivery.Request{ID: id})
+	if err != nil {
+		logger.Error("Failed to get delivery", zap.Error(err))
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+		return
+	}
+	if resp.Delivery == nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
+		return
+	}
+	writeJSON(w, http.StatusOK, resp.Delivery)
+}
+
+// POST /deliveries/bulk-retry
+func (m *Module) handleBulkRetry(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		IDs []uuid.UUID `json:"ids"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid body"})
+		return
+	}
+	tenant := middleware.GetSubdomainFromContext(r.Context())
+	repo := persistence.NewDeliveryPostgresRepository(m.deps.DB, tenant)
+
+	h := bulkretrydeliveries.NewHandler(repo)
+	resp, err := h.Handle(r.Context(), bulkretrydeliveries.Request{IDs: body.IDs})
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 // ---------------------------------------------------------------------------

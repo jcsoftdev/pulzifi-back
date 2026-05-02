@@ -6,7 +6,9 @@ interface ProviderCardProps {
   label: string
   description: string
   enabled: boolean
+  soon?: boolean
   integration?: Integration
+  planCode?: string
 }
 
 function ProviderIcon({ providerKey }: { providerKey: string }) {
@@ -86,7 +88,9 @@ export function ProviderCard({
   label,
   description,
   enabled,
+  soon,
   integration,
+  planCode,
 }: Readonly<ProviderCardProps>) {
   return (
     <div
@@ -95,7 +99,7 @@ export function ProviderCard({
       }`}
     >
       {/* Coming soon badge */}
-      {!enabled && (
+      {soon && (
         <span className="absolute top-3 right-3 text-[10px] font-medium bg-muted text-muted-foreground px-2 py-0.5 rounded-full">
           Coming soon
         </span>
@@ -125,6 +129,7 @@ export function ProviderCard({
           providerKey={providerKey}
           integration={integration}
           label={label}
+          planCode={planCode}
         />
       )}
     </div>

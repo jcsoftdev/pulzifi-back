@@ -143,7 +143,7 @@ func (w *Worker) process(
 	dest, err := destRepo.GetByID(ctx, d.DestinationID)
 	if err != nil || dest == nil {
 		markFailedOrDead(ctx, delRepo, d, w.cfg.MaxAttempts,
-			fmt.Errorf("destination missing: %v", err))
+			fmt.Errorf("destination missing: %v", err), nil)
 		return
 	}
 
@@ -154,12 +154,13 @@ func (w *Worker) process(
 		integ, err = w.intRepo.GetByID(ctx, *dest.IntegrationID)
 		if err != nil {
 			markFailedOrDead(ctx, delRepo, d, w.cfg.MaxAttempts,
-				fmt.Errorf("integration load: %w", err))
+				fmt.Errorf("integration load: %w", err), nil)
 			return
 		}
 		if integ == nil || integ.DeletedAt != nil {
 			// Integration has been disconnected; mark dead, no retry.
-			_ = delRepo.MarkDead(ctx, d.ID, "integration disconnected")
+			_ = delRepo.MarkDead(ctx, d.ID, "integration disconnected",
+				appendAttempt(d.AttemptHistory, nil, "integration disconnected", w.cfg.MaxAttempts))
 			return
 		}
 
@@ -174,7 +175,8 @@ func (w *Worker) process(
 				if refreshErr != nil || newTok == nil {
 					integ.Status = entities.IntegrationExpired
 					_ = w.intRepo.Update(ctx, integ)
-					_ = delRepo.MarkDead(ctx, d.ID, "token refresh failed")
+					_ = delRepo.MarkDead(ctx, d.ID, "token refresh failed",
+						appendAttempt(d.AttemptHistory, nil, "token refresh failed", w.cfg.MaxAttempts))
 					return
 				}
 				integ.AccessToken = newTok.AccessToken
@@ -194,14 +196,16 @@ func (w *Worker) process(
 		Data: rawData,
 	})
 	if err != nil {
-		markFailedOrDead(ctx, delRepo, d, w.cfg.MaxAttempts, err)
+		markFailedOrDead(ctx, delRepo, d, w.cfg.MaxAttempts, err, nil)
 		return
 	}
 
 	// Resolve provider client.
 	client, ok := w.registry.Get(dest.ServiceType)
 	if !ok {
-		_ = delRepo.MarkDead(ctx, d.ID, "no provider for service: "+dest.ServiceType)
+		noProviderMsg := "no provider for service: " + dest.ServiceType
+		_ = delRepo.MarkDead(ctx, d.ID, noProviderMsg,
+			appendAttempt(d.AttemptHistory, nil, noProviderMsg, w.cfg.MaxAttempts))
 		return
 	}
 
@@ -214,11 +218,16 @@ func (w *Worker) process(
 				integ.Status = entities.IntegrationExpired
 				_ = w.intRepo.Update(ctx, integ)
 			}
-			_ = delRepo.MarkDead(ctx, d.ID, sendErr.Error())
+			_ = delRepo.MarkDead(ctx, d.ID, sendErr.Error(),
+				appendAttempt(d.AttemptHistory, &result.Code, sendErr.Error(), w.cfg.MaxAttempts))
 			return
 		}
 		// Transient error → retry with backoff or mark dead if max attempts exceeded.
-		markFailedOrDead(ctx, delRepo, d, w.cfg.MaxAttempts, sendErr)
+		var code *int
+		if result != nil {
+			code = &result.Code
+		}
+		markFailedOrDead(ctx, delRepo, d, w.cfg.MaxAttempts, sendErr, code)
 		return
 	}
 
@@ -250,6 +259,17 @@ func (w *Worker) listTenants(ctx context.Context) ([]string, error) {
 	return out, rows.Err()
 }
 
+// appendAttempt returns a new history slice with the new attempt appended,
+// trimmed to the most recent maxLen entries (oldest dropped).
+// Phase 2: caps unbounded growth on misconfigured destinations.
+func appendAttempt(history []entities.Attempt, code *int, errMsg string, maxLen int) []entities.Attempt {
+	next := append(history, entities.Attempt{At: time.Now().UTC(), Code: code, Error: errMsg})
+	if maxLen > 0 && len(next) > maxLen {
+		next = next[len(next)-maxLen:]
+	}
+	return next
+}
+
 // markFailedOrDead reschedules a delivery for retry or marks it dead when max attempts is reached.
 func markFailedOrDead(
 	ctx context.Context,
@@ -257,12 +277,14 @@ func markFailedOrDead(
 	d *entities.Delivery,
 	maxAttempts int,
 	err error,
+	code *int,
 ) {
+	history := appendAttempt(d.AttemptHistory, code, err.Error(), maxAttempts)
 	if d.Attempts >= maxAttempts {
-		_ = delRepo.MarkDead(ctx, d.ID, err.Error())
+		_ = delRepo.MarkDead(ctx, d.ID, err.Error(), history)
 		return
 	}
-	_ = delRepo.MarkFailed(ctx, d.ID, nil, "", err.Error(), time.Now().Add(backoff(d.Attempts)))
+	_ = delRepo.MarkFailed(ctx, d.ID, code, "", err.Error(), time.Now().Add(backoff(d.Attempts)), history)
 }
 
 // backoff returns the wait duration before the next delivery attempt.
