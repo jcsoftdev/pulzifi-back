@@ -104,6 +104,13 @@ type Config struct {
 	TwilioAuthToken     string
 	TwilioFromNumber    string
 	TwilioPaidPlans     []string // comma-separated env (TWILIO_PAID_PLANS)
+
+	// Phase 3
+	SheetsClientID          string
+	SheetsClientSecret      string
+	MicrosoftClientID       string
+	MicrosoftClientSecret   string
+	TwilioQuotaPaidPerMonth int
 }
 
 func Load() *Config {
@@ -186,6 +193,12 @@ func Load() *Config {
 		TwilioAuthToken:     getEnv("TWILIO_AUTH_TOKEN", ""),
 		TwilioFromNumber:    getEnv("TWILIO_FROM_NUMBER", ""),
 		TwilioPaidPlans:     splitCSV(getEnv("TWILIO_PAID_PLANS", "pro,business")),
+
+		SheetsClientID:          getEnv("SHEETS_CLIENT_ID", ""),
+		SheetsClientSecret:      getEnv("SHEETS_CLIENT_SECRET", ""),
+		MicrosoftClientID:       getEnv("MICROSOFT_CLIENT_ID", ""),
+		MicrosoftClientSecret:   getEnv("MICROSOFT_CLIENT_SECRET", ""),
+		TwilioQuotaPaidPerMonth: getEnvInt("TWILIO_QUOTA_PAID_PER_MONTH", 500),
 	}
 }
 
