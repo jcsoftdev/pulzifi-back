@@ -6,6 +6,7 @@ import { useEffect, useState, use } from 'react'
 import { notification } from '@/lib/notification'
 import { DestinationForm } from '@/features/integrations/ui/destination-form'
 import { DestinationsList } from '@/features/integrations/ui/destinations-list'
+import { DeliveryLogTable } from '@/features/integrations/ui/delivery-log-table'
 import Link from 'next/link'
 
 interface ProviderPageProps {
@@ -170,6 +171,15 @@ export default function ProviderPage({ params }: ProviderPageProps) {
             destinations={destinations}
             onUpdated={setDestinations}
           />
+        </div>
+      )}
+
+      {/* Delivery log — show for every destination in this provider */}
+      {destinations.length > 0 && (
+        <div className="space-y-4 pt-4 border-t border-border">
+          {destinations.map((d) => (
+            <DeliveryLogTable key={d.id} destinationId={d.id} />
+          ))}
         </div>
       )}
     </div>
