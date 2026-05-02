@@ -63,6 +63,7 @@ func (m *Module) ModuleName() string { return "Integration" }
 // (not under tenant middleware) by the caller in cmd/server/main.go.
 func (m *Module) RegisterHTTPRoutes(r chi.Router) {
 	r.Route("/integrations", func(r chi.Router) {
+		r.Use(middleware.AuthMiddleware.Authenticate)
 		r.Use(middleware.OrgMiddleware.RequireOrganizationMembership)
 		r.Get("/", m.handleListIntegrations)
 		r.Delete("/{id}", m.handleDisconnect)
@@ -70,6 +71,7 @@ func (m *Module) RegisterHTTPRoutes(r chi.Router) {
 		r.Get("/{id}/targets", m.handleListTargets)
 	})
 	r.Route("/destinations", func(r chi.Router) {
+		r.Use(middleware.AuthMiddleware.Authenticate)
 		r.Use(middleware.OrgMiddleware.RequireOrganizationMembership)
 		r.Get("/", m.handleListDestinations)
 		r.Post("/", m.handleCreateDestination)
@@ -77,6 +79,7 @@ func (m *Module) RegisterHTTPRoutes(r chi.Router) {
 		r.Delete("/{id}", m.handleDeleteDestination)
 	})
 	r.Route("/deliveries", func(r chi.Router) {
+		r.Use(middleware.AuthMiddleware.Authenticate)
 		r.Use(middleware.OrgMiddleware.RequireOrganizationMembership)
 		r.Get("/", m.handleListDeliveries)
 		r.Post("/{id}/retry", m.handleRetryDelivery)
