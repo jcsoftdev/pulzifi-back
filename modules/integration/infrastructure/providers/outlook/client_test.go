@@ -247,3 +247,38 @@ func TestListTargets_ReturnsEmpty(t *testing.T) {
 		t.Errorf("expected empty targets, got %d", len(targets))
 	}
 }
+
+func TestSend_NoRecipients_ReturnsError(t *testing.T) {
+	c := newTestClient(t)
+	integ := &entities.Integration{
+		AccessToken:  "tok",
+		ProviderMeta: map[string]any{"email": "sender@company.com"},
+	}
+	dest := &entities.Destination{Target: map[string]any{"emails": []any{}}}
+	_, err := c.Send(t.Context(), integ, dest, &entities.NotificationPayload{})
+	if err == nil {
+		t.Fatal("expected error for empty recipients")
+	}
+}
+
+func TestHandleCallback_TokenError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"error":"invalid_grant","error_description":"The authorization code expired."}`))
+	}))
+	defer srv.Close()
+
+	orig := TokenURL
+	TokenURL = srv.URL
+	t.Cleanup(func() { TokenURL = orig })
+
+	c := newTestClient(t)
+	_, err := c.HandleCallback(t.Context(), "bad-code", "https://example.com/callback")
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "invalid_grant") {
+		t.Errorf("error %q should contain invalid_grant", err.Error())
+	}
+}

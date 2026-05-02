@@ -85,6 +85,10 @@ func (c *Client) HandleCallback(ctx context.Context, code, redirectURI string) (
 	defer resp.Body.Close()
 	raw, _ := io.ReadAll(resp.Body)
 
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("outlook: token endpoint: status %d: %s", resp.StatusCode, truncate(string(raw), 200))
+	}
+
 	var tok struct {
 		AccessToken  string `json:"access_token"`
 		RefreshToken string `json:"refresh_token"`
@@ -180,6 +184,10 @@ func (c *Client) RefreshAccessToken(ctx context.Context, refreshToken string) (*
 	}
 	defer resp.Body.Close()
 	raw, _ := io.ReadAll(resp.Body)
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("outlook: token endpoint: status %d: %s", resp.StatusCode, truncate(string(raw), 200))
+	}
 
 	var tok struct {
 		AccessToken  string `json:"access_token"`
@@ -277,6 +285,7 @@ func (c *Client) sendOne(ctx context.Context, accessToken, from, to, subject, ht
 				"emailAddress": map[string]any{"address": from},
 			},
 		},
+		"saveToSentItems": false,
 	}
 
 	payload, _ := json.Marshal(msg)
