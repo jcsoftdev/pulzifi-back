@@ -172,7 +172,13 @@ func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus 
 		{"Organization", organization.NewModule(orgRepo)},
 		{"Workspace", workspace.NewModuleWithDB(db)},
 		{"Page", page.NewModuleWithExtractor(db, snapshotextractor.NewHTTPClient(cfg.ExtractorURL))},
-		{"Alert", alert.NewModuleWithDB(db)},
+		{"Alert", func() router.ModuleRegisterer {
+			m := alert.NewModuleWithDB(db)
+			if am, ok := m.(*alert.Module); ok {
+				am.SetEventBus(eventBus)
+			}
+			return m
+		}()},
 		{"Monitoring", monitoring.NewModuleWithDB(db, eventBus, emailProvider, cfg.FrontendURL)},
 		{"Integration", integrationMod},
 		{"Insight", insight.NewModuleWithDB(db, pubsub.NewInsightBroker())},
