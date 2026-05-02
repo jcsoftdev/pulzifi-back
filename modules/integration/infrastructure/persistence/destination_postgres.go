@@ -136,16 +136,23 @@ func (r *DestinationPostgresRepository) Delete(ctx context.Context, id uuid.UUID
 }
 
 // ListByScope returns all destinations (enabled and disabled) for a given scope.
+// For workspace and page scopes the workspace_name / page_name fields are populated
+// via LEFT JOINs so callers can display human-readable scope labels without an
+// extra round-trip.
 func (r *DestinationPostgresRepository) ListByScope(ctx context.Context, scope entities.ScopeType, scopeID uuid.UUID) ([]*entities.Destination, error) {
 	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
 		return nil, fmt.Errorf("destination repo: set search path: %w", err)
 	}
 
-	q := `SELECT id, integration_id, service_type, scope_type, scope_id,
-		         target, events, enabled, created_at, updated_at
-		  FROM integration_destinations
-		  WHERE scope_type = $1 AND scope_id = $2
-		  ORDER BY created_at ASC`
+	q := `SELECT d.id, d.integration_id, d.service_type, d.scope_type, d.scope_id,
+		         d.target, d.events, d.enabled, d.created_at, d.updated_at,
+		         COALESCE(w.name, '') AS workspace_name,
+		         COALESCE(p.name, '') AS page_name
+		  FROM integration_destinations d
+		  LEFT JOIN workspaces w ON d.scope_type = 'workspace' AND w.id = d.scope_id
+		  LEFT JOIN pages      p ON d.scope_type = 'page'      AND p.id = d.scope_id
+		  WHERE d.scope_type = $1 AND d.scope_id = $2
+		  ORDER BY d.created_at ASC`
 
 	rows, err := r.db.QueryContext(ctx, q, string(scope), scopeID)
 	if err != nil {
@@ -155,7 +162,7 @@ func (r *DestinationPostgresRepository) ListByScope(ctx context.Context, scope e
 
 	var result []*entities.Destination
 	for rows.Next() {
-		d, err := r.scanRow(rows)
+		d, err := r.scanRowWithNames(rows)
 		if err != nil {
 			return nil, fmt.Errorf("destination repo: list by scope scan: %w", err)
 		}
@@ -285,6 +292,49 @@ func (r *DestinationPostgresRepository) scanRow(s scanner) (*entities.Destinatio
 		&d.Enabled,
 		&d.CreatedAt,
 		&d.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if integrationID.Valid {
+		id := integrationID.UUID
+		d.IntegrationID = &id
+	}
+
+	d.ScopeType = entities.ScopeType(scopeTypeStr)
+
+	d.Target = map[string]any{}
+	if len(targetJSON) > 0 {
+		if err := json.Unmarshal(targetJSON, &d.Target); err != nil {
+			d.Target = map[string]any{}
+		}
+	}
+
+	return &d, nil
+}
+
+// scanRowWithNames is like scanRow but also reads the two extra columns
+// (workspace_name, page_name) produced by the ListByScope JOIN query.
+func (r *DestinationPostgresRepository) scanRowWithNames(s scanner) (*entities.Destination, error) {
+	var d entities.Destination
+	var integrationID uuid.NullUUID
+	var scopeTypeStr string
+	var targetJSON []byte
+
+	err := s.Scan(
+		&d.ID,
+		&integrationID,
+		&d.ServiceType,
+		&scopeTypeStr,
+		&d.ScopeID,
+		&targetJSON,
+		pq.Array(&d.Events),
+		&d.Enabled,
+		&d.CreatedAt,
+		&d.UpdatedAt,
+		&d.WorkspaceName,
+		&d.PageName,
 	)
 	if err != nil {
 		return nil, err
