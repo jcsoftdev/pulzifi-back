@@ -26,6 +26,7 @@ import (
 	"github.com/jcsoftdev/pulzifi-back/modules/snapshot/domain/repositories"
 	imagecompare "github.com/jcsoftdev/pulzifi-back/modules/snapshot/domain/services"
 	"github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/extractor"
+	"github.com/jcsoftdev/pulzifi-back/shared/eventbus"
 	sharedHTML "github.com/jcsoftdev/pulzifi-back/shared/html"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
@@ -36,6 +37,7 @@ type SnapshotWorker struct {
 	objectStorage      repositories.ObjectStorage
 	extractorClient    *extractor.HTTPClient
 	db                 *sql.DB
+	bus                eventbus.MessageBus
 	insightHandler     *generateinsights.GenerateInsightsHandler
 	emailProvider      emailservices.EmailProvider
 	frontendURL        string
@@ -58,6 +60,12 @@ func (s *SnapshotWorker) SetVisionAnalyzer(analyzer insightservices.VisionAnalyz
 // SetPixelDiffThreshold sets the threshold for pixel comparison (default 0.001).
 func (s *SnapshotWorker) SetPixelDiffThreshold(threshold float64) {
 	s.pixelDiffThreshold = threshold
+}
+
+// SetMessageBus enables domain-event publishing for cross-module integration dispatch.
+// If not set, the worker silently skips publishing (e.g. in tests / standalone runs).
+func (s *SnapshotWorker) SetMessageBus(bus eventbus.MessageBus) {
+	s.bus = bus
 }
 
 // notifyCheckDone serializes a check into the same DTO format the frontend
@@ -642,8 +650,8 @@ func (s *SnapshotWorker) createAlert(ctx context.Context, schemaName string, che
 	// Send email notifications asynchronously
 	go s.sendAlertEmails(schemaName, check, pageURL, changeSummary)
 
-	// Dispatch webhooks (Slack, Discord, Teams) asynchronously
-	go s.dispatchWebhooks(schemaName, check, pageURL, changeSummary)
+	// Publish change.detected domain event so the integration dispatcher can fan-out.
+	go s.publishChangeDetected(ctx, schemaName, check, pageURL, changeSummary)
 }
 
 // sendAlertEmails queries notification preferences for the page and sends email alerts.
@@ -701,16 +709,72 @@ func (s *SnapshotWorker) sendAlertEmails(schemaName string, check *entities.Chec
 	}
 }
 
-// dispatchWebhooks is a stub pending T27 (Publisher change.detected from snapshot).
-// The legacy webhook sender has been removed in T23; the dispatch_event use case
-// will replace this path once the event bus wiring lands in T27.
-func (s *SnapshotWorker) dispatchWebhooks(schemaName string, check *entities.Check, pageURL string, changeSummary string) {
-	// TODO(T27): publish a "change.detected" event via EventBus so the
-	// dispatch_event use case can fan-out to all enabled destinations.
-	logger.Info("dispatchWebhooks: event dispatch deferred to T27",
-		zap.String("schema", schemaName),
-		zap.String("page_url", pageURL),
-	)
+// publishChangeDetected publishes a change.detected DomainEvent to the EventBus so that
+// the integration dispatch_event use case can fan-out to all enabled destinations.
+//
+// NOTE: in-memory EventBus is node-local. When running cmd/worker as a separate
+// process from cmd/server, the dispatcher subscriber does NOT receive these events.
+// Phase 4 will swap MessageBus to a network-backed implementation.
+func (s *SnapshotWorker) publishChangeDetected(parentCtx context.Context, tenant string, check *entities.Check, pageURL, changeSummary string) {
+	if s.bus == nil {
+		return // dispatch disabled — bus not wired (tests, standalone runs)
+	}
+
+	// Use a fresh context with timeout — parent may be near-cancellation by the time we publish.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	_ = parentCtx // reserved for future correlation-id propagation; unused now
+
+	// Look up org_id from tenant schema_name.
+	var orgID uuid.UUID
+	if err := s.db.QueryRowContext(ctx, `SELECT id FROM public.organizations WHERE schema_name = $1 AND deleted_at IS NULL`, tenant).Scan(&orgID); err != nil {
+		logger.Error("publishChangeDetected: org lookup failed", zap.Error(err), zap.String("tenant", tenant))
+		return
+	}
+
+	// Set search_path then look up workspace_id and title for the page.
+	if _, err := s.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(tenant)); err != nil {
+		logger.Error("publishChangeDetected: search_path", zap.Error(err))
+		return
+	}
+	var workspaceID uuid.UUID
+	var pageTitle string
+	if err := s.db.QueryRowContext(ctx, `SELECT workspace_id, COALESCE(title,'') FROM pages WHERE id = $1`, check.PageID).Scan(&workspaceID, &pageTitle); err != nil {
+		logger.Error("publishChangeDetected: page lookup failed", zap.Error(err), zap.String("page_id", check.PageID.String()))
+		return
+	}
+
+	changeType := check.ChangeType
+	if changeType == "" {
+		changeType = "content"
+	}
+
+	payload := map[string]any{
+		"page_url":     pageURL,
+		"page_title":   pageTitle,
+		"change_type":  changeType,
+		"diff_summary": changeSummary,
+		"check_id":     check.ID.String(),
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		logger.Error("publishChangeDetected: marshal payload", zap.Error(err))
+		return
+	}
+
+	pid := check.PageID
+	wsid := workspaceID
+	ev := eventbus.DomainEvent{
+		Type:        eventbus.TopicChangeDetected,
+		OrgID:       orgID,
+		WorkspaceID: &wsid,
+		PageID:      &pid,
+		Tenant:      tenant,
+		Data:        data,
+	}
+	if err := eventbus.PublishDomainEvent(s.bus, ev); err != nil {
+		logger.Error("publishChangeDetected: publish", zap.Error(err))
+	}
 }
 
 // generateInsightsAsync calls the insight handler in the background after a change is detected.

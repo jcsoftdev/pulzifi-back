@@ -19,6 +19,7 @@ import (
 	"github.com/jcsoftdev/pulzifi-back/shared/config"
 	"github.com/jcsoftdev/pulzifi-back/shared/crypto"
 	"github.com/jcsoftdev/pulzifi-back/shared/database"
+	"github.com/jcsoftdev/pulzifi-back/shared/eventbus"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"go.uber.org/zap"
 )
@@ -38,7 +39,7 @@ func main() {
 	// ---------------------------------------------------------------------------
 	// Monitoring background processes
 	// ---------------------------------------------------------------------------
-	mod := monitoring.NewModuleWithDB(db, nil, nil, "")
+	mod := monitoring.NewModuleWithDB(db, eventbus.GetInstance(), nil, "")
 	if monitoringModule, ok := mod.(*monitoring.Module); ok {
 		monitoringModule.StartBackgroundProcesses()
 	} else {
