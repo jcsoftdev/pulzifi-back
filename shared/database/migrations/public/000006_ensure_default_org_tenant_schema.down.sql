@@ -1,0 +1,3 @@
+-- Reverse 000006_ensure_default_org_tenant_schema.up.sql
+-- This was an idempotent re-seed; down is a no-op since 000005 down handles the actual data.
+-- No action needed.

@@ -1,0 +1,3 @@
+-- Reverse 000007_force_default_tenant_structure.up.sql
+-- This was a conditional schema creation helper; down is a no-op.
+-- The schema itself is managed by 000005/000006 down migrations.

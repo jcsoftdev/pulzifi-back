@@ -1,0 +1,1 @@
+ALTER TABLE checks ADD COLUMN IF NOT EXISTS diff_image_url TEXT;

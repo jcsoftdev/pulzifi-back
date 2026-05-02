@@ -1,0 +1,1 @@
+ALTER TABLE checks ADD COLUMN IF NOT EXISTS content_hash VARCHAR(64);
