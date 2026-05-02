@@ -29,33 +29,35 @@ interface TargetBackendDto {
   meta?: Record<string, unknown>
 }
 
+// Destination and Delivery entities are serialised directly from Go structs
+// without json tags, so Go uses PascalCase field names.
 interface DestinationBackendDto {
-  id: string
-  integration_id?: string | null
-  service_type: string
-  scope_type: ScopeType
-  scope_id: string
-  target: Record<string, unknown>
-  events: string[]
-  enabled: boolean
-  created_at: string
-  updated_at: string
+  ID: string
+  IntegrationID?: string | null
+  ServiceType: string
+  ScopeType: ScopeType
+  ScopeID: string
+  Target: Record<string, unknown>
+  Events: string[]
+  Enabled: boolean
+  CreatedAt: string
+  UpdatedAt: string
 }
 
 interface DeliveryBackendDto {
-  id: string
-  destination_id: string
-  event_type: string
-  event_payload: Record<string, unknown>
-  status: DeliveryStatus
-  attempts: number
-  last_attempt_at?: string | null
-  next_attempt_at?: string | null
-  response_code?: number | null
-  response_body?: string | null
-  error_message?: string | null
-  delivered_at?: string | null
-  created_at: string
+  ID: string
+  DestinationID: string
+  EventType: string
+  EventPayload: Record<string, unknown>
+  Status: DeliveryStatus
+  Attempts: number
+  LastAttemptAt?: string | null
+  NextAttemptAt?: string | null
+  ResponseCode?: number | null
+  ResponseBody?: string | null
+  ErrorMessage?: string | null
+  DeliveredAt?: string | null
+  CreatedAt: string
 }
 
 // ---------------------------------------------------------------------------
@@ -146,34 +148,34 @@ function transformTarget(dto: TargetBackendDto): Target {
 
 function transformDestination(dto: DestinationBackendDto): Destination {
   return {
-    id: dto.id,
-    integrationId: dto.integration_id,
-    serviceType: dto.service_type,
-    scopeType: dto.scope_type,
-    scopeId: dto.scope_id,
-    target: dto.target ?? {},
-    events: dto.events ?? [],
-    enabled: dto.enabled,
-    createdAt: dto.created_at,
-    updatedAt: dto.updated_at,
+    id: dto.ID,
+    integrationId: dto.IntegrationID,
+    serviceType: dto.ServiceType,
+    scopeType: dto.ScopeType,
+    scopeId: dto.ScopeID,
+    target: dto.Target ?? {},
+    events: dto.Events ?? [],
+    enabled: dto.Enabled,
+    createdAt: dto.CreatedAt,
+    updatedAt: dto.UpdatedAt,
   }
 }
 
 function transformDelivery(dto: DeliveryBackendDto): Delivery {
   return {
-    id: dto.id,
-    destinationId: dto.destination_id,
-    eventType: dto.event_type,
-    eventPayload: dto.event_payload ?? {},
-    status: dto.status,
-    attempts: dto.attempts,
-    lastAttemptAt: dto.last_attempt_at,
-    nextAttemptAt: dto.next_attempt_at,
-    responseCode: dto.response_code,
-    responseBody: dto.response_body,
-    errorMessage: dto.error_message,
-    deliveredAt: dto.delivered_at,
-    createdAt: dto.created_at,
+    id: dto.ID,
+    destinationId: dto.DestinationID,
+    eventType: dto.EventType,
+    eventPayload: dto.EventPayload ?? {},
+    status: dto.Status,
+    attempts: dto.Attempts,
+    lastAttemptAt: dto.LastAttemptAt,
+    nextAttemptAt: dto.NextAttemptAt,
+    responseCode: dto.ResponseCode,
+    responseBody: dto.ResponseBody,
+    errorMessage: dto.ErrorMessage,
+    deliveredAt: dto.DeliveredAt,
+    createdAt: dto.CreatedAt,
   }
 }
 
