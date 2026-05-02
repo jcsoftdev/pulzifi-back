@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/hex"
+	"time"
 
 	admin "github.com/jcsoftdev/pulzifi-back/modules/admin/infrastructure/http"
 	adminpersistence "github.com/jcsoftdev/pulzifi-back/modules/admin/infrastructure/persistence"
@@ -15,7 +17,12 @@ import (
 	email "github.com/jcsoftdev/pulzifi-back/modules/email/infrastructure/http"
 	emailproviders "github.com/jcsoftdev/pulzifi-back/modules/email/infrastructure/providers"
 	insight "github.com/jcsoftdev/pulzifi-back/modules/insight/infrastructure/http"
+	dispatchevent "github.com/jcsoftdev/pulzifi-back/modules/integration/application/dispatch_event"
 	integration "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/http"
+	intoauth "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/oauth"
+	intpersistence "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/persistence"
+	intproviders "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers"
+	slackprovider "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers/slack"
 	monitoring "github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/http"
 	orgservices "github.com/jcsoftdev/pulzifi-back/modules/organization/domain/services"
 	organization "github.com/jcsoftdev/pulzifi-back/modules/organization/infrastructure/http"
@@ -29,12 +36,14 @@ import (
 	workspace "github.com/jcsoftdev/pulzifi-back/modules/workspace/infrastructure/http"
 	"github.com/jcsoftdev/pulzifi-back/shared/bff"
 	"github.com/jcsoftdev/pulzifi-back/shared/config"
+	"github.com/jcsoftdev/pulzifi-back/shared/crypto"
 	"github.com/jcsoftdev/pulzifi-back/shared/eventbus"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
 	"github.com/jcsoftdev/pulzifi-back/shared/noncestore"
 	"github.com/jcsoftdev/pulzifi-back/shared/pubsub"
 	"github.com/jcsoftdev/pulzifi-back/shared/router"
+	intwiring "github.com/jcsoftdev/pulzifi-back/cmd/server/wiring"
 	"go.uber.org/zap"
 )
 
@@ -43,7 +52,7 @@ func createEmailProvider(cfg *config.Config) emailservices.EmailProvider {
 	return emailproviders.NewResendProvider(cfg.ResendAPIKey, cfg.EmailFromAddress, cfg.EmailFromName)
 }
 
-func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus *eventbus.EventBus, enableWorkers bool) *bff.Handler {
+func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus *eventbus.EventBus, enableWorkers bool) (*bff.Handler, *integration.Module) {
 	cfg := config.Load()
 
 	userRepo := authpersistence.NewUserPostgresRepository(db)
@@ -87,6 +96,61 @@ func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus 
 	middleware.SetAuthMiddleware(authMiddleware)
 	middleware.SetOrganizationMiddleware(middleware.NewOrganizationMiddleware(db))
 
+	// ---------------------------------------------------------------------------
+	// Integration module wiring
+	// ---------------------------------------------------------------------------
+	intKeyHex := cfg.IntegrationTokenKey
+	if intKeyHex == "" {
+		if cfg.Environment == "production" {
+			logger.Logger.Fatal("INTEGRATION_TOKEN_KEY required in production")
+		}
+		logger.Warn("INTEGRATION_TOKEN_KEY not set — using insecure dev default")
+		intKeyHex = "00000000000000000000000000000000000000000000000000000000000000ff"
+	}
+	intKey, err := hex.DecodeString(intKeyHex)
+	if err != nil || len(intKey) != 32 {
+		logger.Logger.Fatal("invalid INTEGRATION_TOKEN_KEY", zap.Error(err))
+	}
+	intEnc, err := crypto.NewAESGCM(intKey)
+	if err != nil {
+		logger.Logger.Fatal("crypto init failed", zap.Error(err))
+	}
+
+	intRepo := intpersistence.NewIntegrationPostgresRepository(db, intEnc)
+	intStateSigner := intoauth.NewStateSigner(intKey, 10*time.Minute)
+
+	// Provider registry — Slack only in T24; email adapter added in T25.
+	slackClient := slackprovider.New(cfg.SlackClientID, cfg.SlackClientSecret)
+	intRegistry := intproviders.NewRegistry(slackClient)
+
+	intRepoFactory := intwiring.NewTenantRepoFactory(db)
+	intOrgGuard := intwiring.NewOrgGuard(orgRepo)
+	intDispatcher := dispatchevent.NewHandler(intRepoFactory, intOrgGuard)
+
+	// Subscribe dispatcher to domain events.
+	if err := eventbus.SubscribeDomainEvent(eventBus, eventbus.TopicChangeDetected, func(ev eventbus.DomainEvent) {
+		if err := intDispatcher.Handle(context.Background(), ev); err != nil {
+			logger.Error("integration dispatch failed", zap.Error(err), zap.String("event_type", ev.Type))
+		}
+	}); err != nil {
+		logger.Error("subscribe TopicChangeDetected", zap.Error(err))
+	}
+	if err := eventbus.SubscribeDomainEvent(eventBus, eventbus.TopicAlertCreated, func(ev eventbus.DomainEvent) {
+		if err := intDispatcher.Handle(context.Background(), ev); err != nil {
+			logger.Error("integration dispatch failed", zap.Error(err), zap.String("event_type", ev.Type))
+		}
+	}); err != nil {
+		logger.Error("subscribe TopicAlertCreated", zap.Error(err))
+	}
+
+	integrationMod := integration.NewModule(integration.Deps{
+		DB:                db,
+		IntRepo:           intRepo,
+		Registry:          intRegistry,
+		StateSigner:       intStateSigner,
+		OAuthRedirectBase: cfg.IntegrationOAuthRedirectBase,
+	})
+
 	moduleInstances := []struct {
 		name   string
 		module router.ModuleRegisterer
@@ -108,7 +172,7 @@ func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus 
 		{"Page", page.NewModuleWithExtractor(db, snapshotextractor.NewHTTPClient(cfg.ExtractorURL))},
 		{"Alert", alert.NewModuleWithDB(db)},
 		{"Monitoring", monitoring.NewModuleWithDB(db, eventBus, emailProvider, cfg.FrontendURL)},
-		{"Integration", integration.NewModuleWithDB(db)},
+		{"Integration", integrationMod},
 		{"Insight", insight.NewModuleWithDB(db, pubsub.NewInsightBroker())},
 		{"Report", report.NewModuleWithDB(db)},
 		{"Usage", usage.NewModuleWithDB(db)},
@@ -152,5 +216,5 @@ func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus 
 		Logger:         logger.Logger,
 	})
 
-	return bffHandler
+	return bffHandler, integrationMod
 }

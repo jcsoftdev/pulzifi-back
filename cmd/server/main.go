@@ -163,7 +163,7 @@ func main() {
 	// Create module registry and register all modules
 	logger.Info("Registering module routes...")
 	registry := router.NewRegistry(logger.Logger)
-	bffHandler := registerAllModulesInternal(registry, db, eventBus, enableWorkers)
+	bffHandler, integrationMod := registerAllModulesInternal(registry, db, eventBus, enableWorkers)
 
 	// Mount BFF auth routes BEFORE /api/v1 (these handle cookies/nonces)
 	logger.Info("Registering BFF auth handler at /api/auth")
@@ -171,6 +171,10 @@ func main() {
 		bffHandler.RegisterRoutes(r)
 	})
 	logger.Info("BFF auth handler registered successfully")
+
+	// OAuth callback for integrations: lands on root domain (no X-Tenant), so register
+	// directly on the parent router BEFORE the tenant-middleware-wrapped v1Router mounts.
+	httpRouter.Get("/api/v1/integrations/oauth/{provider}/callback", integrationMod.HandleOAuthCallback)
 
 	// Register routes from all modules under /api/v1
 	v1Router := chi.NewRouter()
