@@ -144,7 +144,7 @@ func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus 
 		PlatformAccountSID: cfg.TwilioAccountSID,
 		PlatformAuthToken:  cfg.TwilioAuthToken,
 		PlatformFromNumber: cfg.TwilioFromNumber,
-	}, twilioPlanLookup)
+	}, twilioPlanLookup, nil)
 	twilioValidator := twilioprovider.NewValidator()
 
 	intRegistry := intproviders.NewRegistry(slackClient, intEmailClient, discordClient, twilioClient)

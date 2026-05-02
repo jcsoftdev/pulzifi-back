@@ -80,7 +80,7 @@ func main() {
 		PlatformAccountSID: cfg.TwilioAccountSID,
 		PlatformAuthToken:  cfg.TwilioAuthToken,
 		PlatformFromNumber: cfg.TwilioFromNumber,
-	}, twilioPlanLookup)
+	}, twilioPlanLookup, nil)
 	intRegistry := intproviders.NewRegistry(slackClient, intEmailClient, discordClient, twilioClient)
 
 	intRepoFactory := intwiring.NewTenantRepoFactory(db)
