@@ -30,6 +30,16 @@ export const BASE_PROVIDERS: Omit<ProviderConfig, 'enabled' | 'soon'>[] = [
     description: 'Send alerts to email recipients.',
   },
   {
+    key: 'gmail',
+    label: 'Gmail',
+    description: 'Send alerts from your Gmail account.',
+  },
+  {
+    key: 'outlook',
+    label: 'Outlook',
+    description: 'Send alerts from your Outlook / Microsoft 365 account.',
+  },
+  {
     key: 'discord',
     label: 'Discord',
     description: 'Send alerts to a Discord channel.',
@@ -63,6 +73,18 @@ export const PROVIDERS: ProviderConfig[] = [
     key: 'email',
     label: 'Email',
     description: 'Send alerts to email recipients.',
+    enabled: true,
+  },
+  {
+    key: 'gmail',
+    label: 'Gmail',
+    description: 'Send alerts from your Gmail account.',
+    enabled: true,
+  },
+  {
+    key: 'outlook',
+    label: 'Outlook',
+    description: 'Send alerts from your Outlook / Microsoft 365 account.',
     enabled: true,
   },
   {

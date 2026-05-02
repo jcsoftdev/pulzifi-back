@@ -38,6 +38,18 @@ export function IntegrationsPanel({ integrations, me }: Readonly<IntegrationsPan
       enabled: true,
     },
     {
+      key: 'gmail',
+      label: 'Gmail',
+      description: 'Send alerts from your Gmail account.',
+      enabled: true,
+    },
+    {
+      key: 'outlook',
+      label: 'Outlook',
+      description: 'Send alerts from your Outlook / Microsoft 365 account.',
+      enabled: true,
+    },
+    {
       key: 'discord',
       label: 'Discord',
       description: 'Send alerts to a Discord channel.',
