@@ -89,11 +89,21 @@ func (m *Module) RegisterHTTPRoutes(r chi.Router) {
 func (m *Module) HandleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	provider := chi.URLParam(r, "provider")
 	q := r.URL.Query()
-	oauthErr := q.Get("error")
-	if oauthErr != "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": oauthErr})
+
+	// Slack error param — try to get tenant redirect from state, fall back to root.
+	if oauthErr := q.Get("error"); oauthErr != "" {
+		rawState := q.Get("state")
+		if st, err := m.deps.StateSigner.Verify(rawState); err == nil {
+			http.Redirect(w, r,
+				strings.TrimRight(st.ReturnHost, "/")+st.ReturnPath+
+					"?integration="+provider+"&status=error",
+				http.StatusFound)
+		} else {
+			http.Redirect(w, r, m.deps.OAuthRedirectBase+"?status=error", http.StatusFound)
+		}
 		return
 	}
+
 	code := q.Get("code")
 	state := q.Get("state")
 
@@ -105,14 +115,12 @@ func (m *Module) HandleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		logger.Error("OAuth callback failed", zap.Error(err))
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		http.Redirect(w, r, m.deps.OAuthRedirectBase+"?status=error", http.StatusFound)
 		return
 	}
 
-	// Redirect to <OAuthRedirectBase>/<ReturnPath>?integration=<provider>&status=connected&tenant=<tenant>
-	returnPath := strings.TrimPrefix(resp.ReturnPath, "/")
-	redirectURL := strings.TrimRight(m.deps.OAuthRedirectBase, "/") + "/" + returnPath +
-		"?integration=" + resp.Provider + "&status=connected&tenant=" + resp.Tenant
+	redirectURL := strings.TrimRight(resp.ReturnHost, "/") + resp.ReturnPath +
+		"?integration=" + resp.Provider + "&status=connected"
 	http.Redirect(w, r, redirectURL, http.StatusFound)
 }
 
@@ -206,6 +214,17 @@ func (m *Module) handleStartOAuth(w http.ResponseWriter, r *http.Request) {
 	if returnPath == "" {
 		returnPath = "/settings/integrations"
 	}
+	// Sanitize: must start with "/" and not "//" (open redirect prevention)
+	if !strings.HasPrefix(returnPath, "/") || strings.HasPrefix(returnPath, "//") {
+		returnPath = "/settings/integrations"
+	}
+
+	// Capture the tenant's origin for the post-OAuth redirect.
+	scheme := "http"
+	if proto := r.Header.Get("X-Forwarded-Proto"); proto != "" {
+		scheme = proto
+	}
+	returnHost := scheme + "://" + r.Host
 
 	orgID, err := m.orgIDFromTenant(r.Context(), tenant)
 	if err != nil {
@@ -226,6 +245,7 @@ func (m *Module) handleStartOAuth(w http.ResponseWriter, r *http.Request) {
 		Tenant:      tenant,
 		ReturnPath:  returnPath,
 		RedirectURI: redirectURI,
+		ReturnHost:  returnHost,
 		OrgID:       orgID,
 		UserID:      userID,
 	})
