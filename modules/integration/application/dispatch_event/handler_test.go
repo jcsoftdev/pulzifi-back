@@ -132,6 +132,10 @@ func (r *inMemDelRepo) Create(_ context.Context, d *entities.Delivery) error {
 	return nil
 }
 
+func (r *inMemDelRepo) GetByID(_ context.Context, _ uuid.UUID) (*entities.Delivery, error) {
+	return nil, nil
+}
+
 func (r *inMemDelRepo) ClaimPending(_ context.Context, limit int, now time.Time) ([]*entities.Delivery, error) {
 	return nil, nil
 }
@@ -140,11 +144,13 @@ func (r *inMemDelRepo) MarkDelivered(_ context.Context, id uuid.UUID, code int, 
 	return nil
 }
 
-func (r *inMemDelRepo) MarkFailed(_ context.Context, id uuid.UUID, code *int, body, errMsg string, nextAttempt time.Time) error {
+func (r *inMemDelRepo) MarkFailed(_ context.Context, id uuid.UUID, code *int, body, errMsg string, nextAttempt time.Time, _ []entities.Attempt) error {
 	return nil
 }
 
-func (r *inMemDelRepo) MarkDead(_ context.Context, id uuid.UUID, errMsg string) error { return nil }
+func (r *inMemDelRepo) MarkDead(_ context.Context, id uuid.UUID, errMsg string, _ []entities.Attempt) error {
+	return nil
+}
 
 func (r *inMemDelRepo) ListByDestination(_ context.Context, destinationID uuid.UUID, limit, offset int) ([]*entities.Delivery, error) {
 	return nil, nil

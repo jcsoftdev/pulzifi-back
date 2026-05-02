@@ -26,16 +26,21 @@ type stubDeliveryRepo struct {
 var _ repositories.DeliveryRepository = (*stubDeliveryRepo)(nil)
 
 func (r *stubDeliveryRepo) Create(_ context.Context, _ *entities.Delivery) error { return nil }
+func (r *stubDeliveryRepo) GetByID(_ context.Context, _ uuid.UUID) (*entities.Delivery, error) {
+	return nil, nil
+}
 func (r *stubDeliveryRepo) ClaimPending(_ context.Context, _ int, _ time.Time) ([]*entities.Delivery, error) {
 	return nil, nil
 }
 func (r *stubDeliveryRepo) MarkDelivered(_ context.Context, _ uuid.UUID, _ int, _ string) error {
 	return nil
 }
-func (r *stubDeliveryRepo) MarkFailed(_ context.Context, _ uuid.UUID, _ *int, _, _ string, _ time.Time) error {
+func (r *stubDeliveryRepo) MarkFailed(_ context.Context, _ uuid.UUID, _ *int, _, _ string, _ time.Time, _ []entities.Attempt) error {
 	return nil
 }
-func (r *stubDeliveryRepo) MarkDead(_ context.Context, _ uuid.UUID, _ string) error { return nil }
+func (r *stubDeliveryRepo) MarkDead(_ context.Context, _ uuid.UUID, _ string, _ []entities.Attempt) error {
+	return nil
+}
 func (r *stubDeliveryRepo) ListByDestination(ctx context.Context, destinationID uuid.UUID, limit, offset int) ([]*entities.Delivery, error) {
 	r.capturedLimit = limit
 	r.capturedOffset = offset
