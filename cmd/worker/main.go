@@ -9,8 +9,10 @@ import (
 
 	intpersistence "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/persistence"
 	intproviders "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers"
+	discordprovider "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers/discord"
 	emailprovider "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers/email"
 	slackprovider "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers/slack"
+	twilioprovider "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers/twilio"
 	deliveryworker "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/worker"
 	monitoring "github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/http"
 	intwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/integration"
@@ -71,7 +73,15 @@ func main() {
 	emailProvider := emailproviders.NewResendProvider(cfg.ResendAPIKey, cfg.EmailFromAddress, cfg.EmailFromName)
 	slackClient := slackprovider.New(cfg.SlackClientID, cfg.SlackClientSecret)
 	intEmailClient := emailprovider.New(intwiring.NewEmailAdapter(emailProvider))
-	intRegistry := intproviders.NewRegistry(slackClient, intEmailClient)
+	discordClient := discordprovider.New(cfg.DiscordClientID, cfg.DiscordClientSecret)
+	twilioPlanLookup := intwiring.NewOrgPlanLookup(db)
+	twilioClient := twilioprovider.New(twilioprovider.Config{
+		PaidPlans:          cfg.TwilioPaidPlans,
+		PlatformAccountSID: cfg.TwilioAccountSID,
+		PlatformAuthToken:  cfg.TwilioAuthToken,
+		PlatformFromNumber: cfg.TwilioFromNumber,
+	}, twilioPlanLookup)
+	intRegistry := intproviders.NewRegistry(slackClient, intEmailClient, discordClient, twilioClient)
 
 	intRepoFactory := intwiring.NewTenantRepoFactory(db)
 
