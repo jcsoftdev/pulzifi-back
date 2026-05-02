@@ -111,6 +111,9 @@ type Config struct {
 	MicrosoftClientID       string
 	MicrosoftClientSecret   string
 	TwilioQuotaPaidPerMonth int
+
+	// Gmail integration — reuses GoogleClientID/Secret; guarded by explicit flag
+	GmailIntegrationEnabled bool // GMAIL_INTEGRATION_ENABLED
 }
 
 func Load() *Config {
@@ -199,6 +202,8 @@ func Load() *Config {
 		MicrosoftClientID:       getEnv("MICROSOFT_CLIENT_ID", ""),
 		MicrosoftClientSecret:   getEnv("MICROSOFT_CLIENT_SECRET", ""),
 		TwilioQuotaPaidPerMonth: getEnvInt("TWILIO_QUOTA_PAID_PER_MONTH", 500),
+
+		GmailIntegrationEnabled: getEnvBool("GMAIL_INTEGRATION_ENABLED", false),
 	}
 }
 

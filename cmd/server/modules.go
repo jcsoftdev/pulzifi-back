@@ -24,10 +24,13 @@ import (
 	intproviders "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers"
 	discordprovider "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers/discord"
 	emailprovider "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers/email"
+	gmailprovider "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers/gmail"
+	outlookprovider "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers/outlook"
 	sheetsprovider "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers/sheets"
 	slackprovider "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers/slack"
 	teamsprovider "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers/teams"
 	twilioprovider "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers/twilio"
+	intdomainservices "github.com/jcsoftdev/pulzifi-back/modules/integration/domain/services"
 	"github.com/jcsoftdev/pulzifi-back/shared/featureflags"
 	"github.com/jcsoftdev/pulzifi-back/shared/integrationusage"
 	monitoring "github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/http"
@@ -159,7 +162,14 @@ func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus 
 	}, twilioPlanLookup, twilioQuotaAdapter)
 	twilioValidator := twilioprovider.NewValidator()
 
-	intRegistry := intproviders.NewRegistry(slackClient, intEmailClient, discordClient, twilioClient, sheetsClient, teamsClient)
+	baseProviders := []intdomainservices.ProviderClient{slackClient, intEmailClient, discordClient, twilioClient, sheetsClient, teamsClient}
+	if cfg.GmailIntegrationEnabled {
+		baseProviders = append(baseProviders, gmailprovider.New(cfg.GoogleClientID, cfg.GoogleClientSecret, cfg.IntegrationOAuthRedirectBase))
+	}
+	if cfg.MicrosoftClientID != "" && cfg.MicrosoftClientSecret != "" {
+		baseProviders = append(baseProviders, outlookprovider.New(cfg.MicrosoftClientID, cfg.MicrosoftClientSecret, cfg.IntegrationOAuthRedirectBase))
+	}
+	intRegistry := intproviders.NewRegistry(baseProviders...)
 
 	intRepoFactory := intwiring.NewTenantRepoFactory(db)
 	intOrgGuard := intwiring.NewOrgGuard(orgRepo)

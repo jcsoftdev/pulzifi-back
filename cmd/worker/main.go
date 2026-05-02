@@ -11,6 +11,8 @@ import (
 	intproviders "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers"
 	discordprovider "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers/discord"
 	emailprovider "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers/email"
+	gmailprovider "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers/gmail"
+	outlookprovider "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers/outlook"
 	sheetsprovider "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers/sheets"
 	slackprovider "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers/slack"
 	teamsprovider "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers/teams"
@@ -93,7 +95,14 @@ func main() {
 		PlatformAuthToken:  cfg.TwilioAuthToken,
 		PlatformFromNumber: cfg.TwilioFromNumber,
 	}, twilioPlanLookup, twilioQuotaAdapter)
-	intRegistry := intproviders.NewRegistry(slackClient, intEmailClient, discordClient, twilioClient, sheetsClient, teamsClient)
+	workerProviders := []services.ProviderClient{slackClient, intEmailClient, discordClient, twilioClient, sheetsClient, teamsClient}
+	if cfg.GmailIntegrationEnabled {
+		workerProviders = append(workerProviders, gmailprovider.New(cfg.GoogleClientID, cfg.GoogleClientSecret, cfg.IntegrationOAuthRedirectBase))
+	}
+	if cfg.MicrosoftClientID != "" && cfg.MicrosoftClientSecret != "" {
+		workerProviders = append(workerProviders, outlookprovider.New(cfg.MicrosoftClientID, cfg.MicrosoftClientSecret, cfg.IntegrationOAuthRedirectBase))
+	}
+	intRegistry := intproviders.NewRegistry(workerProviders...)
 
 	intRepoFactory := intwiring.NewTenantRepoFactory(db)
 
