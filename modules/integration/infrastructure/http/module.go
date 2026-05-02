@@ -131,7 +131,7 @@ func (m *Module) HandleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 func (m *Module) orgIDFromTenant(ctx context.Context, tenant string) (uuid.UUID, error) {
 	var orgID uuid.UUID
 	err := m.deps.DB.QueryRowContext(ctx,
-		`SELECT id FROM public.organizations WHERE schema_name = $1 AND deleted_at IS NULL`,
+		`SELECT id FROM public.organizations WHERE subdomain = $1 AND deleted_at IS NULL`,
 		tenant,
 	).Scan(&orgID)
 	return orgID, err
