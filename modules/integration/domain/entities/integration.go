@@ -6,26 +6,25 @@ import (
 	"github.com/google/uuid"
 )
 
-// Integration represents a third-party service integration (Slack, Teams, Discord, etc.)
-type Integration struct {
-	ID          uuid.UUID
-	ServiceType string // "slack", "teams", "discord", "google_sheets"
-	Config      map[string]interface{}
-	Enabled     bool
-	CreatedBy   uuid.UUID
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	DeletedAt   *time.Time
-}
+type IntegrationStatus string
 
-func NewIntegration(serviceType string, config map[string]interface{}, createdBy uuid.UUID) *Integration {
-	return &Integration{
-		ID:          uuid.New(),
-		ServiceType: serviceType,
-		Config:      config,
-		Enabled:     true,
-		CreatedBy:   createdBy,
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
-	}
+const (
+	IntegrationActive       IntegrationStatus = "active"
+	IntegrationDisconnected IntegrationStatus = "disconnected"
+	IntegrationExpired      IntegrationStatus = "expired"
+)
+
+type Integration struct {
+	ID             uuid.UUID
+	OrgID          uuid.UUID
+	ServiceType    string
+	Status         IntegrationStatus
+	AccessToken    string                 // plaintext on entity; encrypted in DB layer
+	RefreshToken   string                 // plaintext on entity, "" if none
+	TokenExpiresAt *time.Time
+	ProviderMeta   map[string]any
+	CreatedBy      uuid.UUID
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+	DeletedAt      *time.Time
 }
