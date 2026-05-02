@@ -5,13 +5,15 @@ package persistence_test
 import (
 	"context"
 	"database/sql"
-	"strings"
+	"encoding/json"
+	"errors"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jcsoftdev/pulzifi-back/modules/integration/domain/entities"
+	"github.com/jcsoftdev/pulzifi-back/modules/integration/domain/repositories"
 	"github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/persistence"
 )
 
@@ -19,10 +21,11 @@ import (
 // scoped to testTenant. The connection is closed in t.Cleanup.
 func newDelivRepo(t *testing.T) (interface {
 	Create(ctx context.Context, d *entities.Delivery) error
+	GetByID(ctx context.Context, id uuid.UUID) (*entities.Delivery, error)
 	ClaimPending(ctx context.Context, limit int, now time.Time) ([]*entities.Delivery, error)
 	MarkDelivered(ctx context.Context, id uuid.UUID, code int, bodySnip string) error
-	MarkFailed(ctx context.Context, id uuid.UUID, code *int, body, errMsg string, nextAttempt time.Time) error
-	MarkDead(ctx context.Context, id uuid.UUID, errMsg string) error
+	MarkFailed(ctx context.Context, id uuid.UUID, code *int, body, errMsg string, nextAttempt time.Time, history []entities.Attempt) error
+	MarkDead(ctx context.Context, id uuid.UUID, errMsg string, history []entities.Attempt) error
 	ListByDestination(ctx context.Context, destinationID uuid.UUID, limit, offset int) ([]*entities.Delivery, error)
 	Retry(ctx context.Context, id uuid.UUID) error
 }, *sql.DB) {
@@ -73,11 +76,12 @@ func fetchDelivery(t *testing.T, ctx context.Context, db *sql.DB, id uuid.UUID) 
 	row := db.QueryRowContext(ctx, `
 		SELECT id, destination_id, event_type, event_payload, status, attempts,
 		       last_attempt_at, next_attempt_at, response_code, response_body,
-		       error_message, delivered_at, created_at
+		       error_message, delivered_at, created_at, attempt_history
 		FROM integration_deliveries WHERE id = $1`, id)
 
 	var d entities.Delivery
 	var payloadJSON []byte
+	var historyJSON []byte
 	var lastAttemptAt sql.NullTime
 	var nextAttemptAt time.Time
 	var responseCode sql.NullInt32
@@ -90,7 +94,7 @@ func fetchDelivery(t *testing.T, ctx context.Context, db *sql.DB, id uuid.UUID) 
 		&d.Status, &d.Attempts,
 		&lastAttemptAt, &nextAttemptAt,
 		&responseCode, &responseBody, &errorMessage, &deliveredAt,
-		&d.CreatedAt,
+		&d.CreatedAt, &historyJSON,
 	)
 	if err != nil {
 		t.Fatalf("fetchDelivery scan %s: %v", id, err)
@@ -116,6 +120,9 @@ func fetchDelivery(t *testing.T, ctx context.Context, db *sql.DB, id uuid.UUID) 
 	if deliveredAt.Valid {
 		v := deliveredAt.Time
 		d.DeliveredAt = &v
+	}
+	if len(historyJSON) > 0 {
+		_ = json.Unmarshal(historyJSON, &d.AttemptHistory)
 	}
 	return &d
 }
@@ -230,7 +237,7 @@ func TestDeliveryRepo_MarkFailedReschedules(t *testing.T) {
 	// MarkFailed with nextAttempt = now + 1 minute
 	code := 503
 	nextAttempt := now.Add(time.Minute)
-	if err := repo.MarkFailed(ctx, d.ID, &code, "Service Unavailable", "endpoint down", nextAttempt); err != nil {
+	if err := repo.MarkFailed(ctx, d.ID, &code, "Service Unavailable", "endpoint down", nextAttempt, nil); err != nil {
 		t.Fatalf("MarkFailed: %v", err)
 	}
 
@@ -316,7 +323,7 @@ func TestDeliveryRepo_MarkDead(t *testing.T) {
 	}
 
 	// MarkDead
-	if err := repo.MarkDead(ctx, d.ID, "max retries exceeded"); err != nil {
+	if err := repo.MarkDead(ctx, d.ID, "max retries exceeded", nil); err != nil {
 		t.Fatalf("MarkDead: %v", err)
 	}
 
@@ -355,8 +362,8 @@ func TestDeliveryRepo_ParallelClaim_NoDuplicates(t *testing.T) {
 		ids[i] = uuid.New()
 		_, err := db.ExecContext(ctx, `
 			INSERT INTO integration_deliveries
-				(id, destination_id, event_type, event_payload, status, attempts, next_attempt_at, created_at)
-			VALUES ($1, $2, 'parallel.test', '{}', 'pending', 0, NOW(), NOW())`,
+				(id, destination_id, event_type, event_payload, status, attempts, next_attempt_at, attempt_history, created_at)
+			VALUES ($1, $2, 'parallel.test', '{}', 'pending', 0, NOW(), '[]'::jsonb, NOW())`,
 			ids[i], destID,
 		)
 		if err != nil {
@@ -526,7 +533,7 @@ func TestDeliveryRepo_Retry(t *testing.T) {
 	}
 
 	// Mark dead.
-	if err := repo.MarkDead(ctx, d.ID, "max retries exceeded"); err != nil {
+	if err := repo.MarkDead(ctx, d.ID, "max retries exceeded", nil); err != nil {
 		t.Fatalf("MarkDead: %v", err)
 	}
 
@@ -555,12 +562,177 @@ func TestDeliveryRepo_Retry(t *testing.T) {
 		t.Errorf("last_attempt_at should be NULL after Retry, got %v", got.LastAttemptAt)
 	}
 
-	// Second Retry on now-pending row → "not found or not in dead state" error.
+	// Second Retry on now-pending row → ErrDeliveryNotInDeadState sentinel.
 	err = repo.Retry(ctx, d.ID)
 	if err == nil {
 		t.Fatal("expected error retrying non-dead delivery, got nil")
 	}
-	if !strings.Contains(err.Error(), "not found or not in dead state") {
-		t.Errorf("unexpected error message: %v", err)
+	if !errors.Is(err, repositories.ErrDeliveryNotInDeadState) {
+		t.Errorf("expected ErrDeliveryNotInDeadState, got: %v", err)
+	}
+}
+
+// --------------------------------------------------------------------------
+// TestDeliveryRepo_GetByID
+// --------------------------------------------------------------------------
+
+func TestDeliveryRepo_GetByID(t *testing.T) {
+	ctx := context.Background()
+	repo, db := newDelivRepo(t)
+	destID := insertDestForDelivery(t, ctx, db)
+
+	id := uuid.New()
+	code1, code2, code3 := 500, 502, 503
+	history := []entities.Attempt{
+		{At: time.Now().UTC().Add(-3 * time.Minute), Code: &code1, Error: "first"},
+		{At: time.Now().UTC().Add(-2 * time.Minute), Code: &code2, Error: "second"},
+		{At: time.Now().UTC().Add(-1 * time.Minute), Code: &code3, Error: "third"},
+	}
+	histJSON, err := json.Marshal(history)
+	if err != nil {
+		t.Fatalf("marshal history: %v", err)
+	}
+
+	// Insert with seeded attempt_history via raw SQL.
+	if _, err := db.ExecContext(ctx, "SET search_path TO "+testTenant+", public"); err != nil {
+		t.Fatalf("set search path: %v", err)
+	}
+	_, err = db.ExecContext(ctx, `
+		INSERT INTO integration_deliveries
+			(id, destination_id, event_type, event_payload, status, attempts, next_attempt_at, attempt_history, created_at)
+		VALUES ($1, $2, 'getbyid.test', '{"k":"v"}', 'dead', 3, NOW(), $3::jsonb, NOW())`,
+		id, destID, histJSON,
+	)
+	if err != nil {
+		t.Fatalf("insert seeded delivery: %v", err)
+	}
+	t.Cleanup(func() {
+		db.ExecContext(ctx, "DELETE FROM "+testTenant+".integration_deliveries WHERE id = $1", id) //nolint:errcheck
+	})
+
+	// GetByID
+	got, err := repo.GetByID(ctx, id)
+	if err != nil {
+		t.Fatalf("GetByID: %v", err)
+	}
+	if got == nil {
+		t.Fatal("GetByID returned nil, want delivery")
+	}
+	if got.ID != id {
+		t.Errorf("id: want %s, got %s", id, got.ID)
+	}
+	if got.EventType != "getbyid.test" {
+		t.Errorf("event_type: want getbyid.test, got %q", got.EventType)
+	}
+	if got.Status != entities.DeliveryDead {
+		t.Errorf("status: want dead, got %q", got.Status)
+	}
+	if len(got.AttemptHistory) != 3 {
+		t.Fatalf("attempt_history length: want 3, got %d", len(got.AttemptHistory))
+	}
+	if got.AttemptHistory[0].Error != "first" {
+		t.Errorf("AttemptHistory[0].Error: want 'first', got %q", got.AttemptHistory[0].Error)
+	}
+	if got.AttemptHistory[1].Error != "second" {
+		t.Errorf("AttemptHistory[1].Error: want 'second', got %q", got.AttemptHistory[1].Error)
+	}
+	if got.AttemptHistory[2].Error != "third" {
+		t.Errorf("AttemptHistory[2].Error: want 'third', got %q", got.AttemptHistory[2].Error)
+	}
+
+	// GetByID with unknown UUID → nil, nil.
+	missing, err := repo.GetByID(ctx, uuid.New())
+	if err != nil {
+		t.Fatalf("GetByID(unknown): %v", err)
+	}
+	if missing != nil {
+		t.Errorf("GetByID(unknown): want nil, got %+v", missing)
+	}
+}
+
+// --------------------------------------------------------------------------
+// TestDeliveryRepo_RetryResetsAttemptHistory
+// --------------------------------------------------------------------------
+
+func TestDeliveryRepo_RetryResetsAttemptHistory(t *testing.T) {
+	ctx := context.Background()
+	repo, db := newDelivRepo(t)
+	destID := insertDestForDelivery(t, ctx, db)
+
+	d := &entities.Delivery{
+		ID:            uuid.New(),
+		DestinationID: destID,
+		EventType:     "retry.history.test",
+		EventPayload:  map[string]any{},
+	}
+	if err := repo.Create(ctx, d); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	now := time.Now().UTC()
+	_, err := repo.ClaimPending(ctx, 10, now)
+	if err != nil {
+		t.Fatalf("ClaimPending: %v", err)
+	}
+
+	// MarkDead with a 3-element history.
+	code := 500
+	history := []entities.Attempt{
+		{At: now.Add(-3 * time.Minute), Code: &code, Error: "attempt 1"},
+		{At: now.Add(-2 * time.Minute), Code: &code, Error: "attempt 2"},
+		{At: now.Add(-1 * time.Minute), Code: &code, Error: "attempt 3"},
+	}
+	if err := repo.MarkDead(ctx, d.ID, "gave up", history); err != nil {
+		t.Fatalf("MarkDead: %v", err)
+	}
+
+	// Verify history was persisted.
+	pre := fetchDelivery(t, ctx, db, d.ID)
+	if len(pre.AttemptHistory) != 3 {
+		t.Fatalf("pre-Retry attempt_history length: want 3, got %d", len(pre.AttemptHistory))
+	}
+
+	// Retry — should reset attempt_history to [].
+	if err := repo.Retry(ctx, d.ID); err != nil {
+		t.Fatalf("Retry: %v", err)
+	}
+
+	// Re-fetch via GetByID and assert.
+	got, err := repo.GetByID(ctx, d.ID)
+	if err != nil {
+		t.Fatalf("GetByID after Retry: %v", err)
+	}
+	if got == nil {
+		t.Fatal("GetByID after Retry returned nil")
+	}
+	if len(got.AttemptHistory) != 0 {
+		t.Errorf("attempt_history after Retry: want 0 entries, got %d", len(got.AttemptHistory))
+	}
+	if got.Status != entities.DeliveryPending {
+		t.Errorf("status after Retry: want pending, got %q", got.Status)
+	}
+	if got.Attempts != 0 {
+		t.Errorf("attempts after Retry: want 0, got %d", got.Attempts)
+	}
+	if got.ErrorMessage != nil {
+		t.Errorf("error_message after Retry: want nil, got %q", *got.ErrorMessage)
+	}
+}
+
+// --------------------------------------------------------------------------
+// TestDeliveryRepo_RetryReturnsSentinelOnNotFound
+// --------------------------------------------------------------------------
+
+func TestDeliveryRepo_RetryReturnsSentinelOnNotFound(t *testing.T) {
+	ctx := context.Background()
+	repo, _ := newDelivRepo(t)
+
+	// Call Retry with a random UUID that doesn't exist in the DB.
+	err := repo.Retry(ctx, uuid.New())
+	if err == nil {
+		t.Fatal("expected ErrDeliveryNotInDeadState, got nil")
+	}
+	if !errors.Is(err, repositories.ErrDeliveryNotInDeadState) {
+		t.Errorf("expected ErrDeliveryNotInDeadState, got: %v", err)
 	}
 }

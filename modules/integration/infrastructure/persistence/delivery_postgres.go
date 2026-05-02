@@ -28,7 +28,7 @@ func NewDeliveryPostgresRepository(db *sql.DB, tenant string) repositories.Deliv
 	return &DeliveryPostgresRepository{db: db, tenant: tenant}
 }
 
-// Create inserts a new delivery with status='pending' and next_attempt_at=NOW().
+// Create inserts a new delivery with status='pending', next_attempt_at=NOW(), and attempt_history='[]'.
 // The entity's Status/Attempts/NextAttemptAt/CreatedAt are ignored; server defaults apply.
 func (r *DeliveryPostgresRepository) Create(ctx context.Context, d *entities.Delivery) error {
 	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
@@ -41,8 +41,8 @@ func (r *DeliveryPostgresRepository) Create(ctx context.Context, d *entities.Del
 	}
 
 	q := `INSERT INTO integration_deliveries
-		(id, destination_id, event_type, event_payload, status, attempts, next_attempt_at, created_at)
-		VALUES ($1, $2, $3, $4, 'pending', 0, NOW(), NOW())`
+		(id, destination_id, event_type, event_payload, status, attempts, next_attempt_at, attempt_history, created_at)
+		VALUES ($1, $2, $3, $4, 'pending', 0, NOW(), '[]'::jsonb, NOW())`
 
 	_, err = r.db.ExecContext(ctx, q,
 		d.ID,
@@ -54,6 +54,28 @@ func (r *DeliveryPostgresRepository) Create(ctx context.Context, d *entities.Del
 		return fmt.Errorf("delivery repo: create: %w", err)
 	}
 	return nil
+}
+
+// GetByID retrieves a single delivery by its ID. Returns nil, nil when not found.
+func (r *DeliveryPostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (*entities.Delivery, error) {
+	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
+		return nil, fmt.Errorf("delivery repo: set search_path: %w", err)
+	}
+	row := r.db.QueryRowContext(ctx, `
+		SELECT id, destination_id, event_type, event_payload, status, attempts,
+		       last_attempt_at, next_attempt_at, response_code, response_body,
+		       error_message, delivered_at, created_at, attempt_history
+		  FROM integration_deliveries
+		 WHERE id = $1
+	`, id)
+	d, err := scanDelivery(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("delivery repo: get by id: %w", err)
+	}
+	return d, nil
 }
 
 // ClaimPending atomically claims up to `limit` pending deliveries whose
@@ -77,7 +99,7 @@ func (r *DeliveryPostgresRepository) ClaimPending(ctx context.Context, limit int
 	 )
 	RETURNING id, destination_id, event_type, event_payload, status, attempts,
 	          last_attempt_at, next_attempt_at, response_code, response_body,
-	          error_message, delivered_at, created_at`
+	          error_message, delivered_at, created_at, attempt_history`
 
 	rows, err := r.db.QueryContext(ctx, q, limit, now)
 	if err != nil {
@@ -118,9 +140,15 @@ func (r *DeliveryPostgresRepository) MarkDelivered(ctx context.Context, id uuid.
 }
 
 // MarkFailed transitions a delivery back to 'pending' for retry with a new next_attempt_at.
-func (r *DeliveryPostgresRepository) MarkFailed(ctx context.Context, id uuid.UUID, code *int, body, errMsg string, nextAttempt time.Time) error {
+// The provided history replaces the stored attempt_history JSONB.
+func (r *DeliveryPostgresRepository) MarkFailed(ctx context.Context, id uuid.UUID, code *int, body, errMsg string, nextAttempt time.Time, history []entities.Attempt) error {
 	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
 		return fmt.Errorf("delivery repo: set search path: %w", err)
+	}
+
+	histJSON, err := json.Marshal(history)
+	if err != nil {
+		return fmt.Errorf("delivery repo: marshal history: %w", err)
 	}
 
 	var nullCode sql.NullInt32
@@ -130,10 +158,10 @@ func (r *DeliveryPostgresRepository) MarkFailed(ctx context.Context, id uuid.UUI
 
 	q := `UPDATE integration_deliveries
 	   SET status = 'pending', response_code = $2, response_body = $3,
-	       error_message = $4, next_attempt_at = $5
+	       error_message = $4, next_attempt_at = $5, attempt_history = $6::jsonb
 	 WHERE id = $1`
 
-	_, err := r.db.ExecContext(ctx, q, id, nullCode, body, errMsg, nextAttempt)
+	_, err = r.db.ExecContext(ctx, q, id, nullCode, body, errMsg, nextAttempt, histJSON)
 	if err != nil {
 		return fmt.Errorf("delivery repo: mark failed: %w", err)
 	}
@@ -141,16 +169,22 @@ func (r *DeliveryPostgresRepository) MarkFailed(ctx context.Context, id uuid.UUI
 }
 
 // MarkDead transitions a delivery to 'dead' — no further retries.
-func (r *DeliveryPostgresRepository) MarkDead(ctx context.Context, id uuid.UUID, errMsg string) error {
+// The provided history replaces the stored attempt_history JSONB.
+func (r *DeliveryPostgresRepository) MarkDead(ctx context.Context, id uuid.UUID, errMsg string, history []entities.Attempt) error {
 	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
 		return fmt.Errorf("delivery repo: set search path: %w", err)
 	}
 
+	histJSON, err := json.Marshal(history)
+	if err != nil {
+		return fmt.Errorf("delivery repo: marshal history: %w", err)
+	}
+
 	q := `UPDATE integration_deliveries
-	   SET status = 'dead', error_message = $2
+	   SET status = 'dead', error_message = $2, attempt_history = $3::jsonb
 	 WHERE id = $1`
 
-	_, err := r.db.ExecContext(ctx, q, id, errMsg)
+	_, err = r.db.ExecContext(ctx, q, id, errMsg, histJSON)
 	if err != nil {
 		return fmt.Errorf("delivery repo: mark dead: %w", err)
 	}
@@ -165,7 +199,7 @@ func (r *DeliveryPostgresRepository) ListByDestination(ctx context.Context, dest
 
 	q := `SELECT id, destination_id, event_type, event_payload, status, attempts,
 	             last_attempt_at, next_attempt_at, response_code, response_body,
-	             error_message, delivered_at, created_at
+	             error_message, delivered_at, created_at, attempt_history
 	      FROM integration_deliveries
 	      WHERE destination_id = $1
 	      ORDER BY created_at DESC
@@ -192,7 +226,7 @@ func (r *DeliveryPostgresRepository) ListByDestination(ctx context.Context, dest
 }
 
 // Retry resets a 'dead' delivery back to 'pending' so the worker will attempt it again.
-// Returns an error if the delivery does not exist or is not in 'dead' state.
+// Returns ErrDeliveryNotInDeadState if the delivery does not exist or is not in 'dead' state.
 func (r *DeliveryPostgresRepository) Retry(ctx context.Context, id uuid.UUID) error {
 	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
 		return fmt.Errorf("delivery repo: set search path: %w", err)
@@ -201,7 +235,7 @@ func (r *DeliveryPostgresRepository) Retry(ctx context.Context, id uuid.UUID) er
 	q := `UPDATE integration_deliveries
 	   SET status = 'pending', next_attempt_at = NOW(), attempts = 0,
 	       error_message = NULL, response_code = NULL, response_body = NULL,
-	       last_attempt_at = NULL
+	       last_attempt_at = NULL, attempt_history = '[]'::jsonb
 	 WHERE id = $1 AND status = 'dead'`
 
 	res, err := r.db.ExecContext(ctx, q, id)
@@ -210,7 +244,7 @@ func (r *DeliveryPostgresRepository) Retry(ctx context.Context, id uuid.UUID) er
 	}
 	n, _ := res.RowsAffected()
 	if n == 0 {
-		return errors.New("delivery repo: not found or not in dead state")
+		return repositories.ErrDeliveryNotInDeadState
 	}
 	return nil
 }
@@ -218,15 +252,23 @@ func (r *DeliveryPostgresRepository) Retry(ctx context.Context, id uuid.UUID) er
 // --- internal helpers ---
 
 // scanDelivery reads one row from a scanner into a Delivery entity.
+// The SELECT must return columns in this order:
+//
+//	id, destination_id, event_type, event_payload, status, attempts,
+//	last_attempt_at, next_attempt_at, response_code, response_body,
+//	error_message, delivered_at, created_at, attempt_history
 func scanDelivery(s scanner) (*entities.Delivery, error) {
 	var d entities.Delivery
-	var payloadJSON []byte
-	var lastAttemptAt sql.NullTime
-	var nextAttemptAt time.Time
-	var responseCode sql.NullInt32
-	var responseBody sql.NullString
-	var errorMessage sql.NullString
-	var deliveredAt sql.NullTime
+	var (
+		payloadJSON   []byte
+		lastAttemptAt sql.NullTime
+		nextAttemptAt time.Time
+		responseCode  sql.NullInt32
+		responseBody  sql.NullString
+		errorMessage  sql.NullString
+		deliveredAt   sql.NullTime
+		historyJSON   []byte
+	)
 
 	err := s.Scan(
 		&d.ID,
@@ -242,6 +284,7 @@ func scanDelivery(s scanner) (*entities.Delivery, error) {
 		&errorMessage,
 		&deliveredAt,
 		&d.CreatedAt,
+		&historyJSON,
 	)
 	if err != nil {
 		return nil, err
@@ -275,6 +318,9 @@ func scanDelivery(s scanner) (*entities.Delivery, error) {
 	if deliveredAt.Valid {
 		t := deliveredAt.Time
 		d.DeliveredAt = &t
+	}
+	if len(historyJSON) > 0 {
+		_ = json.Unmarshal(historyJSON, &d.AttemptHistory)
 	}
 
 	return &d, nil
