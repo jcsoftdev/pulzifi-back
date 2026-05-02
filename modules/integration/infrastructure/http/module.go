@@ -222,7 +222,7 @@ func (m *Module) handleStartOAuth(w http.ResponseWriter, r *http.Request) {
 	// Capture the tenant's origin for the post-OAuth redirect.
 	scheme := "http"
 	if proto := r.Header.Get("X-Forwarded-Proto"); proto != "" {
-		scheme = proto
+		scheme = strings.TrimSpace(strings.SplitN(proto, ",", 2)[0])
 	}
 	returnHost := scheme + "://" + r.Host
 
