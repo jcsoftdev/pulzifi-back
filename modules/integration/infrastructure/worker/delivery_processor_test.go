@@ -7,7 +7,11 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -18,6 +22,9 @@ import (
 	"github.com/jcsoftdev/pulzifi-back/modules/integration/domain/repositories"
 	"github.com/jcsoftdev/pulzifi-back/modules/integration/domain/services"
 	"github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/persistence"
+	providers "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers"
+	sheetsprovider "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers/sheets"
+	teamsprovider "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers/teams"
 	deliveryworker "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/worker"
 	"github.com/jcsoftdev/pulzifi-back/shared/crypto"
 )
@@ -405,5 +412,379 @@ func TestDeliveryWorker_TickProcessesAllOutcomes(t *testing.T) {
 		if h.Code == nil || *h.Code != want401 {
 			t.Errorf("delivery 3: AttemptHistory[0].Code want 401, got %v", h.Code)
 		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Helper: resolve the actual org ID for workerTestTenant (handles ON CONFLICT DO NOTHING).
+// ---------------------------------------------------------------------------
+
+func resolveWorkerOrgID(t *testing.T, ctx context.Context, db *sql.DB) uuid.UUID {
+	t.Helper()
+	var id uuid.UUID
+	err := db.QueryRowContext(ctx,
+		`SELECT id FROM public.organizations WHERE schema_name = $1 LIMIT 1`,
+		workerTestTenant,
+	).Scan(&id)
+	if err != nil {
+		t.Fatalf("resolveWorkerOrgID: %v", err)
+	}
+	return id
+}
+
+// ---------------------------------------------------------------------------
+// Helper: insert integration row in the public schema.
+// ---------------------------------------------------------------------------
+
+func insertWorkerIntegration(
+	t *testing.T,
+	ctx context.Context,
+	db *sql.DB,
+	enc *crypto.AESGCM,
+	orgID uuid.UUID,
+	serviceType string,
+	accessToken string,
+	refreshToken string,
+	expiresAt *time.Time,
+) uuid.UUID {
+	t.Helper()
+	intRepo := persistence.NewIntegrationPostgresRepository(db, enc)
+	integ := &entities.Integration{
+		ID:             uuid.New(),
+		OrgID:         orgID,
+		ServiceType:   serviceType,
+		Status:        entities.IntegrationActive,
+		AccessToken:   accessToken,
+		RefreshToken:  refreshToken,
+		TokenExpiresAt: expiresAt,
+		ProviderMeta:  map[string]any{},
+		CreatedBy:     orgID, // reuse orgID as a stand-in for created_by user
+	}
+	if err := intRepo.Create(ctx, integ); err != nil {
+		t.Fatalf("insertWorkerIntegration: %v", err)
+	}
+	t.Cleanup(func() {
+		db.ExecContext(ctx, `DELETE FROM public.integrations WHERE id = $1`, integ.ID)
+	})
+	return integ.ID
+}
+
+// ---------------------------------------------------------------------------
+// Helper: insert a destination with arbitrary service_type and target JSON.
+// ---------------------------------------------------------------------------
+
+func insertWorkerTestDestFull(
+	t *testing.T,
+	ctx context.Context,
+	db *sql.DB,
+	integID *uuid.UUID,
+	serviceType string,
+	targetJSON string,
+) uuid.UUID {
+	t.Helper()
+	destID := uuid.New()
+	scopeID := uuid.New()
+
+	if _, err := db.ExecContext(ctx, "SET search_path TO "+workerTestTenant+", public"); err != nil {
+		t.Fatalf("insertWorkerTestDestFull: set search path: %v", err)
+	}
+
+	var integIDVal interface{} = nil
+	if integID != nil {
+		integIDVal = *integID
+	}
+
+	_, err := db.ExecContext(ctx, `
+		INSERT INTO integration_destinations
+			(id, integration_id, service_type, scope_type, scope_id, target, events, enabled, created_at, updated_at)
+		VALUES ($1, $2, $3, 'org', $4, $5::jsonb, ARRAY['test.event'], true, NOW(), NOW())`,
+		destID, integIDVal, serviceType, scopeID, targetJSON,
+	)
+	if err != nil {
+		t.Fatalf("insertWorkerTestDestFull: %v", err)
+	}
+
+	t.Cleanup(func() {
+		db.ExecContext(ctx, "SET search_path TO "+workerTestTenant+", public")
+		db.ExecContext(ctx, `DELETE FROM integration_deliveries WHERE destination_id = $1`, destID)
+		db.ExecContext(ctx, `DELETE FROM integration_destinations WHERE id = $1`, destID)
+	})
+	return destID
+}
+
+// ---------------------------------------------------------------------------
+// TestDeliveryProcessor_RefreshesSheetsToken
+// ---------------------------------------------------------------------------
+
+func TestDeliveryProcessor_RefreshesSheetsToken(t *testing.T) {
+	if os.Getenv("DATABASE_URL") == "" {
+		t.Skip("DATABASE_URL not set")
+	}
+
+	ctx := context.Background()
+	db := openWorkerTestDB(t)
+	t.Cleanup(func() { db.Close() })
+
+	enc, err := crypto.NewAESGCM(make([]byte, 32))
+	if err != nil {
+		t.Fatalf("NewAESGCM: %v", err)
+	}
+
+	// 1. Mock token endpoint — returns new access token.
+	var refreshHits int32
+	refreshSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&refreshHits, 1)
+		if err := r.ParseForm(); err != nil {
+			t.Errorf("token endpoint: ParseForm: %v", err)
+			return
+		}
+		if r.FormValue("grant_type") != "refresh_token" {
+			t.Errorf("token endpoint: want grant_type=refresh_token, got %s", r.FormValue("grant_type"))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"access_token":"new-sheets-token","expires_in":3600,"scope":"sheets","token_type":"Bearer"}`))
+	}))
+	defer refreshSrv.Close()
+
+	// 2. Mock Sheets API append endpoint — verifies the new token is used.
+	var sendHits int32
+	sheetsSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&sendHits, 1)
+		if !strings.HasPrefix(r.Header.Get("Authorization"), "Bearer new-sheets-token") {
+			t.Errorf("sheets send: want Bearer new-sheets-token, got %s", r.Header.Get("Authorization"))
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer sheetsSrv.Close()
+
+	// Swap provider package-level URL vars; restore on cleanup.
+	origTokenURL := sheetsprovider.TokenURL
+	origSheetsBase := sheetsprovider.SheetsBase
+	sheetsprovider.TokenURL = refreshSrv.URL
+	sheetsprovider.SheetsBase = sheetsSrv.URL
+	t.Cleanup(func() {
+		sheetsprovider.TokenURL = origTokenURL
+		sheetsprovider.SheetsBase = origSheetsBase
+	})
+
+	// 3. Seed org (the worker's listTenants query reads public.organizations).
+	//    insertWorkerTestOrg may do ON CONFLICT DO NOTHING, so resolve the actual org ID after.
+	insertWorkerTestOrg(t, ctx, db)
+	orgID := resolveWorkerOrgID(t, ctx, db)
+
+	// 4. Insert integration with token expiring in 30s (within the <1m refresh window).
+	expiresAt := time.Now().UTC().Add(30 * time.Second)
+	integID := insertWorkerIntegration(t, ctx, db, enc, orgID, "sheets",
+		"old-sheets-token", "rt-sheets-xxx", &expiresAt)
+
+	// 5. Insert destination (sheets, pointing to a spreadsheet).
+	destID := insertWorkerTestDestFull(t, ctx, db, &integID, "sheets",
+		`{"spreadsheet_id":"SHEET123","tab_name":"Alerts"}`)
+
+	// 6. Insert pending delivery.
+	delID := insertWorkerTestDelivery(t, ctx, db, destID)
+
+	// 7. Build worker with sheets provider in the registry.
+	intRepo := persistence.NewIntegrationPostgresRepository(db, enc)
+	registry := providers.NewRegistry(
+		sheetsprovider.New("test-cid", "test-secret"),
+	)
+	factory := &postgresRepoFactory{db: db}
+
+	worker := deliveryworker.New(
+		db,
+		factory,
+		intRepo,
+		registry,
+		services.NewPayloadBuilder(),
+		deliveryworker.Config{
+			PoolSize:       5,
+			ClaimBatchSize: 50,
+			PollInterval:   time.Hour,
+			MaxAttempts:    5,
+			Synchronous:    true,
+		},
+	)
+
+	// 8. Run one tick synchronously.
+	sem := make(chan struct{}, 5)
+	worker.TickForTest(ctx, sem)
+
+	// 9. Assert: token endpoint was called exactly once.
+	if got := atomic.LoadInt32(&refreshHits); got != 1 {
+		t.Errorf("refreshHits: want 1, got %d", got)
+	}
+
+	// 10. Assert: Sheets send endpoint was called exactly once.
+	if got := atomic.LoadInt32(&sendHits); got != 1 {
+		t.Errorf("sendHits: want 1, got %d", got)
+	}
+
+	// 11. Assert: integration row has the new access token persisted.
+	updatedInteg, err := intRepo.GetByID(ctx, integID)
+	if err != nil {
+		t.Fatalf("GetByID after refresh: %v", err)
+	}
+	if updatedInteg == nil {
+		t.Fatal("integration not found after refresh")
+	}
+	if updatedInteg.AccessToken != "new-sheets-token" {
+		t.Errorf("integration AccessToken: want new-sheets-token, got %q", updatedInteg.AccessToken)
+	}
+	if updatedInteg.TokenExpiresAt == nil {
+		t.Error("integration TokenExpiresAt should be non-nil after refresh")
+	} else {
+		advance := time.Until(*updatedInteg.TokenExpiresAt)
+		if advance < 50*time.Minute || advance > 70*time.Minute {
+			t.Errorf("integration TokenExpiresAt advanced %v, want ~1h", advance)
+		}
+	}
+
+	// 12. Assert: delivery is marked delivered.
+	d := fetchWorkerDelivery(t, ctx, db, delID)
+	if d.Status != entities.DeliveryDelivered {
+		t.Errorf("delivery status: want delivered, got %q", d.Status)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// TestDeliveryProcessor_RefreshesTeamsTokenAndRotatesRefresh
+// ---------------------------------------------------------------------------
+
+func TestDeliveryProcessor_RefreshesTeamsTokenAndRotatesRefresh(t *testing.T) {
+	if os.Getenv("DATABASE_URL") == "" {
+		t.Skip("DATABASE_URL not set")
+	}
+
+	ctx := context.Background()
+	db := openWorkerTestDB(t)
+	t.Cleanup(func() { db.Close() })
+
+	enc, err := crypto.NewAESGCM(make([]byte, 32))
+	if err != nil {
+		t.Fatalf("NewAESGCM: %v", err)
+	}
+
+	// 1. Mock token endpoint — Microsoft rotates refresh_token on every refresh.
+	var refreshHits int32
+	refreshSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&refreshHits, 1)
+		if err := r.ParseForm(); err != nil {
+			t.Errorf("token endpoint: ParseForm: %v", err)
+			return
+		}
+		if r.FormValue("grant_type") != "refresh_token" {
+			t.Errorf("token endpoint: want grant_type=refresh_token, got %s", r.FormValue("grant_type"))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"access_token":"new-teams-token","refresh_token":"rt-new","expires_in":3600,"scope":"teams","token_type":"Bearer"}`))
+	}))
+	defer refreshSrv.Close()
+
+	// 2. Mock Teams Graph send endpoint.
+	var sendHits int32
+	graphSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&sendHits, 1)
+		if !strings.HasPrefix(r.Header.Get("Authorization"), "Bearer new-teams-token") {
+			t.Errorf("graph send: want Bearer new-teams-token, got %s", r.Header.Get("Authorization"))
+		}
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer graphSrv.Close()
+
+	// Swap provider package-level URL vars; restore on cleanup.
+	origTokenURL := teamsprovider.TokenURL
+	origGraphBase := teamsprovider.GraphBase
+	teamsprovider.TokenURL = refreshSrv.URL
+	teamsprovider.GraphBase = graphSrv.URL
+	t.Cleanup(func() {
+		teamsprovider.TokenURL = origTokenURL
+		teamsprovider.GraphBase = origGraphBase
+	})
+
+	// 3. Seed org.
+	//    insertWorkerTestOrg may do ON CONFLICT DO NOTHING, so resolve the actual org ID after.
+	insertWorkerTestOrg(t, ctx, db)
+	orgID := resolveWorkerOrgID(t, ctx, db)
+
+	// 4. Insert integration with token expiring in 30s (within the <1m refresh window).
+	expiresAt := time.Now().UTC().Add(30 * time.Second)
+	integID := insertWorkerIntegration(t, ctx, db, enc, orgID, "teams",
+		"old-teams-token", "rt-old", &expiresAt)
+
+	// 5. Insert destination — Teams, channel_target in "teamID|channelID" composite form.
+	destID := insertWorkerTestDestFull(t, ctx, db, &integID, "teams",
+		`{"channel_target":"teamA|chanB"}`)
+
+	// 6. Insert pending delivery.
+	delID := insertWorkerTestDelivery(t, ctx, db, destID)
+
+	// 7. Build worker with teams provider in registry.
+	intRepo := persistence.NewIntegrationPostgresRepository(db, enc)
+	registry := providers.NewRegistry(
+		teamsprovider.New("test-cid", "test-secret"),
+	)
+	factory := &postgresRepoFactory{db: db}
+
+	worker := deliveryworker.New(
+		db,
+		factory,
+		intRepo,
+		registry,
+		services.NewPayloadBuilder(),
+		deliveryworker.Config{
+			PoolSize:       5,
+			ClaimBatchSize: 50,
+			PollInterval:   time.Hour,
+			MaxAttempts:    5,
+			Synchronous:    true,
+		},
+	)
+
+	// 8. Run one tick synchronously.
+	sem := make(chan struct{}, 5)
+	worker.TickForTest(ctx, sem)
+
+	// 9. Assert: token endpoint was called exactly once.
+	if got := atomic.LoadInt32(&refreshHits); got != 1 {
+		t.Errorf("refreshHits: want 1, got %d", got)
+	}
+
+	// 10. Assert: Teams send endpoint was called exactly once.
+	if got := atomic.LoadInt32(&sendHits); got != 1 {
+		t.Errorf("sendHits: want 1, got %d", got)
+	}
+
+	// 11. Assert: integration row has new access token AND rotated refresh token persisted.
+	updatedInteg, err := intRepo.GetByID(ctx, integID)
+	if err != nil {
+		t.Fatalf("GetByID after refresh: %v", err)
+	}
+	if updatedInteg == nil {
+		t.Fatal("integration not found after refresh")
+	}
+	if updatedInteg.AccessToken != "new-teams-token" {
+		t.Errorf("integration AccessToken: want new-teams-token, got %q", updatedInteg.AccessToken)
+	}
+	if updatedInteg.RefreshToken != "rt-new" {
+		t.Errorf("integration RefreshToken: want rt-new (rotated), got %q", updatedInteg.RefreshToken)
+	}
+	if updatedInteg.TokenExpiresAt == nil {
+		t.Error("integration TokenExpiresAt should be non-nil after refresh")
+	} else {
+		advance := time.Until(*updatedInteg.TokenExpiresAt)
+		if advance < 50*time.Minute || advance > 70*time.Minute {
+			t.Errorf("integration TokenExpiresAt advanced %v, want ~1h", advance)
+		}
+	}
+
+	// 12. Assert: delivery is marked delivered.
+	d := fetchWorkerDelivery(t, ctx, db, delID)
+	if d.Status != entities.DeliveryDelivered {
+		t.Errorf("delivery status: want delivered, got %q", d.Status)
 	}
 }
