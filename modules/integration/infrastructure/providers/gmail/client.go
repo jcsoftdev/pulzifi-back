@@ -136,6 +136,10 @@ func (c *Client) fetchUserEmail(ctx context.Context, accessToken string) (string
 	defer resp.Body.Close()
 	raw, _ := io.ReadAll(resp.Body)
 
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("userinfo: status %d: %s", resp.StatusCode, truncate(string(raw), 200))
+	}
+
 	var u struct {
 		Email string `json:"email"`
 		Error string `json:"error"`
@@ -257,7 +261,7 @@ func (c *Client) sendOne(ctx context.Context, accessToken, from, to, subject, ht
 		"From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
 		from, to, subject, htmlBody,
 	)
-	encoded := base64.URLEncoding.EncodeToString([]byte(msg))
+	encoded := base64.RawURLEncoding.EncodeToString([]byte(msg))
 	payload, _ := json.Marshal(map[string]string{"raw": encoded})
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, SendURL, bytes.NewReader(payload))

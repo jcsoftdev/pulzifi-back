@@ -84,6 +84,9 @@ func TestHandleCallback_Success(t *testing.T) {
 	if email, _ := result.ProviderMeta["email"].(string); email != "user@gmail.com" {
 		t.Errorf("provider_meta.email = %q, want user@gmail.com", email)
 	}
+	if callCount != 2 {
+		t.Errorf("expected 2 server calls, got %d", callCount)
+	}
 }
 
 func TestHandleCallback_TokenError(t *testing.T) {
