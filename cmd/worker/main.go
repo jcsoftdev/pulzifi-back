@@ -1,12 +1,23 @@
 package main
 
 import (
+	"context"
+	"encoding/hex"
 	"os"
 	"os/signal"
 	"syscall"
 
+	intpersistence "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/persistence"
+	intproviders "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers"
+	emailprovider "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers/email"
+	slackprovider "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers/slack"
+	deliveryworker "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/worker"
 	monitoring "github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/http"
+	intwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/integration"
+	emailproviders "github.com/jcsoftdev/pulzifi-back/modules/email/infrastructure/providers"
+	"github.com/jcsoftdev/pulzifi-back/modules/integration/domain/services"
 	"github.com/jcsoftdev/pulzifi-back/shared/config"
+	"github.com/jcsoftdev/pulzifi-back/shared/crypto"
 	"github.com/jcsoftdev/pulzifi-back/shared/database"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"go.uber.org/zap"
@@ -24,19 +35,66 @@ func main() {
 	}
 	defer db.Close()
 
-	// Initialize Monitoring Module (which contains the Scheduler logic)
-	// Note: We don't need EventBus here for the scheduler/orchestrator loop as implemented currently
-	// but NewModuleWithDB requires it. We can pass nil if we don't need to listen to API events here.
-	// But if we want to support cross-module events later, we might need it.
-	// For now, pass nil.
+	// ---------------------------------------------------------------------------
+	// Monitoring background processes
+	// ---------------------------------------------------------------------------
 	mod := monitoring.NewModuleWithDB(db, nil, nil, "")
-
-	// Cast to concrete type to access StartBackgroundProcesses
 	if monitoringModule, ok := mod.(*monitoring.Module); ok {
 		monitoringModule.StartBackgroundProcesses()
 	} else {
 		logger.Logger.Fatal("Failed to cast monitoring module")
 	}
+
+	// ---------------------------------------------------------------------------
+	// Integration delivery worker
+	// ---------------------------------------------------------------------------
+	intKeyHex := cfg.IntegrationTokenKey
+	if intKeyHex == "" {
+		if cfg.Environment == "production" {
+			logger.Logger.Fatal("INTEGRATION_TOKEN_KEY required in production")
+		}
+		logger.Warn("INTEGRATION_TOKEN_KEY not set — using insecure dev default")
+		intKeyHex = "00000000000000000000000000000000000000000000000000000000000000ff"
+	}
+	intKey, err := hex.DecodeString(intKeyHex)
+	if err != nil || len(intKey) != 32 {
+		logger.Logger.Fatal("invalid INTEGRATION_TOKEN_KEY", zap.Error(err))
+	}
+	intEnc, err := crypto.NewAESGCM(intKey)
+	if err != nil {
+		logger.Logger.Fatal("crypto init failed", zap.Error(err))
+	}
+
+	intRepo := intpersistence.NewIntegrationPostgresRepository(db, intEnc)
+
+	emailProvider := emailproviders.NewResendProvider(cfg.ResendAPIKey, cfg.EmailFromAddress, cfg.EmailFromName)
+	slackClient := slackprovider.New(cfg.SlackClientID, cfg.SlackClientSecret)
+	intEmailClient := emailprovider.New(intwiring.NewEmailAdapter(emailProvider))
+	intRegistry := intproviders.NewRegistry(slackClient, intEmailClient)
+
+	intRepoFactory := intwiring.NewTenantRepoFactory(db)
+
+	delWorker := deliveryworker.New(
+		db,
+		intRepoFactory,
+		intRepo,
+		intRegistry,
+		services.NewPayloadBuilder(),
+		deliveryworker.Config{
+			PollInterval:   cfg.DeliveryPollInterval,
+			PoolSize:       cfg.DeliveryWorkerPoolSize,
+			MaxAttempts:    cfg.DeliveryMaxAttempts,
+		},
+	)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go func() {
+		if err := delWorker.Run(ctx); err != nil && err != context.Canceled {
+			logger.Logger.Fatal("delivery worker stopped", zap.Error(err))
+		}
+	}()
 
 	logger.Info("Worker Service is running...")
 
@@ -46,4 +104,5 @@ func main() {
 	<-sigChan
 
 	logger.Info("Shutdown signal received, shutting down worker...")
+	cancel()
 }

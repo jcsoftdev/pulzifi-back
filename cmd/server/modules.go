@@ -44,7 +44,7 @@ import (
 	"github.com/jcsoftdev/pulzifi-back/shared/noncestore"
 	"github.com/jcsoftdev/pulzifi-back/shared/pubsub"
 	"github.com/jcsoftdev/pulzifi-back/shared/router"
-	intwiring "github.com/jcsoftdev/pulzifi-back/cmd/server/wiring"
+	intwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/integration"
 	"go.uber.org/zap"
 )
 

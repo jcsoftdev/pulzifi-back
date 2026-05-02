@@ -1,4 +1,4 @@
-package wiring
+package intwiring
 
 import (
 	"context"
