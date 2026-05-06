@@ -11,14 +11,18 @@ type Props = {
 }
 
 export async function generateStaticParams() {
-  const payload = await getPayloadClient()
-  const posts = await payload.find({
-    collection: 'posts',
-    where: { _status: { equals: 'published' } },
-    select: { slug: true },
-    limit: 1000,
-  })
-  return posts.docs.map((post: any) => ({ slug: post.slug }))
+  try {
+    const payload = await getPayloadClient()
+    const posts = await payload.find({
+      collection: 'posts',
+      where: { _status: { equals: 'published' } },
+      select: { slug: true },
+      limit: 1000,
+    })
+    return posts.docs.map((post: any) => ({ slug: post.slug }))
+  } catch {
+    return []
+  }
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
