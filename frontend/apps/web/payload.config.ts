@@ -2,7 +2,7 @@ import { postgresAdapter } from '@payloadcms/db-postgres'
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
 import { s3Storage } from '@payloadcms/storage-s3'
 import { buildConfig } from 'payload'
-import { ALL_BLOCKS } from '@/features/cms/blocks/schemas'
+import { ALL_BLOCKS } from './features/cms/blocks/schemas'
 
 export default buildConfig({
   secret: process.env.PAYLOAD_SECRET ?? 'dev-secret-change-in-prod',
