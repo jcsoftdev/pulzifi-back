@@ -59,37 +59,18 @@ export const FeaturesBlock: Block = {
   ],
 }
 
+// v1: InsightsSection renders its own hardcoded content. No CMS fields.
 export const InsightsBlock: Block = {
   slug: 'insights',
   labels: { singular: 'Insights', plural: 'Insights' },
-  fields: [
-    { name: 'heading', type: 'text', required: true },
-    { name: 'subheading', type: 'text' },
-    {
-      name: 'items',
-      type: 'array',
-      fields: [
-        { name: 'title', type: 'text', required: true },
-        { name: 'description', type: 'text', required: true },
-      ],
-    },
-  ],
+  fields: [],
 }
 
+// v1: IndustriesSection renders its own hardcoded content. No CMS fields.
 export const IndustriesBlock: Block = {
   slug: 'industries',
   labels: { singular: 'Industries', plural: 'Industries' },
-  fields: [
-    {
-      name: 'items',
-      type: 'array',
-      fields: [
-        { name: 'title', type: 'text', required: true },
-        { name: 'description', type: 'text', required: true },
-        { name: 'icon', type: 'text' },
-      ],
-    },
-  ],
+  fields: [],
 }
 
 export const PricingBlock: Block = {

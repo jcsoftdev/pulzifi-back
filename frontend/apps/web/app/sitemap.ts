@@ -4,23 +4,6 @@ import { getPayloadClient } from '@/lib/payload'
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = process.env.NEXT_PUBLIC_APP_BASE_URL || 'https://pulzifi.com'
 
-  const payload = await getPayloadClient()
-
-  const [pages, posts] = await Promise.all([
-    payload.find({
-      collection: 'pages',
-      where: { _status: { equals: 'published' } },
-      select: { slug: true },
-      limit: 1000,
-    }),
-    payload.find({
-      collection: 'posts',
-      where: { _status: { equals: 'published' } },
-      select: { slug: true, publishedAt: true },
-      limit: 1000,
-    }),
-  ])
-
   const staticRoutes: MetadataRoute.Sitemap = [
     { url: baseUrl, lastModified: new Date(), changeFrequency: 'weekly', priority: 1 },
     {
@@ -49,19 +32,39 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
   ]
 
-  const pageRoutes: MetadataRoute.Sitemap = pages.docs.map((page: any) => ({
-    url: `${baseUrl}/${page.slug}`,
-    lastModified: new Date(),
-    changeFrequency: 'monthly' as const,
-    priority: 0.7,
-  }))
+  try {
+    const payload = await getPayloadClient()
+    const [pages, posts] = await Promise.all([
+      payload.find({
+        collection: 'pages',
+        where: { _status: { equals: 'published' } },
+        select: { slug: true },
+        limit: 1000,
+      }),
+      payload.find({
+        collection: 'posts',
+        where: { _status: { equals: 'published' } },
+        select: { slug: true, publishedAt: true },
+        limit: 1000,
+      }),
+    ])
 
-  const postRoutes: MetadataRoute.Sitemap = posts.docs.map((post: any) => ({
-    url: `${baseUrl}/blog/${post.slug}`,
-    lastModified: post.publishedAt ? new Date(post.publishedAt) : new Date(),
-    changeFrequency: 'monthly' as const,
-    priority: 0.6,
-  }))
+    const pageRoutes: MetadataRoute.Sitemap = pages.docs.map((page: any) => ({
+      url: `${baseUrl}/${page.slug}`,
+      lastModified: new Date(),
+      changeFrequency: 'monthly' as const,
+      priority: 0.7,
+    }))
 
-  return [...staticRoutes, ...pageRoutes, ...postRoutes]
+    const postRoutes: MetadataRoute.Sitemap = posts.docs.map((post: any) => ({
+      url: `${baseUrl}/blog/${post.slug}`,
+      lastModified: post.publishedAt ? new Date(post.publishedAt) : new Date(),
+      changeFrequency: 'monthly' as const,
+      priority: 0.6,
+    }))
+
+    return [...staticRoutes, ...pageRoutes, ...postRoutes]
+  } catch {
+    return staticRoutes
+  }
 }

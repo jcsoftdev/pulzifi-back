@@ -86,15 +86,21 @@ export default async function HomePage() {
     }
   }
 
-  const payload = await getPayloadClient()
-  const landing = await payload.findGlobal({ slug: 'landing', depth: 2 })
+  let landingBlocks: any[] = []
+  try {
+    const payload = await getPayloadClient()
+    const landing = await payload.findGlobal({ slug: 'landing', depth: 2 })
+    landingBlocks = (landing.blocks as any) ?? []
+  } catch {
+    // DB unavailable — render empty landing page rather than 500
+  }
 
   return (
     <div className="min-h-screen bg-[#f3f3f3]">
       <div className="mx-auto max-w-[1280px] space-y-3 p-3">
         <Navbar />
         <main>
-          <BlocksRenderer blocks={(landing.blocks as any) ?? []} />
+          <BlocksRenderer blocks={landingBlocks} />
         </main>
         <FooterSection />
       </div>
