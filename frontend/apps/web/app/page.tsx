@@ -5,19 +5,9 @@ import { isRedirectError } from 'next/dist/client/components/redirect-error'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 
-import {
-  FaqSection,
-  FeaturesSection,
-  FooterSection,
-  HeroSection,
-  HowItWorksSection,
-  IndustriesSection,
-  InsightsSection,
-  Navbar,
-  PricingSection,
-  StatsSection,
-  TestimonialsSection,
-} from '@/features/landing'
+import { BlocksRenderer } from '@/features/cms'
+import { FooterSection, Navbar } from '@/features/landing'
+import { getPayloadClient } from '@/lib/payload'
 
 export const metadata: Metadata = {
   title: 'Pulzifi — AI-Powered Competitive Intelligence & Website Monitoring',
@@ -96,22 +86,15 @@ export default async function HomePage() {
     }
   }
 
+  const payload = await getPayloadClient()
+  const landing = await payload.findGlobal({ slug: 'landing', depth: 2 })
+
   return (
     <div className="min-h-screen bg-[#f3f3f3]">
       <div className="mx-auto max-w-[1280px] space-y-3 p-3">
         <Navbar />
         <main>
-          <div className="space-y-3">
-            <HeroSection />
-            <StatsSection />
-            <HowItWorksSection />
-            <FeaturesSection />
-            <InsightsSection />
-            <IndustriesSection />
-            <PricingSection />
-            <TestimonialsSection />
-            <FaqSection />
-          </div>
+          <BlocksRenderer blocks={(landing.blocks as any) ?? []} />
         </main>
         <FooterSection />
       </div>

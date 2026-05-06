@@ -6,8 +6,18 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { NAV_LINKS } from '../lib/data'
 import { LandingButton } from './components/landing-button'
+
+type NavLink = { label: string; href: string }
+type NavbarProps = { links?: ReadonlyArray<NavLink> }
+
+const DEFAULT_NAV_LINKS: ReadonlyArray<NavLink> = [
+  { label: 'Home', href: '#' },
+  { label: 'Product', href: '#how-it-works' },
+  { label: 'How to use', href: '#industries' },
+  { label: 'Pricing', href: '#pricing' },
+  { label: 'Contact', href: '/contact' },
+]
 
 const NAV_LINK_PATHS: Record<string, string> = {
   Pricing: '/pricing',
@@ -27,10 +37,12 @@ function MobileMenu({
   open,
   onClose,
   isHome,
+  links,
 }: {
   open: boolean
   onClose: () => void
   isHome: boolean
+  links: ReadonlyArray<NavLink>
 }) {
   const [mounted, setMounted] = useState(false)
 
@@ -80,7 +92,7 @@ function MobileMenu({
 
         {/* Links */}
         <div className="flex flex-col gap-1 pt-4">
-          {NAV_LINKS.map((link) => (
+          {links.map((link) => (
             <Link
               key={link.label}
               href={NAV_LINK_PATHS[link.label] || resolveHref(link.href, isHome)}
@@ -107,7 +119,7 @@ function MobileMenu({
   )
 }
 
-export function Navbar() {
+export function Navbar({ links = DEFAULT_NAV_LINKS }: NavbarProps = {}) {
   const [mobileOpen, setMobileOpen] = useState(false)
   const pathname = usePathname()
   const isHome = pathname === '/'
@@ -125,7 +137,7 @@ export function Navbar() {
 
           {/* Desktop Nav */}
           <div className="hidden items-center gap-1 md:flex">
-            {NAV_LINKS.map((link) => {
+            {links.map((link) => {
               const href = NAV_LINK_PATHS[link.label] || resolveHref(link.href, isHome)
               const active = isLinkActive(link.label, pathname)
               return (
@@ -164,7 +176,12 @@ export function Navbar() {
         </div>
       </nav>
 
-      <MobileMenu open={mobileOpen} onClose={() => setMobileOpen(false)} isHome={isHome} />
+      <MobileMenu
+        open={mobileOpen}
+        onClose={() => setMobileOpen(false)}
+        isHome={isHome}
+        links={links}
+      />
     </>
   )
 }

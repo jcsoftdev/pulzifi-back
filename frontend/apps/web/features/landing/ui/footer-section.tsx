@@ -1,8 +1,28 @@
 import Link from 'next/link'
-import { FOOTER_LINKS } from '../lib/data'
 import { LandingButton } from './components/landing-button'
 
-export function FooterSection() {
+type FooterLink = { label: string; href: string }
+type FooterLinks = Record<string, ReadonlyArray<FooterLink>>
+type FooterSectionProps = { links?: FooterLinks }
+
+const DEFAULT_FOOTER_LINKS: FooterLinks = {
+  Features: [
+    { label: 'Product', href: '#how-it-works' },
+    { label: 'Use Cases', href: '#industries' },
+    { label: 'Pricing', href: '#pricing' },
+  ],
+  Support: [
+    { label: 'Help', href: '#' },
+    { label: 'FAQ', href: '#faq' },
+    { label: 'Contact', href: '/contact' },
+  ],
+  Legal: [
+    { label: 'Privacy Policy', href: '#' },
+    { label: 'Terms of Services', href: '#' },
+  ],
+}
+
+export function FooterSection({ links = DEFAULT_FOOTER_LINKS }: FooterSectionProps = {}) {
   return (
     <footer
       id="footer"
@@ -51,11 +71,11 @@ export function FooterSection() {
             </span>
           </div>
           <div className="flex flex-wrap gap-8 sm:gap-16">
-            {Object.entries(FOOTER_LINKS).map(([category, links]) => (
+            {Object.entries(links).map(([category, categoryLinks]) => (
               <div key={category} className="flex flex-col gap-4">
                 <span className="text-base text-white">{category}</span>
                 <div className="flex flex-col gap-3">
-                  {links.map((link) => (
+                  {categoryLinks.map((link) => (
                     <Link
                       key={link.label}
                       href={link.href}
