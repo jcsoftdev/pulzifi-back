@@ -11,9 +11,6 @@ export default buildConfig({
   routes: {
     admin: '/cms-admin',
   },
-  admin: {
-    user: 'users',
-  },
   collections: [],
   globals: [],
 })
