@@ -137,6 +137,10 @@ Uses **the same environment variables as the API Server**, but only reads:
 - `PORT` (default: 3000) — HTTP port for Next.js server
 - `NODE_ENV` (set to production in Dockerfile)
 
+### CMS (PayloadCMS)
+- `PAYLOAD_SECRET` [REQUIRED in production] — secret key for Payload session signing (e.g., change-me-in-production)
+- `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` — same DB credentials as API Server (Payload shares the same PostgreSQL instance)
+
 ### NOT Used by Frontend
 - Database, Redis, Extractor, Storage, AI, Email, OAuth credentials — all handled by backend API
 

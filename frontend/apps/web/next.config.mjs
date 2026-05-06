@@ -1,7 +1,6 @@
-/**
- * @type {import('next').NextConfig}
- */
+import { withPayload } from '@payloadcms/next/withPayload'
 
+/** @type {import('next').NextConfig} */
 const nextConfig = {
   transpilePackages: ['@workspace/ui', '@workspace/services', '@workspace/shared-http', '@workspace/notix'],
 
@@ -23,4 +22,4 @@ const nextConfig = {
   ],
 }
 
-export default nextConfig
+export default withPayload(nextConfig)
