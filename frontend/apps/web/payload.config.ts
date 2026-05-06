@@ -1,6 +1,8 @@
 import { postgresAdapter } from '@payloadcms/db-postgres'
+import { lexicalEditor } from '@payloadcms/richtext-lexical'
 import { s3Storage } from '@payloadcms/storage-s3'
 import { buildConfig } from 'payload'
+import { ALL_BLOCKS } from '@/features/cms/blocks/schemas'
 
 export default buildConfig({
   secret: process.env.PAYLOAD_SECRET ?? 'dev-secret-change-in-prod',
@@ -49,6 +51,121 @@ export default buildConfig({
       auth: true,
       fields: [],
     },
+    {
+      slug: 'pages',
+      admin: { useAsTitle: 'title' },
+      versions: { drafts: true },
+      endpoints: false,
+      access: { read: () => true },
+      fields: [
+        { name: 'title', type: 'text', required: true },
+        {
+          name: 'slug',
+          type: 'text',
+          required: true,
+          unique: true,
+          admin: { position: 'sidebar' },
+        },
+        {
+          name: 'blocks',
+          type: 'blocks',
+          blocks: ALL_BLOCKS,
+        },
+        {
+          name: 'meta',
+          type: 'group',
+          fields: [
+            { name: 'title', type: 'text' },
+            { name: 'description', type: 'textarea' },
+            { name: 'image', type: 'upload', relationTo: 'media' },
+          ],
+        },
+      ],
+    },
+    {
+      slug: 'posts',
+      admin: { useAsTitle: 'title' },
+      versions: { drafts: true },
+      endpoints: false,
+      access: { read: () => true },
+      fields: [
+        { name: 'title', type: 'text', required: true },
+        {
+          name: 'slug',
+          type: 'text',
+          required: true,
+          unique: true,
+          admin: { position: 'sidebar' },
+        },
+        { name: 'heroImage', type: 'upload', relationTo: 'media' },
+        { name: 'excerpt', type: 'textarea' },
+        { name: 'content', type: 'richText', editor: lexicalEditor({}) },
+        { name: 'author', type: 'text' },
+        {
+          name: 'category',
+          type: 'select',
+          options: ['Product', 'Company', 'Guide'],
+        },
+        { name: 'publishedAt', type: 'date', admin: { position: 'sidebar' } },
+        {
+          name: 'meta',
+          type: 'group',
+          fields: [
+            { name: 'title', type: 'text' },
+            { name: 'description', type: 'textarea' },
+            { name: 'image', type: 'upload', relationTo: 'media' },
+          ],
+        },
+      ],
+    },
   ],
-  globals: [],
+  globals: [
+    {
+      slug: 'landing',
+      access: { read: () => true },
+      fields: [
+        {
+          name: 'blocks',
+          type: 'blocks',
+          blocks: ALL_BLOCKS,
+        },
+      ],
+    },
+    {
+      slug: 'navbar',
+      access: { read: () => true },
+      fields: [
+        {
+          name: 'links',
+          type: 'array',
+          fields: [
+            { name: 'label', type: 'text', required: true },
+            { name: 'href', type: 'text', required: true },
+          ],
+        },
+      ],
+    },
+    {
+      slug: 'footer',
+      access: { read: () => true },
+      fields: [
+        {
+          name: 'groups',
+          type: 'array',
+          fields: [
+            { name: 'heading', type: 'text', required: true },
+            {
+              name: 'links',
+              type: 'array',
+              fields: [
+                { name: 'label', type: 'text', required: true },
+                { name: 'href', type: 'text', required: true },
+              ],
+            },
+          ],
+        },
+        { name: 'copyrightText', type: 'text' },
+      ],
+    },
+  ],
 })
