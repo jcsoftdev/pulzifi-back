@@ -37,6 +37,7 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@workspace/typescript-config": "workspace:*",
+    "sass": "^1.77.4",
     "typescript": "^5.9.3"
   }
 }
