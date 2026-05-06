@@ -1,10 +1,14 @@
-import { ArrowRight } from 'lucide-react'
-import { HOW_IT_WORKS_STEPS } from '../lib/data'
 import { AnimatedSection } from './components/animated-section'
 import { LandingButton } from './components/landing-button'
 import { SectionHeader } from './components/section-header'
 
-export function HowItWorksSection() {
+type HowItWorksSectionProps = {
+  steps?: { step: number; title: string; description: string }[]
+}
+
+export function HowItWorksSection({ steps }: Readonly<HowItWorksSectionProps> = {}) {
+  const items = steps ?? []
+
   return (
     <section
       id="how-it-works"
@@ -20,7 +24,7 @@ export function HowItWorksSection() {
         />
 
         <div className="grid w-full gap-5 md:grid-cols-3">
-          {HOW_IT_WORKS_STEPS.map((step, i) => (
+          {items.map((step, i) => (
             <AnimatedSection
               key={step.step}
               animation="fade-up"

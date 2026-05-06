@@ -1,9 +1,14 @@
-import { FAQ_ITEMS } from '../lib/data'
 import { AnimatedSection } from './components/animated-section'
 import { FaqItem } from './components/faq-item'
 import { SectionHeader } from './components/section-header'
 
-export function FaqSection() {
+type FaqSectionProps = {
+  items?: { question: string; answer: string }[]
+}
+
+export function FaqSection({ items }: Readonly<FaqSectionProps> = {}) {
+  const faqs = items ?? []
+
   return (
     <section
       id="faq"
@@ -17,7 +22,7 @@ export function FaqSection() {
         </AnimatedSection>
 
         <div className="flex w-full flex-col gap-4">
-          {FAQ_ITEMS.map((item, i) => (
+          {faqs.map((item, i) => (
             <AnimatedSection key={item.question} animation="fade-up" delay={i * 100}>
               <FaqItem {...item} />
             </AnimatedSection>

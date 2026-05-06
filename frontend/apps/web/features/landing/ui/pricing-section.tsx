@@ -1,9 +1,22 @@
-import { PRICING_PLANS } from '../lib/data'
 import { AnimatedSection } from './components/animated-section'
 import { PricingCard } from './components/pricing-card'
 import { SectionHeader } from './components/section-header'
 
-export function PricingSection() {
+type PricingSectionProps = {
+  plans?: {
+    name: string
+    price: string
+    period?: string
+    features?: string[]
+    ctaLabel?: string
+    ctaHref?: string
+    highlighted?: boolean
+  }[]
+}
+
+export function PricingSection({ plans }: Readonly<PricingSectionProps> = {}) {
+  const items = plans ?? []
+
   return (
     <section
       id="pricing"
@@ -23,9 +36,18 @@ export function PricingSection() {
         </AnimatedSection>
 
         <div className="grid w-full gap-5 md:grid-cols-3">
-          {PRICING_PLANS.map((plan, i) => (
+          {items.map((plan, i) => (
             <AnimatedSection key={plan.name} animation="fade-up" delay={i * 150}>
-              <PricingCard {...plan} />
+              <PricingCard
+                name={plan.name}
+                price={plan.price}
+                period={plan.period}
+                description=""
+                cta={plan.ctaLabel ?? 'Get Started'}
+                ctaHref={plan.ctaHref ?? '/register'}
+                features={plan.features ?? []}
+                popular={plan.highlighted ?? false}
+              />
             </AnimatedSection>
           ))}
         </div>

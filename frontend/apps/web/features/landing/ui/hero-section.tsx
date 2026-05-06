@@ -3,7 +3,22 @@
 import { AnimatedSection } from './components/animated-section'
 import { LandingButton } from './components/landing-button'
 
-export function HeroSection() {
+type HeroSectionProps = {
+  headline?: string
+  subheadline?: string
+  ctaLabel?: string
+  ctaHref?: string
+}
+
+export function HeroSection({
+  headline,
+  subheadline,
+  ctaLabel,
+  ctaHref,
+}: Readonly<HeroSectionProps> = {}) {
+  const resolvedCtaHref = ctaHref ?? '/register'
+  const resolvedCtaLabel = ctaLabel ?? 'Start Monitoring Free'
+
   return (
     <section className="relative mx-auto max-w-[1256px] overflow-hidden rounded-3xl bg-white">
       <div className="grid items-center gap-8 px-6 py-10 sm:py-16 md:min-h-[633px] md:grid-cols-2 md:px-[58px] md:py-20">
@@ -15,14 +30,20 @@ export function HeroSection() {
             </span>
             <div className="flex flex-col gap-4">
               <h1 className="font-heading text-3xl font-medium leading-[40px] tracking-[-1.5px] text-[#131313] sm:text-4xl sm:leading-[48px] sm:tracking-[-2px] md:text-5xl md:leading-[72px] md:tracking-[-3.6px]">
-                Everything you need to{' '}
-                <em className="font-heading not-italic" style={{ fontStyle: 'italic' }}>
-                  monitor anything
-                </em>
+                {headline ? (
+                  headline
+                ) : (
+                  <>
+                    Everything you need to{' '}
+                    <em className="font-heading not-italic" style={{ fontStyle: 'italic' }}>
+                      monitor anything
+                    </em>
+                  </>
+                )}
               </h1>
               <p className="max-w-[495px] text-base leading-6 text-[#444141]">
-                Automate your competitive intelligence. Get instant alerts when sites change, prices
-                drop, or content updates.
+                {subheadline ??
+                  'Automate your competitive intelligence. Get instant alerts when sites change, prices drop, or content updates.'}
               </p>
             </div>
           </div>
@@ -37,8 +58,8 @@ export function HeroSection() {
                 aria-label="URL to monitor"
               />
             </div>
-            <LandingButton href="/register" variant="primary" size="lg" withArrow className="w-full justify-center sm:w-auto">
-              Start Monitoring Free
+            <LandingButton href={resolvedCtaHref} variant="primary" size="lg" withArrow className="w-full justify-center sm:w-auto">
+              {resolvedCtaLabel}
             </LandingButton>
           </div>
         </AnimatedSection>
