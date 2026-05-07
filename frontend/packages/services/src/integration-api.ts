@@ -224,7 +224,7 @@ export const IntegrationsApi = {
   },
 
   /** Returns the redirect URL the browser should navigate to in order to start OAuth. */
-  startOAuthURL(provider: string, returnPath = '/settings/integrations'): string {
+  startOAuthURL(provider: string, returnPath = '/settings'): string {
     return `/api/v1/integrations/oauth/${provider}/start?return_path=${encodeURIComponent(returnPath)}`
   },
 

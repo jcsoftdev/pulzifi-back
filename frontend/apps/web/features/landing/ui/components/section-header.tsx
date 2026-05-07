@@ -34,7 +34,7 @@ export function SectionHeader({
           className={cn(
             'inline-flex items-center justify-center rounded-full px-5 py-2.5 text-sm font-medium leading-5 tracking-tight',
             badgeVariant === 'light' || (!isDark && badgeVariant !== 'dark')
-              ? 'bg-[#f2ebfd] text-[#29144c]'
+              ? 'bg-[var(--pz-accent-pale)] text-[var(--pz-dark-surface)]'
               : 'bg-white/10 text-[#e1dbea]'
           )}
         >
@@ -45,7 +45,7 @@ export function SectionHeader({
         className={cn(
           'font-heading text-5xl font-medium leading-[56px] tracking-[-2.88px] max-w-3xl',
           'max-md:text-3xl max-md:leading-10 max-md:tracking-[-1.5px]',
-          isDark ? 'text-white' : 'text-[#131313]'
+          isDark ? 'text-white' : 'text-[var(--pz-ink)]'
         )}
       >
         {title}
@@ -54,7 +54,7 @@ export function SectionHeader({
         <p
           className={cn(
             'max-w-xl text-base leading-6',
-            isDark ? 'text-white/80' : 'text-[#444141]'
+            isDark ? 'text-white/80' : 'text-[var(--pz-ink-2)]'
           )}
         >
           {subtitle}

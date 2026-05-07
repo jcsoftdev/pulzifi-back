@@ -1,9 +1,39 @@
+import Image from 'next/image'
 import Link from 'next/link'
-import { LandingButton } from './components/landing-button'
+import { Github, Globe, Linkedin, Twitter, Youtube } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
+import { cn } from '@workspace/ui/lib/utils'
 
 type FooterLink = { label: string; href: string }
 type FooterLinks = Record<string, ReadonlyArray<FooterLink>>
-type FooterSectionProps = { links?: FooterLinks }
+type SocialPlatform = 'twitter' | 'linkedin' | 'github' | 'youtube' | 'other'
+type SocialLink = { platform: string; href: string }
+
+type FooterSectionProps = {
+  links?: FooterLinks
+  copyrightText?: string
+  tagline?: string
+  socialLinks?: SocialLink[]
+  logoUrl?: string
+}
+
+const SOCIAL_ICONS: Record<SocialPlatform, LucideIcon> = {
+  twitter: Twitter,
+  linkedin: Linkedin,
+  github: Github,
+  youtube: Youtube,
+  other: Globe,
+}
+
+function resolveSocialIcon(platform: string): LucideIcon {
+  const key = platform.toLowerCase() as SocialPlatform
+  return SOCIAL_ICONS[key] ?? Globe
+}
+
+const LEGAL_LINKS: FooterLink[] = [
+  { label: 'Privacy Policy', href: '#' },
+  { label: 'Terms of Service', href: '#' },
+]
 
 const DEFAULT_FOOTER_LINKS: FooterLinks = {
   Features: [
@@ -22,82 +52,115 @@ const DEFAULT_FOOTER_LINKS: FooterLinks = {
   ],
 }
 
-export function FooterSection({ links = DEFAULT_FOOTER_LINKS }: FooterSectionProps = {}) {
+export function FooterSection({
+  links = DEFAULT_FOOTER_LINKS,
+  copyrightText,
+  tagline,
+  socialLinks,
+  logoUrl,
+}: FooterSectionProps = {}) {
+  const groups = Object.entries(links)
+  const year = new Date().getFullYear()
+  const copyright = copyrightText ?? `© ${year} Pulzifi. All rights reserved.`
+
   return (
     <footer
       id="footer"
-      className="relative mx-auto max-w-[1256px] overflow-hidden rounded-3xl bg-[#050209] px-6 py-12 md:px-[58px] md:py-[50px]"
+      className="border-t border-[var(--pz-card-border)] bg-white py-16 lg:py-20"
     >
-      <div className="relative z-10 flex flex-col items-center gap-[50px]">
-        {/* Newsletter */}
-        <div className="flex flex-col items-center gap-[60px]">
-          <div className="flex flex-col items-center gap-4 text-center">
-            <h2 className="font-heading max-w-[520px] text-5xl font-medium leading-[56px] tracking-[-2.88px] text-white max-md:text-3xl max-md:leading-10">
-              Learn more about how to take advantage with Pulzifi
-            </h2>
-            <p className="max-w-[504px] text-base leading-6 text-white/80">
-              Subscribe to our newsletter for expert tips, updates, and the latest trends in
-              monitoring and actions.
-            </p>
-          </div>
-          <div className="flex w-full max-w-[500px] flex-col gap-2.5 sm:flex-row">
-            <div className="flex flex-1 items-center rounded-full bg-white/10 px-6">
-              <input
-                type="email"
-                placeholder="Enter your email"
-                className="w-full bg-transparent py-4 text-base font-medium text-white outline-none placeholder:text-white/60"
-                aria-label="Email for newsletter"
-              />
+      <div className="mx-auto max-w-[1200px] px-6 lg:px-8">
+        {/* 4-col grid */}
+        <div
+          className={cn(
+            'grid grid-cols-1 gap-8 md:gap-12',
+            groups.length > 0
+              ? 'md:grid-cols-[2fr_1fr_1fr_1fr]'
+              : 'md:grid-cols-1',
+          )}
+        >
+          {/* Col 1 — Brand */}
+          <div className="flex flex-col gap-4">
+            <div>
+              {logoUrl ? (
+                <Image
+                  src={logoUrl}
+                  alt="Pulzifi"
+                  width={120}
+                  height={32}
+                  className="h-8 w-auto object-contain"
+                />
+              ) : (
+                <span className="font-logo text-2xl font-extrabold tracking-tight text-[var(--pz-ink)]">
+                  Pulzifi
+                </span>
+              )}
             </div>
-            <LandingButton
-              href="#"
-              className="bg-[#40078b] hover:bg-[#5b1aab] shadow-none w-full justify-center sm:w-auto"
-              variant="primary"
-              size="lg"
-            >
-              Subscribe
-            </LandingButton>
-          </div>
-        </div>
 
-        {/* Divider */}
-        <div className="h-px w-full bg-white/10" />
+            {tagline && (
+              <p className="max-w-[240px] text-sm leading-relaxed text-[var(--pz-ink-2)]">
+                {tagline}
+              </p>
+            )}
 
-        {/* Footer links */}
-        <div className="flex w-full flex-col items-start justify-between gap-10 md:flex-row md:items-center">
-          <div>
-            <span className="font-logo text-7xl font-extrabold tracking-[0.67px] text-white max-md:text-5xl">
-              Pulzifi
-            </span>
-          </div>
-          <div className="flex flex-wrap gap-8 sm:gap-16">
-            {Object.entries(links).map(([category, categoryLinks]) => (
-              <div key={category} className="flex flex-col gap-4">
-                <span className="text-base text-white">{category}</span>
-                <div className="flex flex-col gap-3">
-                  {categoryLinks.map((link) => (
-                    <Link
-                      key={link.label}
+            {socialLinks && socialLinks.length > 0 && (
+              <div className="mt-2 flex items-center gap-3">
+                {socialLinks.map((link) => {
+                  const Icon = resolveSocialIcon(link.platform)
+                  return (
+                    <a
+                      key={link.platform}
                       href={link.href}
-                      className="text-sm text-white/60 transition-colors hover:text-white"
+                      aria-label={link.platform}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[var(--pz-ink-2)] transition-colors hover:text-[var(--pz-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--pz-accent)] focus-visible:ring-offset-2"
+                    >
+                      <Icon className="size-5" />
+                    </a>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Cols 2-4 — Link groups */}
+          {groups.map(([heading, groupLinks]) => (
+            <div key={heading} className="flex flex-col gap-4">
+              <h3 className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--pz-ink)]">
+                {heading}
+              </h3>
+              <ul className="flex flex-col gap-2.5">
+                {groupLinks.map((link) => (
+                  <li key={link.label}>
+                    <Link
+                      href={link.href}
+                      className="text-sm text-[var(--pz-ink-2)] transition-colors hover:text-[var(--pz-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--pz-accent)] focus-visible:ring-offset-2"
                     >
                       {link.label}
                     </Link>
-                  ))}
-                </div>
-              </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+
+        {/* Bottom row */}
+        <div className="mt-12 flex flex-col justify-between gap-4 border-t border-[var(--pz-card-border)] pt-6 md:flex-row md:items-center">
+          <p className="text-sm text-[var(--pz-ink-2)]">{copyright}</p>
+          <div className="flex flex-wrap gap-4">
+            {LEGAL_LINKS.map((link) => (
+              <Link
+                key={link.label}
+                href={link.href}
+                className="text-sm text-[var(--pz-ink-2)] transition-colors hover:text-[var(--pz-accent)]"
+              >
+                {link.label}
+              </Link>
             ))}
           </div>
         </div>
       </div>
-
-      {/* Large background Pulzifi text */}
-      <span
-        className="pointer-events-none absolute bottom-[-40px] left-4 select-none text-[clamp(80px,20vw,387px)] font-extrabold leading-none tracking-wide text-white/10 font-logo sm:bottom-[-80px] sm:left-12"
-        aria-hidden="true"
-      >
-        Pulzifi
-      </span>
     </footer>
   )
 }

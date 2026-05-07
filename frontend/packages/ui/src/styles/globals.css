@@ -8,6 +8,33 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
+  /* ── Pulzifi landing tokens (defaults; overridable via CMS theme global) ─ */
+  --pz-page-bg: #f3f3f3;
+  --pz-page-bg-alt: #fafafa;
+  --pz-card-bg: #ffffff;
+  --pz-dark-surface: #29144c;
+  --pz-card-border: rgba(0, 0, 0, 0.08);
+  --pz-card-shadow-rest: 0 2px 20px -6px rgba(0, 0, 0, 0.05);
+  --pz-card-shadow-hover: 0 8px 30px -8px rgba(0, 0, 0, 0.10);
+  --pz-icon-tint-1: #ede9fe;
+  --pz-icon-tint-2: #d1fae5;
+  --pz-icon-tint-3: #fed7aa;
+  --pz-icon-tint-4: #dbeafe;
+  --pz-icon-tint-5: #e0e7ff;
+  --pz-ink: #131313;
+  --pz-ink-2: #444141;
+  --pz-accent: #7c3aed;
+  --pz-accent-muted: #a78bfa;
+  --pz-accent-gold: #f59e0b;
+  --pz-accent-teal: #14b8a6;
+  /* Derived tints — auto-update when accent changes */
+  --pz-accent-tint: color-mix(in srgb, var(--pz-accent) 10%, transparent);
+  --pz-accent-soft: color-mix(in srgb, var(--pz-accent) 5%, transparent);
+  --pz-accent-line: color-mix(in srgb, var(--pz-accent) 18%, transparent);
+  --pz-accent-pale: color-mix(in srgb, var(--pz-accent) 12%, white);
+  --pz-shadow-accent: 0 4px 20px color-mix(in srgb, var(--pz-accent) 30%, transparent);
+  --pz-shadow-accent-lg: 0 24px 60px color-mix(in srgb, var(--pz-accent) 18%, transparent);
+
   --background: #FFFFFF;
   --foreground: rgba(0, 0, 0, 0.88);
   --card: #FFFFFF;
@@ -95,8 +122,20 @@
 }
 
 @theme inline {
-  --font-family-heading: var(--font-heading);
+  --font-family-heading: var(--font-sans);
+  --font-family-display: var(--font-display);
+  --font-family-body: var(--font-body);
   --font-family-logo: var(--font-logo);
+  --color-pz-ink: var(--pz-ink);
+  --color-pz-ink-2: var(--pz-ink-2);
+  --color-pz-paper: var(--pz-paper);
+  --color-pz-paper-dark: var(--pz-paper-dark);
+  --color-pz-card-bg: var(--pz-card-bg);
+  --color-pz-signal: var(--pz-signal);
+  --color-pz-signal-muted: var(--pz-signal-muted);
+  --color-pz-gold: var(--pz-gold);
+  --color-pz-teal: var(--pz-teal);
+  --color-pz-navy: var(--pz-navy);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -146,4 +185,75 @@
 
 /* ── Notix toast styles ─────────────────────────────────────────────────── */
 @import "@workspace/notix/styles.css";
+
+/* ── Pulzifi landing utilities ──────────────────────────────────────────── */
+@layer utilities {
+  .pz-display {
+    font-family: var(--font-display), "Syne", ui-sans-serif, system-ui, sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.06;
+  }
+  .pz-body {
+    font-family: var(--font-body), "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  }
+  .pz-h1 {
+    font-size: clamp(2.6rem, 6.4vw, 5.1rem);
+  }
+  .pz-h2 {
+    font-size: clamp(2rem, 4.6vw, 3.6rem);
+  }
+  .pz-h3 {
+    font-size: clamp(1.4rem, 2.4vw, 1.875rem);
+  }
+  .pz-eyebrow {
+    font-family: var(--font-body), "DM Sans", sans-serif;
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    color: var(--pz-ink-2);
+  }
+  .pz-divider {
+    background-image: linear-gradient(to right, transparent, var(--pz-border), transparent);
+    height: 1px;
+  }
+  @keyframes pz-pulse-dot {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.6); opacity: 0.6; }
+  }
+  .pz-pulse-dot {
+    animation: pz-pulse-dot 2s ease-in-out infinite;
+  }
+  @keyframes pz-alert-in {
+    from { opacity: 0; transform: translateX(-16px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+  .pz-alert-in {
+    animation: pz-alert-in 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  /* Infinite horizontal marquee — duplicate children for seamless loop */
+  @keyframes pz-marquee {
+    from { transform: translateX(0); }
+    to   { transform: translateX(-50%); }
+  }
+  .pz-marquee-track {
+    display: flex;
+    width: max-content;
+    animation: pz-marquee 32s linear infinite;
+  }
+  .pz-marquee-track:hover {
+    animation-play-state: paused;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pz-pulse-dot,
+  .pz-alert-in,
+  .pz-marquee-track,
+  [data-pz-anim] {
+    animation: none !important;
+    transition: none !important;
+  }
+}
 

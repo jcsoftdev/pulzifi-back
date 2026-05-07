@@ -2,13 +2,14 @@
 
 import { cn } from '@workspace/ui/lib/utils'
 import { useInView } from '../../lib/animations'
+import { usePreviewMode } from '../../lib/preview-mode'
 
 interface AnimatedSectionProps {
   children: React.ReactNode
   className?: string
   animation?: 'fade-up' | 'fade-in' | 'slide-left' | 'slide-right' | 'scale'
   delay?: number
-  as?: 'section' | 'div' | 'article'
+  as?: 'section' | 'div' | 'article' | 'li' | 'ol' | 'ul'
   id?: string
 }
 
@@ -20,7 +21,17 @@ export function AnimatedSection({
   as: Tag = 'div',
   id,
 }: Readonly<AnimatedSectionProps>) {
+  const previewMode = usePreviewMode()
   const [ref, isInView] = useInView<HTMLElement>()
+
+  // In preview mode, render content fully visible without animation/observer overhead
+  if (previewMode) {
+    return (
+      <Tag id={id} className={className}>
+        {children}
+      </Tag>
+    )
+  }
 
   const animationClasses = {
     'fade-up': 'translate-y-8 opacity-0',
@@ -37,7 +48,7 @@ export function AnimatedSection({
       className={cn(
         'transition-all duration-700 ease-out',
         isInView ? 'translate-x-0 translate-y-0 scale-100 opacity-100' : animationClasses[animation],
-        className
+        className,
       )}
       style={{ transitionDelay: `${delay}ms` }}
     >

@@ -1,29 +1,31 @@
+import { CtaSection } from '@/features/landing'
+
 type Props = {
   block: {
     blockType: 'cta'
-    headline: string
+    eyebrow?: string | null
+    headline?: string | null
+    headlineHighlight?: string | null
     subtext?: string | null
-    buttonLabel: string
-    buttonHref: string
+    primaryLabel?: string | null
+    primaryHref?: string | null
+    secondaryLabel?: string | null
+    secondaryHref?: string | null
+    riskNote?: string | null
     variant?: 'primary' | 'secondary' | null
   }
 }
 
 export function CtaBlock({ block }: Props) {
   return (
-    <section className="rounded-3xl bg-[#0b1e3d] px-8 py-16 text-center text-white">
-      <h2 className="mb-3 text-3xl font-bold">{block.headline}</h2>
-      {block.subtext && <p className="mb-8 text-white/70">{block.subtext}</p>}
-      <a
-        href={block.buttonHref}
-        className={`inline-block rounded-full px-8 py-3 font-semibold ${
-          block.variant === 'secondary'
-            ? 'border border-white text-white'
-            : 'bg-white text-[#0b1e3d]'
-        }`}
-      >
-        {block.buttonLabel}
-      </a>
-    </section>
+    <CtaSection
+      eyebrow={block.eyebrow ?? undefined}
+      headline={block.headline ?? undefined}
+      headlineHighlight={block.headlineHighlight ?? undefined}
+      subtext={block.subtext ?? undefined}
+      primaryLabel={block.primaryLabel ?? undefined}
+      primaryHref={block.primaryHref ?? undefined}
+      riskNote={block.riskNote ?? undefined}
+    />
   )
 }

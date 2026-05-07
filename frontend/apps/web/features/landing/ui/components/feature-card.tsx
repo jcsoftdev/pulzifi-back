@@ -17,10 +17,10 @@ export function FeatureCard({ title, description, image }: Readonly<FeatureCardP
         <div className="absolute inset-x-0 bottom-0 h-[120px] bg-gradient-to-b from-transparent to-white" />
       </div>
       <div className="flex flex-col gap-3 items-center px-6 py-6 text-center">
-        <h3 className="text-[28px] font-normal leading-9 tracking-[-1.8px] text-[#131313]">
+        <h3 className="text-[28px] font-normal leading-9 tracking-[-1.8px] text-[var(--pz-ink)]">
           {title}
         </h3>
-        <p className="text-base leading-6 text-[#444141]">{description}</p>
+        <p className="text-base leading-6 text-[var(--pz-ink-2)]">{description}</p>
       </div>
     </div>
   )

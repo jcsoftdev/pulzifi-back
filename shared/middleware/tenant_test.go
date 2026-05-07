@@ -22,7 +22,7 @@ func TestGetSetSearchPathSQL(t *testing.T) {
 		{"sql injection with semicolon", "tenant; DROP TABLE users;--", false, ""},
 		{"sql injection with quote", `tenant"; DROP TABLE users;--`, false, ""},
 		{"sql injection with single quote", "tenant' OR '1'='1", false, ""},
-		{"hyphen in name", "my-tenant", false, ""},
+		{"hyphen in name", "my-tenant", true, `SET search_path TO "my-tenant", public`},
 		{"space in name", "my tenant", false, ""},
 		{"dot in name", "my.tenant", false, ""},
 		{"empty string", "", false, ""},

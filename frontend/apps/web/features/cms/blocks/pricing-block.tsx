@@ -1,31 +1,58 @@
 import { PricingSection } from '@/features/landing'
 
+type PlanDoc = {
+  id: string | number
+  name: string
+  price: string
+  period?: string | null
+  tagline?: string | null
+  features?: { text?: string | null; included?: boolean | null }[] | null
+  ctaLabel?: string | null
+  ctaHref?: string | null
+  highlighted?: boolean | null
+  popularBadge?: string | null
+}
+
 type Props = {
   block: {
     blockType: 'pricing'
-    plans?: {
-      name: string
-      price: string
-      period?: string | null
-      features?: { text: string }[] | null
-      ctaLabel?: string | null
-      ctaHref?: string | null
-      highlighted?: boolean | null
-    }[] | null
+    eyebrow?: string | null
+    headline?: string | null
+    headlineHighlight?: string | null
+    subheadline?: string | null
+    guaranteeNote?: string | null
+    plans?: (PlanDoc | string | number)[] | null
   }
 }
 
+function isPlanDoc(value: PlanDoc | string | number): value is PlanDoc {
+  return typeof value === 'object' && value !== null && 'name' in value
+}
+
 export function PricingBlock({ block }: Props) {
+  const populated = (block.plans ?? []).filter(isPlanDoc)
+
   return (
     <PricingSection
-      plans={(block.plans ?? []).map((p) => ({
+      eyebrow={block.eyebrow ?? undefined}
+      headline={block.headline ?? undefined}
+      headlineHighlight={block.headlineHighlight ?? undefined}
+      subheadline={block.subheadline ?? undefined}
+      guaranteeNote={block.guaranteeNote ?? undefined}
+      plans={populated.map((p) => ({
         name: p.name,
         price: p.price,
         period: p.period ?? undefined,
-        features: (p.features ?? []).map((f) => f.text),
+        tagline: p.tagline ?? undefined,
+        features:
+          p.features?.map((f) => ({
+            text: f.text ?? '',
+            included: f.included ?? true,
+          })) ?? undefined,
         ctaLabel: p.ctaLabel ?? undefined,
         ctaHref: p.ctaHref ?? undefined,
         highlighted: p.highlighted ?? false,
+        popularBadge: p.popularBadge ?? undefined,
       }))}
     />
   )

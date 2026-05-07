@@ -29,7 +29,27 @@ func openTestDB(t *testing.T) *sql.DB {
 	return db
 }
 
+// TestMain sweeps leftover orgs/users from prior interrupted runs before any
+// test executes. Belt-and-suspenders: each test also registers t.Cleanup, but
+// that doesn't run when the suite is killed mid-run.
+func TestMain(m *testing.M) {
+	dsn := os.Getenv("DATABASE_URL")
+	if dsn != "" {
+		if db, err := sql.Open("postgres", dsn); err == nil {
+			_, _ = db.Exec(`DELETE FROM organizations WHERE subdomain LIKE 'iq-test-%'`)
+			_, _ = db.Exec(`DELETE FROM users WHERE email LIKE 'iq-test-%@example.com'`)
+			db.Close()
+		}
+	}
+	os.Exit(m.Run())
+}
+
 // seedOrg inserts a fresh user + org and registers cleanup.
+// Cleanup is registered BEFORE the inserts so an interrupted test
+// (panic, Ctrl+C, timeout) still triggers the deferred deletion path
+// where possible — and the rows are no-ops if nothing was inserted.
+// The DELETE on organizations cascades to integrations, integration_send_quotas,
+// org_data_keys, organization_members, and organization_plans via FK ON DELETE CASCADE.
 func seedOrg(t *testing.T, db *sql.DB) uuid.UUID {
 	t.Helper()
 	userID := uuid.New()
@@ -37,26 +57,27 @@ func seedOrg(t *testing.T, db *sql.DB) uuid.UUID {
 	sub := "iq-test-" + orgID.String()[:8]
 	email := "iq-test-" + orgID.String()[:8] + "@example.com"
 
-	_, err := db.Exec(`INSERT INTO users (id, email, password_hash, created_at, updated_at)
-                       VALUES ($1::uuid, $2, 'x', NOW(), NOW())`,
-		userID, email)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	_, err = db.Exec(`INSERT INTO organizations (id, name, subdomain, schema_name, owner_user_id, feature_flags, created_at, updated_at)
-                       VALUES ($1::uuid, $2, $3, $3, $4::uuid, '{}'::jsonb, NOW(), NOW())`,
-		orgID, orgID.String(), sub, userID)
-	if err != nil {
-		db.Exec(`DELETE FROM users WHERE id = $1`, userID)
-		t.Fatal(err)
-	}
-
 	t.Cleanup(func() {
-		db.Exec(`DELETE FROM integration_send_quotas WHERE org_id = $1`, orgID)
-		db.Exec(`DELETE FROM organizations WHERE id = $1`, orgID)
-		db.Exec(`DELETE FROM users WHERE id = $1`, userID)
+		if _, err := db.Exec(`DELETE FROM organizations WHERE id = $1`, orgID); err != nil {
+			t.Logf("cleanup: DELETE organizations %s: %v", orgID, err)
+		}
+		if _, err := db.Exec(`DELETE FROM users WHERE id = $1`, userID); err != nil {
+			t.Logf("cleanup: DELETE users %s: %v", userID, err)
+		}
 	})
+
+	if _, err := db.Exec(`INSERT INTO users (id, email, password_hash, created_at, updated_at)
+                       VALUES ($1::uuid, $2, 'x', NOW(), NOW())`,
+		userID, email); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := db.Exec(`INSERT INTO organizations (id, name, subdomain, schema_name, owner_user_id, feature_flags, created_at, updated_at)
+                       VALUES ($1::uuid, $2, $3, $3, $4::uuid, '{}'::jsonb, NOW(), NOW())`,
+		orgID, orgID.String(), sub, userID); err != nil {
+		t.Fatal(err)
+	}
+
 	return orgID
 }
 

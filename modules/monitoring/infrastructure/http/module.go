@@ -37,6 +37,7 @@ import (
 	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
 	"github.com/jcsoftdev/pulzifi-back/shared/pubsub"
 	"github.com/jcsoftdev/pulzifi-back/shared/router"
+	"github.com/lib/pq"
 	"go.uber.org/zap"
 )
 
@@ -705,7 +706,7 @@ func (m *Module) handleCheckSSE(w http.ResponseWriter, r *http.Request) {
 	// Verify the page exists in the current tenant's schema.
 	tenant := middleware.GetTenantFromContext(r.Context())
 	if tenant != "" {
-		q := fmt.Sprintf(`SELECT EXISTS(SELECT 1 FROM %s.pages WHERE id = $1 AND deleted_at IS NULL)`, tenant)
+		q := fmt.Sprintf(`SELECT EXISTS(SELECT 1 FROM %s.pages WHERE id = $1 AND deleted_at IS NULL)`, pq.QuoteIdentifier(tenant))
 		var exists bool
 		if err := m.db.QueryRowContext(r.Context(), q, pageIDStr).Scan(&exists); err != nil || !exists {
 			http.Error(w, "page not found", http.StatusNotFound)

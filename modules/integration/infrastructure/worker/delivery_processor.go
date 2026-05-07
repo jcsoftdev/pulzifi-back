@@ -254,10 +254,16 @@ func (w *Worker) process(
 	_ = delRepo.MarkDelivered(ctx, d.ID, code, body)
 }
 
-// listTenants returns all active tenant schema names from public.organizations.
+// listTenants returns active tenant schema names from public.organizations
+// that actually exist in information_schema.schemata. Orphan org rows whose
+// schema was never provisioned (or was dropped) are skipped to avoid querying
+// non-existent relations on every poll tick.
 func (w *Worker) listTenants(ctx context.Context) ([]string, error) {
-	rows, err := w.db.QueryContext(ctx,
-		`SELECT schema_name FROM public.organizations WHERE schema_name IS NOT NULL AND deleted_at IS NULL`)
+	rows, err := w.db.QueryContext(ctx, `
+		SELECT o.schema_name
+		FROM public.organizations o
+		JOIN information_schema.schemata s ON s.schema_name = o.schema_name
+		WHERE o.schema_name IS NOT NULL AND o.deleted_at IS NULL`)
 	if err != nil {
 		return nil, err
 	}

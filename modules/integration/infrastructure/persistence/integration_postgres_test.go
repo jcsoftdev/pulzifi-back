@@ -18,6 +18,31 @@ import (
 	"github.com/jcsoftdev/pulzifi-back/shared/crypto"
 )
 
+// TestMain sweeps leftover test orgs/users from prior interrupted runs.
+// Belt-and-suspenders: each test also registers t.Cleanup, but that doesn't
+// run when the process is killed mid-run (panic, Ctrl+C, timeout).
+func TestMain(m *testing.M) {
+	dsn := os.Getenv("DATABASE_URL")
+	if dsn == "" {
+		if host := os.Getenv("DB_HOST"); host != "" {
+			port := os.Getenv("DB_PORT")
+			if port == "" {
+				port = "5432"
+			}
+			dsn = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
+				os.Getenv("DB_USER"), os.Getenv("DB_PASSWORD"), host, port, os.Getenv("DB_NAME"))
+		}
+	}
+	if dsn != "" {
+		if db, err := sql.Open("postgres", dsn); err == nil {
+			_, _ = db.Exec(`DELETE FROM public.organizations WHERE subdomain LIKE 'test-%' AND name LIKE 'Test Org %'`)
+			_, _ = db.Exec(`DELETE FROM public.users WHERE email LIKE 'testuser-%@example.com'`)
+			db.Close()
+		}
+	}
+	os.Exit(m.Run())
+}
+
 func openTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 
@@ -65,8 +90,19 @@ func TestIntegrationRepo_RoundTrip(t *testing.T) {
 	ctx := context.Background()
 
 	// --- seed a user and organization for FK constraints ---
+	// Cleanup is registered BEFORE inserts so interrupted runs still attempt
+	// the rollback. DELETE on organizations cascades to integrations, etc.
 	userID := uuid.New()
 	orgID := uuid.New()
+
+	t.Cleanup(func() {
+		if _, err := db.ExecContext(ctx, `DELETE FROM public.organizations WHERE id = $1`, orgID); err != nil {
+			t.Logf("cleanup: DELETE organizations %s: %v", orgID, err)
+		}
+		if _, err := db.ExecContext(ctx, `DELETE FROM public.users WHERE id = $1`, userID); err != nil {
+			t.Logf("cleanup: DELETE users %s: %v", userID, err)
+		}
+	})
 
 	_, err = db.ExecContext(ctx, `
 		INSERT INTO public.users (id, email, password_hash, status)
@@ -91,12 +127,6 @@ func TestIntegrationRepo_RoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("insert org: %v", err)
 	}
-
-	t.Cleanup(func() {
-		db.ExecContext(ctx, `DELETE FROM public.integrations WHERE org_id = $1`, orgID)
-		db.ExecContext(ctx, `DELETE FROM public.organizations WHERE id = $1`, orgID)
-		db.ExecContext(ctx, `DELETE FROM public.users WHERE id = $1`, userID)
-	})
 
 	// --- 1. Create ---
 	expires := time.Now().UTC().Add(time.Hour).Truncate(time.Millisecond)

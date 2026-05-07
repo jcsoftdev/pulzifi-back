@@ -12,8 +12,33 @@ import (
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/domain/entities"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/persistence"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
+	"github.com/lib/pq"
 	"go.uber.org/zap"
 )
+
+// listExistingTenantSchemas returns active tenant schemas from public.organizations
+// that actually exist in information_schema. Skips orphan org rows whose schema
+// was never provisioned (or was dropped) — querying them produces noisy errors.
+func listExistingTenantSchemas(ctx context.Context, db *sql.DB) ([]string, error) {
+	rows, err := db.QueryContext(ctx, `
+		SELECT o.schema_name
+		FROM public.organizations o
+		JOIN information_schema.schemata s ON s.schema_name = o.schema_name
+		WHERE o.schema_name IS NOT NULL AND o.deleted_at IS NULL`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var s string
+		if err := rows.Scan(&s); err != nil {
+			return nil, err
+		}
+		out = append(out, s)
+	}
+	return out, rows.Err()
+}
 
 // ResolveFrequency delegates to the shared domain definition.
 func ResolveFrequency(freq string) (time.Duration, bool) {
@@ -116,23 +141,16 @@ func (s *Scheduler) getNextRunTime(ctx context.Context) time.Time {
 	// Since we don't have a global index of next_run_at across schemas,
 	// we will iterate all schemas to find the earliest time.
 
-	rows, err := s.db.QueryContext(ctx, "SELECT schema_name FROM organizations WHERE deleted_at IS NULL")
+	schemas, err := listExistingTenantSchemas(ctx, s.db)
 	if err != nil {
 		return time.Now().Add(1 * time.Minute)
 	}
-	defer rows.Close()
 
 	minNextRun := time.Time{}
+	cases := buildFrequencySQLCases()
 
-	for rows.Next() {
-		var schema string
-		if err := rows.Scan(&schema); err != nil {
-			continue
-		}
-
-		// Calculate min next_run based on check_frequency and last_checked_at
-		// Using a default past date (2000-01-01) for null last_checked_at to ensure it runs immediately
-		cases := buildFrequencySQLCases()
+	for _, schema := range schemas {
+		qSchema := pq.QuoteIdentifier(schema)
 		q := fmt.Sprintf(`
 			SELECT MIN(
 				CASE %s
@@ -142,7 +160,7 @@ func (s *Scheduler) getNextRunTime(ctx context.Context) time.Time {
 			FROM %s.monitoring_configs mc
 			JOIN %s.pages p ON mc.page_id = p.id
 			WHERE mc.deleted_at IS NULL AND p.deleted_at IS NULL AND mc.check_frequency != 'Off'
-		`, cases, schema, schema)
+		`, cases, qSchema, qSchema)
 
 		var nextRun sql.NullTime
 		if err := s.db.QueryRowContext(ctx, q).Scan(&nextRun); err == nil && nextRun.Valid {
@@ -156,21 +174,10 @@ func (s *Scheduler) getNextRunTime(ctx context.Context) time.Time {
 }
 
 func (s *Scheduler) runCheck(ctx context.Context) {
-	// Query all schema names
-	rows, err := s.db.QueryContext(ctx, "SELECT schema_name FROM organizations WHERE deleted_at IS NULL")
+	schemas, err := listExistingTenantSchemas(ctx, s.db)
 	if err != nil {
 		logger.Error("Scheduler failed to fetch organizations", zap.Error(err))
 		return
-	}
-	defer rows.Close()
-
-	var schemas []string
-	for rows.Next() {
-		var schema string
-		if err := rows.Scan(&schema); err != nil {
-			continue
-		}
-		schemas = append(schemas, schema)
 	}
 
 	for _, schema := range schemas {
@@ -181,13 +188,14 @@ func (s *Scheduler) runCheck(ctx context.Context) {
 // TriggerPageCheck schedules one immediate check for a specific page within a tenant schema.
 // This is used for manual "Run Now" actions — no monitoring config is required.
 func (s *Scheduler) TriggerPageCheck(ctx context.Context, schema string, pageID uuid.UUID) error {
+	qSchema := pq.QuoteIdentifier(schema)
 	q := fmt.Sprintf(`
 		SELECT p.url
 		FROM %s.pages p
 		WHERE p.id = $1
 		  AND p.deleted_at IS NULL
 		LIMIT 1
-	`, schema)
+	`, qSchema)
 
 	var url string
 	if err := s.db.QueryRowContext(ctx, q, pageID).Scan(&url); err != nil {
@@ -212,7 +220,7 @@ func (s *Scheduler) TriggerPageCheck(ctx context.Context, schema string, pageID 
 	// different connections, causing the UPDATE to silently affect 0 rows).
 	claimQ := fmt.Sprintf(
 		`UPDATE %s.pages SET last_checked_at = NOW() WHERE id = $1 AND deleted_at IS NULL`,
-		schema,
+		qSchema,
 	)
 	if _, err := s.db.ExecContext(ctx, claimQ, pageID); err != nil {
 		logger.Error("TriggerPageCheck: failed to pre-update last_checked_at", zap.String("page_id", pageID.String()), zap.Error(err))

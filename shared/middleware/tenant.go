@@ -14,7 +14,7 @@ import (
 )
 
 // validSchemaName matches only safe identifier characters (alphanumeric + underscore).
-var validSchemaName = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
+var validSchemaName = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_-]*$`)
 
 // TenantContextKey is the key used to store tenant schema in context
 type contextKey string
