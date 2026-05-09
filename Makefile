@@ -2,7 +2,7 @@
 # Makefile for Pulzifi Backend
 # ============================================================
 
-.PHONY: help dev dev-web down logs build swagger clean migrate test test-integration test-db-reset
+.PHONY: help dev dev-web down logs build swagger clean migrate cms-migrate test test-integration test-db-reset
 
 .DEFAULT_GOAL := help
 
@@ -24,7 +24,8 @@ help: ## Show this help message
 	@echo "  $(YELLOW)make logs$(NC)     - View logs (use: make logs service=monolith)"
 	@echo ""
 	@echo "$(GREEN)DATABASE:$(NC)"
-	@echo "  $(YELLOW)make migrate$(NC)  - Run migrations from .env (make migrate cmd=up|down|version)"
+	@echo "  $(YELLOW)make migrate$(NC)      - Run Go API migrations from .env (make migrate cmd=up|down|version)"
+	@echo "  $(YELLOW)make cms-migrate$(NC)  - Push Payload CMS schema + seed data (requires dev server running for seed)"
 	@echo ""
 	@echo "$(GREEN)TESTS:$(NC)"
 	@echo "  $(YELLOW)make test$(NC)              - Run unit tests (no DB required)"
@@ -64,6 +65,12 @@ logs: ## View logs (use: make logs service=monolith)
 # ============================================================
 # DATABASE
 # ============================================================
+
+cms-migrate: check-env ## Push Payload CMS schema and seed default content
+	@echo "$(GREEN)Running CMS migrations + seed...$(NC)"
+	@set -a; . $(ENV_FILE); set +a; \
+		cd frontend/apps/web && bun run cms:migrate
+	@echo "$(GREEN)✓ CMS migrate + seed complete$(NC)"
 
 migrate: check-env ## Run database migrations from .env (use: make migrate cmd=up|down|version)
 	@export $(shell grep -v '^#' $(ENV_FILE) | xargs) && \

@@ -330,6 +330,44 @@ export function useClipReveal<T extends HTMLElement = HTMLDivElement>(
   return ref
 }
 
+/** Animates a numeric price string from `from` to `to` when the element enters
+ *  the viewport. Writes the formatted value into the DOM node's textContent.
+ *  Skipped on reduced motion. */
+export function usePriceCountUp<T extends HTMLElement = HTMLElement>(
+  from: number,
+  to: number,
+  options?: { duration?: number; prefix?: string; suffix?: string; delay?: number },
+): RefObject<T | null> {
+  const ref = useRef<T | null>(null)
+  const previewMode = usePreviewMode()
+  ensureRegistered()
+  useGSAP(
+    () => {
+      if (previewMode || prefersReducedMotion() || !ref.current) return
+      const el = ref.current
+      const prefix = options?.prefix ?? ''
+      const suffix = options?.suffix ?? ''
+      const obj = { val: from }
+      gsap.to(obj, {
+        val: to,
+        duration: options?.duration ?? 1.2,
+        ease: 'power2.out',
+        delay: options?.delay ?? 0,
+        onUpdate() {
+          el.textContent = `${prefix}${Math.round(obj.val)}${suffix}`
+        },
+        scrollTrigger: {
+          trigger: el,
+          start: 'top 85%',
+          toggleActions: 'play none none none',
+        },
+      })
+    },
+    { scope: ref, dependencies: [from, to] },
+  )
+  return ref
+}
+
 /** Magnetic hover — element drifts toward pointer within its bounding rect.
  *  Uses gsap.quickTo for 60fps pointer tracking. Resets on pointerleave. */
 export function useMagnetic<T extends HTMLElement = HTMLElement>(
@@ -393,10 +431,10 @@ export function useTilt<T extends HTMLElement = HTMLElement>(
       const max = options?.max ?? 6
       const perspective = options?.perspective ?? 900
 
-      gsap.set(el, { transformPerspective: perspective, transformStyle: 'preserve-3d' })
+      gsap.set(el, { transformPerspective: perspective })
 
-      const rxTo = gsap.quickTo(el, 'rotateX', { duration: 0.4, ease: 'power3.out' })
-      const ryTo = gsap.quickTo(el, 'rotateY', { duration: 0.4, ease: 'power3.out' })
+      const rxTo = gsap.quickTo(el, 'rotationX', { duration: 0.4, ease: 'power3.out' })
+      const ryTo = gsap.quickTo(el, 'rotationY', { duration: 0.4, ease: 'power3.out' })
 
       const onMove = (e: PointerEvent) => {
         const rect = el.getBoundingClientRect()

@@ -3,12 +3,20 @@
 import { useField } from '@payloadcms/ui'
 import { HexColorInput, HexColorPicker } from 'react-colorful'
 import type { TextFieldClientProps } from 'payload'
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 
 export const ColorField: React.FC<TextFieldClientProps> = ({ field, path }) => {
   const { value, setValue } = useField<string>({ path: path ?? field.name })
   const [open, setOpen] = useState(false)
-  const color = (value as string) || '#6A35E0'
+  const [color, setColor] = useState<string>((value as string) || '#6A35E0')
+
+  const handleChange = useCallback(
+    (newColor: string) => {
+      setColor(newColor)
+      setValue(newColor)
+    },
+    [setValue],
+  )
   const label = field.label || field.name
 
   return (
@@ -31,7 +39,7 @@ export const ColorField: React.FC<TextFieldClientProps> = ({ field, path }) => {
         />
         <HexColorInput
           color={color}
-          onChange={setValue}
+          onChange={handleChange}
           prefixed
           style={{
             flex: 1,
@@ -45,7 +53,7 @@ export const ColorField: React.FC<TextFieldClientProps> = ({ field, path }) => {
       </div>
       {open && (
         <div style={{ marginTop: 8, position: 'relative', zIndex: 10 }}>
-          <HexColorPicker color={color} onChange={setValue} />
+          <HexColorPicker color={color} onChange={handleChange} />
         </div>
       )}
       {field.admin?.description && (

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Plus } from 'lucide-react'
 import { cn } from '@workspace/ui/lib/utils'
+import { AnimatedSection } from './components/animated-section'
 import { Eyebrow } from './components/eyebrow'
 import { SectionFrame } from './components/section-frame'
 
@@ -39,7 +40,7 @@ export function FaqSection({
 
   return (
     <SectionFrame id="faq" bg="white">
-      <div className="mx-auto max-w-2xl text-center">
+      <AnimatedSection className="mx-auto max-w-2xl text-center">
         {eyebrow && <Eyebrow className="mb-4">{eyebrow}</Eyebrow>}
         <h2 className="font-heading text-4xl font-bold tracking-tight text-[var(--pz-ink)] md:text-5xl">
           {headline ?? 'Questions Answered'}
@@ -47,9 +48,9 @@ export function FaqSection({
         {subheadline && (
           <p className="mt-4 text-lg leading-relaxed text-[var(--pz-ink-2)]">{subheadline}</p>
         )}
-      </div>
+      </AnimatedSection>
 
-      <div className="mx-auto mt-12 max-w-2xl divide-y divide-[var(--pz-card-border)]">
+      <AnimatedSection delay={120} className="mx-auto mt-12 max-w-2xl divide-y divide-[var(--pz-card-border)]">
         {faqs.map((item, i) => {
           const isOpen = openIndex === i
           const panelId = `faq-${i}-panel`
@@ -94,7 +95,7 @@ export function FaqSection({
             </div>
           )
         })}
-      </div>
+      </AnimatedSection>
     </SectionFrame>
   )
 }

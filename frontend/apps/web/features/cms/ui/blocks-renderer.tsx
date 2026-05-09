@@ -1,4 +1,4 @@
-import { memo } from 'react'
+import React, { memo } from 'react'
 
 import { AiIntelligenceBlock } from '../blocks/ai-intelligence-block'
 import { CtaBlock } from '../blocks/cta-block'
@@ -8,15 +8,17 @@ import { HeroBlock } from '../blocks/hero-block'
 import { HowItWorksBlock } from '../blocks/how-it-works-block'
 import { ImageBlock } from '../blocks/image-block'
 import { IndustriesBlock } from '../blocks/industries-block'
+import { LoginFormBlock } from '../blocks/login-form-block'
 import { PricingBlock } from '../blocks/pricing-block'
 import { ProblemBlock } from '../blocks/problem-block'
+import { RegisterFormBlock } from '../blocks/register-form-block'
 import { RichTextBlock } from '../blocks/rich-text-block'
 
 type Block = { blockType: string; id?: string; [key: string]: unknown }
 
 type Props = { blocks: Block[] }
 
-function renderBlock(block: Block) {
+function renderBlock(block: Block): React.ReactElement | null {
   switch (block.blockType) {
     case 'hero':
       return <HeroBlock block={block as never} />
@@ -40,6 +42,15 @@ function renderBlock(block: Block) {
       return <CtaBlock block={block as never} />
     case 'image':
       return <ImageBlock block={block as never} />
+    case 'login-form':
+      return <LoginFormBlock block={block as never} />
+    case 'register-form':
+      return <RegisterFormBlock block={block as never} />
+    case 'block-ref': {
+      const ref = (block as { ref?: { block?: Block[] } }).ref
+      const inner = ref?.block?.[0]
+      return inner ? renderBlock(inner) : null
+    }
     // Legacy / removed block types — schemas stay in Payload (avoid migrations) but render nothing
     case 'logos':
     case 'stats':

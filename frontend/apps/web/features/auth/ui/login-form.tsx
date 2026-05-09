@@ -9,26 +9,17 @@ import type { LoginCredentials } from '../domain/types'
 
 function GoogleIcon() {
   return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-label="Google" role="img">
-      <path
-        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
-        fill="#4285F4"
-      />
-      <path
-        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-        fill="#34A853"
-      />
-      <path
-        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18A10.96 10.96 0 0 0 1 12c0 1.77.42 3.45 1.18 4.93l3.66-2.84z"
-        fill="#FBBC05"
-      />
-      <path
-        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-        fill="#EA4335"
-      />
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
+      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18A10.96 10.96 0 0 0 1 12c0 1.77.42 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05" />
+      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
     </svg>
   )
 }
+
+const baseInput =
+  'h-11 w-full rounded-xl border border-[var(--pz-ink)]/10 bg-white px-4 text-sm text-[var(--pz-ink)] outline-none transition-[border-color,box-shadow] placeholder:text-[var(--pz-ink)]/35 focus:border-[var(--pz-accent)]/40 focus:ring-2 focus:ring-[var(--pz-accent)]/15'
 
 export interface LoginFormProps {
   onSubmit: (credentials: LoginCredentials) => Promise<void>
@@ -46,25 +37,38 @@ export function LoginForm({ onSubmit, isLoading = false, error }: Readonly<Login
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      await onSubmit({
-        email,
-        password,
-      })
-    } catch (error) {
-      console.error('[LoginForm] onSubmit error:', error)
+      await onSubmit({ email, password })
+    } catch (err) {
+      console.error('[LoginForm] onSubmit error:', err)
     }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex w-full flex-col gap-[30px]">
-      {/* Input fields */}
-      <div className="flex flex-col gap-3.5">
-        {/* Email field */}
-        <div className="flex flex-col gap-3">
-          <label
-            htmlFor={emailId}
-            className="text-base font-medium leading-6 tracking-[-0.128px] text-[#111]"
-          >
+    <div className="flex flex-col gap-5">
+      {/* Google OAuth — first */}
+      <a
+        href="/api/v1/auth/oauth/google"
+        className={cn(
+          'flex h-11 items-center justify-center gap-3 rounded-xl border border-[var(--pz-ink)]/10 bg-white text-sm font-medium text-[var(--pz-ink)] transition-colors hover:bg-gray-50',
+          isLoading && 'pointer-events-none opacity-50'
+        )}
+      >
+        <GoogleIcon />
+        Continue with Google
+      </a>
+
+      {/* Divider */}
+      <div className="flex items-center gap-3">
+        <div className="h-px flex-1 bg-[var(--pz-ink)]/8" />
+        <span className="text-xs text-[var(--pz-ink)]/35">or sign in with email</span>
+        <div className="h-px flex-1 bg-[var(--pz-ink)]/8" />
+      </div>
+
+      {/* Email + password form */}
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        {/* Email */}
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor={emailId} className="text-xs font-semibold uppercase tracking-wide text-[var(--pz-ink)]/50">
             Email address
           </label>
           <input
@@ -73,24 +77,18 @@ export function LoginForm({ onSubmit, isLoading = false, error }: Readonly<Login
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            placeholder="Your email address"
-            className="h-14 w-full rounded-full bg-[#f3f3f3] px-6 text-base font-medium leading-6 tracking-[-0.128px] text-[#111] outline-none placeholder:text-[#111]/40 focus:ring-2 focus:ring-primary/30"
+            placeholder="you@company.com"
+            className={baseInput}
           />
         </div>
 
-        {/* Password field */}
-        <div className="flex flex-col gap-3">
+        {/* Password */}
+        <div className="flex flex-col gap-1.5">
           <div className="flex items-center justify-between">
-            <label
-              htmlFor={passwordId}
-              className="text-base font-medium leading-6 tracking-[-0.128px] text-[#111]"
-            >
+            <label htmlFor={passwordId} className="text-xs font-semibold uppercase tracking-wide text-[var(--pz-ink)]/50">
               Password
             </label>
-            <Link
-              href="/forgot-password"
-              className="text-sm font-medium leading-6 tracking-[-0.112px] text-[#2e47ba] hover:underline"
-            >
+            <Link href="/forgot-password" className="text-xs font-medium text-[var(--pz-accent)] hover:underline">
               Forgot password?
             </Link>
           </div>
@@ -102,66 +100,42 @@ export function LoginForm({ onSubmit, isLoading = false, error }: Readonly<Login
               onChange={(e) => setPassword(e.target.value)}
               required
               placeholder="Your password"
-              className="h-14 w-full rounded-full bg-[#f3f3f3] px-6 pr-14 text-base font-medium leading-6 tracking-[-0.128px] text-[#111] outline-none placeholder:text-[#111]/40 focus:ring-2 focus:ring-primary/30"
+              className={cn(baseInput, 'pr-10')}
             />
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-5 top-1/2 -translate-y-1/2 text-[#111]/60 transition-colors hover:text-[#111]"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--pz-ink)]/40 transition-colors hover:text-[var(--pz-ink)]"
               aria-label={showPassword ? 'Hide password' : 'Show password'}
             >
-              {showPassword ? <EyeOff className="size-6" /> : <Eye className="size-6" />}
+              {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
             </button>
           </div>
         </div>
-      </div>
 
-      {/* Error message */}
-      {error && (
-        <div className="rounded-xl bg-destructive/10 px-4 py-3 text-sm text-destructive border border-destructive/20">
-          {error}
-        </div>
-      )}
+        {/* Error */}
+        {error && (
+          <div className="rounded-xl border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+            {error}
+          </div>
+        )}
 
-      {/* Divider */}
-      <div className="flex items-center gap-3.5">
-        <div className="h-px flex-1 bg-[#111]/10" />
-        <span className="text-base font-medium leading-6 tracking-[-0.128px] text-[#111]/40">
-          Or
-        </span>
-        <div className="h-px flex-1 bg-[#111]/10" />
-      </div>
-
-      {/* Google sign in + Submit */}
-      <div className="flex flex-col gap-3.5">
-        {/* Google OAuth */}
-        <a
-          href="/api/v1/auth/oauth/google"
-          className={cn(
-            'flex h-[52px] items-center justify-center rounded-full border border-[#111]/10 bg-white transition-colors hover:bg-gray-50',
-            isLoading && 'pointer-events-none opacity-50'
-          )}
-        >
-          <GoogleIcon />
-        </a>
-
-        {/* Sign In button */}
+        {/* Submit */}
         <Button
           type="submit"
           disabled={isLoading}
-          className="h-14 w-full rounded-full bg-[#29144c] text-base font-medium tracking-[-0.128px] hover:bg-[#3d1d6e]"
+          className="mt-1 h-11 w-full rounded-xl bg-[var(--pz-accent)] text-sm font-semibold shadow-[var(--pz-shadow-accent)] transition-[opacity,box-shadow,transform] hover:opacity-90 hover:shadow-[var(--pz-shadow-accent-lg)] hover:scale-[1.01] active:scale-[0.99]"
         >
-          {isLoading ? 'Signing in...' : 'Sign In'}
+          {isLoading ? 'Signing in...' : 'Sign in'}
         </Button>
 
-        {/* Sign up link */}
-        <p className="text-base leading-6 text-[#111]">
-          Don&apos;t have account?{' '}
-          <Link href="/register" className="font-bold text-[#29144c] hover:underline">
-            Sign Up
+        <p className="text-center text-sm text-[var(--pz-ink-2)]">
+          Don&apos;t have an account?{' '}
+          <Link href="/register" className="font-semibold text-[var(--pz-accent)] hover:underline">
+            Sign up free
           </Link>
         </p>
-      </div>
-    </form>
+      </form>
+    </div>
   )
 }

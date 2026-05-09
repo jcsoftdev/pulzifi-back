@@ -6,7 +6,7 @@ import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 
 import { BlocksRenderer } from '@/features/cms'
-import { FooterSection, Navbar } from '@/features/landing'
+import { FooterSection, Navbar, SmoothScroll } from '@/features/landing'
 import { getPayloadClient } from '@/lib/payload'
 import { buildThemeStyle } from '@/lib/theme-style'
 
@@ -26,11 +26,7 @@ export const metadata: Metadata = {
     'web scraping',
     'business intelligence',
   ],
-  authors: [
-    {
-      name: 'Pulzifi',
-    },
-  ],
+  authors: [{ name: 'Pulzifi' }],
   creator: 'Pulzifi',
   openGraph: {
     title: 'Pulzifi — AI-Powered Competitive Intelligence & Website Monitoring',
@@ -52,13 +48,9 @@ export const metadata: Metadata = {
     description:
       'Monitor any website for changes and get AI-powered strategic insights. Know what competitors do before it impacts your business.',
     card: 'summary_large_image',
-    images: [
-      '/images/landing/hero-dashboard.png',
-    ],
+    images: ['/images/landing/hero-dashboard.png'],
   },
-  alternates: {
-    canonical: '/',
-  },
+  alternates: { canonical: '/' },
   robots: {
     index: true,
     follow: true,
@@ -83,11 +75,10 @@ export default async function HomePage() {
       redirect('/workspaces')
     } catch (error: unknown) {
       if (isRedirectError(error)) throw error
-      // Not authenticated — fall through to show landing page
     }
   }
 
-  let landingBlocks: any[] = []
+  let blocks: any[] = []
   let navLinks: { label: string; href: string }[] | undefined
   let navSigninLabel: string | undefined
   let navSigninHref: string | undefined
@@ -99,15 +90,21 @@ export default async function HomePage() {
   let footerSocialLinks: { platform: string; href: string }[] | undefined
   let footerLogoUrl: string | undefined
   let themeStyle = ''
+
   try {
     const payload = await getPayloadClient()
-    const [landing, navbar, footer, theme] = await Promise.all([
-      payload.findGlobal({ slug: 'landing', depth: 2 }),
+    const [pagesResult, navbar, footer, theme] = await Promise.all([
+      payload.find({
+        collection: 'pages',
+        where: { slug: { equals: 'home' } },
+        depth: 2,
+        limit: 1,
+      }),
       payload.findGlobal({ slug: 'navbar', depth: 1 }),
       payload.findGlobal({ slug: 'footer', depth: 1 }),
       payload.findGlobal({ slug: 'theme', depth: 0 }).catch(() => null),
     ])
-    landingBlocks = (landing.blocks as any) ?? []
+    blocks = (pagesResult.docs[0]?.blocks as any) ?? []
     const nav = navbar as any
     const rawLinks = nav.links as { label: string; href: string }[] | undefined
     navLinks = rawLinks?.length ? rawLinks : undefined
@@ -124,7 +121,10 @@ export default async function HomePage() {
       | undefined
     if (rawGroups?.length) {
       footerGroups = Object.fromEntries(
-        rawGroups.map((g) => [g.heading, g.links?.map((l) => ({ label: l.label, href: l.href })) ?? []]),
+        rawGroups.map((g) => [
+          g.heading,
+          g.links?.map((l: { label: string; href: string }) => ({ label: l.label, href: l.href })) ?? [],
+        ]),
       )
     }
     footerTagline = foot.tagline ?? undefined
@@ -142,6 +142,7 @@ export default async function HomePage() {
   return (
     <div className="min-h-screen bg-[var(--pz-page-bg)]">
       {themeStyle && <style dangerouslySetInnerHTML={{ __html: themeStyle }} />}
+      <SmoothScroll />
       <Navbar
         links={navLinks}
         signinLabel={navSigninLabel}
@@ -151,7 +152,7 @@ export default async function HomePage() {
         logoUrl={navLogoUrl}
       />
       <main>
-        <BlocksRenderer blocks={landingBlocks} />
+        <BlocksRenderer blocks={blocks} />
       </main>
       <FooterSection
         links={footerGroups}
@@ -160,7 +161,6 @@ export default async function HomePage() {
         logoUrl={footerLogoUrl}
       />
 
-      {/* JSON-LD Structured Data for SEO */}
       <script type="application/ld+json">
         {JSON.stringify({
           '@context': 'https://schema.org',
@@ -171,20 +171,8 @@ export default async function HomePage() {
           description:
             'AI-powered competitive intelligence platform that monitors websites for changes and delivers strategic insights.',
           offers: [
-            {
-              '@type': 'Offer',
-              name: 'Starter Plan',
-              price: '20',
-              priceCurrency: 'USD',
-              priceValidUntil: '2027-12-31',
-            },
-            {
-              '@type': 'Offer',
-              name: 'Professional Plan',
-              price: '62',
-              priceCurrency: 'USD',
-              priceValidUntil: '2027-12-31',
-            },
+            { '@type': 'Offer', name: 'Starter Plan', price: '20', priceCurrency: 'USD', priceValidUntil: '2027-12-31' },
+            { '@type': 'Offer', name: 'Professional Plan', price: '62', priceCurrency: 'USD', priceValidUntil: '2027-12-31' },
           ],
           aggregateRating: {
             '@type': 'AggregateRating',

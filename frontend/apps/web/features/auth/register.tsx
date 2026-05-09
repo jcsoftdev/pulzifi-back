@@ -1,8 +1,8 @@
 'use client'
 
+import { CheckCircle2 } from 'lucide-react'
 import Link from 'next/link'
-import { FooterSection } from '@/features/landing/ui/footer-section'
-import { Navbar } from '@/features/landing/ui/navbar'
+import { Navbar } from '@/features/landing'
 import { useRegister } from './application/use-register'
 import { RegisterForm } from './ui/register-form'
 
@@ -19,57 +19,65 @@ export function RegisterFeature() {
 
   if (submitted) {
     return (
-      <div className="min-h-screen bg-[#f3f3f3]">
-        <div className="mx-auto max-w-[1280px] space-y-3 p-3">
+      <div className="flex min-h-screen flex-col bg-[var(--pz-page-bg)]">
+        <div className="mx-auto w-full max-w-[1280px] px-3 pt-3">
           <Navbar />
-          <section className="mx-auto max-w-[1256px] overflow-hidden rounded-3xl bg-white px-6 py-12 md:px-0 md:py-[50px]">
-            <div className="mx-auto flex w-full max-w-[583px] flex-col items-center gap-6 text-center">
-              <h1 className="font-heading text-[48px] font-medium italic leading-[56px] tracking-[-1px] text-[#111] max-md:text-4xl max-md:leading-[44px]">
-                Registration submitted!
-              </h1>
-              <p className="text-base leading-6 text-[#111]/60">
-                Your account is pending approval by an administrator. You will be able to log in
-                once your account has been approved.
-              </p>
-              <Link
-                href="/login"
-                className="inline-flex h-14 items-center rounded-full bg-[#29144c] px-8 text-base font-medium text-white transition-colors hover:bg-[#3d1d6e]"
-              >
-                Back to login
-              </Link>
-            </div>
-          </section>
-          <FooterSection />
         </div>
+        <div className="h-28 shrink-0" />
+        <main className="flex flex-1 items-center justify-center px-4 py-8">
+          <div className="w-full max-w-[480px] rounded-2xl border border-[var(--pz-card-border)] bg-white p-10 text-center shadow-[var(--pz-card-shadow-rest)]">
+            <div className="mx-auto mb-6 flex size-14 items-center justify-center rounded-full bg-[var(--pz-accent)]/10">
+              <CheckCircle2 className="size-7 text-[var(--pz-accent)]" />
+            </div>
+            <h1 className="font-heading text-3xl font-bold leading-tight text-[var(--pz-ink)]">
+              Registration submitted!
+            </h1>
+            <p className="mt-3 text-base leading-6 text-[var(--pz-ink-2)]">
+              Your account is pending approval by an administrator. You will be able to log in once
+              your account has been approved.
+            </p>
+            <Link
+              href="/login"
+              className="mt-8 inline-flex h-12 items-center rounded-full bg-[var(--pz-accent)] px-8 text-sm font-medium text-white shadow-[var(--pz-shadow-accent)] transition-[opacity,transform] hover:opacity-90 hover:scale-[1.02] active:scale-[0.98]"
+            >
+              Back to login
+            </Link>
+          </div>
+        </main>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-[#f3f3f3]">
-      <div className="mx-auto max-w-[1280px] space-y-3 p-3">
+    <div className="flex min-h-screen flex-col bg-[var(--pz-page-bg)]">
+      <div className="mx-auto w-full max-w-[1280px] px-3 pt-3">
         <Navbar />
-
-        {/* Sign-up form section */}
-        <section className="mx-auto max-w-[1256px] overflow-hidden rounded-3xl bg-white px-6 py-12 md:px-0 md:py-[50px]">
-          <div className="mx-auto flex w-full max-w-[583px] flex-col gap-[60px]">
-            <h1 className="font-heading text-[48px] font-medium italic leading-[56px] tracking-[-1px] text-[#111] max-md:text-4xl max-md:leading-[44px]">
-              Let&apos;s create your account
-            </h1>
-
-            <RegisterForm
-              onSubmit={register}
-              isLoading={isLoading}
-              error={error}
-              onSubdomainChange={checkSubdomain}
-              subdomainStatus={subdomainStatus}
-              subdomainMessage={subdomainMessage}
-            />
-          </div>
-        </section>
-
-        <FooterSection />
       </div>
+      <div className="h-20 shrink-0" />
+      <main className="flex flex-1 items-center justify-center px-4 py-6">
+        <div className="w-full max-w-[580px] rounded-2xl border border-[var(--pz-card-border)] bg-white p-6 shadow-[var(--pz-card-shadow-rest)] md:p-8">
+          <div className="mb-4">
+            <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-[var(--pz-accent)]/10 px-3 py-1">
+              <span className="size-1.5 rounded-full bg-[var(--pz-accent)]" />
+              <span className="text-xs font-semibold uppercase tracking-widest text-[var(--pz-accent)]">Free 14-day trial</span>
+            </div>
+            <h1 className="font-heading text-2xl font-bold leading-tight text-[var(--pz-ink)]">
+              Create your account
+            </h1>
+            <p className="mt-1 text-sm text-[var(--pz-ink-2)]">No credit card required</p>
+          </div>
+
+          <RegisterForm
+            onSubmit={register}
+            isLoading={isLoading}
+            error={error}
+            onSubdomainChange={checkSubdomain}
+            subdomainStatus={subdomainStatus}
+            subdomainMessage={subdomainMessage}
+          />
+        </div>
+      </main>
+
     </div>
   )
 }

@@ -1,15 +1,18 @@
 'use client'
 
+import { useState } from 'react'
 import { useCardStagger } from '../lib/gsap'
 import { Eyebrow } from './components/eyebrow'
 import { Highlight } from './components/highlight'
 import { PricingCard } from './components/pricing-card'
+import { PricingComparisonTable } from './components/pricing-comparison-table'
 import { SectionFrame } from './components/section-frame'
 
 type PricingFeature = { text?: string; included?: boolean }
 type PricingPlan = {
   name: string
   price: string
+  priceAnnual?: string
   period?: string
   tagline?: string
   features?: PricingFeature[]
@@ -19,6 +22,13 @@ type PricingPlan = {
   popularBadge?: string
 }
 
+type BillingCopy = {
+  monthlyLabel?: string
+  annualLabel?: string
+  annualBadge?: string
+  annualNote?: string
+}
+
 type PricingSectionProps = {
   eyebrow?: string
   headline?: string
@@ -26,6 +36,9 @@ type PricingSectionProps = {
   subheadline?: string
   guaranteeNote?: string
   plans?: PricingPlan[]
+  billing?: BillingCopy
+  comparePlansHeadline?: string
+  featuresLabel?: string
 }
 
 export function PricingSection({
@@ -35,9 +48,26 @@ export function PricingSection({
   subheadline,
   guaranteeNote,
   plans,
+  billing,
+  comparePlansHeadline,
+  featuresLabel,
 }: Readonly<PricingSectionProps> = {}) {
   const items = plans ?? []
+  const [cycle, setCycle] = useState<'monthly' | 'annual'>('monthly')
   const cardsRef = useCardStagger<HTMLDivElement>({ scale: true, stagger: 0.1, y: 32 })
+
+  const hasAnnual = items.some((p) => p.priceAnnual)
+
+  const tableColumns = items.map((plan) => ({
+    name: plan.name,
+    cta: plan.ctaLabel ?? 'Get Started',
+    ctaHref: plan.ctaHref ?? '/register',
+    popular: plan.highlighted ?? false,
+    features: (plan.features ?? []).map((f) => ({
+      text: f.text ?? '',
+      included: f.included ?? true,
+    })),
+  }))
 
   return (
     <SectionFrame id="pricing" bg="alt" className="relative overflow-hidden">
@@ -46,7 +76,8 @@ export function PricingSection({
         <div
           className="h-[400px] w-[600px] -translate-y-1/3"
           style={{
-            background: 'radial-gradient(circle, color-mix(in srgb, var(--pz-accent-gold) 18%, transparent) 0%, transparent 65%)',
+            background:
+              'radial-gradient(circle, color-mix(in srgb, var(--pz-accent-gold) 18%, transparent) 0%, transparent 65%)',
             filter: 'blur(100px)',
             opacity: 0.35,
           }}
@@ -66,6 +97,37 @@ export function PricingSection({
         {subheadline && (
           <p className="mt-4 text-lg leading-relaxed text-[var(--pz-ink-2)]">{subheadline}</p>
         )}
+
+        {/* Billing toggle */}
+        {hasAnnual && (
+          <div className="mt-8 inline-flex items-center gap-1 rounded-full border border-[var(--pz-card-border)] bg-white p-1 shadow-sm">
+            <button
+              type="button"
+              onClick={() => setCycle('monthly')}
+              className={`rounded-full px-5 py-2 text-sm font-medium transition-all duration-200 ${
+                cycle === 'monthly'
+                  ? 'bg-[var(--pz-dark-surface)] text-white shadow-sm'
+                  : 'text-[var(--pz-ink-2)] hover:text-[var(--pz-ink)]'
+              }`}
+            >
+              {billing?.monthlyLabel ?? 'Monthly'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setCycle('annual')}
+              className={`flex items-center gap-2 rounded-full px-5 py-2 text-sm font-medium transition-all duration-200 ${
+                cycle === 'annual'
+                  ? 'bg-[var(--pz-dark-surface)] text-white shadow-sm'
+                  : 'text-[var(--pz-ink-2)] hover:text-[var(--pz-ink)]'
+              }`}
+            >
+              {billing?.annualLabel ?? 'Annual'}
+              <span className="rounded-full bg-[var(--pz-accent)] px-2 py-0.5 text-[10px] font-semibold text-white">
+                {billing?.annualBadge ?? '2 months free'}
+              </span>
+            </button>
+          </div>
+        )}
       </div>
 
       <div ref={cardsRef} className="mt-14 grid grid-cols-1 gap-6 md:grid-cols-3 md:gap-8">
@@ -74,6 +136,7 @@ export function PricingSection({
             <PricingCard
               name={plan.name}
               price={plan.price}
+              priceAnnual={plan.priceAnnual}
               period={plan.period}
               description={plan.tagline}
               cta={plan.ctaLabel ?? 'Get Started'}
@@ -84,13 +147,28 @@ export function PricingSection({
               }))}
               popular={plan.highlighted ?? false}
               popularBadge={plan.popularBadge}
+              billingCycle={cycle}
+              annualNote={billing?.annualNote}
+              featuresLabel={featuresLabel}
             />
           </div>
         ))}
       </div>
 
       {guaranteeNote && (
-        <p className="mt-10 text-center text-sm leading-5 text-[var(--pz-ink-2)]">{guaranteeNote}</p>
+        <p className="mt-10 text-center text-sm leading-5 text-[var(--pz-ink-2)]">
+          {guaranteeNote}
+        </p>
+      )}
+
+      {/* Feature comparison table */}
+      {tableColumns.length > 0 && (
+        <div className="mt-16">
+          <h3 className="mb-8 text-center text-2xl font-bold tracking-tight text-[var(--pz-ink)]">
+            {comparePlansHeadline ?? 'Compare plans'}
+          </h3>
+          <PricingComparisonTable plans={tableColumns} />
+        </div>
       )}
     </SectionFrame>
   )

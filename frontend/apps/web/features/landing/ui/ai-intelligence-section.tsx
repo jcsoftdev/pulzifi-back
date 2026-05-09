@@ -4,6 +4,7 @@ import { cn } from '@workspace/ui/lib/utils'
 import Image from 'next/image'
 import { useState } from 'react'
 import { useTabCrossFade } from '../lib/gsap'
+import { AnimatedSection } from './components/animated-section'
 import { Eyebrow } from './components/eyebrow'
 import { Highlight } from './components/highlight'
 import { SectionFrame } from './components/section-frame'
@@ -44,11 +45,16 @@ function AiCard({
   title,
   body,
   image,
+  priority = false,
 }: {
   title: string
   body?: string
   image?: string
+  priority?: boolean
 }) {
+  const [imgError, setImgError] = useState(false)
+  const showImage = image && !imgError
+
   return (
     <article
       className={cn(
@@ -56,14 +62,16 @@ function AiCard({
         'transition-shadow duration-200 hover:shadow-[var(--pz-card-shadow-hover)]',
       )}
     >
-      {image ? (
+      {showImage ? (
         <div className="relative mb-5 overflow-hidden rounded-lg border border-[var(--pz-card-border)]">
           <Image
             src={image}
             alt={title}
             width={600}
             height={360}
+            priority={priority}
             className="h-auto w-full object-cover"
+            onError={() => setImgError(true)}
           />
         </div>
       ) : (
@@ -130,7 +138,7 @@ export function AiIntelligenceSection({
         />
       </div>
       {/* Section header */}
-      <div className="mx-auto max-w-2xl text-center">
+      <AnimatedSection className="mx-auto max-w-2xl text-center">
         {eyebrow && <Eyebrow className="mb-4">{eyebrow}</Eyebrow>}
         {headline && (
           <h2 className="font-heading text-4xl font-bold tracking-tight leading-[1.1] text-[var(--pz-ink)] md:text-5xl">
@@ -143,10 +151,10 @@ export function AiIntelligenceSection({
         {subheadline && (
           <p className="mt-4 text-lg leading-relaxed text-[var(--pz-ink-2)]">{subheadline}</p>
         )}
-      </div>
+      </AnimatedSection>
 
       {/* Tab list */}
-      <div className="mt-10 flex justify-center">
+      <AnimatedSection animation="fade-in" delay={120} className="mt-10 flex justify-center">
         <div
           role="tablist"
           aria-label="AI capabilities"
@@ -169,7 +177,7 @@ export function AiIntelligenceSection({
             </button>
           ))}
         </div>
-      </div>
+      </AnimatedSection>
 
       {/* Panels container — useTabCrossFade scoped ref */}
       <div ref={panelsRef} className="relative mt-12">
@@ -187,7 +195,13 @@ export function AiIntelligenceSection({
                 <EmptyTab />
               ) : (
                 tab.items.map((item, j) => (
-                  <AiCard key={j} title={item.title} body={item.body} image={item.image} />
+                  <AiCard
+                    key={j}
+                    title={item.title}
+                    body={item.body}
+                    image={item.image}
+                    priority={i === 0 && j === 0}
+                  />
                 ))
               )}
             </div>

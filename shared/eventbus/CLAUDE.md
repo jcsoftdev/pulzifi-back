@@ -4,7 +4,9 @@ In-memory pub/sub event bus, designed to be swappable for Kafka in production.
 
 ## Files
 
-- `eventbus.go` — Event bus interface and in-memory implementation
+- `eventbus.go` — `MessageBus` interface and in-memory implementation
+- `event.go` — `DomainEvent` struct, topic constants, typed publish/subscribe helpers
+- `event_test.go` — Tests for domain event helpers
 
 ## Exported API
 
@@ -16,30 +18,37 @@ In-memory pub/sub event bus, designed to be swappable for Kafka in production.
 
 ### Types
 - `EventHandler` — `func(topic string, payload []byte)`
+- `DomainEventHandler` — `func(ev DomainEvent)`
+- `DomainEvent` — Structured event: `ID`, `Type`, `OccurredAt`, `OrgID`, `WorkspaceID`, `PageID`, `Tenant`, `Data json.RawMessage`
 
-### Structs
-- `EventBus` — In-memory implementation with thread-safe handler map (`sync.RWMutex`)
+### Topic Constants
+- `TopicChangeDetected = "change.detected"`
+- `TopicAlertCreated = "alert.created"`
+- `TopicInsightReady = "insight.ready"`
+- `TopicCheckFailed = "check.failed"`
+- `TopicReportWeekly = "report.weekly"`
 
 ### Functions
 - `GetInstance() *EventBus` — Returns singleton (lazy-initialized with `sync.Once`)
+- `PublishDomainEvent(bus, ev DomainEvent) error` — Marshals and publishes; auto-fills `ID` and `OccurredAt` if zero
+- `SubscribeDomainEvent(bus, topic, handler DomainEventHandler) error` — Wraps raw handler with JSON unmarshal
 
 ### Methods (`*EventBus`)
-- `Publish(topic, key, payload) error` — Sends to all topic handlers. Each handler runs in a separate goroutine with panic recovery. `key` parameter unused in in-memory impl (exists for Kafka compatibility).
+- `Publish(topic, key, payload) error` — Sends to all topic handlers asynchronously with panic recovery
 - `Subscribe(topic, handler) error` — Registers handler for topic
 - `Close()` — No-op for in-memory bus
 
 ## Usage
 
-Currently only used by the `organization` module:
-- Publisher: `modules/organization/infrastructure/messaging/publisher.go`
-- Subscriber: `modules/organization/infrastructure/messaging/subscriber.go`
-- Event: `organization.created`
+- `organization` module publishes `organization.created` via `infrastructure/messaging/publisher.go`
+- `alert` module publishes `TopicAlertCreated` via `SetEventBus`
+- `integration` module subscribes to `TopicChangeDetected` and `TopicAlertCreated` to dispatch webhook deliveries
 
 ## Notes
 
 - Singleton pattern — call `GetInstance()` to get the shared bus
-- Handlers execute asynchronously in goroutines
-- Panics in handlers are recovered and logged (do not crash the process)
+- Handlers execute asynchronously in goroutines; panics recovered and logged
+- `key` parameter is unused in in-memory impl — reserved for Kafka partition routing
 
 ## Architecture Improvements
 
@@ -49,6 +58,7 @@ The `MessageBus` interface is already designed for a Kafka adapter swap. To impl
 2. Use the `key` parameter (currently unused in in-memory impl) for Kafka partition routing
 3. Implement `Close()` to flush and disconnect
 4. Wire via dependency injection in `cmd/server/main.go` based on config flag (e.g., `EVENT_BUS_PROVIDER=kafka|memory`)
+5. `DomainEvent.OrgID` and `Tenant` fields enable partition routing — no schema changes needed
 
 ### Multi-Instance Scaling
 The in-memory singleton is **node-local** — events published on one instance are invisible to other instances. This blocks horizontal scaling for any feature that relies on event-driven communication. Kafka (or Redis Pub/Sub as a lighter alternative) is required for multi-instance deployments.

@@ -3,7 +3,7 @@ import { AiIntelligenceSection } from '@/features/landing'
 type AiTabItem = {
   title: string
   body?: string | null
-  image?: { url?: string | null } | string | null
+  image?: string | null
 }
 
 type AiTab = {
@@ -35,10 +35,7 @@ export function AiIntelligenceBlock({ block }: Props) {
           items: t.items.map((item) => ({
             title: item.title,
             body: item.body ?? undefined,
-            image:
-              item.image != null && typeof item.image === 'object'
-                ? (item.image.url ?? undefined)
-                : undefined,
+            image: item.image ?? undefined,
           })),
         })) ?? undefined
       }

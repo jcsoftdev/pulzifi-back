@@ -1,3 +1,4 @@
+import { AnimatedSection } from './components/animated-section'
 import { Eyebrow } from './components/eyebrow'
 import { Highlight } from './components/highlight'
 import { LandingButton } from './components/landing-button'
@@ -26,7 +27,7 @@ export function CtaSection({
       id="cta"
       className="bg-[var(--pz-dark-surface)] py-24 text-white lg:py-32"
     >
-      <div className="mx-auto max-w-[900px] px-6 text-center">
+      <AnimatedSection animation="fade-up" className="mx-auto max-w-[900px] px-6 text-center">
         {eyebrow && (
           <Eyebrow tone="muted" className="mb-6 text-white/60">
             {eyebrow}
@@ -57,7 +58,7 @@ export function CtaSection({
         {riskNote && (
           <p className="mt-4 text-sm text-white/60">{riskNote}</p>
         )}
-      </div>
+      </AnimatedSection>
     </section>
   )
 }

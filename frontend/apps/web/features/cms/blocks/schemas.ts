@@ -199,7 +199,7 @@ export const AiIntelligenceBlock: Block = {
           fields: [
             { name: 'title', type: 'text', required: true },
             { name: 'body', type: 'textarea' },
-            { name: 'image', type: 'upload', relationTo: 'media' },
+            { name: 'image', type: 'text', admin: { description: 'Image URL or /images/landing/... path' } },
           ],
         },
       ],
@@ -288,6 +288,19 @@ export const PricingBlock: Block = {
       },
     },
     { name: 'guaranteeNote', type: 'text' },
+    {
+      type: 'group',
+      name: 'billing',
+      label: 'Billing Toggle',
+      fields: [
+        { name: 'monthlyLabel', type: 'text', admin: { description: 'Default: "Monthly"' } },
+        { name: 'annualLabel', type: 'text', admin: { description: 'Default: "Annual"' } },
+        { name: 'annualBadge', type: 'text', admin: { description: 'Default: "2 months free"' } },
+        { name: 'annualNote', type: 'text', admin: { description: 'Default: "Billed annually · 2 months free"' } },
+      ],
+    },
+    { name: 'comparePlansHeadline', type: 'text', admin: { description: 'Default: "Compare plans"' } },
+    { name: 'featuresLabel', type: 'text', admin: { description: 'Default: "Features:"' } },
   ],
 }
 
@@ -373,6 +386,39 @@ export const ImageBlock: Block = {
   ],
 }
 
+export const LoginFormBlock: Block = {
+  slug: 'login-form',
+  labels: { singular: 'Login Form', plural: 'Login Forms' },
+  fields: [
+    { name: 'headline', type: 'text', admin: { description: 'Default: "Welcome back"' } },
+    { name: 'subheadline', type: 'text', admin: { description: 'Default: "Enter your credentials to continue"' } },
+  ],
+}
+
+export const RegisterFormBlock: Block = {
+  slug: 'register-form',
+  labels: { singular: 'Register Form', plural: 'Register Forms' },
+  fields: [
+    { name: 'headline', type: 'text', admin: { description: 'Default: "Create your account"' } },
+    { name: 'subheadline', type: 'text', admin: { description: 'Default: "No credit card required"' } },
+    { name: 'trialBadge', type: 'text', admin: { description: 'Default: "Free 14-day trial"' } },
+  ],
+}
+
+export const BlockRefBlock: Block = {
+  slug: 'block-ref',
+  labels: { singular: 'Block Reference', plural: 'Block References' },
+  fields: [
+    {
+      name: 'ref',
+      type: 'relationship',
+      relationTo: 'block-library',
+      required: true,
+      admin: { description: 'Pick a block from the library. Edit the library entry to update it everywhere.' },
+    },
+  ],
+}
+
 export const ALL_BLOCKS = [
   HeroBlock,
   LogosBlock,
@@ -390,4 +436,7 @@ export const ALL_BLOCKS = [
   RichTextBlock,
   CtaBlock,
   ImageBlock,
+  LoginFormBlock,
+  RegisterFormBlock,
+  BlockRefBlock,
 ]

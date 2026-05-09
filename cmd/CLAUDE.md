@@ -1,6 +1,6 @@
 # Entry Points (cmd/)
 
-Three CLI entry points for the Pulzifi backend.
+Four directories: three CLI entry points plus one wiring/adapter package.
 
 ## cmd/server/
 
@@ -63,3 +63,25 @@ go run ./cmd/migrate -scope tenant -tenant demo -cmd up  # Specific tenant
 go run ./cmd/migrate -cmd down -steps 1               # Rollback 1 step
 go run ./cmd/migrate -cmd version                     # Check current version
 ```
+
+## cmd/wiring/
+
+Not a CLI entry point — a shared adapter/anti-corruption package used by `cmd/server/modules.go`.
+
+### cmd/wiring/integration/
+
+Cross-module adapters that bridge the integration module with other modules without creating module-to-module import cycles.
+
+| File | What it does |
+|------|-------------|
+| `email_adapter.go` | Adapts `email.EmailProvider` to `integration/providers/email.EmailSender` interface |
+| `org_context_lookup.go` | Single-query lookup of org identity + active plan + feature flags (used by `/auth/me`) |
+| `org_plan_lookup.go` | Resolves org's active plan code for Twilio plan-gating |
+| `org_guard.go` | Verifies org exists before dispatching integration events |
+| `quota_allowed_for.go` | Builds `integrationusage.AllowedFunc` from plan lookup + paid-plans config |
+| `quota_tracker_adapter.go` | Wires `integrationusage.Tracker` into Twilio provider quota enforcement |
+| `tenant_repo_factory.go` | Creates per-tenant integration repos for `dispatch_event` use case |
+
+### Pattern
+
+Wiring code that would require cross-module imports lives here instead of in the modules themselves. The modules define interfaces; this package provides concrete adapters. All wiring is injected at startup via `cmd/server/modules.go`.

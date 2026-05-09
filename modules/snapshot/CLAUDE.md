@@ -22,7 +22,7 @@ Page snapshot capture and storage (worker service).
 - Object storage provider: `infrastructure/storage/provider.go` (selects MinIO or Cloudinary; accepts `""`, `"minio"`, `"s3"` for MinIO, `"cloudinary"` for Cloudinary)
 - MinIO client: `infrastructure/minio/client.go` (S3-compatible storage)
 - Cloudinary client: `infrastructure/cloudinary/client.go` (cloud image storage)
-- `infrastructure/kafka/` — exists but empty (Kafka consumer placeholder)
+- No Kafka directory — was removed (was a placeholder)
 
 ## Notes
 

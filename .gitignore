@@ -82,4 +82,9 @@ docs/
 
 /.trae
 
-/*.sql.superpowers/
+/.superpowers/
+/.playwright-mcp/
+"SKILL (9).md"
+.claude/scheduled_tasks.lock
+
+/client_*

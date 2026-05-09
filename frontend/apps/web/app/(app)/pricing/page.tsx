@@ -5,13 +5,10 @@ import { isRedirectError } from 'next/dist/client/components/redirect-error'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 
-import {
-  FaqSection,
-  FooterSection,
-  Navbar,
-  PricingSection,
-} from '@/features/landing'
+import { BlocksRenderer } from '@/features/cms'
+import { FooterSection, Navbar, SmoothScroll } from '@/features/landing'
 import { getPayloadClient } from '@/lib/payload'
+import { buildThemeStyle } from '@/lib/theme-style'
 
 export const metadata: Metadata = {
   title: 'Pricing — Simple, Transparent Plans',
@@ -22,40 +19,6 @@ export const metadata: Metadata = {
     description:
       'Simple, transparent pricing for AI-powered competitive intelligence. Start with our Starter plan or scale with Professional and Enterprise.',
   },
-}
-
-type PlanDoc = {
-  id: string | number
-  name: string
-  price: string
-  period?: string | null
-  tagline?: string | null
-  features?: { text?: string | null; included?: boolean | null }[] | null
-  ctaLabel?: string | null
-  ctaHref?: string | null
-  highlighted?: boolean | null
-  popularBadge?: string | null
-}
-
-type PricingPageGlobal = {
-  header?: {
-    eyebrow?: string | null
-    headline?: string | null
-    headlineHighlight?: string | null
-    subheadline?: string | null
-  } | null
-  plans?: (PlanDoc | string | number)[] | null
-  guaranteeNote?: string | null
-  faq?: {
-    eyebrow?: string | null
-    headline?: string | null
-    subheadline?: string | null
-    items?: { question: string; answer: string }[] | null
-  } | null
-}
-
-function isPlanDoc(value: PlanDoc | string | number): value is PlanDoc {
-  return typeof value === 'object' && value !== null && 'name' in value
 }
 
 export default async function PricingPage() {
@@ -72,7 +35,7 @@ export default async function PricingPage() {
     }
   }
 
-  let pricingData: PricingPageGlobal = {}
+  let blocks: any[] = []
   let navLinks: { label: string; href: string }[] | undefined
   let navSigninLabel: string | undefined
   let navSigninHref: string | undefined
@@ -87,13 +50,18 @@ export default async function PricingPage() {
 
   try {
     const payload = await getPayloadClient()
-    const [pricing, navbar, footer, theme] = await Promise.all([
-      payload.findGlobal({ slug: 'pricing-page', depth: 2 }),
+    const [pagesResult, navbar, footer, theme] = await Promise.all([
+      payload.find({
+        collection: 'pages',
+        where: { slug: { equals: 'pricing' } },
+        depth: 2,
+        limit: 1,
+      }),
       payload.findGlobal({ slug: 'navbar', depth: 1 }),
       payload.findGlobal({ slug: 'footer', depth: 1 }),
       payload.findGlobal({ slug: 'theme', depth: 0 }).catch(() => null),
     ])
-    pricingData = pricing as PricingPageGlobal
+    blocks = (pagesResult.docs[0]?.blocks as any) ?? []
     const nav = navbar as any
     const rawLinks = nav.links as { label: string; href: string }[] | undefined
     navLinks = rawLinks?.length ? rawLinks : undefined
@@ -112,7 +80,7 @@ export default async function PricingPage() {
       footerGroups = Object.fromEntries(
         rawGroups.map((g) => [
           g.heading,
-          g.links?.map((l) => ({ label: l.label, href: l.href })) ?? [],
+          g.links?.map((l: { label: string; href: string }) => ({ label: l.label, href: l.href })) ?? [],
         ]),
       )
     }
@@ -122,49 +90,16 @@ export default async function PricingPage() {
       footerLogoUrl = foot.logo.url as string
     }
     if (theme) {
-      const t = theme as unknown as Record<string, string | null | undefined>
-      const map: Array<[string, string | null | undefined]> = [
-        ['--pz-page-bg', t.pageBg],
-        ['--pz-card-bg', t.cardBg],
-        ['--pz-dark-surface', t.darkSurface],
-        ['--pz-ink', t.inkPrimary],
-        ['--pz-ink-2', t.inkSecondary],
-        ['--pz-accent', t.accentPrimary],
-        ['--pz-accent-muted', t.accentMuted],
-        ['--pz-accent-gold', t.accentGold],
-        ['--pz-accent-teal', t.accentTeal],
-      ]
-      const decls = map
-        .filter(([, v]) => typeof v === 'string' && v.trim().length > 0)
-        .map(([k, v]) => `${k}: ${v};`)
-        .join(' ')
-      if (decls) themeStyle = `:root { ${decls} }`
+      themeStyle = buildThemeStyle(theme as unknown as Record<string, string | null | undefined>)
     }
   } catch {
     // DB unavailable — fall through to defaults
   }
 
-  const plans = pricingData.plans
-    ?.filter(isPlanDoc)
-    .map((p) => ({
-      name: p.name,
-      price: p.price,
-      period: p.period ?? undefined,
-      tagline: p.tagline ?? undefined,
-      features:
-        p.features?.map((f) => ({
-          text: f.text ?? '',
-          included: f.included ?? true,
-        })) ?? undefined,
-      ctaLabel: p.ctaLabel ?? undefined,
-      ctaHref: p.ctaHref ?? undefined,
-      highlighted: p.highlighted ?? false,
-      popularBadge: p.popularBadge ?? undefined,
-    }))
-
   return (
     <div className="min-h-screen bg-[var(--pz-page-bg)]">
       {themeStyle && <style dangerouslySetInnerHTML={{ __html: themeStyle }} />}
+      <SmoothScroll />
       <Navbar
         links={navLinks}
         signinLabel={navSigninLabel}
@@ -174,20 +109,7 @@ export default async function PricingPage() {
         logoUrl={navLogoUrl}
       />
       <main>
-        <PricingSection
-          eyebrow={pricingData.header?.eyebrow ?? undefined}
-          headline={pricingData.header?.headline ?? undefined}
-          headlineHighlight={pricingData.header?.headlineHighlight ?? undefined}
-          subheadline={pricingData.header?.subheadline ?? undefined}
-          guaranteeNote={pricingData.guaranteeNote ?? undefined}
-          plans={plans}
-        />
-        <FaqSection
-          eyebrow={pricingData.faq?.eyebrow ?? undefined}
-          headline={pricingData.faq?.headline ?? undefined}
-          subheadline={pricingData.faq?.subheadline ?? undefined}
-          items={pricingData.faq?.items ?? undefined}
-        />
+        <BlocksRenderer blocks={blocks} />
       </main>
       <FooterSection
         links={footerGroups}
@@ -195,69 +117,6 @@ export default async function PricingPage() {
         socialLinks={footerSocialLinks}
         logoUrl={footerLogoUrl}
       />
-
-      {/* JSON-LD: Product + Offer array */}
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify({
-            '@context': 'https://schema.org',
-            '@type': 'Product',
-            name: 'Pulzifi',
-            description:
-              'AI-powered competitive intelligence platform that monitors websites for changes and delivers strategic insights.',
-            brand: { '@type': 'Brand', name: 'Pulzifi' },
-            offers: [
-              {
-                '@type': 'Offer',
-                name: 'Starter Plan',
-                price: '20',
-                priceCurrency: 'USD',
-                availability: 'https://schema.org/InStock',
-                priceValidUntil: '2027-12-31',
-                url: 'https://pulzifi.com/pricing',
-              },
-              {
-                '@type': 'Offer',
-                name: 'Professional Plan',
-                price: '62',
-                priceCurrency: 'USD',
-                availability: 'https://schema.org/InStock',
-                priceValidUntil: '2027-12-31',
-                url: 'https://pulzifi.com/pricing',
-              },
-              {
-                '@type': 'Offer',
-                name: 'Enterprise Plan',
-                description: 'Custom pricing — contact us',
-                availability: 'https://schema.org/InStock',
-                url: 'https://pulzifi.com/contact',
-              },
-            ],
-          }),
-        }}
-      />
-
-      {/* JSON-LD: FAQPage */}
-      {(pricingData.faq?.items?.length ?? 0) > 0 && (
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{
-            __html: JSON.stringify({
-              '@context': 'https://schema.org',
-              '@type': 'FAQPage',
-              mainEntity: (pricingData.faq?.items ?? []).map((item) => ({
-                '@type': 'Question',
-                name: item.question,
-                acceptedAnswer: {
-                  '@type': 'Answer',
-                  text: item.answer,
-                },
-              })),
-            }),
-          }}
-        />
-      )}
     </div>
   )
 }

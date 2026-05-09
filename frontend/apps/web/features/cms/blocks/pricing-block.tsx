@@ -4,6 +4,7 @@ type PlanDoc = {
   id: string | number
   name: string
   price: string
+  priceAnnual?: string | null
   period?: string | null
   tagline?: string | null
   features?: { text?: string | null; included?: boolean | null }[] | null
@@ -22,6 +23,14 @@ type Props = {
     subheadline?: string | null
     guaranteeNote?: string | null
     plans?: (PlanDoc | string | number)[] | null
+    billing?: {
+      monthlyLabel?: string | null
+      annualLabel?: string | null
+      annualBadge?: string | null
+      annualNote?: string | null
+    } | null
+    comparePlansHeadline?: string | null
+    featuresLabel?: string | null
   }
 }
 
@@ -39,9 +48,18 @@ export function PricingBlock({ block }: Props) {
       headlineHighlight={block.headlineHighlight ?? undefined}
       subheadline={block.subheadline ?? undefined}
       guaranteeNote={block.guaranteeNote ?? undefined}
+      billing={block.billing ? {
+        monthlyLabel: block.billing.monthlyLabel ?? undefined,
+        annualLabel: block.billing.annualLabel ?? undefined,
+        annualBadge: block.billing.annualBadge ?? undefined,
+        annualNote: block.billing.annualNote ?? undefined,
+      } : undefined}
+      comparePlansHeadline={block.comparePlansHeadline ?? undefined}
+      featuresLabel={block.featuresLabel ?? undefined}
       plans={populated.map((p) => ({
         name: p.name,
         price: p.price,
+        priceAnnual: p.priceAnnual ?? undefined,
         period: p.period ?? undefined,
         tagline: p.tagline ?? undefined,
         features:

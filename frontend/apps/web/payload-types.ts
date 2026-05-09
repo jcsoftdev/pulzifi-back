@@ -69,9 +69,10 @@ export interface Config {
   collections: {
     media: Media;
     users: User;
+    'block-library': BlockLibrary;
     pages: Page;
-    plans: Plan;
     posts: Post;
+    plans: Plan;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -82,8 +83,8 @@ export interface Config {
     media: MediaSelect<false> | MediaSelect<true>;
     users: UsersSelect<false> | UsersSelect<true>;
     pages: PagesSelect<false> | PagesSelect<true>;
-    plans: PlansSelect<false> | PlansSelect<true>;
     posts: PostsSelect<false> | PostsSelect<true>;
+    plans: PlansSelect<false> | PlansSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -95,16 +96,16 @@ export interface Config {
   fallbackLocale: null;
   globals: {
     landing: Landing;
+    'pricing-page': PricingPage;
     navbar: Navbar;
     footer: Footer;
-    'pricing-page': PricingPage;
     theme: Theme;
   };
   globalsSelect: {
     landing: LandingSelect<false> | LandingSelect<true>;
+    'pricing-page': PricingPageSelect<false> | PricingPageSelect<true>;
     navbar: NavbarSelect<false> | NavbarSelect<true>;
     footer: FooterSelect<false> | FooterSelect<true>;
-    'pricing-page': PricingPageSelect<false> | PricingPageSelect<true>;
     theme: ThemeSelect<false> | ThemeSelect<true>;
   };
   locale: null;
@@ -190,14 +191,70 @@ export interface Page {
   blocks?:
     | (
         | {
+            eyebrowBadge?: string | null;
+            eyebrowText?: string | null;
             headline: string;
+            headlineHighlight?: string | null;
             subheadline?: string | null;
-            ctaLabel?: string | null;
-            ctaHref?: string | null;
+            primaryCtaLabel?: string | null;
+            primaryCtaHref?: string | null;
+            secondaryCtaLabel?: string | null;
+            secondaryCtaHref?: string | null;
+            trustLine?: string | null;
             image?: (number | null) | Media;
+            dashboardAlerts?:
+              | {
+                  tone?: ('signal' | 'amber' | 'teal' | 'ink') | null;
+                  icon?: string | null;
+                  site: string;
+                  title: string;
+                  detail?: string | null;
+                  time?: string | null;
+                  id?: string | null;
+                }[]
+              | null;
+            aiInsightTitle?: string | null;
+            aiInsightBody?: string | null;
+            kpis?:
+              | {
+                  label: string;
+                  value: string;
+                  delta?: string | null;
+                  deltaDirection?: ('up' | 'down') | null;
+                  id?: string | null;
+                }[]
+              | null;
             id?: string | null;
             blockName?: string | null;
             blockType: 'hero';
+          }
+        | {
+            label?: string | null;
+            items?:
+              | {
+                  text: string;
+                  id?: string | null;
+                }[]
+              | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'logos';
+          }
+        | {
+            eyebrow?: string | null;
+            headline: string;
+            headlineHighlight?: string | null;
+            cards?:
+              | {
+                  metric: string;
+                  label: string;
+                  description: string;
+                  id?: string | null;
+                }[]
+              | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'problem';
           }
         | {
             items?:
@@ -212,11 +269,18 @@ export interface Page {
             blockType: 'stats';
           }
         | {
+            eyebrow?: string | null;
+            headline?: string | null;
+            headlineHighlight?: string | null;
+            subheadline?: string | null;
             steps?:
               | {
                   step: number;
+                  icon?: string | null;
                   title: string;
                   description: string;
+                  mockType: 'url' | 'insight' | 'alerts';
+                  mockText?: string | null;
                   id?: string | null;
                 }[]
               | null;
@@ -225,6 +289,31 @@ export interface Page {
             blockType: 'how-it-works';
           }
         | {
+            eyebrow?: string | null;
+            headline?: string | null;
+            headlineHighlight?: string | null;
+            intro?: string | null;
+            bullets?:
+              | {
+                  title: string;
+                  description: string;
+                  id?: string | null;
+                }[]
+              | null;
+            demoTitle?: string | null;
+            demoBadge?: string | null;
+            demoSite?: string | null;
+            demoChange?: string | null;
+            demoAnalysis?: string | null;
+            demoActions?:
+              | {
+                  label: string;
+                  id?: string | null;
+                }[]
+              | null;
+            /**
+             * Legacy card layout — leave empty when using bullets/demo
+             */
             cards?:
               | {
                   title: string;
@@ -238,11 +327,48 @@ export interface Page {
             blockType: 'features';
           }
         | {
+            eyebrow?: string | null;
+            headline: string;
+            headlineHighlight?: string | null;
+            subheadline?: string | null;
+            tabs?:
+              | {
+                  label: string;
+                  items?:
+                    | {
+                        title: string;
+                        body?: string | null;
+                        image?: (number | null) | Media;
+                        id?: string | null;
+                      }[]
+                    | null;
+                  id?: string | null;
+                }[]
+              | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'ai-intelligence';
+          }
+        | {
             id?: string | null;
             blockName?: string | null;
             blockType: 'insights';
           }
         | {
+            compactMode?: boolean | null;
+            eyebrow?: string | null;
+            headline?: string | null;
+            headlineHighlight?: string | null;
+            subheadline?: string | null;
+            items?:
+              | {
+                  icon?: string | null;
+                  title: string;
+                  description: string;
+                  realWin?: string | null;
+                  id?: string | null;
+                }[]
+              | null;
             id?: string | null;
             blockName?: string | null;
             blockType: 'industries';
@@ -251,14 +377,73 @@ export interface Page {
             eyebrow?: string | null;
             headline?: string | null;
             headlineHighlight?: string | null;
+            columns?:
+              | {
+                  name: string;
+                  isUs?: boolean | null;
+                  id?: string | null;
+                }[]
+              | null;
+            rows?:
+              | {
+                  feature: string;
+                  cells?:
+                    | {
+                        state?: ('yes' | 'no' | 'partial') | null;
+                        note?: string | null;
+                        id?: string | null;
+                      }[]
+                    | null;
+                  id?: string | null;
+                }[]
+              | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'comparison';
+          }
+        | {
+            eyebrow?: string | null;
+            headline?: string | null;
+            headlineHighlight?: string | null;
             subheadline?: string | null;
-            guaranteeNote?: string | null;
+            /**
+             * Select plans to display. Drag to reorder. Edit a plan record to update it everywhere it appears.
+             */
             plans?: (number | Plan)[] | null;
+            guaranteeNote?: string | null;
+            billing?: {
+              /**
+               * Default: "Monthly"
+               */
+              monthlyLabel?: string | null;
+              /**
+               * Default: "Annual"
+               */
+              annualLabel?: string | null;
+              /**
+               * Default: "2 months free"
+               */
+              annualBadge?: string | null;
+              /**
+               * Default: "Billed annually · 2 months free"
+               */
+              annualNote?: string | null;
+            };
+            /**
+             * Default: "Compare plans"
+             */
+            comparePlansHeadline?: string | null;
+            /**
+             * Default: "Features:"
+             */
+            featuresLabel?: string | null;
             id?: string | null;
             blockName?: string | null;
             blockType: 'pricing';
           }
         | {
+            eyebrow?: string | null;
+            headline?: string | null;
             items?:
               | {
                   quote: string;
@@ -273,6 +458,9 @@ export interface Page {
             blockType: 'testimonials';
           }
         | {
+            eyebrow?: string | null;
+            headline?: string | null;
+            subheadline?: string | null;
             items?:
               | {
                   question: string;
@@ -339,6 +527,8 @@ export interface Page {
   _status?: ('draft' | 'published') | null;
 }
 /**
+ * Pricing plans. Referenced from the landing pricing block and the pricing page. Edit once, both pages update.
+ *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "plans".
  */
@@ -350,15 +540,26 @@ export interface Plan {
   tagline?: string | null;
   features?:
     | {
-        text: string;
+        text?: string | null;
         included?: boolean | null;
         id?: string | null;
       }[]
     | null;
+  /**
+   * Annual price (e.g. "$16"). Leave blank to hide toggle.
+   */
+  priceAnnual?: string | null;
   ctaLabel?: string | null;
   ctaHref?: string | null;
   highlighted?: boolean | null;
   popularBadge?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+export interface BlockLibrary {
+  id: number;
+  name: string;
+  block?: { blockType: string; id?: string | null; [k: string]: unknown }[] | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -436,12 +637,12 @@ export interface PayloadLockedDocument {
         value: number | Page;
       } | null)
     | ({
-        relationTo: 'plans';
-        value: number | Plan;
-      } | null)
-    | ({
         relationTo: 'posts';
         value: number | Post;
+      } | null)
+    | ({
+        relationTo: 'plans';
+        value: number | Plan;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -538,11 +739,69 @@ export interface PagesSelect<T extends boolean = true> {
         hero?:
           | T
           | {
+              eyebrowBadge?: T;
+              eyebrowText?: T;
               headline?: T;
+              headlineHighlight?: T;
               subheadline?: T;
-              ctaLabel?: T;
-              ctaHref?: T;
+              primaryCtaLabel?: T;
+              primaryCtaHref?: T;
+              secondaryCtaLabel?: T;
+              secondaryCtaHref?: T;
+              trustLine?: T;
               image?: T;
+              dashboardAlerts?:
+                | T
+                | {
+                    tone?: T;
+                    icon?: T;
+                    site?: T;
+                    title?: T;
+                    detail?: T;
+                    time?: T;
+                    id?: T;
+                  };
+              aiInsightTitle?: T;
+              aiInsightBody?: T;
+              kpis?:
+                | T
+                | {
+                    label?: T;
+                    value?: T;
+                    delta?: T;
+                    deltaDirection?: T;
+                    id?: T;
+                  };
+              id?: T;
+              blockName?: T;
+            };
+        logos?:
+          | T
+          | {
+              label?: T;
+              items?:
+                | T
+                | {
+                    text?: T;
+                    id?: T;
+                  };
+              id?: T;
+              blockName?: T;
+            };
+        problem?:
+          | T
+          | {
+              eyebrow?: T;
+              headline?: T;
+              headlineHighlight?: T;
+              cards?:
+                | T
+                | {
+                    metric?: T;
+                    label?: T;
+                    description?: T;
+                    id?: T;
+                  };
               id?: T;
               blockName?: T;
             };
@@ -562,12 +821,19 @@ export interface PagesSelect<T extends boolean = true> {
         'how-it-works'?:
           | T
           | {
+              eyebrow?: T;
+              headline?: T;
+              headlineHighlight?: T;
+              subheadline?: T;
               steps?:
                 | T
                 | {
                     step?: T;
+                    icon?: T;
                     title?: T;
                     description?: T;
+                    mockType?: T;
+                    mockText?: T;
                     id?: T;
                   };
               id?: T;
@@ -576,12 +842,58 @@ export interface PagesSelect<T extends boolean = true> {
         features?:
           | T
           | {
+              eyebrow?: T;
+              headline?: T;
+              headlineHighlight?: T;
+              intro?: T;
+              bullets?:
+                | T
+                | {
+                    title?: T;
+                    description?: T;
+                    id?: T;
+                  };
+              demoTitle?: T;
+              demoBadge?: T;
+              demoSite?: T;
+              demoChange?: T;
+              demoAnalysis?: T;
+              demoActions?:
+                | T
+                | {
+                    label?: T;
+                    id?: T;
+                  };
               cards?:
                 | T
                 | {
                     title?: T;
                     description?: T;
                     image?: T;
+                    id?: T;
+                  };
+              id?: T;
+              blockName?: T;
+            };
+        'ai-intelligence'?:
+          | T
+          | {
+              eyebrow?: T;
+              headline?: T;
+              headlineHighlight?: T;
+              subheadline?: T;
+              tabs?:
+                | T
+                | {
+                    label?: T;
+                    items?:
+                      | T
+                      | {
+                          title?: T;
+                          body?: T;
+                          image?: T;
+                          id?: T;
+                        };
                     id?: T;
                   };
               id?: T;
@@ -596,6 +908,49 @@ export interface PagesSelect<T extends boolean = true> {
         industries?:
           | T
           | {
+              compactMode?: T;
+              eyebrow?: T;
+              headline?: T;
+              headlineHighlight?: T;
+              subheadline?: T;
+              items?:
+                | T
+                | {
+                    icon?: T;
+                    title?: T;
+                    description?: T;
+                    realWin?: T;
+                    id?: T;
+                  };
+              id?: T;
+              blockName?: T;
+            };
+        comparison?:
+          | T
+          | {
+              eyebrow?: T;
+              headline?: T;
+              headlineHighlight?: T;
+              columns?:
+                | T
+                | {
+                    name?: T;
+                    isUs?: T;
+                    id?: T;
+                  };
+              rows?:
+                | T
+                | {
+                    feature?: T;
+                    cells?:
+                      | T
+                      | {
+                          state?: T;
+                          note?: T;
+                          id?: T;
+                        };
+                    id?: T;
+                  };
               id?: T;
               blockName?: T;
             };
@@ -606,14 +961,26 @@ export interface PagesSelect<T extends boolean = true> {
               headline?: T;
               headlineHighlight?: T;
               subheadline?: T;
-              guaranteeNote?: T;
               plans?: T;
+              guaranteeNote?: T;
+              billing?:
+                | T
+                | {
+                    monthlyLabel?: T;
+                    annualLabel?: T;
+                    annualBadge?: T;
+                    annualNote?: T;
+                  };
+              comparePlansHeadline?: T;
+              featuresLabel?: T;
               id?: T;
               blockName?: T;
             };
         testimonials?:
           | T
           | {
+              eyebrow?: T;
+              headline?: T;
               items?:
                 | T
                 | {
@@ -629,6 +996,9 @@ export interface PagesSelect<T extends boolean = true> {
         faq?:
           | T
           | {
+              eyebrow?: T;
+              headline?: T;
+              subheadline?: T;
               items?:
                 | T
                 | {
@@ -685,29 +1055,6 @@ export interface PagesSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "plans_select".
- */
-export interface PlansSelect<T extends boolean = true> {
-  name?: T;
-  price?: T;
-  period?: T;
-  tagline?: T;
-  features?:
-    | T
-    | {
-        text?: T;
-        included?: T;
-        id?: T;
-      };
-  ctaLabel?: T;
-  ctaHref?: T;
-  highlighted?: T;
-  popularBadge?: T;
-  updatedAt?: T;
-  createdAt?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "posts_select".
  */
 export interface PostsSelect<T extends boolean = true> {
@@ -729,6 +1076,30 @@ export interface PostsSelect<T extends boolean = true> {
   updatedAt?: T;
   createdAt?: T;
   _status?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "plans_select".
+ */
+export interface PlansSelect<T extends boolean = true> {
+  name?: T;
+  price?: T;
+  period?: T;
+  tagline?: T;
+  features?:
+    | T
+    | {
+        text?: T;
+        included?: T;
+        id?: T;
+      };
+  priceAnnual?: T;
+  ctaLabel?: T;
+  ctaHref?: T;
+  highlighted?: T;
+  popularBadge?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -779,14 +1150,70 @@ export interface Landing {
   blocks?:
     | (
         | {
+            eyebrowBadge?: string | null;
+            eyebrowText?: string | null;
             headline: string;
+            headlineHighlight?: string | null;
             subheadline?: string | null;
-            ctaLabel?: string | null;
-            ctaHref?: string | null;
+            primaryCtaLabel?: string | null;
+            primaryCtaHref?: string | null;
+            secondaryCtaLabel?: string | null;
+            secondaryCtaHref?: string | null;
+            trustLine?: string | null;
             image?: (number | null) | Media;
+            dashboardAlerts?:
+              | {
+                  tone?: ('signal' | 'amber' | 'teal' | 'ink') | null;
+                  icon?: string | null;
+                  site: string;
+                  title: string;
+                  detail?: string | null;
+                  time?: string | null;
+                  id?: string | null;
+                }[]
+              | null;
+            aiInsightTitle?: string | null;
+            aiInsightBody?: string | null;
+            kpis?:
+              | {
+                  label: string;
+                  value: string;
+                  delta?: string | null;
+                  deltaDirection?: ('up' | 'down') | null;
+                  id?: string | null;
+                }[]
+              | null;
             id?: string | null;
             blockName?: string | null;
             blockType: 'hero';
+          }
+        | {
+            label?: string | null;
+            items?:
+              | {
+                  text: string;
+                  id?: string | null;
+                }[]
+              | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'logos';
+          }
+        | {
+            eyebrow?: string | null;
+            headline: string;
+            headlineHighlight?: string | null;
+            cards?:
+              | {
+                  metric: string;
+                  label: string;
+                  description: string;
+                  id?: string | null;
+                }[]
+              | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'problem';
           }
         | {
             items?:
@@ -801,11 +1228,18 @@ export interface Landing {
             blockType: 'stats';
           }
         | {
+            eyebrow?: string | null;
+            headline?: string | null;
+            headlineHighlight?: string | null;
+            subheadline?: string | null;
             steps?:
               | {
                   step: number;
+                  icon?: string | null;
                   title: string;
                   description: string;
+                  mockType: 'url' | 'insight' | 'alerts';
+                  mockText?: string | null;
                   id?: string | null;
                 }[]
               | null;
@@ -814,6 +1248,31 @@ export interface Landing {
             blockType: 'how-it-works';
           }
         | {
+            eyebrow?: string | null;
+            headline?: string | null;
+            headlineHighlight?: string | null;
+            intro?: string | null;
+            bullets?:
+              | {
+                  title: string;
+                  description: string;
+                  id?: string | null;
+                }[]
+              | null;
+            demoTitle?: string | null;
+            demoBadge?: string | null;
+            demoSite?: string | null;
+            demoChange?: string | null;
+            demoAnalysis?: string | null;
+            demoActions?:
+              | {
+                  label: string;
+                  id?: string | null;
+                }[]
+              | null;
+            /**
+             * Legacy card layout — leave empty when using bullets/demo
+             */
             cards?:
               | {
                   title: string;
@@ -827,11 +1286,48 @@ export interface Landing {
             blockType: 'features';
           }
         | {
+            eyebrow?: string | null;
+            headline: string;
+            headlineHighlight?: string | null;
+            subheadline?: string | null;
+            tabs?:
+              | {
+                  label: string;
+                  items?:
+                    | {
+                        title: string;
+                        body?: string | null;
+                        image?: (number | null) | Media;
+                        id?: string | null;
+                      }[]
+                    | null;
+                  id?: string | null;
+                }[]
+              | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'ai-intelligence';
+          }
+        | {
             id?: string | null;
             blockName?: string | null;
             blockType: 'insights';
           }
         | {
+            compactMode?: boolean | null;
+            eyebrow?: string | null;
+            headline?: string | null;
+            headlineHighlight?: string | null;
+            subheadline?: string | null;
+            items?:
+              | {
+                  icon?: string | null;
+                  title: string;
+                  description: string;
+                  realWin?: string | null;
+                  id?: string | null;
+                }[]
+              | null;
             id?: string | null;
             blockName?: string | null;
             blockType: 'industries';
@@ -840,14 +1336,73 @@ export interface Landing {
             eyebrow?: string | null;
             headline?: string | null;
             headlineHighlight?: string | null;
+            columns?:
+              | {
+                  name: string;
+                  isUs?: boolean | null;
+                  id?: string | null;
+                }[]
+              | null;
+            rows?:
+              | {
+                  feature: string;
+                  cells?:
+                    | {
+                        state?: ('yes' | 'no' | 'partial') | null;
+                        note?: string | null;
+                        id?: string | null;
+                      }[]
+                    | null;
+                  id?: string | null;
+                }[]
+              | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'comparison';
+          }
+        | {
+            eyebrow?: string | null;
+            headline?: string | null;
+            headlineHighlight?: string | null;
             subheadline?: string | null;
-            guaranteeNote?: string | null;
+            /**
+             * Select plans to display. Drag to reorder. Edit a plan record to update it everywhere it appears.
+             */
             plans?: (number | Plan)[] | null;
+            guaranteeNote?: string | null;
+            billing?: {
+              /**
+               * Default: "Monthly"
+               */
+              monthlyLabel?: string | null;
+              /**
+               * Default: "Annual"
+               */
+              annualLabel?: string | null;
+              /**
+               * Default: "2 months free"
+               */
+              annualBadge?: string | null;
+              /**
+               * Default: "Billed annually · 2 months free"
+               */
+              annualNote?: string | null;
+            };
+            /**
+             * Default: "Compare plans"
+             */
+            comparePlansHeadline?: string | null;
+            /**
+             * Default: "Features:"
+             */
+            featuresLabel?: string | null;
             id?: string | null;
             blockName?: string | null;
             blockType: 'pricing';
           }
         | {
+            eyebrow?: string | null;
+            headline?: string | null;
             items?:
               | {
                   quote: string;
@@ -862,6 +1417,9 @@ export interface Landing {
             blockType: 'testimonials';
           }
         | {
+            eyebrow?: string | null;
+            headline?: string | null;
+            subheadline?: string | null;
             items?:
               | {
                   question: string;
@@ -923,59 +1481,6 @@ export interface Landing {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "navbar".
- */
-export interface Navbar {
-  id: number;
-  links?:
-    | {
-        label: string;
-        href: string;
-        id?: string | null;
-      }[]
-    | null;
-  signinLabel?: string | null;
-  signinHref?: string | null;
-  primaryCtaLabel?: string | null;
-  primaryCtaHref?: string | null;
-  logo?: (number | null) | Media;
-  updatedAt?: string | null;
-  createdAt?: string | null;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "footer".
- */
-export interface Footer {
-  id: number;
-  groups?:
-    | {
-        heading: string;
-        links?:
-          | {
-              label: string;
-              href: string;
-              id?: string | null;
-            }[]
-          | null;
-        id?: string | null;
-      }[]
-    | null;
-  tagline?: string | null;
-  socialLinks?:
-    | {
-        platform: string;
-        href: string;
-        id?: string | null;
-      }[]
-    | null;
-  copyrightText?: string | null;
-  logo?: (number | null) | Media;
-  updatedAt?: string | null;
-  createdAt?: string | null;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "pricing-page".
  */
 export interface PricingPage {
@@ -986,8 +1491,37 @@ export interface PricingPage {
     headlineHighlight?: string | null;
     subheadline?: string | null;
   };
+  /**
+   * Select plans to display. Drag to reorder. Edit a plan record to update it everywhere it appears.
+   */
   plans?: (number | Plan)[] | null;
   guaranteeNote?: string | null;
+  billing?: {
+    /**
+     * Default: "Monthly"
+     */
+    monthlyLabel?: string | null;
+    /**
+     * Default: "Annual"
+     */
+    annualLabel?: string | null;
+    /**
+     * Badge on Annual button. Default: "2 months free"
+     */
+    annualBadge?: string | null;
+    /**
+     * Per-card note when annual selected. Default: "Billed annually · 2 months free"
+     */
+    annualNote?: string | null;
+  };
+  /**
+   * Comparison table heading. Default: "Compare plans"
+   */
+  comparePlansHeadline?: string | null;
+  /**
+   * Label above feature list on each card. Default: "Features:"
+   */
+  featuresLabel?: string | null;
   faq?: {
     eyebrow?: string | null;
     headline?: string | null;
@@ -1005,21 +1539,112 @@ export interface PricingPage {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "navbar".
+ */
+export interface Navbar {
+  id: number;
+  logo?: (number | null) | Media;
+  links?:
+    | {
+        label: string;
+        href: string;
+        id?: string | null;
+      }[]
+    | null;
+  signinLabel?: string | null;
+  signinHref?: string | null;
+  primaryCtaLabel?: string | null;
+  primaryCtaHref?: string | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "footer".
+ */
+export interface Footer {
+  id: number;
+  logo?: (number | null) | Media;
+  tagline?: string | null;
+  groups?:
+    | {
+        heading: string;
+        links?:
+          | {
+              label: string;
+              href: string;
+              id?: string | null;
+            }[]
+          | null;
+        id?: string | null;
+      }[]
+    | null;
+  socialLinks?:
+    | {
+        platform: 'twitter' | 'linkedin' | 'github' | 'youtube' | 'other';
+        href: string;
+        id?: string | null;
+      }[]
+    | null;
+  copyrightText?: string | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * Edit any color value. Leave empty to keep built-in defaults. Affects the landing page only.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "theme".
  */
 export interface Theme {
   id: number;
+  /**
+   * Default #f3f3f3
+   */
   pageBg?: string | null;
+  /**
+   * Default #e7e7eb
+   */
   pageBgAlt?: string | null;
+  /**
+   * Default #ffffff
+   */
   cardBg?: string | null;
+  /**
+   * Default #29144c
+   */
   darkSurface?: string | null;
+  /**
+   * Default #131313
+   */
   inkPrimary?: string | null;
+  /**
+   * Default #444141
+   */
   inkSecondary?: string | null;
+  /**
+   * Default #6A35E0
+   */
   accentPrimary?: string | null;
+  /**
+   * Default #8b5cf6
+   */
   accentMuted?: string | null;
+  /**
+   * Default #f59e0b
+   */
   accentGold?: string | null;
+  /**
+   * Default #14b8a6
+   */
   accentTeal?: string | null;
+  /**
+   * Default rgba(0,0,0,0.08)
+   */
   border?: string | null;
+  /**
+   * Default rgba(0,0,0,0.16)
+   */
   borderStrong?: string | null;
   updatedAt?: string | null;
   createdAt?: string | null;
@@ -1035,11 +1660,69 @@ export interface LandingSelect<T extends boolean = true> {
         hero?:
           | T
           | {
+              eyebrowBadge?: T;
+              eyebrowText?: T;
               headline?: T;
+              headlineHighlight?: T;
               subheadline?: T;
-              ctaLabel?: T;
-              ctaHref?: T;
+              primaryCtaLabel?: T;
+              primaryCtaHref?: T;
+              secondaryCtaLabel?: T;
+              secondaryCtaHref?: T;
+              trustLine?: T;
               image?: T;
+              dashboardAlerts?:
+                | T
+                | {
+                    tone?: T;
+                    icon?: T;
+                    site?: T;
+                    title?: T;
+                    detail?: T;
+                    time?: T;
+                    id?: T;
+                  };
+              aiInsightTitle?: T;
+              aiInsightBody?: T;
+              kpis?:
+                | T
+                | {
+                    label?: T;
+                    value?: T;
+                    delta?: T;
+                    deltaDirection?: T;
+                    id?: T;
+                  };
+              id?: T;
+              blockName?: T;
+            };
+        logos?:
+          | T
+          | {
+              label?: T;
+              items?:
+                | T
+                | {
+                    text?: T;
+                    id?: T;
+                  };
+              id?: T;
+              blockName?: T;
+            };
+        problem?:
+          | T
+          | {
+              eyebrow?: T;
+              headline?: T;
+              headlineHighlight?: T;
+              cards?:
+                | T
+                | {
+                    metric?: T;
+                    label?: T;
+                    description?: T;
+                    id?: T;
+                  };
               id?: T;
               blockName?: T;
             };
@@ -1059,12 +1742,19 @@ export interface LandingSelect<T extends boolean = true> {
         'how-it-works'?:
           | T
           | {
+              eyebrow?: T;
+              headline?: T;
+              headlineHighlight?: T;
+              subheadline?: T;
               steps?:
                 | T
                 | {
                     step?: T;
+                    icon?: T;
                     title?: T;
                     description?: T;
+                    mockType?: T;
+                    mockText?: T;
                     id?: T;
                   };
               id?: T;
@@ -1073,12 +1763,58 @@ export interface LandingSelect<T extends boolean = true> {
         features?:
           | T
           | {
+              eyebrow?: T;
+              headline?: T;
+              headlineHighlight?: T;
+              intro?: T;
+              bullets?:
+                | T
+                | {
+                    title?: T;
+                    description?: T;
+                    id?: T;
+                  };
+              demoTitle?: T;
+              demoBadge?: T;
+              demoSite?: T;
+              demoChange?: T;
+              demoAnalysis?: T;
+              demoActions?:
+                | T
+                | {
+                    label?: T;
+                    id?: T;
+                  };
               cards?:
                 | T
                 | {
                     title?: T;
                     description?: T;
                     image?: T;
+                    id?: T;
+                  };
+              id?: T;
+              blockName?: T;
+            };
+        'ai-intelligence'?:
+          | T
+          | {
+              eyebrow?: T;
+              headline?: T;
+              headlineHighlight?: T;
+              subheadline?: T;
+              tabs?:
+                | T
+                | {
+                    label?: T;
+                    items?:
+                      | T
+                      | {
+                          title?: T;
+                          body?: T;
+                          image?: T;
+                          id?: T;
+                        };
                     id?: T;
                   };
               id?: T;
@@ -1093,6 +1829,49 @@ export interface LandingSelect<T extends boolean = true> {
         industries?:
           | T
           | {
+              compactMode?: T;
+              eyebrow?: T;
+              headline?: T;
+              headlineHighlight?: T;
+              subheadline?: T;
+              items?:
+                | T
+                | {
+                    icon?: T;
+                    title?: T;
+                    description?: T;
+                    realWin?: T;
+                    id?: T;
+                  };
+              id?: T;
+              blockName?: T;
+            };
+        comparison?:
+          | T
+          | {
+              eyebrow?: T;
+              headline?: T;
+              headlineHighlight?: T;
+              columns?:
+                | T
+                | {
+                    name?: T;
+                    isUs?: T;
+                    id?: T;
+                  };
+              rows?:
+                | T
+                | {
+                    feature?: T;
+                    cells?:
+                      | T
+                      | {
+                          state?: T;
+                          note?: T;
+                          id?: T;
+                        };
+                    id?: T;
+                  };
               id?: T;
               blockName?: T;
             };
@@ -1103,14 +1882,26 @@ export interface LandingSelect<T extends boolean = true> {
               headline?: T;
               headlineHighlight?: T;
               subheadline?: T;
-              guaranteeNote?: T;
               plans?: T;
+              guaranteeNote?: T;
+              billing?:
+                | T
+                | {
+                    monthlyLabel?: T;
+                    annualLabel?: T;
+                    annualBadge?: T;
+                    annualNote?: T;
+                  };
+              comparePlansHeadline?: T;
+              featuresLabel?: T;
               id?: T;
               blockName?: T;
             };
         testimonials?:
           | T
           | {
+              eyebrow?: T;
+              headline?: T;
               items?:
                 | T
                 | {
@@ -1126,6 +1917,9 @@ export interface LandingSelect<T extends boolean = true> {
         faq?:
           | T
           | {
+              eyebrow?: T;
+              headline?: T;
+              subheadline?: T;
               items?:
                 | T
                 | {
@@ -1175,59 +1969,6 @@ export interface LandingSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "navbar_select".
- */
-export interface NavbarSelect<T extends boolean = true> {
-  links?:
-    | T
-    | {
-        label?: T;
-        href?: T;
-        id?: T;
-      };
-  signinLabel?: T;
-  signinHref?: T;
-  primaryCtaLabel?: T;
-  primaryCtaHref?: T;
-  logo?: T;
-  updatedAt?: T;
-  createdAt?: T;
-  globalType?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "footer_select".
- */
-export interface FooterSelect<T extends boolean = true> {
-  groups?:
-    | T
-    | {
-        heading?: T;
-        links?:
-          | T
-          | {
-              label?: T;
-              href?: T;
-              id?: T;
-            };
-        id?: T;
-      };
-  tagline?: T;
-  socialLinks?:
-    | T
-    | {
-        platform?: T;
-        href?: T;
-        id?: T;
-      };
-  copyrightText?: T;
-  logo?: T;
-  updatedAt?: T;
-  createdAt?: T;
-  globalType?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "pricing-page_select".
  */
 export interface PricingPageSelect<T extends boolean = true> {
@@ -1241,6 +1982,16 @@ export interface PricingPageSelect<T extends boolean = true> {
       };
   plans?: T;
   guaranteeNote?: T;
+  billing?:
+    | T
+    | {
+        monthlyLabel?: T;
+        annualLabel?: T;
+        annualBadge?: T;
+        annualNote?: T;
+      };
+  comparePlansHeadline?: T;
+  featuresLabel?: T;
   faq?:
     | T
     | {
@@ -1255,6 +2006,59 @@ export interface PricingPageSelect<T extends boolean = true> {
               id?: T;
             };
       };
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "navbar_select".
+ */
+export interface NavbarSelect<T extends boolean = true> {
+  logo?: T;
+  links?:
+    | T
+    | {
+        label?: T;
+        href?: T;
+        id?: T;
+      };
+  signinLabel?: T;
+  signinHref?: T;
+  primaryCtaLabel?: T;
+  primaryCtaHref?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "footer_select".
+ */
+export interface FooterSelect<T extends boolean = true> {
+  logo?: T;
+  tagline?: T;
+  groups?:
+    | T
+    | {
+        heading?: T;
+        links?:
+          | T
+          | {
+              label?: T;
+              href?: T;
+              id?: T;
+            };
+        id?: T;
+      };
+  socialLinks?:
+    | T
+    | {
+        platform?: T;
+        href?: T;
+        id?: T;
+      };
+  copyrightText?: T;
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;

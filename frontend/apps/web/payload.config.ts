@@ -70,11 +70,55 @@ export default buildConfig({
       fields: [],
     },
     {
-      slug: 'pages',
-      admin: { useAsTitle: 'title' },
-      versions: { drafts: true },
-      endpoints: false,
+      slug: 'block-library',
+      labels: { singular: 'Block', plural: 'Block Library' },
       access: { read: () => true },
+      admin: {
+        useAsTitle: 'name',
+        description: 'Reusable blocks. Reference them on any page via the "Block Reference" block type.',
+        defaultColumns: ['name', 'updatedAt'],
+        livePreview: {
+          url: ({ data }: { data: { id?: number } }) => {
+            const base = process.env.NEXT_PUBLIC_SERVER_URL ?? 'http://localhost:3001'
+            return `${base}/preview/block/${data.id ?? 'new'}`
+          },
+          breakpoints: [
+            { label: 'Mobile', name: 'mobile', width: 390, height: 844 },
+            { label: 'Tablet', name: 'tablet', width: 820, height: 1180 },
+            { label: 'Desktop', name: 'desktop', width: 1440, height: 900 },
+          ],
+        },
+      },
+      fields: [
+        { name: 'name', type: 'text', required: true, admin: { description: 'Internal label — e.g. "Hero — Main", "Pricing — EN"' } },
+        {
+          name: 'block',
+          type: 'blocks',
+          minRows: 1,
+          maxRows: 1,
+          blocks: ALL_BLOCKS,
+          admin: { description: 'Add exactly one block.' },
+        },
+      ],
+    },
+    {
+      slug: 'pages',
+      versions: { drafts: true },
+      access: { read: () => true },
+      admin: {
+        useAsTitle: 'title',
+        livePreview: {
+          url: ({ data }: { data: { slug?: string } }) => {
+            const base = process.env.NEXT_PUBLIC_SERVER_URL ?? 'http://localhost:3001'
+            return `${base}/preview/page/${data.slug ?? 'home'}`
+          },
+          breakpoints: [
+            { label: 'Mobile', name: 'mobile', width: 390, height: 844 },
+            { label: 'Tablet', name: 'tablet', width: 820, height: 1180 },
+            { label: 'Desktop', name: 'desktop', width: 1440, height: 900 },
+          ],
+        },
+      },
       fields: [
         { name: 'title', type: 'text', required: true },
         {
@@ -88,6 +132,10 @@ export default buildConfig({
           name: 'blocks',
           type: 'blocks',
           blocks: ALL_BLOCKS,
+          admin: {
+            description:
+              'Use "Block Reference" to reuse a shared library block (no editing). Use any other block type to create page-specific content.',
+          },
         },
         {
           name: 'meta',
@@ -104,7 +152,6 @@ export default buildConfig({
       slug: 'posts',
       admin: { useAsTitle: 'title' },
       versions: { drafts: true },
-      endpoints: false,
       access: { read: () => true },
       fields: [
         { name: 'title', type: 'text', required: true },
@@ -159,6 +206,7 @@ export default buildConfig({
             { name: 'included', type: 'checkbox', defaultValue: true },
           ],
         },
+        { name: 'priceAnnual', type: 'text', admin: { description: 'Annual price (e.g. "$16"). Leave blank to hide toggle.' } },
         { name: 'ctaLabel', type: 'text' },
         { name: 'ctaHref', type: 'text' },
         { name: 'highlighted', type: 'checkbox' },
@@ -167,90 +215,6 @@ export default buildConfig({
     },
   ],
   globals: [
-    {
-      slug: 'landing',
-      access: { read: () => true },
-      admin: {
-        livePreview: {
-          url: () => {
-            const base = process.env.NEXT_PUBLIC_SERVER_URL ?? 'http://localhost:3001'
-            return `${base}/preview/landing`
-          },
-          breakpoints: [
-            { label: 'Mobile', name: 'mobile', width: 390, height: 844 },
-            { label: 'Tablet', name: 'tablet', width: 820, height: 1180 },
-            { label: 'Desktop', name: 'desktop', width: 1440, height: 900 },
-          ],
-        },
-      },
-      fields: [
-        {
-          name: 'blocks',
-          type: 'blocks',
-          blocks: ALL_BLOCKS,
-        },
-      ],
-    },
-    {
-      slug: 'pricing-page',
-      label: 'Pricing Page',
-      access: { read: () => true },
-      admin: {
-        livePreview: {
-          url: () => {
-            const base = process.env.NEXT_PUBLIC_SERVER_URL ?? 'http://localhost:3001'
-            return `${base}/preview/pricing`
-          },
-          breakpoints: [
-            { label: 'Mobile', name: 'mobile', width: 390, height: 844 },
-            { label: 'Tablet', name: 'tablet', width: 820, height: 1180 },
-            { label: 'Desktop', name: 'desktop', width: 1440, height: 900 },
-          ],
-        },
-      },
-      fields: [
-        {
-          type: 'group',
-          name: 'header',
-          label: 'Header',
-          fields: [
-            { name: 'eyebrow', type: 'text' },
-            { name: 'headline', type: 'text' },
-            { name: 'headlineHighlight', type: 'text' },
-            { name: 'subheadline', type: 'textarea' },
-          ],
-        },
-        {
-          name: 'plans',
-          type: 'relationship',
-          relationTo: 'plans',
-          hasMany: true,
-          admin: {
-            description:
-              'Select plans to display. Drag to reorder. Edit a plan record to update it everywhere it appears.',
-          },
-        },
-        { name: 'guaranteeNote', type: 'text' },
-        {
-          type: 'group',
-          name: 'faq',
-          label: 'FAQ',
-          fields: [
-            { name: 'eyebrow', type: 'text' },
-            { name: 'headline', type: 'text' },
-            { name: 'subheadline', type: 'text' },
-            {
-              name: 'items',
-              type: 'array',
-              fields: [
-                { name: 'question', type: 'text', required: true },
-                { name: 'answer', type: 'textarea', required: true },
-              ],
-            },
-          ],
-        },
-      ],
-    },
     {
       slug: 'navbar',
       access: { read: () => true },
@@ -485,6 +449,39 @@ export default buildConfig({
             },
           ],
         },
+      ],
+    },
+    {
+      slug: 'login-page',
+      label: 'Login Page',
+      access: { read: () => true },
+      fields: [
+        { name: 'headline', type: 'text', defaultValue: 'Know before your competitors move.' },
+        { name: 'subheadline', type: 'text', defaultValue: 'Join 2,500+ teams who react first.' },
+        {
+          name: 'bullets',
+          type: 'array',
+          fields: [{ name: 'text', type: 'text', required: true }],
+          defaultValue: [
+            { text: 'Monitor any competitor page — no code required' },
+            { text: 'AI explains what changed and what to do next' },
+            { text: 'Get alerts in Slack, Email, Teams or WhatsApp' },
+            { text: '14-day free trial · No credit card required' },
+          ],
+        },
+        { name: 'welcomeHeadline', type: 'text', defaultValue: 'Welcome back' },
+        { name: 'welcomeSubline', type: 'text', defaultValue: 'Sign in to your account' },
+      ],
+    },
+    {
+      slug: 'contact-page',
+      label: 'Contact Page',
+      access: { read: () => true },
+      fields: [
+        { name: 'headline', type: 'text', defaultValue: 'Get in touch' },
+        { name: 'subheadline', type: 'text', defaultValue: "We're here to help. Our team responds within one business day." },
+        { name: 'email', type: 'text', defaultValue: 'support@pulzifi.com' },
+        { name: 'address', type: 'text', defaultValue: 'Boise, ID' },
       ],
     },
   ],

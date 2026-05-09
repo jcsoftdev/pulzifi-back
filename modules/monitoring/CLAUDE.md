@@ -56,14 +56,12 @@ Page monitoring with check scheduling, configuration, sections, and notification
 - Pub/Sub Broker (CheckBroker): SSE for pushing check completion
 - Repository factory pattern: `infrastructure/persistence/repository_factory.go`
 - Cross-concern repos: `usage_postgres.go`, `page_postgres.go` in persistence
-- Webhook publishing to configured integrations
+- Publishes `TopicChangeDetected` and `TopicAlertCreated` events to EventBus for integration dispatch
 
 ## Notes
 
-- Most complex module in the codebase (10 application directories)
+- Most complex module in the codebase (9 application directories)
 - Has both API routes and background worker components
-- `infrastructure/consumer/` exists but is empty (Kafka consumer placeholder)
-- `infrastructure/grpc/` exists for inter-module communication
 
 ## Cross-Module Dependencies (violations)
 

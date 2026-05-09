@@ -66,7 +66,7 @@ export function FooterSection({
   return (
     <footer
       id="footer"
-      className="border-t border-[var(--pz-card-border)] bg-white py-16 lg:py-20"
+      className="bg-white py-16 lg:py-20"
     >
       <div className="mx-auto max-w-[1200px] px-6 lg:px-8">
         {/* 4-col grid */}

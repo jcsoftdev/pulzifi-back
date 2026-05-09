@@ -245,6 +245,8 @@ const INDUSTRIES = {
   ],
 } as const
 
+const PRODUCT_IMAGES = '/images/landing'
+
 const AI_INTELLIGENCE = {
   eyebrow: 'AI Intelligence',
   headline: 'Other tools say what changed.',
@@ -256,20 +258,24 @@ const AI_INTELLIGENCE = {
       label: 'For Marketing',
       items: [
         {
-          title: 'Marketing Lens',
-          body: 'Understand messaging shifts, new USPs, and how their positioning is evolving to counter yours.',
+          title: 'Text Change Detection',
+          body: 'Pulzifi highlights exactly what words changed on competitor pages — copy rewrites, new CTAs, messaging pivots — so you know what they\'re testing.',
+          image: `${PRODUCT_IMAGES}/text-changes.png`,
         },
         {
-          title: 'Pricing Strategy',
-          body: 'Get instant analysis of competitor price moves with recommended responses for your own pricing.',
+          title: 'Monitor Any Page',
+          body: 'Add competitor pages in seconds. Tag them by campaign, assign check frequency from 1 hour to 48 hours, and let Pulzifi run automatically.',
+          image: `${PRODUCT_IMAGES}/monitoring-schedule.png`,
         },
         {
-          title: 'Business Opportunity Radar',
-          body: 'AI identifies market gaps and openings the moment they appear in competitor activity.',
+          title: 'Visual Page Comparison',
+          body: 'See exactly how a competitor\'s page looked before and after — pixel-by-pixel visual diff with a slider to compare. No guessing what changed.',
+          image: `${PRODUCT_IMAGES}/visual-comparison.png`,
         },
         {
-          title: 'Risk Alerts',
-          body: 'Compliance changes, regulatory updates, and legal risks flagged before they become expensive problems.',
+          title: 'Instant Alert Delivery',
+          body: 'Get notified the moment a change is detected — via Email, Slack, Teams, WhatsApp, or any channel your team already uses.',
+          image: `${PRODUCT_IMAGES}/notifications.png`,
         },
       ],
     },
@@ -277,20 +283,24 @@ const AI_INTELLIGENCE = {
       label: 'For Product Teams',
       items: [
         {
-          title: 'Feature Launch Detection',
-          body: 'Detect competitor product launches before they\'re announced publicly.',
+          title: 'Competitor Copy Shifts',
+          body: 'Track word-for-word what competitors change on their product pages, pricing copy, and feature descriptions — detect positioning pivots early.',
+          image: `${PRODUCT_IMAGES}/text-changes.png`,
         },
         {
-          title: 'Pricing Tier Changes',
-          body: 'Track structure updates and packaging shifts in real time.',
+          title: 'Scheduled Monitoring',
+          body: 'Configure check cadence per page — hourly for high-priority competitors, daily for the rest. Full control, zero manual work.',
+          image: `${PRODUCT_IMAGES}/monitoring-schedule.png`,
         },
         {
-          title: 'GTM Strategy Shifts',
-          body: 'Spot positioning pivots that signal a roadmap change.',
+          title: 'Visual Diff Viewer',
+          body: 'Compare before/after screenshots of competitor pages visually. Spot UI redesigns, new feature sections, and layout changes at a glance.',
+          image: `${PRODUCT_IMAGES}/visual-comparison.png`,
         },
         {
-          title: 'Beta Page Discovery',
-          body: 'Find competitor beta pages weeks before official launch.',
+          title: 'Team Notifications',
+          body: 'Route alerts to the right channel — Slack for the product team, email for execs, WhatsApp for field sales. One change, everyone informed.',
+          image: `${PRODUCT_IMAGES}/notifications.png`,
         },
       ],
     },
@@ -397,6 +407,7 @@ const PLANS = [
   {
     name: 'Starter',
     price: '$20',
+    priceAnnual: '$16',
     period: '/month',
     tagline: 'Perfect for individual users and business owners',
     features: [
@@ -414,6 +425,7 @@ const PLANS = [
   {
     name: 'Professional',
     price: '$62',
+    priceAnnual: '$49',
     period: '/month',
     tagline: 'Perfect for Growing Businesses Ready to Scale',
     features: [
@@ -602,23 +614,17 @@ export async function seedCMSIfEmpty(payload: Payload): Promise<SeedResult> {
   const plansResult = await payload.find({ collection: 'plans', limit: 1 })
   const plansEmpty = plansResult.totalDocs === 0
 
-  const landing = await payload.findGlobal({ slug: 'landing', depth: 0 })
-  const landingEmpty = !(landing as { blocks?: unknown[] }).blocks?.length
+  const pagesResult = await payload.find({ collection: 'pages', limit: 1 })
+  const pagesEmpty = pagesResult.totalDocs === 0
 
-  if (plansEmpty && landingEmpty) {
+  if (plansEmpty || pagesEmpty) {
     await seedAll(payload)
     return { seeded: true }
   }
 
-  if (plansEmpty) {
-    // Existing landing data with old inline pricing plans — migrate to relationship.
-    const planIds = await seedPlans(payload)
-    await migrateLandingPricingBlock(payload, planIds)
-    await seedPricingPage(payload, planIds)
-    return { seeded: true, reason: 'migrated-to-plans-collection' }
-  }
-
-  return { seeded: false, reason: 'already-seeded' }
+  // Always re-sync block-library content (idempotent upsert, no destructive ops)
+  await seedAll(payload)
+  return { seeded: true, reason: 'refreshed' }
 }
 
 // Idempotent: returns existing plan IDs if any, otherwise creates from PLANS.
@@ -641,50 +647,6 @@ export async function seedPlans(payload: Payload): Promise<PlanId[]> {
     created.push(doc as { id: PlanId })
   }
   return created.map((d) => d.id)
-}
-
-// Replaces inline plans on existing landing pricing block(s) with relationship IDs.
-// Other blocks are preserved as-is.
-async function migrateLandingPricingBlock(
-  payload: Payload,
-  planIds: PlanId[],
-): Promise<void> {
-  const landing = await payload.findGlobal({ slug: 'landing', depth: 0 })
-  const blocks = ((landing as { blocks?: unknown[] }).blocks ?? []) as Array<
-    Record<string, unknown>
-  >
-  const migrated = blocks.map((b) => {
-    if (b.blockType !== 'pricing') return b
-    return {
-      blockType: 'pricing',
-      eyebrow: b.eyebrow,
-      headline: b.headline,
-      headlineHighlight: b.headlineHighlight,
-      subheadline: b.subheadline,
-      guaranteeNote: b.guaranteeNote,
-      plans: planIds,
-    }
-  })
-  await payload.updateGlobal({
-    slug: 'landing',
-    data: { blocks: JSON.parse(JSON.stringify(migrated)) },
-  })
-}
-
-export async function seedPricingPage(
-  payload: Payload,
-  planIds: PlanId[],
-): Promise<void> {
-  await payload.updateGlobal({
-    slug: 'pricing-page',
-    data: JSON.parse(
-      JSON.stringify({
-        header: PRICING_PAGE_HEADER,
-        plans: planIds,
-        faq: PRICING_PAGE_FAQ,
-      }),
-    ),
-  })
 }
 
 export async function seedAll(payload: Payload): Promise<void> {
@@ -722,27 +684,155 @@ export async function seedAll(payload: Payload): Promise<void> {
 
   const planIds = await seedPlans(payload)
 
-  // Slim 8-block landing: hero, problem, how-it-works, ai-intelligence,
-  // industries, pricing, faq, cta — logos/stats/testimonials/comparison removed
-  const blocks = [
-    { blockType: 'hero', ...HERO },
-    { blockType: 'problem', ...PROBLEM },
-    { blockType: 'how-it-works', ...HOW_IT_WORKS },
-    { blockType: 'ai-intelligence', ...AI_INTELLIGENCE },
-    { blockType: 'industries', ...INDUSTRIES },
-    { blockType: 'pricing', ...LANDING_PRICING_HEADER, plans: planIds },
-    { blockType: 'faq', ...FAQ },
-    { blockType: 'cta', ...FINAL_CTA },
+  // Seed block-library entries (idempotent by name)
+  const existingLibrary = await payload.find({ collection: 'block-library', limit: 100 })
+  const libraryByName = new Map(existingLibrary.docs.map((d: any) => [d.name, d.id]))
+
+  const libraryEntries: Array<{ name: string; block: object }> = [
+    { name: 'Hero — Main', block: { blockType: 'hero', ...HERO } },
+    { name: 'Problem', block: { blockType: 'problem', ...PROBLEM } },
+    { name: 'How It Works', block: { blockType: 'how-it-works', ...HOW_IT_WORKS } },
+    { name: 'AI Intelligence', block: { blockType: 'ai-intelligence', ...AI_INTELLIGENCE } },
+    { name: 'Industries', block: { blockType: 'industries', ...INDUSTRIES } },
+    { name: 'Pricing — Landing', block: { blockType: 'pricing', ...LANDING_PRICING_HEADER, plans: planIds } },
+    { name: 'FAQ — Landing', block: { blockType: 'faq', ...FAQ } },
+    { name: 'CTA — Final', block: { blockType: 'cta', ...FINAL_CTA } },
+    { name: 'Pricing — Page', block: { blockType: 'pricing', ...PRICING_PAGE_HEADER, plans: planIds, guaranteeNote: '🔒 No credit card required to start · Cancel anytime · 14-day free trial on all plans' } },
+    { name: 'FAQ — Pricing Page', block: { blockType: 'faq', ...PRICING_PAGE_FAQ } },
   ]
 
-  await payload.updateGlobal({
-    slug: 'landing',
-    data: {
-      blocks: JSON.parse(JSON.stringify(blocks)),
-    },
-  })
+  for (const entry of libraryEntries) {
+    const existingId = libraryByName.get(entry.name)
+    if (existingId) {
+      await payload.update({
+        collection: 'block-library',
+        id: existingId,
+        data: JSON.parse(JSON.stringify({ block: [entry.block] })),
+      })
+    } else {
+      const doc = await payload.create({
+        collection: 'block-library',
+        data: JSON.parse(JSON.stringify({ name: entry.name, block: [entry.block] })),
+      })
+      libraryByName.set(entry.name, doc.id)
+    }
+  }
 
-  await seedPricingPage(payload, planIds)
+  const ref = (name: string) => ({ blockType: 'block-ref', ref: libraryByName.get(name) })
+
+  // Upsert home page — replace blocks if it exists (refs may be stale from a previous partial seed)
+  const existingHome = await payload.find({ collection: 'pages', where: { slug: { equals: 'home' } }, limit: 1 })
+  const homeBlocks = [
+    ref('Hero — Main'),
+    ref('Problem'),
+    ref('How It Works'),
+    ref('AI Intelligence'),
+    ref('Industries'),
+    ref('Pricing — Landing'),
+    ref('FAQ — Landing'),
+    ref('CTA — Final'),
+  ]
+  if (existingHome.totalDocs === 0) {
+    await payload.create({
+      collection: 'pages',
+      data: JSON.parse(JSON.stringify({
+        title: 'Home',
+        slug: 'home',
+        _status: 'published',
+        blocks: homeBlocks,
+      })),
+    })
+  } else {
+    const homeId = existingHome.docs[0]?.id
+    if (homeId !== undefined) {
+      await payload.update({
+        collection: 'pages',
+        id: homeId,
+        data: JSON.parse(JSON.stringify({ blocks: homeBlocks })),
+      })
+    }
+  }
+
+  // Upsert pricing page
+  const existingPricing = await payload.find({ collection: 'pages', where: { slug: { equals: 'pricing' } }, limit: 1 })
+  const pricingBlocks = [
+    ref('Pricing — Page'),
+    ref('FAQ — Pricing Page'),
+  ]
+  if (existingPricing.totalDocs === 0) {
+    await payload.create({
+      collection: 'pages',
+      data: JSON.parse(JSON.stringify({
+        title: 'Pricing',
+        slug: 'pricing',
+        _status: 'published',
+        blocks: pricingBlocks,
+        meta: {
+          title: 'Pricing — Simple, Transparent Plans',
+          description: 'Choose a plan that fits your business needs and budget. No hidden fees, no surprises, just straightforward pricing for powerful competitive intelligence.',
+        },
+      })),
+    })
+  } else {
+    const pricingId = existingPricing.docs[0]?.id
+    if (pricingId !== undefined) {
+      await payload.update({
+        collection: 'pages',
+        id: pricingId,
+        data: JSON.parse(JSON.stringify({ blocks: pricingBlocks })),
+      })
+    }
+  }
+
+  // Upsert login page
+  const existingLogin = await payload.find({ collection: 'pages', where: { slug: { equals: 'login' } }, limit: 1 })
+  const loginBlocks = [{ blockType: 'login-form' }]
+  if (existingLogin.totalDocs === 0) {
+    await payload.create({
+      collection: 'pages',
+      data: JSON.parse(JSON.stringify({
+        title: 'Login',
+        slug: 'login',
+        _status: 'published',
+        blocks: loginBlocks,
+        meta: { title: 'Sign In — Pulzifi', description: 'Sign in to your Pulzifi account.' },
+      })),
+    })
+  } else {
+    const loginId = existingLogin.docs[0]?.id
+    if (loginId !== undefined) {
+      await payload.update({
+        collection: 'pages',
+        id: loginId,
+        data: JSON.parse(JSON.stringify({ blocks: loginBlocks })),
+      })
+    }
+  }
+
+  // Upsert register page
+  const existingRegister = await payload.find({ collection: 'pages', where: { slug: { equals: 'register' } }, limit: 1 })
+  const registerBlocks = [{ blockType: 'register-form' }]
+  if (existingRegister.totalDocs === 0) {
+    await payload.create({
+      collection: 'pages',
+      data: JSON.parse(JSON.stringify({
+        title: 'Register',
+        slug: 'register',
+        _status: 'published',
+        blocks: registerBlocks,
+        meta: { title: 'Create Account — Pulzifi', description: 'Start your free 14-day trial. No credit card required.' },
+      })),
+    })
+  } else {
+    const registerId = existingRegister.docs[0]?.id
+    if (registerId !== undefined) {
+      await payload.update({
+        collection: 'pages',
+        id: registerId,
+        data: JSON.parse(JSON.stringify({ blocks: registerBlocks })),
+      })
+    }
+  }
 
   await payload.updateGlobal({
     slug: 'theme',

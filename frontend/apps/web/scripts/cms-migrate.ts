@@ -9,6 +9,7 @@
 import { fileURLToPath } from 'url'
 import path from 'path'
 import pg from 'pg'
+import { seedCMSIfEmpty } from '../features/cms/seed'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -44,5 +45,14 @@ const parsedArgs = {
 }
 
 await migrate({ config: payload.config, parsedArgs })
-await payload.db.destroy()
+
+// Seed default content after migrations
+const result = await seedCMSIfEmpty(payload)
+if (result.seeded) {
+  console.log('[cms] seeded default content (block-library, pages, globals)')
+} else {
+  console.log('[cms] seed skipped:', result.reason)
+}
+
+await payload.db.destroy?.()
 process.exit(0)

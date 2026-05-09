@@ -3,7 +3,6 @@ import { IndustriesSection } from '@/features/landing'
 type Props = {
   block: {
     blockType: 'industries'
-    compactMode?: boolean | null
     eyebrow?: string | null
     headline?: string | null
     headlineHighlight?: string | null
@@ -22,7 +21,6 @@ type Props = {
 export function IndustriesBlock({ block }: Props) {
   return (
     <IndustriesSection
-      compactMode={block.compactMode ?? true}
       eyebrow={block.eyebrow ?? undefined}
       headline={block.headline ?? undefined}
       headlineHighlight={block.headlineHighlight ?? undefined}

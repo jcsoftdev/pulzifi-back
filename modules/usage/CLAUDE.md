@@ -25,16 +25,20 @@ All handlers are implemented inline in module.go (no use case directories):
 
 ## Notes
 
-- All HTTP handlers are inline in module.go (~713 lines)
-- Domain `entities/` and `repositories/` directories exist but are empty
+- All HTTP handlers are inline in `infrastructure/http/` (no domain/ or application/ layers)
+- No separate domain or application directories — everything lives in `infrastructure/http/`
 - Tracks `checks_used` vs `checks_allowed` per billing period
 - Supports `storage_period_days` per plan
-- `track_usage/` directory is empty (placeholder, no implementation yet)
 - SUPER_ADMIN role check is done inline via `isSuperAdmin()` helper (not via middleware)
+
+## Watch Out
+
+- Module root still contains legacy `main.go`, `docs/`, `tmp/` from the pre-monolith era — can be removed
+- No hexagonal structure: domain and application layers were never created
 
 ## Architecture Improvements
 
-- **Extract into proper hexagonal layers.** This module has 713 lines of inline logic. Create:
+- **Extract into proper hexagonal layers.** All logic is inline. Create:
   - `domain/entities/`: `Plan`, `UsageTracking`, `BillingPeriod`, `OrganizationPlan`
   - `domain/repositories/`: `PlanRepository`, `UsageRepository`, `OrganizationPlanRepository`
   - `application/`: `get_metrics/`, `get_quotas/`, `list_plans/`, `assign_plan/`, `gift_month/`
