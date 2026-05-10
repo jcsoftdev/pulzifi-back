@@ -30,7 +30,9 @@ export default buildConfig({
   secret: requireEnv('PAYLOAD_SECRET'),
   db: postgresAdapter({
     pool: {
-      connectionString: `postgresql://${requireEnv('DB_USER')}:${requireEnv('DB_PASSWORD')}@${requireEnv('DB_HOST')}:${requireEnv('DB_PORT')}/${requireEnv('DB_NAME')}`,
+      connectionString: process.env.NEXT_PHASE === 'phase-production-build'
+        ? 'postgresql://localhost:5432/dummy'
+        : `postgresql://${requireEnv('DB_USER')}:${requireEnv('DB_PASSWORD')}@${requireEnv('DB_HOST')}:${requireEnv('DB_PORT')}/${requireEnv('DB_NAME')}`,
     },
     schemaName: 'cms',
   }),
