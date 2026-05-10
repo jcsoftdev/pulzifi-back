@@ -8,8 +8,11 @@ import { seedCMSIfEmpty } from './features/cms/seed'
 function requireEnv(name: string): string {
   const value = process.env[name]
   if (!value || value.trim() === '') {
-    // During `next build` env vars aren't available — return empty string so
-    // the module loads. Runtime failures are caught per-page with try/catch.
+    // During `next build` the Docker ARGs may not propagate into Next.js process.env.
+    // Return a non-empty placeholder so the module loads; runtime pages validate via try/catch.
+    if (process.env.NEXT_PHASE === 'phase-production-build') {
+      return `__missing_${name}__`
+    }
     throw new Error(`Missing required environment variable: ${name}`)
   }
   return value
