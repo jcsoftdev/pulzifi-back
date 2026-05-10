@@ -2,6 +2,16 @@ import { MigrateUpArgs, MigrateDownArgs, sql } from '@payloadcms/db-postgres'
 
 export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   await db.execute(sql`
+    DO $$ BEGIN CREATE TYPE "cms"."enum_pages_blocks_cta_variant" AS ENUM('primary', 'secondary'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+    DO $$ BEGIN CREATE TYPE "cms"."enum_pages_blocks_image_size" AS ENUM('full', 'contained'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+    DO $$ BEGIN CREATE TYPE "cms"."enum_pages_status" AS ENUM('draft', 'published'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+    DO $$ BEGIN CREATE TYPE "cms"."enum__pages_v_blocks_cta_variant" AS ENUM('primary', 'secondary'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+    DO $$ BEGIN CREATE TYPE "cms"."enum__pages_v_blocks_image_size" AS ENUM('full', 'contained'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+    DO $$ BEGIN CREATE TYPE "cms"."enum__pages_v_version_status" AS ENUM('draft', 'published'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+    DO $$ BEGIN CREATE TYPE "cms"."enum_posts_category" AS ENUM('Product', 'Company', 'Guide'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+    DO $$ BEGIN CREATE TYPE "cms"."enum_posts_status" AS ENUM('draft', 'published'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+    DO $$ BEGIN CREATE TYPE "cms"."enum__posts_v_version_category" AS ENUM('Product', 'Company', 'Guide'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+    DO $$ BEGIN CREATE TYPE "cms"."enum__posts_v_version_status" AS ENUM('draft', 'published'); EXCEPTION WHEN duplicate_object THEN null; END $$;
 CREATE TABLE IF NOT EXISTS "cms"."media" (
   "id" serial PRIMARY KEY NOT NULL,
   "alt" varchar,
