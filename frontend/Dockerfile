@@ -80,7 +80,7 @@ ENV MINIO_REGION=$MINIO_REGION
 ARG NEXT_PUBLIC_SERVER_URL=https://pulzifi.com
 ENV NEXT_PUBLIC_SERVER_URL=$NEXT_PUBLIC_SERVER_URL
 
-RUN bun run build
+RUN NEXT_PHASE=phase-production-build bun run build
 
 # ============================================================
 # Runtime
