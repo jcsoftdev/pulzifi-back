@@ -26,7 +26,7 @@ function renderAnswer(answer: string) {
             {firstLine && (
               <p className="text-base leading-6 text-[#111] sm:text-lg sm:leading-7">{firstLine}</p>
             )}
-            <ul className="list-disc space-y-1 pl-5 text-base leading-6 text-[#444141] sm:pl-7 sm:text-lg sm:leading-7">
+            <ul className="list-disc space-y-1 pl-5 text-base leading-6 text-[var(--pz-ink-2)] sm:pl-7 sm:text-lg sm:leading-7">
               {restLines.map((item) => (
                 <li key={item}>{item}</li>
               ))}
@@ -37,7 +37,7 @@ function renderAnswer(answer: string) {
     }
 
     return (
-      <p key={block} className="text-base leading-6 text-[#444141] sm:text-lg sm:leading-7">
+      <p key={block} className="text-base leading-6 text-[var(--pz-ink-2)] sm:text-lg sm:leading-7">
         {block}
       </p>
     )
@@ -48,19 +48,19 @@ export function FaqItem({ question, answer }: Readonly<FaqItemProps>) {
   const [isOpen, setIsOpen] = useState(false)
 
   return (
-    <div className="rounded-3xl bg-[#f3f3f3] p-6">
+    <div className="rounded-3xl bg-[var(--pz-page-bg)] p-6">
       <button
         type="button"
         className="flex w-full items-center gap-2 text-left"
         onClick={() => setIsOpen(!isOpen)}
         aria-expanded={isOpen}
       >
-        <span className="flex-1 text-base font-normal leading-6 text-[#131313] sm:text-xl sm:leading-7">{question}</span>
+        <span className="flex-1 text-base font-normal leading-6 text-[var(--pz-ink)] sm:text-xl sm:leading-7">{question}</span>
         <span className="shrink-0">
           {isOpen ? (
-            <X className="size-6 text-[#131313]" />
+            <X className="size-6 text-[var(--pz-ink)]" />
           ) : (
-            <Plus className="size-6 text-[#131313]" />
+            <Plus className="size-6 text-[var(--pz-ink)]" />
           )}
         </span>
       </button>

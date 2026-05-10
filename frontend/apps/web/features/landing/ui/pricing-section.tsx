@@ -1,35 +1,175 @@
-import { PRICING_PLANS } from '../lib/data'
-import { AnimatedSection } from './components/animated-section'
+'use client'
+
+import { useState } from 'react'
+import { useCardStagger } from '../lib/gsap'
+import { Eyebrow } from './components/eyebrow'
+import { Highlight } from './components/highlight'
 import { PricingCard } from './components/pricing-card'
-import { SectionHeader } from './components/section-header'
+import { PricingComparisonTable } from './components/pricing-comparison-table'
+import { SectionFrame } from './components/section-frame'
 
-export function PricingSection() {
+type PricingFeature = { text?: string; included?: boolean }
+type PricingPlan = {
+  name: string
+  price: string
+  priceAnnual?: string
+  period?: string
+  tagline?: string
+  features?: PricingFeature[]
+  ctaLabel?: string
+  ctaHref?: string
+  highlighted?: boolean
+  popularBadge?: string
+}
+
+type BillingCopy = {
+  monthlyLabel?: string
+  annualLabel?: string
+  annualBadge?: string
+  annualNote?: string
+}
+
+type PricingSectionProps = {
+  eyebrow?: string
+  headline?: string
+  headlineHighlight?: string
+  subheadline?: string
+  guaranteeNote?: string
+  plans?: PricingPlan[]
+  billing?: BillingCopy
+  comparePlansHeadline?: string
+  featuresLabel?: string
+}
+
+export function PricingSection({
+  eyebrow,
+  headline,
+  headlineHighlight,
+  subheadline,
+  guaranteeNote,
+  plans,
+  billing,
+  comparePlansHeadline,
+  featuresLabel,
+}: Readonly<PricingSectionProps> = {}) {
+  const items = plans ?? []
+  const [cycle, setCycle] = useState<'monthly' | 'annual'>('monthly')
+  const cardsRef = useCardStagger<HTMLDivElement>({ scale: true, stagger: 0.1, y: 32 })
+
+  const hasAnnual = items.some((p) => p.priceAnnual)
+
+  const tableColumns = items.map((plan) => ({
+    name: plan.name,
+    cta: plan.ctaLabel ?? 'Get Started',
+    ctaHref: plan.ctaHref ?? '/register',
+    popular: plan.highlighted ?? false,
+    features: (plan.features ?? []).map((f) => ({
+      text: f.text ?? '',
+      included: f.included ?? true,
+    })),
+  }))
+
   return (
-    <section
-      id="pricing"
-      className="mx-auto max-w-[1256px] overflow-hidden rounded-3xl bg-[#29144c] px-6 py-12 md:px-[58px] md:py-16"
-    >
-      <div className="flex flex-col items-center gap-[60px]">
-        <AnimatedSection>
-          <SectionHeader
-            title={
-              <>
-                Simple, <em className="font-heading">Transparent Pricing</em>
-              </>
-            }
-            subtitle="Choose a plan that fits your business needs and budget. No hidden fees, no surprises, just straightforward pricing for powerful financial management."
-            variant="dark"
-          />
-        </AnimatedSection>
-
-        <div className="grid w-full gap-5 md:grid-cols-3">
-          {PRICING_PLANS.map((plan, i) => (
-            <AnimatedSection key={plan.name} animation="fade-up" delay={i * 150}>
-              <PricingCard {...plan} />
-            </AnimatedSection>
-          ))}
-        </div>
+    <SectionFrame id="pricing" bg="alt" className="relative overflow-hidden">
+      {/* Gold blob — top center */}
+      <div className="pointer-events-none absolute inset-0 -z-10 flex justify-center" aria-hidden>
+        <div
+          className="h-[400px] w-[600px] -translate-y-1/3"
+          style={{
+            background:
+              'radial-gradient(circle, color-mix(in srgb, var(--pz-accent-gold) 18%, transparent) 0%, transparent 65%)',
+            filter: 'blur(100px)',
+            opacity: 0.35,
+          }}
+        />
       </div>
-    </section>
+
+      <div className="mx-auto max-w-2xl text-center">
+        {eyebrow && <Eyebrow className="mb-4">{eyebrow}</Eyebrow>}
+        <h2 className="font-heading text-4xl font-bold tracking-tight text-[var(--pz-ink)] md:text-5xl">
+          {headline ?? 'Simple,'}{' '}
+          {headlineHighlight ? (
+            <Highlight tone="accent-gold">{headlineHighlight}</Highlight>
+          ) : (
+            <Highlight tone="accent-gold">Transparent Pricing</Highlight>
+          )}
+        </h2>
+        {subheadline && (
+          <p className="mt-4 text-lg leading-relaxed text-[var(--pz-ink-2)]">{subheadline}</p>
+        )}
+
+        {/* Billing toggle */}
+        {hasAnnual && (
+          <div className="mt-8 inline-flex items-center gap-1 rounded-full border border-[var(--pz-card-border)] bg-white p-1 shadow-sm">
+            <button
+              type="button"
+              onClick={() => setCycle('monthly')}
+              className={`rounded-full px-5 py-2 text-sm font-medium transition-all duration-200 ${
+                cycle === 'monthly'
+                  ? 'bg-[var(--pz-dark-surface)] text-white shadow-sm'
+                  : 'text-[var(--pz-ink-2)] hover:text-[var(--pz-ink)]'
+              }`}
+            >
+              {billing?.monthlyLabel ?? 'Monthly'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setCycle('annual')}
+              className={`flex items-center gap-2 rounded-full px-5 py-2 text-sm font-medium transition-all duration-200 ${
+                cycle === 'annual'
+                  ? 'bg-[var(--pz-dark-surface)] text-white shadow-sm'
+                  : 'text-[var(--pz-ink-2)] hover:text-[var(--pz-ink)]'
+              }`}
+            >
+              {billing?.annualLabel ?? 'Annual'}
+              <span className="rounded-full bg-[var(--pz-accent)] px-2 py-0.5 text-[10px] font-semibold text-white">
+                {billing?.annualBadge ?? '2 months free'}
+              </span>
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div ref={cardsRef} className="mt-14 grid grid-cols-1 gap-6 md:grid-cols-3 md:gap-8">
+        {items.map((plan) => (
+          <div key={plan.name} data-pz-card>
+            <PricingCard
+              name={plan.name}
+              price={plan.price}
+              priceAnnual={plan.priceAnnual}
+              period={plan.period}
+              description={plan.tagline}
+              cta={plan.ctaLabel ?? 'Get Started'}
+              ctaHref={plan.ctaHref ?? '/register'}
+              features={(plan.features ?? []).map((f) => ({
+                text: f.text ?? '',
+                included: f.included ?? true,
+              }))}
+              popular={plan.highlighted ?? false}
+              popularBadge={plan.popularBadge}
+              billingCycle={cycle}
+              annualNote={billing?.annualNote}
+              featuresLabel={featuresLabel}
+            />
+          </div>
+        ))}
+      </div>
+
+      {guaranteeNote && (
+        <p className="mt-10 text-center text-sm leading-5 text-[var(--pz-ink-2)]">
+          {guaranteeNote}
+        </p>
+      )}
+
+      {/* Feature comparison table */}
+      {tableColumns.length > 0 && (
+        <div className="mt-16">
+          <h3 className="mb-8 text-center text-2xl font-bold tracking-tight text-[var(--pz-ink)]">
+            {comparePlansHeadline ?? 'Compare plans'}
+          </h3>
+          <PricingComparisonTable plans={tableColumns} />
+        </div>
+      )}
+    </SectionFrame>
   )
 }

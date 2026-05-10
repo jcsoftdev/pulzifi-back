@@ -147,10 +147,19 @@ func main() {
 	})
 	httpRouter.Use(corsHandler)
 
-	// Rate limiting middleware
+	// Rate limiting middleware — API paths only; skip Next.js static assets
 	rateLimiter := middlewarex.NewRateLimiter(cfg.RateLimitRequests, cfg.RateLimitWindow)
 	defer rateLimiter.Stop()
-	httpRouter.Use(rateLimiter.Handler)
+	httpRouter.Use(func(next http.Handler) http.Handler {
+		limited := rateLimiter.Handler(next)
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if strings.HasPrefix(r.URL.Path, "/api") {
+				limited.ServeHTTP(w, r)
+			} else {
+				next.ServeHTTP(w, r)
+			}
+		})
+	})
 
 	// Health endpoint
 	httpRouter.Get("/health", func(w http.ResponseWriter, r *http.Request) {

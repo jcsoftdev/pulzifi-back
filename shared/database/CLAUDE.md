@@ -6,8 +6,8 @@ PostgreSQL connection pool and tenant schema provisioning.
 
 - `connection.go` — Database connection with retry logic
 - `migrator.go` — Tenant schema creation and migration
-- `migrations/public/` — 12 public schema migrations
-- `migrations/tenant/` — 11 tenant schema migrations
+- `migrations/public/` — 17 public schema migrations
+- `migrations/tenant/` — 20 tenant schema migrations
 
 ## Exported API
 
@@ -17,7 +17,7 @@ PostgreSQL connection pool and tenant schema provisioning.
 
 ## Migrations
 
-### Public Schema (12)
+### Public Schema (17)
 1. `init_public_schema` — Users, organizations base tables
 2. `init_roles_permissions` — Roles and permissions tables
 3. `seed_roles_permissions` — Seed role/permission data
@@ -30,8 +30,13 @@ PostgreSQL connection pool and tenant schema provisioning.
 10. `add_user_status_and_registration_requests` — User approval workflow
 11. `add_oauth_providers` — OAuth provider support
 12. `add_invitation_status_to_members` — Invitation status tracking
+13. `add_super_admin_invitations` — Super admin invitation support
+14. `assign_starter_plan_to_orgs` — Assign starter plan to existing orgs
+15. `create_integrations_oauth` — Integration OAuth token storage (public schema)
+16. `add_feature_flags_to_organizations` — Per-org `feature_flags` JSONB column
+17. `create_integration_send_quotas` — Monthly quota tracking for integration providers
 
-### Tenant Schema (12)
+### Tenant Schema (20)
 1. `init_tenant_schema` — Workspaces, pages, checks, monitoring base tables
 2. `add_tags_to_workspaces` — Workspace tags
 3. `add_content_hash_to_checks` — Content hash for change detection
@@ -44,6 +49,14 @@ PostgreSQL connection pool and tenant schema provisioning.
 10. `add_monitored_sections` — Page section monitoring
 11. `add_rect_to_monitored_sections` — Bounding rectangles for sections
 12. `add_parent_check_id` — Parent-child check relationships
+13. `add_content_detection_fields` — Content detection metadata
+14. `add_content_diff_to_checks` — Text diff between check snapshots
+15. `add_diff_image_url_to_checks` — Visual diff image URL
+16. `ensure_current_billing_period` — Backfill current billing period rows
+17. `create_integration_destinations` — Delivery destination table (tenant-scoped)
+18. `create_integration_deliveries` — Delivery history table
+19. `drop_legacy_integrations` — Remove old integrations table schema
+20. `add_attempt_history_to_deliveries` — Per-attempt history JSON on deliveries
 
 ## Scaffold New Migrations
 

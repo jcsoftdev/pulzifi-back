@@ -1,15 +1,40 @@
 'use client'
 
+import { useGSAP } from '@gsap/react'
+import gsap from 'gsap'
+import { ScrollTrigger } from 'gsap/ScrollTrigger'
+import { useRef } from 'react'
 import { cn } from '@workspace/ui/lib/utils'
-import { useInView } from '../../lib/animations'
+import { usePreviewMode } from '../../lib/preview-mode'
 
 interface AnimatedSectionProps {
   children: React.ReactNode
   className?: string
   animation?: 'fade-up' | 'fade-in' | 'slide-left' | 'slide-right' | 'scale'
   delay?: number
-  as?: 'section' | 'div' | 'article'
+  as?: 'section' | 'div' | 'article' | 'li' | 'ol' | 'ul'
   id?: string
+}
+
+let registered = false
+function ensureRegistered() {
+  if (registered) return
+  if (typeof window === 'undefined') return
+  gsap.registerPlugin(useGSAP, ScrollTrigger)
+  registered = true
+}
+
+function prefersReducedMotion(): boolean {
+  if (typeof window === 'undefined') return false
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+}
+
+const FROM_VARS: Record<NonNullable<AnimatedSectionProps['animation']>, gsap.TweenVars> = {
+  'fade-up': { y: 36, opacity: 0 },
+  'fade-in': { opacity: 0 },
+  'slide-left': { x: -80, opacity: 0 },
+  'slide-right': { x: 80, opacity: 0 },
+  scale: { scale: 0.92, opacity: 0 },
 }
 
 export function AnimatedSection({
@@ -20,27 +45,38 @@ export function AnimatedSection({
   as: Tag = 'div',
   id,
 }: Readonly<AnimatedSectionProps>) {
-  const [ref, isInView] = useInView<HTMLElement>()
+  const previewMode = usePreviewMode()
+  const ref = useRef<HTMLElement | null>(null)
+  ensureRegistered()
 
-  const animationClasses = {
-    'fade-up': 'translate-y-8 opacity-0',
-    'fade-in': 'opacity-0',
-    'slide-left': '-translate-x-8 opacity-0',
-    'slide-right': 'translate-x-8 opacity-0',
-    scale: 'scale-95 opacity-0',
+  useGSAP(
+    () => {
+      if (previewMode || prefersReducedMotion() || !ref.current) return
+      gsap.from(ref.current, {
+        ...FROM_VARS[animation],
+        duration: 1,
+        ease: 'power3.out',
+        delay: delay / 1000,
+        scrollTrigger: {
+          trigger: ref.current,
+          start: 'top 92%',
+          toggleActions: 'play none none none',
+        },
+      })
+    },
+    { scope: ref },
+  )
+
+  if (previewMode) {
+    return (
+      <Tag id={id} className={className}>
+        {children}
+      </Tag>
+    )
   }
 
   return (
-    <Tag
-      ref={ref as React.Ref<never>}
-      id={id}
-      className={cn(
-        'transition-all duration-700 ease-out',
-        isInView ? 'translate-x-0 translate-y-0 scale-100 opacity-100' : animationClasses[animation],
-        className
-      )}
-      style={{ transitionDelay: `${delay}ms` }}
-    >
+    <Tag ref={ref as React.Ref<never>} id={id} className={cn(className)}>
       {children}
     </Tag>
   )

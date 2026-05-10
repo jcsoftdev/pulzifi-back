@@ -1,13 +1,17 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { TESTIMONIALS } from '../lib/data'
 import { AnimatedSection } from './components/animated-section'
 import { SectionHeader } from './components/section-header'
 import { TestimonialCard } from './components/testimonial-card'
 
-export function TestimonialsSection() {
+type TestimonialsSectionProps = {
+  items?: { quote: string; author: string; role?: string; avatar?: string | null }[]
+}
+
+export function TestimonialsSection({ items }: Readonly<TestimonialsSectionProps> = {}) {
   const scrollRef = useRef<HTMLDivElement>(null)
+  const testimonials = items ?? []
 
   useEffect(() => {
     const el = scrollRef.current
@@ -66,10 +70,12 @@ export function TestimonialsSection() {
             className="flex gap-6 overflow-hidden"
           >
             {/* Duplicate for infinite scroll effect */}
-            {[...TESTIMONIALS, ...TESTIMONIALS].map((testimonial, i) => (
+            {[...testimonials, ...testimonials].map((testimonial, i) => (
               <TestimonialCard
                 key={`${testimonial.author}-${i}`}
-                {...testimonial}
+                quote={testimonial.quote}
+                author={testimonial.author}
+                role={testimonial.role ?? ''}
               />
             ))}
           </div>

@@ -1,176 +1,212 @@
 'use client'
 
-import { useState, type ReactNode } from 'react'
 import { cn } from '@workspace/ui/lib/utils'
+import {
+  ArrowRight,
+  BarChart3,
+  Home,
+  type LucideIcon,
+  Megaphone,
+  Rocket,
+  Scale,
+  ShoppingCart,
+} from 'lucide-react'
+import { useState } from 'react'
 import { AnimatedSection } from './components/animated-section'
-import { SectionHeader } from './components/section-header'
+import { Eyebrow } from './components/eyebrow'
+import { Highlight } from './components/highlight'
+import { SectionFrame } from './components/section-frame'
 
-function ComplianceVisual() {
-  return (
-    <div className="flex h-full items-center justify-center p-6">
-      <div className="relative rounded-xl bg-white px-5 py-4 shadow-md">
-        <p className="mb-1 text-sm font-medium text-[#7c3aed]">New:</p>
-        <p className="text-sm leading-relaxed text-[#333]">
-          Requirements, Rules, Standard, Policies, Regulations, etc
-        </p>
-      </div>
-    </div>
-  )
-}
-
-function SaasVisual() {
-  return (
-    <div className="flex h-full items-center justify-center p-4">
-      <div className="w-[180px] overflow-hidden rounded-[24px] border border-gray-200 bg-white shadow-lg">
-        <div className="flex items-center justify-between px-3 py-2">
-          <span className="text-[10px] font-semibold text-[#111]">Moneta</span>
-          <div className="h-2.5 w-4 text-gray-400">
-            <svg viewBox="0 0 16 10" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <title>Menu</title>
-              <path d="M0 0h16v2H0zM0 4h16v2H0zM0 8h16v2H0z" fill="currentColor" />
-            </svg>
-          </div>
-        </div>
-        <div className="bg-[#f0fdf4] px-3 py-2">
-          <p className="text-[8px] text-[#111]">US Dollar</p>
-          <p className="text-[8px] text-gray-500">Total Balance</p>
-          <p className="text-lg font-medium tracking-tight text-[#111]">$5,502.45</p>
-        </div>
-        <div className="px-3 py-2">
-          <p className="mb-1 text-[8px] font-semibold text-[#111]">Transaction</p>
-          {['Hani Arifin', 'Angelina'].map((name) => (
-            <div key={name} className="flex items-center justify-between py-1">
-              <span className="text-[8px] text-[#111]">{name}</span>
-              <span className="text-[8px] text-[#0eb200]">$239</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-interface Industry {
-  name: string
-  tagline: string
+type IndustryItem = {
+  icon?: string
+  title: string
   description: string
-  features: string[]
-  image?: string
-  visual?: () => ReactNode
+  realWin?: string
 }
 
-const INDUSTRIES: Industry[] = [
-  {
-    name: 'E-commerce',
-    tagline: 'Never miss a competitor price drop',
-    description:
-      'Monitor competitor product pages and get notified the instant prices change. React faster than your rivals and win more sales without constant manual checks.',
-    features: ['Price change alerts', 'Product launch detection', 'Promo tracking'],
-    image: '/images/landing/industry-ecommerce.png',
-  },
-  {
-    name: 'Compliance',
-    tagline: 'Stay ahead of regulatory updates',
-    description:
-      'Track government portals, legal databases, and regulatory bodies for policy changes. Never be caught off-guard by a terms update or a regulatory shift that affects your business.',
-    features: ['Policy change monitoring', 'Regulatory alerts', 'Terms update tracking'],
-    visual: ComplianceVisual,
-  },
-  {
-    name: 'Real Estate',
-    tagline: 'Gain real estate market intelligence in real time',
-    description:
-      'Get instant alerts when new properties that match your criteria go live. Monitor real estate agents, brokerage sites, and listing aggregators automatically.',
-    features: ['Listing price tracking', 'New property alerts', 'Market positioning insights'],
-    image: '/images/landing/industry-realestate.png',
-  },
-  {
-    name: 'Marketing Agencies',
-    tagline: 'Stay in control of every client website',
-    description:
-      "Stay informed when something changes across your clients' sites. Whether it's a broken section, updated copy, removed tracking code, or an unexpected layout change, Pulzifi keeps your team in control.",
-    features: ['Client site monitoring', 'Copy change detection', 'Layout shift alerts'],
-    image: '/images/landing/industry-marketing.png',
-  },
-  {
-    name: 'PR & Communications',
-    tagline: 'Monitor media and search visibility in real time',
-    description:
-      'Track changes in news sites and search results so you know immediately when your brand is mentioned or when competitors make headlines.',
-    features: ['Brand mention tracking', 'Search visibility monitoring', 'News alert detection'],
-    image: '/images/landing/industry-pr.png',
-  },
-  {
-    name: 'SaaS & Product Teams',
-    tagline: 'Track competitor feature launches',
-    description:
-      'Know when competitors update pricing, release new features, or change positioning. Detect new feature pages, monitor pricing structure updates, track messaging shifts, and identify roadmap signals.',
-    features: ['Feature page monitoring', 'Pricing tier changes', 'GTM strategy shifts'],
-    visual: SaasVisual,
-  },
+type IndustriesSectionProps = {
+  compactMode?: boolean
+  eyebrow?: string
+  headline?: string
+  headlineHighlight?: string
+  subheadline?: string
+  items?: IndustryItem[]
+}
+
+const ACCENT_COLORS = [
+  { bg: 'bg-violet-50', border: 'border-violet-200/60', badge: 'bg-violet-100 text-violet-700', dot: 'bg-violet-500', icon: 'text-violet-600', iconBg: 'bg-violet-100' },
+  { bg: 'bg-sky-50', border: 'border-sky-200/60', badge: 'bg-sky-100 text-sky-700', dot: 'bg-sky-500', icon: 'text-sky-600', iconBg: 'bg-sky-100' },
+  { bg: 'bg-emerald-50', border: 'border-emerald-200/60', badge: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500', icon: 'text-emerald-600', iconBg: 'bg-emerald-100' },
+  { bg: 'bg-amber-50', border: 'border-amber-200/60', badge: 'bg-amber-100 text-amber-700', dot: 'bg-amber-500', icon: 'text-amber-600', iconBg: 'bg-amber-100' },
+  { bg: 'bg-rose-50', border: 'border-rose-200/60', badge: 'bg-rose-100 text-rose-700', dot: 'bg-rose-500', icon: 'text-rose-600', iconBg: 'bg-rose-100' },
+  { bg: 'bg-teal-50', border: 'border-teal-200/60', badge: 'bg-teal-100 text-teal-700', dot: 'bg-teal-500', icon: 'text-teal-600', iconBg: 'bg-teal-100' },
 ]
 
-export function IndustriesSection() {
-  const [active, setActive] = useState(0)
+const ICONS: LucideIcon[] = [ShoppingCart, Megaphone, Home, Scale, Rocket, BarChart3]
+
+function IndustryCard({ item, index, isActive, onClick }: {
+  item: IndustryItem
+  index: number
+  isActive: boolean
+  onClick: () => void
+}) {
+  const color = ACCENT_COLORS[index % ACCENT_COLORS.length]
+  const Icon = ICONS[index % ICONS.length]
 
   return (
-    <section
-      id="industries"
-      className="mx-auto max-w-[1256px] rounded-3xl bg-white px-6 py-12 md:px-[58px] md:py-16"
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'group relative flex flex-col gap-4 rounded-2xl border p-6 text-left',
+        'transition-all duration-300 cursor-pointer',
+        isActive
+          ? `${color.bg} ${color.border} shadow-lg -translate-y-1`
+          : 'bg-white border-[var(--pz-card-border)] hover:-translate-y-0.5 hover:shadow-md hover:border-[var(--pz-card-border-strong)]',
+      )}
     >
-      <AnimatedSection className="flex flex-col gap-12">
-        <SectionHeader
-          title={
-            <>
-              How other industries{' '}
-              <em className="font-heading">are using Pulzifi</em>
-            </>
-          }
-          subtitle="From compliance to competitive intelligence, discover how teams turn website changes into actionable insights."
-        />
+      <div className="flex items-start justify-between">
+        <div className={cn(
+          'flex size-11 items-center justify-center rounded-xl',
+          'transition-colors duration-300',
+          isActive ? color.iconBg : 'bg-[var(--pz-page-bg-alt)]',
+        )}>
+          <Icon className={cn(
+            'size-5 transition-colors duration-300',
+            isActive ? color.icon : 'text-[var(--pz-ink-2)]',
+          )} />
+        </div>
+        <div className={cn(
+          'size-2 rounded-full mt-1 transition-all duration-300',
+          isActive ? color.dot : 'bg-[var(--pz-card-border)]',
+        )} />
+      </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3">
-          {INDUSTRIES.map((industry, i) => (
-            <button
-              key={industry.name}
-              type="button"
-              onClick={() => setActive(i)}
-              className={cn(
-                'group flex flex-col overflow-hidden rounded-3xl border text-left transition-all duration-300',
-                active === i
-                  ? 'border-[#7c3aed]/20 shadow-lg ring-2 ring-[#7c3aed]/10'
-                  : 'border-black/5 hover:border-black/10 hover:shadow-md'
-              )}
-            >
-              {/* Image area */}
-              <div className="relative h-[200px] w-full overflow-hidden bg-[#f3f3f3]">
-                {industry.image ? (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img
-                    src={industry.image}
-                    alt={industry.name}
-                    className="absolute inset-0 h-full w-full object-contain p-4 transition-transform duration-500 group-hover:scale-105"
-                  />
-                ) : industry.visual ? (
-                  <industry.visual />
-                ) : null}
-              </div>
-              {/* Text area */}
-              <div className="flex flex-col gap-2 p-5">
-                <span className="text-xs font-medium uppercase tracking-wider text-[#888]">
-                  {industry.name}
-                </span>
-                <h3 className="text-lg font-medium leading-snug text-[#131313]">
-                  {industry.tagline}
-                </h3>
-                <p className="text-sm leading-relaxed text-[#444141] line-clamp-3">
-                  {industry.description}
-                </p>
-              </div>
-            </button>
+      <h3 className="font-semibold text-[17px] leading-snug tracking-tight text-[var(--pz-ink)]">
+        {item.title}
+      </h3>
+
+      <p className={cn(
+        'text-sm leading-relaxed transition-colors duration-300',
+        isActive ? 'text-[var(--pz-ink)]' : 'text-[var(--pz-ink-2)]',
+        'line-clamp-3',
+      )}>
+        {item.description}
+      </p>
+
+      {item.realWin && (
+        <div className={cn(
+          'mt-auto flex items-center gap-1.5 text-xs font-medium transition-colors duration-200',
+          isActive ? color.icon : 'text-[var(--pz-ink-2)]/60 group-hover:text-[var(--pz-ink-2)]',
+        )}>
+          <span>Real win</span>
+          <ArrowRight className="size-3" />
+        </div>
+      )}
+    </button>
+  )
+}
+
+export function IndustriesSection({
+  eyebrow,
+  headline,
+  headlineHighlight,
+  subheadline,
+  items,
+}: Readonly<IndustriesSectionProps> = {}) {
+  const [activeIndex, setActiveIndex] = useState(0)
+
+  if (!items?.length) return null
+
+  const active = items[activeIndex]
+  const color = ACCENT_COLORS[activeIndex % ACCENT_COLORS.length]
+  const ActiveIcon = ICONS[activeIndex % ICONS.length]
+
+  return (
+    <SectionFrame id="usecases" bg="white">
+      <AnimatedSection className="mx-auto max-w-2xl text-center">
+        {eyebrow && <Eyebrow className="mb-4">{eyebrow}</Eyebrow>}
+        <h2 className="font-heading text-4xl font-bold tracking-tight leading-[1.1] text-[var(--pz-ink)] md:text-5xl">
+          {headline}{' '}
+          {headlineHighlight && <Highlight tone="accent">{headlineHighlight}</Highlight>}
+        </h2>
+        {subheadline && (
+          <p className="mt-4 text-lg leading-relaxed text-[var(--pz-ink-2)]">{subheadline}</p>
+        )}
+      </AnimatedSection>
+
+      <div className="mt-16 grid grid-cols-1 gap-6 lg:grid-cols-5 lg:gap-8">
+        <div className="grid grid-cols-2 gap-3 lg:col-span-3 lg:gap-4 content-start">
+          {items.map((item, i) => (
+            <AnimatedSection key={item.title} animation="fade-up" delay={i * 60}>
+              <IndustryCard
+                item={item}
+                index={i}
+                isActive={i === activeIndex}
+                onClick={() => setActiveIndex(i)}
+              />
+            </AnimatedSection>
           ))}
         </div>
-      </AnimatedSection>
-    </section>
+
+        <AnimatedSection
+          animation="fade-up"
+          delay={120}
+          className="lg:col-span-2 lg:sticky lg:top-24 lg:self-start"
+        >
+          <div className={cn(
+            'rounded-2xl border p-8 transition-all duration-500',
+            color.bg, color.border,
+          )}>
+            <div className={cn(
+              'flex size-16 items-center justify-center rounded-2xl mb-6 shadow-sm',
+              color.iconBg,
+            )}>
+              <ActiveIcon className={cn('size-8', color.icon)} />
+            </div>
+
+            <span className={cn('inline-block rounded-full px-3 py-1 text-xs font-semibold mb-4', color.badge)}>
+              Use Case {activeIndex + 1} of {items.length}
+            </span>
+
+            <h3 className="font-heading text-2xl font-bold leading-snug text-[var(--pz-ink)] mb-3">
+              {active?.title}
+            </h3>
+
+            <p className="text-base leading-relaxed text-[var(--pz-ink-2)]">
+              {active?.description}
+            </p>
+
+            {active?.realWin && (
+              <div className="mt-6 rounded-xl bg-white/70 border border-white/80 p-5">
+                <p className="text-[11px] font-bold uppercase tracking-widest text-[var(--pz-ink-2)]/60 mb-2">
+                  Real Win
+                </p>
+                <p className="text-sm leading-relaxed text-[var(--pz-ink)] font-medium">
+                  {active.realWin}
+                </p>
+              </div>
+            )}
+
+            <div className="mt-6 flex gap-1.5">
+              {items.map((_, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => setActiveIndex(i)}
+                  className={cn(
+                    'h-1.5 rounded-full transition-all duration-300',
+                    i === activeIndex
+                      ? `w-6 ${color.dot}`
+                      : 'w-1.5 bg-[var(--pz-card-border)] hover:bg-[var(--pz-ink-2)]/30',
+                  )}
+                  aria-label={`Go to ${items[i].title}`}
+                />
+              ))}
+            </div>
+          </div>
+        </AnimatedSection>
+      </div>
+    </SectionFrame>
   )
 }

@@ -37,6 +37,7 @@ User authentication, JWT token management, and OAuth providers.
 
 - `AuthService` — password hashing/validation (bcrypt)
 - `TokenService` — JWT generation and validation
+- `OrgContextLookup` — interface for combining org identity + plan code + feature flags in a single query (for `/auth/me`); implemented in `cmd/wiring/integration/`
 
 ## Infrastructure
 

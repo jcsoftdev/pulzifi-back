@@ -81,8 +81,10 @@ func setupProxyNotFound(router chi.Router, frontendURL string, logger *zap.Logge
 	logger.Info("Proxying unmatched routes to Next.js", zap.String("url", frontendURL))
 
 	router.NotFound(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// All /api/* paths should be registered Chi routes — return 404
-		if strings.HasPrefix(r.URL.Path, "/api/") {
+		// Reserved Go API namespaces — anything else under /api/* (e.g. Payload CMS
+		// REST endpoints at /api/users, /api/media, /api/globals/*) is proxied
+		// through to Next.js where Payload mounts its handlers.
+		if strings.HasPrefix(r.URL.Path, "/api/v1/") || strings.HasPrefix(r.URL.Path, "/api/auth/") {
 			http.NotFound(w, r)
 			return
 		}

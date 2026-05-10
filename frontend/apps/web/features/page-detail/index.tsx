@@ -1,4 +1,4 @@
-import { WorkspaceBreadcrumbs } from '@/app/(main)/workspaces/[id]/workspace-breadcrumbs'
+import { WorkspaceBreadcrumbs } from '@/app/(app)/(main)/workspaces/[id]/workspace-breadcrumbs'
 import { PageDetailService } from './domain/services/page-detail-service'
 import { AdvancedSettingsCard } from './ui/advanced-settings-card'
 import { ChecksHistory } from './ui/checks-history'

@@ -10,6 +10,9 @@
     "type-check": {
       "dependsOn": ["^type-check"]
     },
+    "type-check:fast": {
+      "dependsOn": ["^type-check:fast"]
+    },
     "dev": {
       "cache": false,
       "persistent": true

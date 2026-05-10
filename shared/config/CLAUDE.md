@@ -33,6 +33,13 @@ Environment variable loading with defaults for all application configuration.
 | **Email** | `ResendAPIKey`, `EmailFromAddress`, `EmailFromName` | No | — |
 | **OAuth** | `GoogleClientID/Secret`, `GitHubClientID/Secret`, `OAuthRedirectBaseURL` | No | — |
 | **Rate Limiting** | `RateLimitRequests`, `RateLimitWindow` | No | 500 req / 60s |
+| **Integrations** | `IntegrationTokenKey` (32-byte hex), `IntegrationOAuthRedirectBase` | `IntegrationTokenKey` in prod | Dev key (insecure) |
+| **Slack** | `SlackClientID`, `SlackClientSecret` | No | — |
+| **Discord** | `DiscordClientID`, `DiscordClientSecret` | No | — |
+| **Twilio** | `TwilioAccountSID`, `TwilioAuthToken`, `TwilioFromNumber`, `TwilioPaidPlans`, `TwilioQuotaPaidPerMonth` | No | Plans: pro,business; Quota: 500/mo |
+| **Google Sheets** | `SheetsClientID`, `SheetsClientSecret` | No | — |
+| **Microsoft** | `MicrosoftClientID`, `MicrosoftClientSecret` | No | — |
+| **Gmail** | `GmailIntegrationEnabled` (bool, reuses Google creds) | No | false |
 
 ## Required Environment Variables
 

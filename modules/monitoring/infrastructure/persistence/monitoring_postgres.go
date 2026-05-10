@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/domain/entities"
 	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
+	"github.com/lib/pq"
 )
 
 type MonitoringConfigPostgresRepository struct {
@@ -177,6 +178,7 @@ func (r *MonitoringConfigPostgresRepository) GetDueSnapshotTasks(ctx context.Con
 	// Atomically claim due tasks: SELECT with FOR UPDATE SKIP LOCKED then UPDATE in one
 	// round-trip. This prevents concurrent scheduler instances from picking up the same
 	// page and creating duplicate check records.
+	qTenant := pq.QuoteIdentifier(r.tenant)
 	q := fmt.Sprintf(`
 		WITH candidates AS (
 			SELECT p.id
@@ -195,7 +197,7 @@ func (r *MonitoringConfigPostgresRepository) GetDueSnapshotTasks(ctx context.Con
 		FROM candidates
 		WHERE %[1]s.pages.id = candidates.id
 		RETURNING %[1]s.pages.id, %[1]s.pages.url
-	`, r.tenant, buildDueConditions())
+	`, qTenant, buildDueConditions())
 
 	rows, err := r.db.QueryContext(ctx, q)
 	if err != nil {
@@ -229,19 +231,19 @@ func (r *MonitoringConfigPostgresRepository) GetPageURL(ctx context.Context, pag
 }
 
 func (r *MonitoringConfigPostgresRepository) UpdateLastCheckedAt(ctx context.Context, pageID uuid.UUID) error {
-	q := fmt.Sprintf(`UPDATE %s.pages SET last_checked_at = NOW() WHERE id = $1 AND deleted_at IS NULL`, r.tenant)
+	q := fmt.Sprintf(`UPDATE %s.pages SET last_checked_at = NOW() WHERE id = $1 AND deleted_at IS NULL`, pq.QuoteIdentifier(r.tenant))
 	_, err := r.db.ExecContext(ctx, q, pageID)
 	return err
 }
 
 func (r *MonitoringConfigPostgresRepository) MarkPageDueNow(ctx context.Context, pageID uuid.UUID) error {
-	q := fmt.Sprintf(`UPDATE %s.pages SET last_checked_at = NULL WHERE id = $1 AND deleted_at IS NULL`, r.tenant)
+	q := fmt.Sprintf(`UPDATE %s.pages SET last_checked_at = NULL WHERE id = $1 AND deleted_at IS NULL`, pq.QuoteIdentifier(r.tenant))
 	_, err := r.db.ExecContext(ctx, q, pageID)
 	return err
 }
 
 func (r *MonitoringConfigPostgresRepository) GetLastCheckedAt(ctx context.Context, pageID uuid.UUID) (*time.Time, error) {
-	q := fmt.Sprintf(`SELECT last_checked_at FROM %s.pages WHERE id = $1 AND deleted_at IS NULL`, r.tenant)
+	q := fmt.Sprintf(`SELECT last_checked_at FROM %s.pages WHERE id = $1 AND deleted_at IS NULL`, pq.QuoteIdentifier(r.tenant))
 	var lastCheckedAt *time.Time
 	err := r.db.QueryRowContext(ctx, q, pageID).Scan(&lastCheckedAt)
 	if err != nil {

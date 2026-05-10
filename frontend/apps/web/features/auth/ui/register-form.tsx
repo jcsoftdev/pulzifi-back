@@ -10,24 +10,23 @@ import type { RegisterData } from '../domain/types'
 
 function GoogleIcon() {
   return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-label="Google" role="img">
-      <path
-        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
-        fill="#4285F4"
-      />
-      <path
-        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-        fill="#34A853"
-      />
-      <path
-        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18A10.96 10.96 0 0 0 1 12c0 1.77.42 3.45 1.18 4.93l3.66-2.84z"
-        fill="#FBBC05"
-      />
-      <path
-        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-        fill="#EA4335"
-      />
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
+      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18A10.96 10.96 0 0 0 1 12c0 1.77.42 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05" />
+      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
     </svg>
+  )
+}
+
+const baseInput =
+  'h-10 w-full rounded-xl border border-[var(--pz-ink)]/10 bg-[var(--pz-page-bg,#f9f9f9)] px-4 text-sm text-[var(--pz-ink)] outline-none transition-[border-color,box-shadow] placeholder:text-[var(--pz-ink)]/30 focus:border-[var(--pz-accent)]/40 focus:bg-white focus:ring-2 focus:ring-[var(--pz-accent)]/15'
+
+function Label({ htmlFor, children }: { htmlFor: string; children: React.ReactNode }) {
+  return (
+    <label htmlFor={htmlFor} className="text-xs font-semibold uppercase tracking-wide text-[var(--pz-ink)]/50">
+      {children}
+    </label>
   )
 }
 
@@ -39,9 +38,6 @@ export interface RegisterFormProps {
   subdomainStatus?: SubdomainStatus
   subdomainMessage?: string
 }
-
-const inputClass =
-  'h-14 w-full rounded-full bg-[#f3f3f3] px-6 text-base font-medium leading-6 tracking-[-0.128px] text-[#111] outline-none placeholder:text-[#111]/40 focus:ring-2 focus:ring-primary/30'
 
 export function RegisterForm({
   onSubmit,
@@ -79,37 +75,42 @@ export function RegisterForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setPasswordError(undefined)
-
     if (password !== confirmPassword) {
       setPasswordError('Passwords do not match')
       return
     }
-
-    await onSubmit({
-      email,
-      password,
-      firstName,
-      lastName,
-      organizationName,
-      organizationSubdomain,
-    })
+    await onSubmit({ email, password, firstName, lastName, organizationName, organizationSubdomain })
   }
 
   const isSubdomainUnavailable = subdomainStatus === 'unavailable'
 
   return (
-    <form onSubmit={handleSubmit} className="flex w-full flex-col gap-[30px]">
-      {/* Input fields */}
-      <div className="flex flex-col gap-3.5">
-        {/* First Name / Last Name */}
-        <div className="flex gap-3.5">
-          <div className="flex flex-1 flex-col gap-3">
-            <label
-              htmlFor={firstNameId}
-              className="text-base font-medium leading-6 tracking-[-0.128px] text-[#111]"
-            >
-              First Name
-            </label>
+    <div className="flex flex-col gap-4">
+      {/* Google OAuth — first */}
+      <a
+        href="/api/v1/auth/oauth/google"
+        className={cn(
+          'flex h-10 items-center justify-center gap-3 rounded-xl border border-[var(--pz-ink)]/10 bg-white text-sm font-medium text-[var(--pz-ink)] shadow-sm transition-[box-shadow,background-color] hover:bg-gray-50 hover:shadow-md',
+          isLoading && 'pointer-events-none opacity-50'
+        )}
+      >
+        <GoogleIcon />
+        Continue with Google
+      </a>
+
+      {/* Divider */}
+      <div className="flex items-center gap-3">
+        <div className="h-px flex-1 bg-[var(--pz-ink)]/8" />
+        <span className="text-xs text-[var(--pz-ink)]/35">or sign up with email</span>
+        <div className="h-px flex-1 bg-[var(--pz-ink)]/8" />
+      </div>
+
+      {/* Form */}
+      <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+        {/* First / Last name */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor={firstNameId}>First name</Label>
             <input
               id={firstNameId}
               type="text"
@@ -117,16 +118,11 @@ export function RegisterForm({
               onChange={(e) => setFirstName(e.target.value)}
               required
               placeholder="John"
-              className={inputClass}
+              className={baseInput}
             />
           </div>
-          <div className="flex flex-1 flex-col gap-3">
-            <label
-              htmlFor={lastNameId}
-              className="text-base font-medium leading-6 tracking-[-0.128px] text-[#111]"
-            >
-              Last Name
-            </label>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor={lastNameId}>Last name</Label>
             <input
               id={lastNameId}
               type="text"
@@ -134,199 +130,150 @@ export function RegisterForm({
               onChange={(e) => setLastName(e.target.value)}
               required
               placeholder="Smith"
-              className={inputClass}
+              className={baseInput}
             />
           </div>
         </div>
 
         {/* Email */}
-        <div className="flex flex-col gap-3">
-          <label
-            htmlFor={emailId}
-            className="text-base font-medium leading-6 tracking-[-0.128px] text-[#111]"
-          >
-            Email address
-          </label>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor={emailId}>Email address</Label>
           <input
             id={emailId}
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            placeholder="example@email.com"
-            className={inputClass}
+            placeholder="you@company.com"
+            className={baseInput}
           />
         </div>
 
-        {/* Organization Name */}
-        <div className="flex flex-col gap-3">
-          <label
-            htmlFor={orgNameId}
-            className="text-base font-medium leading-6 tracking-[-0.128px] text-[#111]"
-          >
-            Organization Name
-          </label>
-          <input
-            id={orgNameId}
-            type="text"
-            value={organizationName}
-            onChange={(e) => setOrganizationName(e.target.value)}
-            required
-            placeholder="Acme Inc."
-            className={inputClass}
-          />
-        </div>
-
-        {/* Subdomain */}
-        <div className="flex flex-col gap-3">
-          <label
-            htmlFor={subdomainId}
-            className="text-base font-medium leading-6 tracking-[-0.128px] text-[#111]"
-          >
-            Subdomain
-          </label>
-          <div className="relative">
+        {/* Org name + subdomain */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor={orgNameId}>Organization</Label>
             <input
-              id={subdomainId}
+              id={orgNameId}
               type="text"
-              value={organizationSubdomain}
-              onChange={(e) => handleSubdomainChange(e.target.value)}
+              value={organizationName}
+              onChange={(e) => setOrganizationName(e.target.value)}
               required
-              placeholder="your-company"
-              className={cn(
-                inputClass,
-                'pr-14',
-                isSubdomainUnavailable && 'ring-2 ring-destructive/30',
-                subdomainStatus === 'available' && 'ring-2 ring-green-500/30'
-              )}
+              placeholder="Acme Inc."
+              className={baseInput}
             />
-            <div className="absolute right-5 top-1/2 -translate-y-1/2">
-              {subdomainStatus === 'checking' && (
-                <Loader2 className="size-5 animate-spin text-[#111]/40" />
-              )}
-              {subdomainStatus === 'available' && <CheckCircle className="size-5 text-green-500" />}
-              {subdomainStatus === 'unavailable' && <XCircle className="size-5 text-destructive" />}
-            </div>
           </div>
-          {subdomainStatus === 'unavailable' && subdomainMessage ? (
-            <p className="text-xs text-destructive">{subdomainMessage}</p>
-          ) : subdomainStatus === 'available' ? (
-            <p className="text-xs text-green-500">Subdomain is available</p>
-          ) : (
-            <p className="text-xs text-[#111]/40">Lowercase letters, numbers, and hyphens only</p>
-          )}
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor={subdomainId}>Subdomain</Label>
+            <div className="relative">
+              <input
+                id={subdomainId}
+                type="text"
+                value={organizationSubdomain}
+                onChange={(e) => handleSubdomainChange(e.target.value)}
+                required
+                placeholder="your-company"
+                className={cn(
+                  baseInput,
+                  'pr-10',
+                  isSubdomainUnavailable && 'border-destructive/50 focus:border-destructive/50 focus:ring-destructive/15',
+                  subdomainStatus === 'available' && 'border-green-500/50 focus:border-green-500/50 focus:ring-green-500/15'
+                )}
+              />
+              <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                {subdomainStatus === 'checking' && <Loader2 className="size-4 animate-spin text-[var(--pz-ink)]/30" />}
+                {subdomainStatus === 'available' && <CheckCircle className="size-4 text-green-500" />}
+                {subdomainStatus === 'unavailable' && <XCircle className="size-4 text-destructive" />}
+              </div>
+            </div>
+            {subdomainStatus === 'unavailable' && subdomainMessage ? (
+              <p className="text-xs text-destructive">{subdomainMessage}</p>
+            ) : subdomainStatus === 'available' ? (
+              <p className="text-xs text-green-600">Available</p>
+            ) : (
+              <p className="text-xs text-[var(--pz-ink)]/40">Lowercase, numbers, hyphens</p>
+            )}
+          </div>
         </div>
 
         {/* Password */}
-        <div className="flex flex-col gap-3">
-          <label
-            htmlFor={passwordId}
-            className="text-base font-medium leading-6 tracking-[-0.128px] text-[#111]"
-          >
-            Password
-          </label>
-          <div className="relative">
-            <input
-              id={passwordId}
-              type={showPassword ? 'text' : 'password'}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={8}
-              placeholder="Your password"
-              className={cn(inputClass, 'pr-14')}
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-5 top-1/2 -translate-y-1/2 text-[#111]/60 transition-colors hover:text-[#111]"
-              aria-label={showPassword ? 'Hide password' : 'Show password'}
-            >
-              {showPassword ? <EyeOff className="size-6" /> : <Eye className="size-6" />}
-            </button>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor={passwordId}>Password</Label>
+            <div className="relative">
+              <input
+                id={passwordId}
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={8}
+                placeholder="Min. 8 characters"
+                className={cn(baseInput, 'pr-10')}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--pz-ink)]/40 transition-colors hover:text-[var(--pz-ink)]"
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+              </button>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor={confirmPasswordId}>Confirm password</Label>
+            <div className="relative">
+              <input
+                id={confirmPasswordId}
+                type={showConfirmPassword ? 'text' : 'password'}
+                value={confirmPassword}
+                onChange={(e) => { setConfirmPassword(e.target.value); setPasswordError(undefined) }}
+                required
+                placeholder="Repeat password"
+                className={cn(
+                  baseInput,
+                  'pr-10',
+                  passwordError && 'border-destructive/50 focus:border-destructive/50 focus:ring-destructive/15'
+                )}
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--pz-ink)]/40 transition-colors hover:text-[var(--pz-ink)]"
+                aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+              >
+                {showConfirmPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+              </button>
+            </div>
+            {passwordError && <p className="text-xs text-destructive">{passwordError}</p>}
           </div>
         </div>
 
-        {/* Confirm Password */}
-        <div className="flex flex-col gap-3">
-          <label
-            htmlFor={confirmPasswordId}
-            className="text-base font-medium leading-6 tracking-[-0.128px] text-[#111]"
-          >
-            Confirm password
-          </label>
-          <div className="relative">
-            <input
-              id={confirmPasswordId}
-              type={showConfirmPassword ? 'text' : 'password'}
-              value={confirmPassword}
-              onChange={(e) => {
-                setConfirmPassword(e.target.value)
-                setPasswordError(undefined)
-              }}
-              required
-              placeholder="Your password"
-              className={cn(inputClass, 'pr-14', passwordError && 'ring-2 ring-destructive/30')}
-            />
-            <button
-              type="button"
-              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-              className="absolute right-5 top-1/2 -translate-y-1/2 text-[#111]/60 transition-colors hover:text-[#111]"
-              aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
-            >
-              {showConfirmPassword ? <EyeOff className="size-6" /> : <Eye className="size-6" />}
-            </button>
+        {/* Error */}
+        {error && (
+          <div className="rounded-xl border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+            {error}
           </div>
-          {passwordError && <p className="text-xs text-destructive">{passwordError}</p>}
-        </div>
-      </div>
+        )}
 
-      {/* Error message */}
-      {error && (
-        <div className="rounded-xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-          {error}
-        </div>
-      )}
-
-      {/* Divider */}
-      <div className="flex items-center gap-3.5">
-        <div className="h-px flex-1 bg-[#111]/10" />
-        <span className="text-base font-medium leading-6 tracking-[-0.128px] text-[#111]/40">
-          Or
-        </span>
-        <div className="h-px flex-1 bg-[#111]/10" />
-      </div>
-
-      {/* Google sign up + Submit */}
-      <div className="flex flex-col gap-3.5">
-        {/* Google OAuth */}
-        <a
-          href="/api/v1/auth/oauth/google"
-          className={cn(
-            'flex h-[52px] items-center justify-center rounded-full border border-[#111]/10 bg-white transition-colors hover:bg-gray-50',
-            isLoading && 'pointer-events-none opacity-50'
-          )}
-        >
-          <GoogleIcon />
-        </a>
-
-        {/* Sign Up button */}
+        {/* Submit */}
         <Button
           type="submit"
           disabled={isLoading || isSubdomainUnavailable || subdomainStatus === 'checking'}
-          className="h-14 w-full rounded-full bg-[#29144c] text-base font-medium tracking-[-0.128px] hover:bg-[#3d1d6e]"
+          className="mt-0.5 h-10 w-full rounded-xl bg-[var(--pz-accent)] text-sm font-semibold shadow-[var(--pz-shadow-accent)] transition-[opacity,box-shadow,transform] hover:opacity-90 hover:shadow-[var(--pz-shadow-accent-lg)] hover:scale-[1.01] active:scale-[0.99]"
         >
-          {isLoading ? 'Creating account...' : 'Sign Up'}
+          {isLoading ? 'Creating account...' : 'Create free account'}
         </Button>
 
-        {/* Sign in link */}
-        <p className="text-base leading-6 text-[#111]">
+        <p className="text-center text-sm text-[var(--pz-ink-2)]">
           Already have an account?{' '}
-          <Link href="/login" className="font-medium text-[#29144c] hover:underline">
-            Sign In
+          <Link href="/login" className="font-semibold text-[var(--pz-accent)] hover:underline">
+            Sign in
           </Link>
         </p>
-      </div>
-    </form>
+      </form>
+    </div>
   )
 }

@@ -1,9 +1,21 @@
-/**
- * @type {import('next').NextConfig}
- */
+import { withPayload } from '@payloadcms/next/withPayload'
 
+/** @type {import('next').NextConfig} */
 const nextConfig = {
   transpilePackages: ['@workspace/ui', '@workspace/services', '@workspace/shared-http', '@workspace/notix'],
+
+  images: {
+    unoptimized: process.env.NODE_ENV === 'development',
+    remotePatterns: [
+      // Local MinIO (dev)
+      { protocol: 'http', hostname: 'localhost', port: '4566', pathname: '/**' },
+      // Payload local media API (dev)
+      { protocol: 'http', hostname: 'localhost', port: '3000', pathname: '/api/media/**' },
+      // Production pulzifi.com assets
+      { protocol: 'https', hostname: 'pulzifi.com', pathname: '/**' },
+      { protocol: 'https', hostname: '*.pulzifi.com', pathname: '/**' },
+    ],
+  },
 
   allowedDevOrigins: [
     'localhost',
@@ -23,4 +35,4 @@ const nextConfig = {
   ],
 }
 
-export default nextConfig
+export default withPayload(nextConfig)

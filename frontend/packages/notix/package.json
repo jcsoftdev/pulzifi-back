@@ -6,6 +6,7 @@
   "sideEffects": false,
   "scripts": {
     "type-check": "tsc --noEmit",
+    "type-check:fast": "tsgo --noEmit",
     "format": "biome format ../../ --write"
   },
   "dependencies": {

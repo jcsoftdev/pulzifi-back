@@ -65,6 +65,7 @@ bun run type-check # TypeScript type checking
 - **`cmd/server/`** — Main HTTP + gRPC monolith. Loads config, connects to PostgreSQL/Redis, registers 14 module routes under `/api/v1/*`, mounts BFF auth at `/api/auth/*`, proxies unmatched routes to Next.js, starts gRPC server for Organization service. If `ENABLE_WORKERS=true`, also runs background monitoring processes (all-in-one mode).
 - **`cmd/worker/`** — Standalone background worker. Runs monitoring scheduler, snapshot change detection, AI insight generation, alert creation, and email notifications.
 - **`cmd/migrate/`** — Database migration CLI. Supports flags: `-cmd` (up/down/version/force), `-scope` (all/public/tenant), `-tenant` (specific schema), `-steps`.
+- **`cmd/wiring/integration/`** — Cross-module adapter package (not a CLI). Houses anti-corruption adapters (email adapter, org plan lookup, quota adapter, tenant repo factory) that prevent direct module-to-module imports. Wired at startup by `cmd/server/modules.go`.
 
 ### Module Structure
 
@@ -80,7 +81,7 @@ There are 17 module directories in `modules/`. 14 are registered in the monolith
 | email | API | Email service with Resend provider and HTML templates |
 | infra | Standalone | TypeScript/Bun Playwright scraper service (lives in `infra/scraper/`, not Go) |
 | insight | API | AI-powered insight generation via OpenRouter LLM |
-| integration | API | Third-party integrations (webhooks, Slack, Teams, Discord) |
+| integration | API | Multi-provider notification system (Slack, Discord, Twilio, Teams, Sheets, Gmail, Outlook, email); OAuth + BYO-key; destinations + delivery history + retry |
 | monitoring | API + Worker | Page monitoring scheduler, check execution, notifications |
 | organization | API + gRPC | Organization entity, multi-tenant schema management, events |
 | page | API | Monitored page CRUD with tags |
@@ -161,18 +162,21 @@ modules/{name}/
 
 ### Shared Packages (`shared/`)
 
-Technical utilities only — no business logic. 15 packages:
+Technical utilities only — no business logic. 18 packages:
 
 | Package | Description |
 |---------|-------------|
 | `ai/` | OpenRouter LLM client — text completions and multimodal (vision) analysis |
 | `bff/` | BFF auth routes — login, refresh, logout, callback, set-base-session (cookie + nonce management) |
 | `cache/` | Redis client singleton + refresh token cache (2s grace period for concurrent refresh) |
-| `config/` | Environment variable loading with defaults (43+ config vars, see `.env.example`) |
+| `config/` | Environment variable loading with defaults (50+ config vars, see `.env.example`) |
+| `crypto/` | AES-256-GCM encrypt/decrypt — used by integration module to store OAuth tokens at rest |
 | `database/` | PostgreSQL connection pool (exponential backoff retry) + tenant schema provisioning/migration |
-| `eventbus/` | In-memory pub/sub (`MessageBus` interface — swappable for Kafka in production) |
+| `eventbus/` | In-memory pub/sub (`MessageBus` interface — swappable for Kafka in production); `DomainEvent` struct and topic constants |
+| `featureflags/` | Per-org feature flag reader from `organizations.feature_flags` JSONB column; default-deny dot-path lookup |
 | `html/` | HTML text extraction — DOM tree walker, strips scripts/styles, normalizes whitespace |
 | `http/` | Response helpers (`RespondJSON`, `RespondError`, status shortcuts) + Chi middleware (logging, recovery, requestID, timeout, CORS) |
+| `integrationusage/` | Monthly send-quota enforcement for integration providers (atomic PostgreSQL upsert) |
 | `logger/` | Zap structured logging — context-aware functions with correlation_id, tenant, user_id extraction |
 | `middleware/` | HTTP middleware: tenant extraction, auth provider, organization membership, rate limiter (token bucket per IP), request logging |
 | `noncestore/` | In-memory nonce store (30s TTL) for cross-subdomain token exchange |
@@ -183,8 +187,8 @@ Technical utilities only — no business logic. 15 packages:
 
 ### Database Migrations
 
-- Public schema: `shared/database/migrations/public/` — 12 migrations (users, orgs, sessions, roles, permissions, plans, OAuth providers, invitation status)
-- Tenant schema: `shared/database/migrations/tenant/` — 12 migrations (workspaces, pages, checks, insights, monitoring configs, usage tracking, monitored sections, section rects, parent check relationships)
+- Public schema: `shared/database/migrations/public/` — 17 migrations (users, orgs, sessions, roles, permissions, plans, OAuth providers, invitation status, integrations OAuth, feature flags, send quotas)
+- Tenant schema: `shared/database/migrations/tenant/` — 20 migrations (workspaces, pages, checks, insights, monitoring configs, usage tracking, monitored sections, section rects, parent check relationships, content diff, diff images, integration destinations/deliveries)
 - Format: `000001_description.up.sql` / `000001_description.down.sql`
 - Tenant migrations apply to all tenant schemas uniformly via `golang-migrate/migrate/v4`
 - Scaffold new migrations: `./tools/scripts/new-migration.sh <scope> <description>`
@@ -281,7 +285,9 @@ Several modules import directly from other modules' infrastructure layers, viola
 - `auth` imports from `admin`, `email`, `organization` infrastructure
 - `team` imports from `auth`, `email` infrastructure
 
-**Recommended fix:** Define shared interfaces in `shared/` or use an anti-corruption layer. Each module should depend only on interfaces, not concrete implementations from other modules. Wire implementations via dependency injection in `cmd/server/modules.go`.
+The `integration` module is the most recent example of the **correct approach**: cross-module adapters live in `cmd/wiring/integration/` and are injected at startup, so the module itself only depends on its own interfaces.
+
+**Recommended fix for others:** Define shared interfaces in `shared/` or use a `cmd/wiring/{module}/` adapter package. Wire implementations via dependency injection in `cmd/server/modules.go`.
 
 #### Modules Needing Refactoring
 

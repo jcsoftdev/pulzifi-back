@@ -78,8 +78,14 @@ coverage.html
 
 tmp
 
-docs/
+docs/superpowers/
 
 /.trae
 
-/*.sql
+/.superpowers/
+/.playwright-mcp/
+"SKILL (9).md"
+.claude/scheduled_tasks.lock
+
+/client_*
+.worktrees/

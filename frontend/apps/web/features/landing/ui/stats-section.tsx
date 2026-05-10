@@ -2,7 +2,11 @@
 
 import { useEffect } from 'react'
 import { useInView, useCountUp } from '../lib/animations'
-import { STATS } from '../lib/data'
+import { AnimatedSection } from './components/animated-section'
+
+type StatsSectionProps = {
+  items?: { value: string; label: string }[]
+}
 
 function StatItem({
   value,
@@ -57,16 +61,17 @@ function AnimatedStat({
   )
 }
 
-export function StatsSection() {
+export function StatsSection({ items }: Readonly<StatsSectionProps> = {}) {
   const [ref, isInView] = useInView()
+  const stats = items ?? []
 
   return (
     <section
       ref={ref}
       className="mx-auto max-w-[1256px] rounded-3xl bg-white px-6 py-12 md:px-[58px] md:py-[50px]"
     >
-      <div className="grid grid-cols-2 gap-8 md:flex md:flex-wrap md:items-center md:justify-between">
-        {STATS.map((stat, i) => (
+      <AnimatedSection className="grid grid-cols-2 gap-8 md:flex md:flex-wrap md:items-center md:justify-between">
+        {stats.map((stat, i) => (
           <div key={stat.label} className="flex items-center gap-8">
             {i > 0 && (
               <div className="hidden h-14 w-px bg-[#e5e5e5] md:block" aria-hidden="true" />
@@ -74,7 +79,7 @@ export function StatsSection() {
             <StatItem value={stat.value} label={stat.label} inView={isInView} />
           </div>
         ))}
-      </div>
+      </AnimatedSection>
     </section>
   )
 }
