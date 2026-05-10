@@ -100,6 +100,8 @@ export interface Config {
     navbar: Navbar;
     footer: Footer;
     theme: Theme;
+    'login-page': LoginPage;
+    'contact-page': ContactPage;
   };
   globalsSelect: {
     landing: LandingSelect<false> | LandingSelect<true>;
@@ -107,6 +109,8 @@ export interface Config {
     navbar: NavbarSelect<false> | NavbarSelect<true>;
     footer: FooterSelect<false> | FooterSelect<true>;
     theme: ThemeSelect<false> | ThemeSelect<true>;
+    'login-page': LoginPageSelect<false> | LoginPageSelect<true>;
+    'contact-page': ContactPageSelect<false> | ContactPageSelect<true>;
   };
   locale: null;
   widgets: {
@@ -2102,6 +2106,55 @@ export interface Auth {
   [k: string]: unknown;
 }
 
+
+export interface LoginPage {
+  id: number;
+  headline?: string | null;
+  subheadline?: string | null;
+  bullets?:
+    | {
+        text: string;
+        id?: string | null;
+      }[]
+    | null;
+  welcomeHeadline?: string | null;
+  welcomeSubline?: string | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+export interface LoginPageSelect<T extends boolean = true> {
+  headline?: T;
+  subheadline?: T;
+  bullets?:
+    | T
+    | {
+        text?: T;
+        id?: T;
+      };
+  welcomeHeadline?: T;
+  welcomeSubline?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+export interface ContactPage {
+  id: number;
+  headline?: string | null;
+  subheadline?: string | null;
+  email?: string | null;
+  address?: string | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+export interface ContactPageSelect<T extends boolean = true> {
+  headline?: T;
+  subheadline?: T;
+  email?: T;
+  address?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
 
 declare module 'payload' {
   export interface GeneratedTypes extends Config {}
