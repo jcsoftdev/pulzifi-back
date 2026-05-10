@@ -47,7 +47,7 @@ export default async function ContactPage() {
     props.footerSocialLinks = foot.socialLinks?.length ? foot.socialLinks : undefined
     if (foot.logo?.url) props.footerLogoUrl = foot.logo.url
 
-    if (theme) props.themeStyle = buildThemeStyle(theme as Record<string, string | null | undefined>)
+    if (theme) props.themeStyle = buildThemeStyle(theme as unknown as Record<string, string | null | undefined>)
   } catch {
     // DB unavailable — use fallback
   }
