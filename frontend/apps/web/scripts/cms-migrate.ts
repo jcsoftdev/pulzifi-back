@@ -16,15 +16,33 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const payloadBin = path.resolve(__dirname, '../../../node_modules/payload/dist/bin/migrate.js')
 const { migrate } = await import(payloadBin)
 
-// Ensure the cms schema exists BEFORE Payload initializes (onInit hook runs during getPayload)
 const connStr = `postgresql://${process.env.DB_USER}:${process.env.DB_PASSWORD}@${process.env.DB_HOST}:${process.env.DB_PORT}/${process.env.DB_NAME}`
+
+// Prepare cms schema:
+// - --fresh: always drop and recreate (destructive, intentional)
+// - normal: drop and recreate only if schema is in a broken partial state
+//   (exists but payload_migrations table is missing = leftover from a failed init)
+const isFreshEarly = process.argv.includes('--fresh')
 try {
   const client = new pg.Client({ connectionString: connStr })
   await client.connect()
+
+  const { rows } = await client.query<{ exists: boolean }>(`
+    SELECT EXISTS (
+      SELECT 1 FROM information_schema.tables
+      WHERE table_schema = 'cms' AND table_name = 'payload_migrations'
+    ) AS exists
+  `)
+  const migrationsTableExists = rows[0]?.exists ?? false
+  const isBrokenState = !migrationsTableExists
+
+  if (isFreshEarly || isBrokenState) {
+    await client.query(`DROP SCHEMA IF EXISTS cms CASCADE`)
+  }
   await client.query(`CREATE SCHEMA IF NOT EXISTS cms`)
   await client.end()
 } catch (err) {
-  console.error('[cms-migrate] failed to create cms schema:', err)
+  console.error('[cms-migrate] failed to prepare cms schema:', err)
   process.exit(1)
 }
 
