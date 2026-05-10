@@ -77,16 +77,36 @@ jobs:
     steps:
       - name: Deploy API
         if: needs.changes.outputs.go == 'true'
-        run: curl -fsSL -X POST "${{ secrets.DOKPLOY_WEBHOOK_API }}"
+        run: |
+          curl -fsSL -X POST \
+            -H "Content-Type: application/json" \
+            -H "x-github-event: push" \
+            -d '{"ref":"refs/heads/main"}' \
+            "${{ secrets.DOKPLOY_WEBHOOK_API }}"
 
       - name: Deploy Worker
         if: needs.changes.outputs.go == 'true'
-        run: curl -fsSL -X POST "${{ secrets.DOKPLOY_WEBHOOK_WORKER }}"
+        run: |
+          curl -fsSL -X POST \
+            -H "Content-Type: application/json" \
+            -H "x-github-event: push" \
+            -d '{"ref":"refs/heads/main"}' \
+            "${{ secrets.DOKPLOY_WEBHOOK_WORKER }}"
 
       - name: Deploy Scraper
         if: needs.changes.outputs.scraper == 'true'
-        run: curl -fsSL -X POST "${{ secrets.DOKPLOY_WEBHOOK_SCRAPER }}"
+        run: |
+          curl -fsSL -X POST \
+            -H "Content-Type: application/json" \
+            -H "x-github-event: push" \
+            -d '{"ref":"refs/heads/main"}' \
+            "${{ secrets.DOKPLOY_WEBHOOK_SCRAPER }}"
 
       - name: Deploy Frontend
         if: needs.changes.outputs.frontend == 'true'
-        run: curl -fsSL -X POST "${{ secrets.DOKPLOY_WEBHOOK_FRONTEND }}"
+        run: |
+          curl -fsSL -X POST \
+            -H "Content-Type: application/json" \
+            -H "x-github-event: push" \
+            -d '{"ref":"refs/heads/main"}' \
+            "${{ secrets.DOKPLOY_WEBHOOK_FRONTEND }}"
