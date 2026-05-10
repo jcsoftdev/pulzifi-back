@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation'
 import { FooterSection, Navbar } from '@/features/landing'
 import { getPayloadClient } from '@/lib/payload'
 
-export const revalidate = 60
+export const dynamic = 'force-dynamic'
 
 type Props = {
   params: Promise<{ slug: string }>

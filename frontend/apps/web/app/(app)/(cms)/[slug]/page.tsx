@@ -5,7 +5,7 @@ import { FooterSection, Navbar, SmoothScroll } from '@/features/landing'
 import { getPayloadClient } from '@/lib/payload'
 import { buildThemeStyle } from '@/lib/theme-style'
 
-export const revalidate = 60
+export const dynamic = 'force-dynamic'
 
 type Props = {
   params: Promise<{ slug: string }>

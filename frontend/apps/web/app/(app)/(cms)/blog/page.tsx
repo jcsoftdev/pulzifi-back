@@ -3,7 +3,7 @@ import { BlogCard } from '@/features/cms'
 import { FooterSection, Navbar } from '@/features/landing'
 import { getPayloadClient } from '@/lib/payload'
 
-export const revalidate = 60
+export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
   title: 'Blog — Pulzifi',
