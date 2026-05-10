@@ -27,14 +27,15 @@ try {
   const client = new pg.Client({ connectionString: connStr })
   await client.connect()
 
+  // Check for a key data table (not payload_migrations, which is created before the migration
+  // transaction starts and may exist even after a failed/partial migration run).
   const { rows } = await client.query<{ exists: boolean }>(`
     SELECT EXISTS (
       SELECT 1 FROM information_schema.tables
-      WHERE table_schema = 'cms' AND table_name = 'payload_migrations'
+      WHERE table_schema = 'cms' AND table_name = 'pages'
     ) AS exists
   `)
-  const migrationsTableExists = rows[0]?.exists ?? false
-  const isBrokenState = !migrationsTableExists
+  const isBrokenState = !(rows[0]?.exists ?? false)
 
   if (isFreshEarly || isBrokenState) {
     await client.query(`DROP SCHEMA IF EXISTS cms CASCADE`)
