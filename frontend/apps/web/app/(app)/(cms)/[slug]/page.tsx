@@ -12,6 +12,7 @@ type Props = {
 }
 
 export async function generateStaticParams() {
+  if (process.env.NEXT_PHASE === 'phase-production-build') return []
   try {
     const payload = await getPayloadClient()
     const pages = await payload.find({
