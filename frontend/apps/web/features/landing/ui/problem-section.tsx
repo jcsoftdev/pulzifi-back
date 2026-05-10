@@ -22,7 +22,7 @@ type ProblemSectionProps = {
 function parseMetric(raw: string): { prefix: string; value: number; suffix: string } | null {
   const m = raw.match(/^([^0-9]*)([0-9]+(?:\.[0-9]+)?)(.*)$/)
   if (!m) return null
-  return { prefix: m[1], value: Number.parseFloat(m[2]), suffix: m[3] }
+  return { prefix: m[1] ?? '', value: Number.parseFloat(m[2] ?? '0'), suffix: m[3] ?? '' }
 }
 
 function MetricCard({ card, index }: { card: ProblemCard; index: number }) {

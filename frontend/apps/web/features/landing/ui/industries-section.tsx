@@ -51,7 +51,7 @@ function IndustryCard({ item, index, isActive, onClick }: {
   onClick: () => void
 }) {
   const color = ACCENT_COLORS[index % ACCENT_COLORS.length] ?? ACCENT_COLORS[0]!
-  const Icon = ICONS[index % ICONS.length]
+  const Icon = (ICONS[index % ICONS.length] ?? ShoppingCart) as LucideIcon
 
   return (
     <button
@@ -119,8 +119,8 @@ export function IndustriesSection({
   if (!items?.length) return null
 
   const active = items[activeIndex]
-  const color = ACCENT_COLORS[activeIndex % ACCENT_COLORS.length]
-  const ActiveIcon = ICONS[activeIndex % ICONS.length]
+  const color = ACCENT_COLORS[activeIndex % ACCENT_COLORS.length] ?? ACCENT_COLORS[0]!
+  const ActiveIcon = (ICONS[activeIndex % ICONS.length] ?? ShoppingCart) as LucideIcon
 
   return (
     <SectionFrame id="usecases" bg="white">
@@ -200,7 +200,7 @@ export function IndustriesSection({
                       ? `w-6 ${color.dot}`
                       : 'w-1.5 bg-[var(--pz-card-border)] hover:bg-[var(--pz-ink-2)]/30',
                   )}
-                  aria-label={`Go to ${items[i].title}`}
+                  aria-label={`Go to ${items[i]?.title ?? ''}`}
                 />
               ))}
             </div>
