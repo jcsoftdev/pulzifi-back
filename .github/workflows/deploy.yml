@@ -106,7 +106,4 @@ jobs:
         if: needs.changes.outputs.frontend == 'true'
         run: |
           curl -fsSL -X POST \
-            -H "Content-Type: application/json" \
-            -H "x-github-event: push" \
-            -d '{"ref":"refs/heads/main"}' \
             "${{ secrets.DOKPLOY_WEBHOOK_FRONTEND }}"
