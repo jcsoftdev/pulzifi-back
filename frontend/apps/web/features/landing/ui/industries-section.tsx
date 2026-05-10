@@ -50,7 +50,7 @@ function IndustryCard({ item, index, isActive, onClick }: {
   isActive: boolean
   onClick: () => void
 }) {
-  const color = ACCENT_COLORS[index % ACCENT_COLORS.length]
+  const color = ACCENT_COLORS[index % ACCENT_COLORS.length] ?? ACCENT_COLORS[0]!
   const Icon = ICONS[index % ICONS.length]
 
   return (
