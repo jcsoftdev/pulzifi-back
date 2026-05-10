@@ -47,38 +47,6 @@ try {
   process.exit(1)
 }
 
-// Ensure plans and plans_features tables exist (guard against partial migration state)
-try {
-    const client = new pg.Client({ connectionString: connStr })
-    await client.connect()
-    await client.query(`
-        CREATE TABLE IF NOT EXISTS "cms"."plans_features" (
-              "_order" integer NOT NULL,
-                    "_parent_id" integer NOT NULL,
-                          "id" varchar PRIMARY KEY NOT NULL,
-                                "text" varchar,
-                                      "included" boolean DEFAULT true
-                                          );
-                                              CREATE TABLE IF NOT EXISTS "cms"."plans" (
-                                                    "id" serial PRIMARY KEY NOT NULL,
-                                                          "name" varchar NOT NULL,
-                                                                "price" varchar NOT NULL,
-                                                                      "period" varchar,
-                                                                            "tagline" varchar,
-                                                                                  "price_annual" varchar,
-                                                                                        "cta_label" varchar,
-                                                                                              "cta_href" varchar,
-                                                                                                    "highlighted" boolean,
-                                                                                                          "popular_badge" varchar,
-                                                                                                                "updated_at" timestamp(3) with time zone DEFAULT now() NOT NULL,
-                                                                                                                      "created_at" timestamp(3) with time zone DEFAULT now() NOT NULL
-                                                                                                                          );
-                                                                                                                            `)
-    await client.end()
-} catch (err) {
-    console.error('[cms-migrate] failed to ensure plans tables:', err)
-    process.exit(1)
-}
 
 const { getPayload } = await import('payload')
 const { default: config } = await import('../payload.config')
