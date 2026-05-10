@@ -622,9 +622,9 @@ export async function seedCMSIfEmpty(payload: Payload): Promise<SeedResult> {
     return { seeded: true }
   }
 
-  // Always re-sync block-library content (idempotent upsert, no destructive ops)
-  await seedAll(payload)
-  return { seeded: true, reason: 'refreshed' }
+  // Data already exists — never overwrite editor-managed content on redeploy.
+  // To force a re-seed, run `bun scripts/cms-migrate.ts --fresh` or hit /api/seed-cms.
+  return { seeded: false, reason: 'data-exists' }
 }
 
 // Idempotent: returns existing plan IDs if any, otherwise creates from PLANS.

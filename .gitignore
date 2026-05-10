@@ -88,3 +88,4 @@ docs/
 .claude/scheduled_tasks.lock
 
 /client_*
+.worktrees/

@@ -62,8 +62,17 @@ COPY --from=builder /app/apps/web/public ./apps/web/public
 COPY --from=builder /app/apps/web/package.json ./apps/web/package.json
 COPY --from=builder /app/apps/web/next.config.mjs ./apps/web/next.config.mjs
 
+# Payload CMS — config, seeder, migrations, and migrate script run at boot
+COPY --from=builder /app/apps/web/payload.config.ts ./apps/web/payload.config.ts
+COPY --from=builder /app/apps/web/payload-types.ts ./apps/web/payload-types.ts
+COPY --from=builder /app/apps/web/scripts ./apps/web/scripts
+COPY --from=builder /app/apps/web/migrations ./apps/web/migrations
+COPY --from=builder /app/apps/web/features ./apps/web/features
+COPY --from=builder /app/apps/web/payload-fields ./apps/web/payload-fields
+COPY --from=builder /app/apps/web/tsconfig.json ./apps/web/tsconfig.json
+
 EXPOSE 8080
 
 WORKDIR /app/apps/web
 
-CMD ["bun", "run", "start"]
+CMD ["bun", "run", "start:prod"]

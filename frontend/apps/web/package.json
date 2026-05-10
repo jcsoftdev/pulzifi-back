@@ -8,6 +8,7 @@
     "dev:https": "NODE_OPTIONS='' next dev --turbopack --experimental-https --experimental-https-key ./localhost+3-key.pem --experimental-https-cert ./localhost+3.pem",
     "build": "next build",
     "start": "next start",
+    "start:prod": "bun scripts/cms-migrate.ts && next start",
     "type-check": "tsc --noEmit",
     "type-check:fast": "tsgo --noEmit",
     "format": "biome format ../../ --write",
