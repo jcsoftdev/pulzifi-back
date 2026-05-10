@@ -24,6 +24,18 @@ const isCreate = process.argv.includes('--create')
 
 const payload = await getPayload({ config: await config })
 
+// Ensure the cms schema exists before any Payload operation (idempotent, safe on fresh DBs)
+try {
+  const connStr = `postgresql://${process.env.DB_USER}:${process.env.DB_PASSWORD}@${process.env.DB_HOST}:${process.env.DB_PORT}/${process.env.DB_NAME}`
+  const client = new pg.Client({ connectionString: connStr })
+  await client.connect()
+  await client.query(`CREATE SCHEMA IF NOT EXISTS cms`)
+  await client.end()
+} catch (err) {
+  console.error('[cms-migrate] failed to create cms schema:', err)
+  process.exit(1)
+}
+
 if (!isFresh && !isCreate) {
   // Delete the dev-mode marker row so migrate doesn't prompt.
   // This row (batch = -1) is written when Payload runs in push mode.

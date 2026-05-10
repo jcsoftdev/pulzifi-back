@@ -89,3 +89,4 @@ tmp
 
 /client_*
 .worktrees/
+modules/*/docs/
