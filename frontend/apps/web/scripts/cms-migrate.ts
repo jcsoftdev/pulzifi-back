@@ -16,17 +16,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const payloadBin = path.resolve(__dirname, '../../../node_modules/payload/dist/bin/migrate.js')
 const { migrate } = await import(payloadBin)
 
-const { getPayload } = await import('payload')
-const { default: config } = await import('../payload.config')
-
-const isFresh = process.argv.includes('--fresh')
-const isCreate = process.argv.includes('--create')
-
-const payload = await getPayload({ config: await config })
-
-// Ensure the cms schema exists before any Payload operation (idempotent, safe on fresh DBs)
+// Ensure the cms schema exists BEFORE Payload initializes (onInit hook runs during getPayload)
+const connStr = `postgresql://${process.env.DB_USER}:${process.env.DB_PASSWORD}@${process.env.DB_HOST}:${process.env.DB_PORT}/${process.env.DB_NAME}`
 try {
-  const connStr = `postgresql://${process.env.DB_USER}:${process.env.DB_PASSWORD}@${process.env.DB_HOST}:${process.env.DB_PORT}/${process.env.DB_NAME}`
   const client = new pg.Client({ connectionString: connStr })
   await client.connect()
   await client.query(`CREATE SCHEMA IF NOT EXISTS cms`)
@@ -36,12 +28,17 @@ try {
   process.exit(1)
 }
 
+const { getPayload } = await import('payload')
+const { default: config } = await import('../payload.config')
+
+const isFresh = process.argv.includes('--fresh')
+const isCreate = process.argv.includes('--create')
+
 if (!isFresh && !isCreate) {
   // Delete the dev-mode marker row so migrate doesn't prompt.
   // This row (batch = -1) is written when Payload runs in push mode.
   // Removing it is safe — it just tells Payload "no pending dev-mode schema drift".
   try {
-    const connStr = `postgresql://${process.env.DB_USER}:${process.env.DB_PASSWORD}@${process.env.DB_HOST}:${process.env.DB_PORT}/${process.env.DB_NAME}`
     const client = new pg.Client({ connectionString: connStr })
     await client.connect()
     await client.query(`DELETE FROM cms.payload_migrations WHERE batch = -1`)
