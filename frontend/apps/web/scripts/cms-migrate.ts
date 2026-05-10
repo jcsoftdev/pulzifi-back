@@ -48,18 +48,14 @@ try {
 }
 
 
-const { getPayload } = await import('payload')
-const { default: config } = await import('../payload.config')
+const { default: rawConfig } = await import('../payload.config')
+const builtConfig = await rawConfig
 
 const isFresh = process.argv.includes('--fresh')
 const isCreate = process.argv.includes('--create')
 
-const payload = await getPayload({ config: await config })
-
 if (!isFresh && !isCreate) {
   // Delete the dev-mode marker row so migrate doesn't prompt.
-  // This row (batch = -1) is written when Payload runs in push mode.
-  // Removing it is safe — it just tells Payload "no pending dev-mode schema drift".
   try {
     const client = new pg.Client({ connectionString: connStr })
     await client.connect()
@@ -75,7 +71,12 @@ const parsedArgs = {
   forceAcceptWarning: true,
 }
 
-await migrate({ config: payload.config, parsedArgs })
+// Run migrations first — tables must exist before Payload initializes (onInit fires on getPayload)
+await migrate({ config: builtConfig, parsedArgs })
+
+// Initialize Payload after migrations so onInit sees the complete schema
+const { getPayload } = await import('payload')
+const payload = await getPayload({ config: builtConfig })
 
 // Seed default content after migrations
 const result = await seedCMSIfEmpty(payload)
