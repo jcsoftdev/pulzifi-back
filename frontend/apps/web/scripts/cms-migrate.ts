@@ -34,6 +34,8 @@ const { default: config } = await import('../payload.config')
 const isFresh = process.argv.includes('--fresh')
 const isCreate = process.argv.includes('--create')
 
+const payload = await getPayload({ config: await config })
+
 if (!isFresh && !isCreate) {
   // Delete the dev-mode marker row so migrate doesn't prompt.
   // This row (batch = -1) is written when Payload runs in push mode.
