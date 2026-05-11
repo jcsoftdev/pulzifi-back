@@ -106,4 +106,7 @@ jobs:
         if: needs.changes.outputs.frontend == 'true'
         run: |
           curl -fsSL -X POST \
-            "${{ secrets.DOKPLOY_WEBHOOK_FRONTEND }}"
+            -H "Authorization: Bearer ${{ secrets.DOKPLOY_API_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{"applicationId":"zpdIvGkIjfY-C6PKNbTO4"}' \
+            "http://45.8.132.213:3000/api/application.deploy"
