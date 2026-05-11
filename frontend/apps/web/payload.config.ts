@@ -53,6 +53,7 @@ export default buildConfig({
   ],
   routes: {
     admin: '/cms-admin',
+    api: '/cms-api',
   },
   admin: {
     user: 'users',
