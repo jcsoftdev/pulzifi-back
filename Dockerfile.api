@@ -39,6 +39,7 @@ WORKDIR /app
 
 COPY --from=builder /app/bin/api ./api
 COPY --from=builder /app/docs ./docs
+COPY --from=builder /app/shared/database/migrations ./shared/database/migrations
 
 RUN chown -R appuser:appgroup /app
 USER appuser

@@ -32,6 +32,7 @@ RUN addgroup --system --gid 1001 appgroup && \
 WORKDIR /app
 
 COPY --from=builder /app/bin/worker ./worker
+COPY --from=builder /app/shared/database/migrations ./shared/database/migrations
 
 RUN chown -R appuser:appgroup /app
 USER appuser
