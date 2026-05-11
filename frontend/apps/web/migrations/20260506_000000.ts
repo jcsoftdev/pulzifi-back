@@ -806,7 +806,14 @@ export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
   	"updated_at" timestamp(3) with time zone,
   	"created_at" timestamp(3) with time zone
   );
-  
+
+  CREATE TABLE IF NOT EXISTS "cms"."payload_migrations" (
+  	"id" serial PRIMARY KEY NOT NULL,
+  	"name" varchar,
+  	"batch" numeric,
+  	"updated_at" timestamp(3) with time zone NOT NULL DEFAULT now(),
+  	"created_at" timestamp(3) with time zone NOT NULL DEFAULT now()
+  );
 `)
 }
 
