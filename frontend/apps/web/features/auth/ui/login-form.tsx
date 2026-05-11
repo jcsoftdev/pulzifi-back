@@ -6,6 +6,7 @@ import { Eye, EyeOff } from 'lucide-react'
 import Link from 'next/link'
 import { useId, useState } from 'react'
 import type { LoginCredentials } from '../domain/types'
+import { AuthLabel, ErrorBanner } from './form-atoms'
 
 function GoogleIcon() {
   return (
@@ -33,6 +34,7 @@ export function LoginForm({ onSubmit, isLoading = false, error }: Readonly<Login
   const [showPassword, setShowPassword] = useState(false)
   const emailId = useId()
   const passwordId = useId()
+  const errorId = useId()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -45,9 +47,10 @@ export function LoginForm({ onSubmit, isLoading = false, error }: Readonly<Login
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Google OAuth — first */}
+      {/* Google OAuth */}
       <a
         href="/api/v1/auth/oauth/google"
+        aria-label="Continue with Google"
         className={cn(
           'flex h-11 items-center justify-center gap-3 rounded-xl border border-[var(--pz-ink)]/10 bg-white text-sm font-medium text-[var(--pz-ink)] transition-colors hover:bg-gray-50',
           isLoading && 'pointer-events-none opacity-50'
@@ -58,25 +61,26 @@ export function LoginForm({ onSubmit, isLoading = false, error }: Readonly<Login
       </a>
 
       {/* Divider */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3" aria-hidden="true">
         <div className="h-px flex-1 bg-[var(--pz-ink)]/8" />
         <span className="text-xs text-[var(--pz-ink)]/35">or sign in with email</span>
         <div className="h-px flex-1 bg-[var(--pz-ink)]/8" />
       </div>
 
       {/* Email + password form */}
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4" aria-label="Sign in with email">
         {/* Email */}
         <div className="flex flex-col gap-1.5">
-          <label htmlFor={emailId} className="text-xs font-semibold uppercase tracking-wide text-[var(--pz-ink)]/50">
-            Email address
-          </label>
+          <AuthLabel htmlFor={emailId}>Email address</AuthLabel>
           <input
             id={emailId}
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
+            aria-required="true"
+            aria-invalid={!!error}
+            aria-describedby={error ? errorId : undefined}
             placeholder="you@company.com"
             className={baseInput}
           />
@@ -85,9 +89,7 @@ export function LoginForm({ onSubmit, isLoading = false, error }: Readonly<Login
         {/* Password */}
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center justify-between">
-            <label htmlFor={passwordId} className="text-xs font-semibold uppercase tracking-wide text-[var(--pz-ink)]/50">
-              Password
-            </label>
+            <AuthLabel htmlFor={passwordId}>Password</AuthLabel>
             <Link href="/forgot-password" className="text-xs font-medium text-[var(--pz-accent)] hover:underline">
               Forgot password?
             </Link>
@@ -99,6 +101,9 @@ export function LoginForm({ onSubmit, isLoading = false, error }: Readonly<Login
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              aria-required="true"
+              aria-invalid={!!error}
+              aria-describedby={error ? errorId : undefined}
               placeholder="Your password"
               className={cn(baseInput, 'pr-10')}
             />
@@ -108,17 +113,13 @@ export function LoginForm({ onSubmit, isLoading = false, error }: Readonly<Login
               className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--pz-ink)]/40 transition-colors hover:text-[var(--pz-ink)]"
               aria-label={showPassword ? 'Hide password' : 'Show password'}
             >
-              {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+              {showPassword ? <EyeOff className="size-4" aria-hidden="true" /> : <Eye className="size-4" aria-hidden="true" />}
             </button>
           </div>
         </div>
 
         {/* Error */}
-        {error && (
-          <div className="rounded-xl border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-            {error}
-          </div>
-        )}
+        {error && <ErrorBanner id={errorId} message={error} />}
 
         {/* Submit */}
         <Button

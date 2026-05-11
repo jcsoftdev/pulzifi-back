@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { useId, useState } from 'react'
 import type { SubdomainStatus } from '../application/use-register'
 import type { RegisterData } from '../domain/types'
+import { AuthLabel, ErrorBanner, FieldMessage } from './form-atoms'
 
 function GoogleIcon() {
   return (
@@ -21,14 +22,6 @@ function GoogleIcon() {
 
 const baseInput =
   'h-10 w-full rounded-xl border border-[var(--pz-ink)]/10 bg-[var(--pz-page-bg,#f9f9f9)] px-4 text-sm text-[var(--pz-ink)] outline-none transition-[border-color,box-shadow] placeholder:text-[var(--pz-ink)]/30 focus:border-[var(--pz-accent)]/40 focus:bg-white focus:ring-2 focus:ring-[var(--pz-accent)]/15'
-
-function Label({ htmlFor, children }: { htmlFor: string; children: React.ReactNode }) {
-  return (
-    <label htmlFor={htmlFor} className="text-xs font-semibold uppercase tracking-wide text-[var(--pz-ink)]/50">
-      {children}
-    </label>
-  )
-}
 
 export interface RegisterFormProps {
   onSubmit: (data: RegisterData) => Promise<void>
@@ -65,6 +58,9 @@ export function RegisterForm({
   const confirmPasswordId = useId()
   const orgNameId = useId()
   const subdomainId = useId()
+  const errorId = useId()
+  const subdomainHintId = useId()
+  const passwordErrorId = useId()
 
   const handleSubdomainChange = (value: string) => {
     const normalized = value.toLowerCase()
@@ -84,11 +80,22 @@ export function RegisterForm({
 
   const isSubdomainUnavailable = subdomainStatus === 'unavailable'
 
+  const subdomainHintVariant =
+    isSubdomainUnavailable ? 'error' : subdomainStatus === 'available' ? 'success' : 'hint'
+
+  const subdomainHintText =
+    isSubdomainUnavailable
+      ? (subdomainMessage ?? 'Subdomain unavailable')
+      : subdomainStatus === 'available'
+        ? 'Available'
+        : 'Lowercase, numbers, hyphens'
+
   return (
     <div className="flex flex-col gap-4">
-      {/* Google OAuth — first */}
+      {/* Google OAuth */}
       <a
         href="/api/v1/auth/oauth/google"
+        aria-label="Continue with Google"
         className={cn(
           'flex h-10 items-center justify-center gap-3 rounded-xl border border-[var(--pz-ink)]/10 bg-white text-sm font-medium text-[var(--pz-ink)] shadow-sm transition-[box-shadow,background-color] hover:bg-gray-50 hover:shadow-md',
           isLoading && 'pointer-events-none opacity-50'
@@ -99,36 +106,38 @@ export function RegisterForm({
       </a>
 
       {/* Divider */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3" aria-hidden="true">
         <div className="h-px flex-1 bg-[var(--pz-ink)]/8" />
         <span className="text-xs text-[var(--pz-ink)]/35">or sign up with email</span>
         <div className="h-px flex-1 bg-[var(--pz-ink)]/8" />
       </div>
 
       {/* Form */}
-      <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-3" aria-label="Create an account">
         {/* First / Last name */}
         <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor={firstNameId}>First name</Label>
+            <AuthLabel htmlFor={firstNameId}>First name</AuthLabel>
             <input
               id={firstNameId}
               type="text"
               value={firstName}
               onChange={(e) => setFirstName(e.target.value)}
               required
+              aria-required="true"
               placeholder="John"
               className={baseInput}
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor={lastNameId}>Last name</Label>
+            <AuthLabel htmlFor={lastNameId}>Last name</AuthLabel>
             <input
               id={lastNameId}
               type="text"
               value={lastName}
               onChange={(e) => setLastName(e.target.value)}
               required
+              aria-required="true"
               placeholder="Smith"
               className={baseInput}
             />
@@ -137,13 +146,14 @@ export function RegisterForm({
 
         {/* Email */}
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor={emailId}>Email address</Label>
+          <AuthLabel htmlFor={emailId}>Email address</AuthLabel>
           <input
             id={emailId}
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
+            aria-required="true"
             placeholder="you@company.com"
             className={baseInput}
           />
@@ -152,19 +162,20 @@ export function RegisterForm({
         {/* Org name + subdomain */}
         <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor={orgNameId}>Organization</Label>
+            <AuthLabel htmlFor={orgNameId}>Organization</AuthLabel>
             <input
               id={orgNameId}
               type="text"
               value={organizationName}
               onChange={(e) => setOrganizationName(e.target.value)}
               required
+              aria-required="true"
               placeholder="Acme Inc."
               className={baseInput}
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor={subdomainId}>Subdomain</Label>
+            <AuthLabel htmlFor={subdomainId}>Subdomain</AuthLabel>
             <div className="relative">
               <input
                 id={subdomainId}
@@ -172,6 +183,9 @@ export function RegisterForm({
                 value={organizationSubdomain}
                 onChange={(e) => handleSubdomainChange(e.target.value)}
                 required
+                aria-required="true"
+                aria-invalid={isSubdomainUnavailable}
+                aria-describedby={subdomainHintId}
                 placeholder="your-company"
                 className={cn(
                   baseInput,
@@ -180,26 +194,29 @@ export function RegisterForm({
                   subdomainStatus === 'available' && 'border-green-500/50 focus:border-green-500/50 focus:ring-green-500/15'
                 )}
               />
-              <div className="absolute right-3 top-1/2 -translate-y-1/2">
+              <div className="absolute right-3 top-1/2 -translate-y-1/2" aria-hidden="true">
                 {subdomainStatus === 'checking' && <Loader2 className="size-4 animate-spin text-[var(--pz-ink)]/30" />}
                 {subdomainStatus === 'available' && <CheckCircle className="size-4 text-green-500" />}
                 {subdomainStatus === 'unavailable' && <XCircle className="size-4 text-destructive" />}
               </div>
             </div>
-            {subdomainStatus === 'unavailable' && subdomainMessage ? (
-              <p className="text-xs text-destructive">{subdomainMessage}</p>
-            ) : subdomainStatus === 'available' ? (
-              <p className="text-xs text-green-600">Available</p>
-            ) : (
-              <p className="text-xs text-[var(--pz-ink)]/40">Lowercase, numbers, hyphens</p>
-            )}
+            <FieldMessage id={subdomainHintId} variant={subdomainHintVariant}>
+              {subdomainStatus === 'checking' ? (
+                <span>
+                  <span className="sr-only">Checking subdomain availability</span>
+                  <span aria-hidden="true">Lowercase, numbers, hyphens</span>
+                </span>
+              ) : (
+                subdomainHintText
+              )}
+            </FieldMessage>
           </div>
         </div>
 
         {/* Password */}
         <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor={passwordId}>Password</Label>
+            <AuthLabel htmlFor={passwordId}>Password</AuthLabel>
             <div className="relative">
               <input
                 id={passwordId}
@@ -207,6 +224,7 @@ export function RegisterForm({
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                aria-required="true"
                 minLength={8}
                 placeholder="Min. 8 characters"
                 className={cn(baseInput, 'pr-10')}
@@ -217,13 +235,13 @@ export function RegisterForm({
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--pz-ink)]/40 transition-colors hover:text-[var(--pz-ink)]"
                 aria-label={showPassword ? 'Hide password' : 'Show password'}
               >
-                {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                {showPassword ? <EyeOff className="size-4" aria-hidden="true" /> : <Eye className="size-4" aria-hidden="true" />}
               </button>
             </div>
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor={confirmPasswordId}>Confirm password</Label>
+            <AuthLabel htmlFor={confirmPasswordId}>Confirm password</AuthLabel>
             <div className="relative">
               <input
                 id={confirmPasswordId}
@@ -231,6 +249,9 @@ export function RegisterForm({
                 value={confirmPassword}
                 onChange={(e) => { setConfirmPassword(e.target.value); setPasswordError(undefined) }}
                 required
+                aria-required="true"
+                aria-invalid={!!passwordError}
+                aria-describedby={passwordError ? passwordErrorId : undefined}
                 placeholder="Repeat password"
                 className={cn(
                   baseInput,
@@ -242,21 +263,21 @@ export function RegisterForm({
                 type="button"
                 onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--pz-ink)]/40 transition-colors hover:text-[var(--pz-ink)]"
-                aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
               >
-                {showConfirmPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                {showConfirmPassword ? <EyeOff className="size-4" aria-hidden="true" /> : <Eye className="size-4" aria-hidden="true" />}
               </button>
             </div>
-            {passwordError && <p className="text-xs text-destructive">{passwordError}</p>}
+            {passwordError && (
+              <FieldMessage id={passwordErrorId} variant="error">
+                {passwordError}
+              </FieldMessage>
+            )}
           </div>
         </div>
 
-        {/* Error */}
-        {error && (
-          <div className="rounded-xl border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-            {error}
-          </div>
-        )}
+        {/* General error */}
+        {error && <ErrorBanner id={errorId} message={error} />}
 
         {/* Submit */}
         <Button
