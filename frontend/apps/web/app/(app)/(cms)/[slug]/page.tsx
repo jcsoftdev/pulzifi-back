@@ -29,35 +29,50 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
-  const payload = await getPayloadClient()
-  const result = await payload.find({
-    collection: 'pages',
-    where: { slug: { equals: slug }, _status: { equals: 'published' } },
-    limit: 1,
-  })
-  const page = result.docs[0] as any
-  if (!page) return {}
-  return {
-    title: page.meta?.title ?? page.title,
-    description: page.meta?.description ?? undefined,
+  try {
+    const payload = await getPayloadClient()
+    const result = await payload.find({
+      collection: 'pages',
+      where: { slug: { equals: slug }, _status: { equals: 'published' } },
+      limit: 1,
+    })
+    const page = result.docs[0] as any
+    if (!page) return {}
+    return {
+      title: page.meta?.title ?? page.title,
+      description: page.meta?.description ?? undefined,
+    }
+  } catch {
+    return {}
   }
 }
 
 export default async function DynamicPage({ params }: Props) {
   const { slug } = await params
-  const payload = await getPayloadClient()
-  const [result, navbar, footer, theme] = await Promise.all([
-    payload.find({
-      collection: 'pages',
-      where: { slug: { equals: slug }, _status: { equals: 'published' } },
-      limit: 1,
-      depth: 2,
-    }),
-    payload.findGlobal({ slug: 'navbar', depth: 1 }).catch(() => null),
-    payload.findGlobal({ slug: 'footer', depth: 1 }).catch(() => null),
-    payload.findGlobal({ slug: 'theme', depth: 0 }).catch(() => null),
-  ])
-  const page = result.docs[0] as any
+  let page: any = null
+  let navbar: any = null
+  let footer: any = null
+  let theme: any = null
+  try {
+    const payload = await getPayloadClient()
+    const [result, nav, foot, th] = await Promise.all([
+      payload.find({
+        collection: 'pages',
+        where: { slug: { equals: slug }, _status: { equals: 'published' } },
+        limit: 1,
+        depth: 2,
+      }),
+      payload.findGlobal({ slug: 'navbar', depth: 1 }).catch(() => null),
+      payload.findGlobal({ slug: 'footer', depth: 1 }).catch(() => null),
+      payload.findGlobal({ slug: 'theme', depth: 0 }).catch(() => null),
+    ])
+    page = result.docs[0] as any
+    navbar = nav
+    footer = foot
+    theme = th
+  } catch {
+    notFound()
+  }
   if (!page) notFound()
 
   const nav = navbar as any

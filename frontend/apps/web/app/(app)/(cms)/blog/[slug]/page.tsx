@@ -28,30 +28,39 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
-  const payload = await getPayloadClient()
-  const result = await payload.find({
-    collection: 'posts',
-    where: { slug: { equals: slug }, _status: { equals: 'published' } },
-    limit: 1,
-  })
-  const post = result.docs[0] as any
-  if (!post) return {}
-  return {
-    title: post.meta?.title ?? post.title,
-    description: post.meta?.description ?? post.excerpt ?? undefined,
+  try {
+    const payload = await getPayloadClient()
+    const result = await payload.find({
+      collection: 'posts',
+      where: { slug: { equals: slug }, _status: { equals: 'published' } },
+      limit: 1,
+    })
+    const post = result.docs[0] as any
+    if (!post) return {}
+    return {
+      title: post.meta?.title ?? post.title,
+      description: post.meta?.description ?? post.excerpt ?? undefined,
+    }
+  } catch {
+    return {}
   }
 }
 
 export default async function BlogArticlePage({ params }: Props) {
   const { slug } = await params
-  const payload = await getPayloadClient()
-  const result = await payload.find({
-    collection: 'posts',
-    where: { slug: { equals: slug }, _status: { equals: 'published' } },
-    limit: 1,
-    depth: 2,
-  })
-  const post = result.docs[0] as any
+  let post: any = null
+  try {
+    const payload = await getPayloadClient()
+    const result = await payload.find({
+      collection: 'posts',
+      where: { slug: { equals: slug }, _status: { equals: 'published' } },
+      limit: 1,
+      depth: 2,
+    })
+    post = result.docs[0] as any
+  } catch {
+    notFound()
+  }
   if (!post) notFound()
 
   const heroImageUrl =
