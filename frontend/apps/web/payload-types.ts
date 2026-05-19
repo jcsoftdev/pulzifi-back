@@ -82,6 +82,7 @@ export interface Config {
   collectionsSelect: {
     media: MediaSelect<false> | MediaSelect<true>;
     users: UsersSelect<false> | UsersSelect<true>;
+    'block-library': BlockLibrarySelect<false> | BlockLibrarySelect<true>;
     pages: PagesSelect<false> | PagesSelect<true>;
     posts: PostsSelect<false> | PostsSelect<true>;
     plans: PlansSelect<false> | PlansSelect<true>;
@@ -95,8 +96,6 @@ export interface Config {
   };
   fallbackLocale: null;
   globals: {
-    landing: Landing;
-    'pricing-page': PricingPage;
     navbar: Navbar;
     footer: Footer;
     theme: Theme;
@@ -104,8 +103,6 @@ export interface Config {
     'contact-page': ContactPage;
   };
   globalsSelect: {
-    landing: LandingSelect<false> | LandingSelect<true>;
-    'pricing-page': PricingPageSelect<false> | PricingPageSelect<true>;
     navbar: NavbarSelect<false> | NavbarSelect<true>;
     footer: FooterSelect<false> | FooterSelect<true>;
     theme: ThemeSelect<false> | ThemeSelect<true>;
@@ -185,14 +182,21 @@ export interface User {
   collection: 'users';
 }
 /**
+ * Reusable blocks. Reference them on any page via the "Block Reference" block type.
+ *
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "pages".
+ * via the `definition` "block-library".
  */
-export interface Page {
+export interface BlockLibrary {
   id: number;
-  title: string;
-  slug: string;
-  blocks?:
+  /**
+   * Internal label — e.g. "Hero — Main", "Pricing — EN"
+   */
+  name: string;
+  /**
+   * Add exactly one block.
+   */
+  block?:
     | (
         | {
             eyebrowBadge?: string | null;
@@ -342,7 +346,10 @@ export interface Page {
                     | {
                         title: string;
                         body?: string | null;
-                        image?: (number | null) | Media;
+                        /**
+                         * Image URL or /images/landing/... path
+                         */
+                        image?: string | null;
                         id?: string | null;
                       }[]
                     | null;
@@ -519,16 +526,49 @@ export interface Page {
             blockName?: string | null;
             blockType: 'image';
           }
+        | {
+            /**
+             * Default: "Welcome back"
+             */
+            headline?: string | null;
+            /**
+             * Default: "Enter your credentials to continue"
+             */
+            subheadline?: string | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'login-form';
+          }
+        | {
+            /**
+             * Default: "Create your account"
+             */
+            headline?: string | null;
+            /**
+             * Default: "No credit card required"
+             */
+            subheadline?: string | null;
+            /**
+             * Default: "Free 14-day trial"
+             */
+            trialBadge?: string | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'register-form';
+          }
+        | {
+            /**
+             * Pick a block from the library. Edit the library entry to update it everywhere.
+             */
+            ref: number | BlockLibrary;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'block-ref';
+          }
       )[]
     | null;
-  meta?: {
-    title?: string | null;
-    description?: string | null;
-    image?: (number | null) | Media;
-  };
   updatedAt: string;
   createdAt: string;
-  _status?: ('draft' | 'published') | null;
 }
 /**
  * Pricing plans. Referenced from the landing pricing block and the pricing page. Edit once, both pages update.
@@ -560,12 +600,396 @@ export interface Plan {
   updatedAt: string;
   createdAt: string;
 }
-export interface BlockLibrary {
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "pages".
+ */
+export interface Page {
   id: number;
-  name: string;
-  block?: { blockType: string; id?: string | null; [k: string]: unknown }[] | null;
+  title: string;
+  slug: string;
+  /**
+   * Use "Block Reference" to reuse a shared library block (no editing). Use any other block type to create page-specific content.
+   */
+  blocks?:
+    | (
+        | {
+            eyebrowBadge?: string | null;
+            eyebrowText?: string | null;
+            headline: string;
+            headlineHighlight?: string | null;
+            subheadline?: string | null;
+            primaryCtaLabel?: string | null;
+            primaryCtaHref?: string | null;
+            secondaryCtaLabel?: string | null;
+            secondaryCtaHref?: string | null;
+            trustLine?: string | null;
+            image?: (number | null) | Media;
+            dashboardAlerts?:
+              | {
+                  tone?: ('signal' | 'amber' | 'teal' | 'ink') | null;
+                  icon?: string | null;
+                  site: string;
+                  title: string;
+                  detail?: string | null;
+                  time?: string | null;
+                  id?: string | null;
+                }[]
+              | null;
+            aiInsightTitle?: string | null;
+            aiInsightBody?: string | null;
+            kpis?:
+              | {
+                  label: string;
+                  value: string;
+                  delta?: string | null;
+                  deltaDirection?: ('up' | 'down') | null;
+                  id?: string | null;
+                }[]
+              | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'hero';
+          }
+        | {
+            label?: string | null;
+            items?:
+              | {
+                  text: string;
+                  id?: string | null;
+                }[]
+              | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'logos';
+          }
+        | {
+            eyebrow?: string | null;
+            headline: string;
+            headlineHighlight?: string | null;
+            cards?:
+              | {
+                  metric: string;
+                  label: string;
+                  description: string;
+                  id?: string | null;
+                }[]
+              | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'problem';
+          }
+        | {
+            items?:
+              | {
+                  value: string;
+                  label: string;
+                  id?: string | null;
+                }[]
+              | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'stats';
+          }
+        | {
+            eyebrow?: string | null;
+            headline?: string | null;
+            headlineHighlight?: string | null;
+            subheadline?: string | null;
+            steps?:
+              | {
+                  step: number;
+                  icon?: string | null;
+                  title: string;
+                  description: string;
+                  mockType: 'url' | 'insight' | 'alerts';
+                  mockText?: string | null;
+                  id?: string | null;
+                }[]
+              | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'how-it-works';
+          }
+        | {
+            eyebrow?: string | null;
+            headline?: string | null;
+            headlineHighlight?: string | null;
+            intro?: string | null;
+            bullets?:
+              | {
+                  title: string;
+                  description: string;
+                  id?: string | null;
+                }[]
+              | null;
+            demoTitle?: string | null;
+            demoBadge?: string | null;
+            demoSite?: string | null;
+            demoChange?: string | null;
+            demoAnalysis?: string | null;
+            demoActions?:
+              | {
+                  label: string;
+                  id?: string | null;
+                }[]
+              | null;
+            /**
+             * Legacy card layout — leave empty when using bullets/demo
+             */
+            cards?:
+              | {
+                  title: string;
+                  description: string;
+                  image?: (number | null) | Media;
+                  id?: string | null;
+                }[]
+              | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'features';
+          }
+        | {
+            eyebrow?: string | null;
+            headline: string;
+            headlineHighlight?: string | null;
+            subheadline?: string | null;
+            tabs?:
+              | {
+                  label: string;
+                  items?:
+                    | {
+                        title: string;
+                        body?: string | null;
+                        /**
+                         * Image URL or /images/landing/... path
+                         */
+                        image?: string | null;
+                        id?: string | null;
+                      }[]
+                    | null;
+                  id?: string | null;
+                }[]
+              | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'ai-intelligence';
+          }
+        | {
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'insights';
+          }
+        | {
+            compactMode?: boolean | null;
+            eyebrow?: string | null;
+            headline?: string | null;
+            headlineHighlight?: string | null;
+            subheadline?: string | null;
+            items?:
+              | {
+                  icon?: string | null;
+                  title: string;
+                  description: string;
+                  realWin?: string | null;
+                  id?: string | null;
+                }[]
+              | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'industries';
+          }
+        | {
+            eyebrow?: string | null;
+            headline?: string | null;
+            headlineHighlight?: string | null;
+            columns?:
+              | {
+                  name: string;
+                  isUs?: boolean | null;
+                  id?: string | null;
+                }[]
+              | null;
+            rows?:
+              | {
+                  feature: string;
+                  cells?:
+                    | {
+                        state?: ('yes' | 'no' | 'partial') | null;
+                        note?: string | null;
+                        id?: string | null;
+                      }[]
+                    | null;
+                  id?: string | null;
+                }[]
+              | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'comparison';
+          }
+        | {
+            eyebrow?: string | null;
+            headline?: string | null;
+            headlineHighlight?: string | null;
+            subheadline?: string | null;
+            /**
+             * Select plans to display. Drag to reorder. Edit a plan record to update it everywhere it appears.
+             */
+            plans?: (number | Plan)[] | null;
+            guaranteeNote?: string | null;
+            billing?: {
+              /**
+               * Default: "Monthly"
+               */
+              monthlyLabel?: string | null;
+              /**
+               * Default: "Annual"
+               */
+              annualLabel?: string | null;
+              /**
+               * Default: "2 months free"
+               */
+              annualBadge?: string | null;
+              /**
+               * Default: "Billed annually · 2 months free"
+               */
+              annualNote?: string | null;
+            };
+            /**
+             * Default: "Compare plans"
+             */
+            comparePlansHeadline?: string | null;
+            /**
+             * Default: "Features:"
+             */
+            featuresLabel?: string | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'pricing';
+          }
+        | {
+            eyebrow?: string | null;
+            headline?: string | null;
+            items?:
+              | {
+                  quote: string;
+                  author: string;
+                  role?: string | null;
+                  avatar?: (number | null) | Media;
+                  id?: string | null;
+                }[]
+              | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'testimonials';
+          }
+        | {
+            eyebrow?: string | null;
+            headline?: string | null;
+            subheadline?: string | null;
+            items?:
+              | {
+                  question: string;
+                  answer: string;
+                  id?: string | null;
+                }[]
+              | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'faq';
+          }
+        | {
+            content: {
+              root: {
+                type: string;
+                children: {
+                  type: any;
+                  version: number;
+                  [k: string]: unknown;
+                }[];
+                direction: ('ltr' | 'rtl') | null;
+                format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+                indent: number;
+                version: number;
+              };
+              [k: string]: unknown;
+            };
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'rich-text';
+          }
+        | {
+            eyebrow?: string | null;
+            headline: string;
+            headlineHighlight?: string | null;
+            subtext?: string | null;
+            primaryLabel?: string | null;
+            primaryHref?: string | null;
+            secondaryLabel?: string | null;
+            secondaryHref?: string | null;
+            riskNote?: string | null;
+            variant?: ('primary' | 'secondary') | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'cta';
+          }
+        | {
+            image: number | Media;
+            caption?: string | null;
+            size?: ('full' | 'contained') | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'image';
+          }
+        | {
+            /**
+             * Default: "Welcome back"
+             */
+            headline?: string | null;
+            /**
+             * Default: "Enter your credentials to continue"
+             */
+            subheadline?: string | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'login-form';
+          }
+        | {
+            /**
+             * Default: "Create your account"
+             */
+            headline?: string | null;
+            /**
+             * Default: "No credit card required"
+             */
+            subheadline?: string | null;
+            /**
+             * Default: "Free 14-day trial"
+             */
+            trialBadge?: string | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'register-form';
+          }
+        | {
+            /**
+             * Pick a block from the library. Edit the library entry to update it everywhere.
+             */
+            ref: number | BlockLibrary;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'block-ref';
+          }
+      )[]
+    | null;
+  meta?: {
+    title?: string | null;
+    description?: string | null;
+    image?: (number | null) | Media;
+  };
   updatedAt: string;
   createdAt: string;
+  _status?: ('draft' | 'published') | null;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -635,6 +1059,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'users';
         value: number | User;
+      } | null)
+    | ({
+        relationTo: 'block-library';
+        value: number | BlockLibrary;
       } | null)
     | ({
         relationTo: 'pages';
@@ -729,6 +1157,348 @@ export interface UsersSelect<T extends boolean = true> {
         createdAt?: T;
         expiresAt?: T;
       };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "block-library_select".
+ */
+export interface BlockLibrarySelect<T extends boolean = true> {
+  name?: T;
+  block?:
+    | T
+    | {
+        hero?:
+          | T
+          | {
+              eyebrowBadge?: T;
+              eyebrowText?: T;
+              headline?: T;
+              headlineHighlight?: T;
+              subheadline?: T;
+              primaryCtaLabel?: T;
+              primaryCtaHref?: T;
+              secondaryCtaLabel?: T;
+              secondaryCtaHref?: T;
+              trustLine?: T;
+              image?: T;
+              dashboardAlerts?:
+                | T
+                | {
+                    tone?: T;
+                    icon?: T;
+                    site?: T;
+                    title?: T;
+                    detail?: T;
+                    time?: T;
+                    id?: T;
+                  };
+              aiInsightTitle?: T;
+              aiInsightBody?: T;
+              kpis?:
+                | T
+                | {
+                    label?: T;
+                    value?: T;
+                    delta?: T;
+                    deltaDirection?: T;
+                    id?: T;
+                  };
+              id?: T;
+              blockName?: T;
+            };
+        logos?:
+          | T
+          | {
+              label?: T;
+              items?:
+                | T
+                | {
+                    text?: T;
+                    id?: T;
+                  };
+              id?: T;
+              blockName?: T;
+            };
+        problem?:
+          | T
+          | {
+              eyebrow?: T;
+              headline?: T;
+              headlineHighlight?: T;
+              cards?:
+                | T
+                | {
+                    metric?: T;
+                    label?: T;
+                    description?: T;
+                    id?: T;
+                  };
+              id?: T;
+              blockName?: T;
+            };
+        stats?:
+          | T
+          | {
+              items?:
+                | T
+                | {
+                    value?: T;
+                    label?: T;
+                    id?: T;
+                  };
+              id?: T;
+              blockName?: T;
+            };
+        'how-it-works'?:
+          | T
+          | {
+              eyebrow?: T;
+              headline?: T;
+              headlineHighlight?: T;
+              subheadline?: T;
+              steps?:
+                | T
+                | {
+                    step?: T;
+                    icon?: T;
+                    title?: T;
+                    description?: T;
+                    mockType?: T;
+                    mockText?: T;
+                    id?: T;
+                  };
+              id?: T;
+              blockName?: T;
+            };
+        features?:
+          | T
+          | {
+              eyebrow?: T;
+              headline?: T;
+              headlineHighlight?: T;
+              intro?: T;
+              bullets?:
+                | T
+                | {
+                    title?: T;
+                    description?: T;
+                    id?: T;
+                  };
+              demoTitle?: T;
+              demoBadge?: T;
+              demoSite?: T;
+              demoChange?: T;
+              demoAnalysis?: T;
+              demoActions?:
+                | T
+                | {
+                    label?: T;
+                    id?: T;
+                  };
+              cards?:
+                | T
+                | {
+                    title?: T;
+                    description?: T;
+                    image?: T;
+                    id?: T;
+                  };
+              id?: T;
+              blockName?: T;
+            };
+        'ai-intelligence'?:
+          | T
+          | {
+              eyebrow?: T;
+              headline?: T;
+              headlineHighlight?: T;
+              subheadline?: T;
+              tabs?:
+                | T
+                | {
+                    label?: T;
+                    items?:
+                      | T
+                      | {
+                          title?: T;
+                          body?: T;
+                          image?: T;
+                          id?: T;
+                        };
+                    id?: T;
+                  };
+              id?: T;
+              blockName?: T;
+            };
+        insights?:
+          | T
+          | {
+              id?: T;
+              blockName?: T;
+            };
+        industries?:
+          | T
+          | {
+              compactMode?: T;
+              eyebrow?: T;
+              headline?: T;
+              headlineHighlight?: T;
+              subheadline?: T;
+              items?:
+                | T
+                | {
+                    icon?: T;
+                    title?: T;
+                    description?: T;
+                    realWin?: T;
+                    id?: T;
+                  };
+              id?: T;
+              blockName?: T;
+            };
+        comparison?:
+          | T
+          | {
+              eyebrow?: T;
+              headline?: T;
+              headlineHighlight?: T;
+              columns?:
+                | T
+                | {
+                    name?: T;
+                    isUs?: T;
+                    id?: T;
+                  };
+              rows?:
+                | T
+                | {
+                    feature?: T;
+                    cells?:
+                      | T
+                      | {
+                          state?: T;
+                          note?: T;
+                          id?: T;
+                        };
+                    id?: T;
+                  };
+              id?: T;
+              blockName?: T;
+            };
+        pricing?:
+          | T
+          | {
+              eyebrow?: T;
+              headline?: T;
+              headlineHighlight?: T;
+              subheadline?: T;
+              plans?: T;
+              guaranteeNote?: T;
+              billing?:
+                | T
+                | {
+                    monthlyLabel?: T;
+                    annualLabel?: T;
+                    annualBadge?: T;
+                    annualNote?: T;
+                  };
+              comparePlansHeadline?: T;
+              featuresLabel?: T;
+              id?: T;
+              blockName?: T;
+            };
+        testimonials?:
+          | T
+          | {
+              eyebrow?: T;
+              headline?: T;
+              items?:
+                | T
+                | {
+                    quote?: T;
+                    author?: T;
+                    role?: T;
+                    avatar?: T;
+                    id?: T;
+                  };
+              id?: T;
+              blockName?: T;
+            };
+        faq?:
+          | T
+          | {
+              eyebrow?: T;
+              headline?: T;
+              subheadline?: T;
+              items?:
+                | T
+                | {
+                    question?: T;
+                    answer?: T;
+                    id?: T;
+                  };
+              id?: T;
+              blockName?: T;
+            };
+        'rich-text'?:
+          | T
+          | {
+              content?: T;
+              id?: T;
+              blockName?: T;
+            };
+        cta?:
+          | T
+          | {
+              eyebrow?: T;
+              headline?: T;
+              headlineHighlight?: T;
+              subtext?: T;
+              primaryLabel?: T;
+              primaryHref?: T;
+              secondaryLabel?: T;
+              secondaryHref?: T;
+              riskNote?: T;
+              variant?: T;
+              id?: T;
+              blockName?: T;
+            };
+        image?:
+          | T
+          | {
+              image?: T;
+              caption?: T;
+              size?: T;
+              id?: T;
+              blockName?: T;
+            };
+        'login-form'?:
+          | T
+          | {
+              headline?: T;
+              subheadline?: T;
+              id?: T;
+              blockName?: T;
+            };
+        'register-form'?:
+          | T
+          | {
+              headline?: T;
+              subheadline?: T;
+              trialBadge?: T;
+              id?: T;
+              blockName?: T;
+            };
+        'block-ref'?:
+          | T
+          | {
+              ref?: T;
+              id?: T;
+              blockName?: T;
+            };
+      };
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -1045,6 +1815,30 @@ export interface PagesSelect<T extends boolean = true> {
               id?: T;
               blockName?: T;
             };
+        'login-form'?:
+          | T
+          | {
+              headline?: T;
+              subheadline?: T;
+              id?: T;
+              blockName?: T;
+            };
+        'register-form'?:
+          | T
+          | {
+              headline?: T;
+              subheadline?: T;
+              trialBadge?: T;
+              id?: T;
+              blockName?: T;
+            };
+        'block-ref'?:
+          | T
+          | {
+              ref?: T;
+              id?: T;
+              blockName?: T;
+            };
       };
   meta?:
     | T
@@ -1144,402 +1938,6 @@ export interface PayloadMigrationsSelect<T extends boolean = true> {
   batch?: T;
   updatedAt?: T;
   createdAt?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "landing".
- */
-export interface Landing {
-  id: number;
-  blocks?:
-    | (
-        | {
-            eyebrowBadge?: string | null;
-            eyebrowText?: string | null;
-            headline: string;
-            headlineHighlight?: string | null;
-            subheadline?: string | null;
-            primaryCtaLabel?: string | null;
-            primaryCtaHref?: string | null;
-            secondaryCtaLabel?: string | null;
-            secondaryCtaHref?: string | null;
-            trustLine?: string | null;
-            image?: (number | null) | Media;
-            dashboardAlerts?:
-              | {
-                  tone?: ('signal' | 'amber' | 'teal' | 'ink') | null;
-                  icon?: string | null;
-                  site: string;
-                  title: string;
-                  detail?: string | null;
-                  time?: string | null;
-                  id?: string | null;
-                }[]
-              | null;
-            aiInsightTitle?: string | null;
-            aiInsightBody?: string | null;
-            kpis?:
-              | {
-                  label: string;
-                  value: string;
-                  delta?: string | null;
-                  deltaDirection?: ('up' | 'down') | null;
-                  id?: string | null;
-                }[]
-              | null;
-            id?: string | null;
-            blockName?: string | null;
-            blockType: 'hero';
-          }
-        | {
-            label?: string | null;
-            items?:
-              | {
-                  text: string;
-                  id?: string | null;
-                }[]
-              | null;
-            id?: string | null;
-            blockName?: string | null;
-            blockType: 'logos';
-          }
-        | {
-            eyebrow?: string | null;
-            headline: string;
-            headlineHighlight?: string | null;
-            cards?:
-              | {
-                  metric: string;
-                  label: string;
-                  description: string;
-                  id?: string | null;
-                }[]
-              | null;
-            id?: string | null;
-            blockName?: string | null;
-            blockType: 'problem';
-          }
-        | {
-            items?:
-              | {
-                  value: string;
-                  label: string;
-                  id?: string | null;
-                }[]
-              | null;
-            id?: string | null;
-            blockName?: string | null;
-            blockType: 'stats';
-          }
-        | {
-            eyebrow?: string | null;
-            headline?: string | null;
-            headlineHighlight?: string | null;
-            subheadline?: string | null;
-            steps?:
-              | {
-                  step: number;
-                  icon?: string | null;
-                  title: string;
-                  description: string;
-                  mockType: 'url' | 'insight' | 'alerts';
-                  mockText?: string | null;
-                  id?: string | null;
-                }[]
-              | null;
-            id?: string | null;
-            blockName?: string | null;
-            blockType: 'how-it-works';
-          }
-        | {
-            eyebrow?: string | null;
-            headline?: string | null;
-            headlineHighlight?: string | null;
-            intro?: string | null;
-            bullets?:
-              | {
-                  title: string;
-                  description: string;
-                  id?: string | null;
-                }[]
-              | null;
-            demoTitle?: string | null;
-            demoBadge?: string | null;
-            demoSite?: string | null;
-            demoChange?: string | null;
-            demoAnalysis?: string | null;
-            demoActions?:
-              | {
-                  label: string;
-                  id?: string | null;
-                }[]
-              | null;
-            /**
-             * Legacy card layout — leave empty when using bullets/demo
-             */
-            cards?:
-              | {
-                  title: string;
-                  description: string;
-                  image?: (number | null) | Media;
-                  id?: string | null;
-                }[]
-              | null;
-            id?: string | null;
-            blockName?: string | null;
-            blockType: 'features';
-          }
-        | {
-            eyebrow?: string | null;
-            headline: string;
-            headlineHighlight?: string | null;
-            subheadline?: string | null;
-            tabs?:
-              | {
-                  label: string;
-                  items?:
-                    | {
-                        title: string;
-                        body?: string | null;
-                        image?: (number | null) | Media;
-                        id?: string | null;
-                      }[]
-                    | null;
-                  id?: string | null;
-                }[]
-              | null;
-            id?: string | null;
-            blockName?: string | null;
-            blockType: 'ai-intelligence';
-          }
-        | {
-            id?: string | null;
-            blockName?: string | null;
-            blockType: 'insights';
-          }
-        | {
-            compactMode?: boolean | null;
-            eyebrow?: string | null;
-            headline?: string | null;
-            headlineHighlight?: string | null;
-            subheadline?: string | null;
-            items?:
-              | {
-                  icon?: string | null;
-                  title: string;
-                  description: string;
-                  realWin?: string | null;
-                  id?: string | null;
-                }[]
-              | null;
-            id?: string | null;
-            blockName?: string | null;
-            blockType: 'industries';
-          }
-        | {
-            eyebrow?: string | null;
-            headline?: string | null;
-            headlineHighlight?: string | null;
-            columns?:
-              | {
-                  name: string;
-                  isUs?: boolean | null;
-                  id?: string | null;
-                }[]
-              | null;
-            rows?:
-              | {
-                  feature: string;
-                  cells?:
-                    | {
-                        state?: ('yes' | 'no' | 'partial') | null;
-                        note?: string | null;
-                        id?: string | null;
-                      }[]
-                    | null;
-                  id?: string | null;
-                }[]
-              | null;
-            id?: string | null;
-            blockName?: string | null;
-            blockType: 'comparison';
-          }
-        | {
-            eyebrow?: string | null;
-            headline?: string | null;
-            headlineHighlight?: string | null;
-            subheadline?: string | null;
-            /**
-             * Select plans to display. Drag to reorder. Edit a plan record to update it everywhere it appears.
-             */
-            plans?: (number | Plan)[] | null;
-            guaranteeNote?: string | null;
-            billing?: {
-              /**
-               * Default: "Monthly"
-               */
-              monthlyLabel?: string | null;
-              /**
-               * Default: "Annual"
-               */
-              annualLabel?: string | null;
-              /**
-               * Default: "2 months free"
-               */
-              annualBadge?: string | null;
-              /**
-               * Default: "Billed annually · 2 months free"
-               */
-              annualNote?: string | null;
-            };
-            /**
-             * Default: "Compare plans"
-             */
-            comparePlansHeadline?: string | null;
-            /**
-             * Default: "Features:"
-             */
-            featuresLabel?: string | null;
-            id?: string | null;
-            blockName?: string | null;
-            blockType: 'pricing';
-          }
-        | {
-            eyebrow?: string | null;
-            headline?: string | null;
-            items?:
-              | {
-                  quote: string;
-                  author: string;
-                  role?: string | null;
-                  avatar?: (number | null) | Media;
-                  id?: string | null;
-                }[]
-              | null;
-            id?: string | null;
-            blockName?: string | null;
-            blockType: 'testimonials';
-          }
-        | {
-            eyebrow?: string | null;
-            headline?: string | null;
-            subheadline?: string | null;
-            items?:
-              | {
-                  question: string;
-                  answer: string;
-                  id?: string | null;
-                }[]
-              | null;
-            id?: string | null;
-            blockName?: string | null;
-            blockType: 'faq';
-          }
-        | {
-            content: {
-              root: {
-                type: string;
-                children: {
-                  type: any;
-                  version: number;
-                  [k: string]: unknown;
-                }[];
-                direction: ('ltr' | 'rtl') | null;
-                format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
-                indent: number;
-                version: number;
-              };
-              [k: string]: unknown;
-            };
-            id?: string | null;
-            blockName?: string | null;
-            blockType: 'rich-text';
-          }
-        | {
-            eyebrow?: string | null;
-            headline: string;
-            headlineHighlight?: string | null;
-            subtext?: string | null;
-            primaryLabel?: string | null;
-            primaryHref?: string | null;
-            secondaryLabel?: string | null;
-            secondaryHref?: string | null;
-            riskNote?: string | null;
-            variant?: ('primary' | 'secondary') | null;
-            id?: string | null;
-            blockName?: string | null;
-            blockType: 'cta';
-          }
-        | {
-            image: number | Media;
-            caption?: string | null;
-            size?: ('full' | 'contained') | null;
-            id?: string | null;
-            blockName?: string | null;
-            blockType: 'image';
-          }
-      )[]
-    | null;
-  updatedAt?: string | null;
-  createdAt?: string | null;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "pricing-page".
- */
-export interface PricingPage {
-  id: number;
-  header?: {
-    eyebrow?: string | null;
-    headline?: string | null;
-    headlineHighlight?: string | null;
-    subheadline?: string | null;
-  };
-  /**
-   * Select plans to display. Drag to reorder. Edit a plan record to update it everywhere it appears.
-   */
-  plans?: (number | Plan)[] | null;
-  guaranteeNote?: string | null;
-  billing?: {
-    /**
-     * Default: "Monthly"
-     */
-    monthlyLabel?: string | null;
-    /**
-     * Default: "Annual"
-     */
-    annualLabel?: string | null;
-    /**
-     * Badge on Annual button. Default: "2 months free"
-     */
-    annualBadge?: string | null;
-    /**
-     * Per-card note when annual selected. Default: "Billed annually · 2 months free"
-     */
-    annualNote?: string | null;
-  };
-  /**
-   * Comparison table heading. Default: "Compare plans"
-   */
-  comparePlansHeadline?: string | null;
-  /**
-   * Label above feature list on each card. Default: "Features:"
-   */
-  featuresLabel?: string | null;
-  faq?: {
-    eyebrow?: string | null;
-    headline?: string | null;
-    subheadline?: string | null;
-    items?:
-      | {
-          question: string;
-          answer: string;
-          id?: string | null;
-        }[]
-      | null;
-  };
-  updatedAt?: string | null;
-  createdAt?: string | null;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -1655,364 +2053,35 @@ export interface Theme {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "landing_select".
+ * via the `definition` "login-page".
  */
-export interface LandingSelect<T extends boolean = true> {
-  blocks?:
-    | T
+export interface LoginPage {
+  id: number;
+  headline?: string | null;
+  subheadline?: string | null;
+  bullets?:
     | {
-        hero?:
-          | T
-          | {
-              eyebrowBadge?: T;
-              eyebrowText?: T;
-              headline?: T;
-              headlineHighlight?: T;
-              subheadline?: T;
-              primaryCtaLabel?: T;
-              primaryCtaHref?: T;
-              secondaryCtaLabel?: T;
-              secondaryCtaHref?: T;
-              trustLine?: T;
-              image?: T;
-              dashboardAlerts?:
-                | T
-                | {
-                    tone?: T;
-                    icon?: T;
-                    site?: T;
-                    title?: T;
-                    detail?: T;
-                    time?: T;
-                    id?: T;
-                  };
-              aiInsightTitle?: T;
-              aiInsightBody?: T;
-              kpis?:
-                | T
-                | {
-                    label?: T;
-                    value?: T;
-                    delta?: T;
-                    deltaDirection?: T;
-                    id?: T;
-                  };
-              id?: T;
-              blockName?: T;
-            };
-        logos?:
-          | T
-          | {
-              label?: T;
-              items?:
-                | T
-                | {
-                    text?: T;
-                    id?: T;
-                  };
-              id?: T;
-              blockName?: T;
-            };
-        problem?:
-          | T
-          | {
-              eyebrow?: T;
-              headline?: T;
-              headlineHighlight?: T;
-              cards?:
-                | T
-                | {
-                    metric?: T;
-                    label?: T;
-                    description?: T;
-                    id?: T;
-                  };
-              id?: T;
-              blockName?: T;
-            };
-        stats?:
-          | T
-          | {
-              items?:
-                | T
-                | {
-                    value?: T;
-                    label?: T;
-                    id?: T;
-                  };
-              id?: T;
-              blockName?: T;
-            };
-        'how-it-works'?:
-          | T
-          | {
-              eyebrow?: T;
-              headline?: T;
-              headlineHighlight?: T;
-              subheadline?: T;
-              steps?:
-                | T
-                | {
-                    step?: T;
-                    icon?: T;
-                    title?: T;
-                    description?: T;
-                    mockType?: T;
-                    mockText?: T;
-                    id?: T;
-                  };
-              id?: T;
-              blockName?: T;
-            };
-        features?:
-          | T
-          | {
-              eyebrow?: T;
-              headline?: T;
-              headlineHighlight?: T;
-              intro?: T;
-              bullets?:
-                | T
-                | {
-                    title?: T;
-                    description?: T;
-                    id?: T;
-                  };
-              demoTitle?: T;
-              demoBadge?: T;
-              demoSite?: T;
-              demoChange?: T;
-              demoAnalysis?: T;
-              demoActions?:
-                | T
-                | {
-                    label?: T;
-                    id?: T;
-                  };
-              cards?:
-                | T
-                | {
-                    title?: T;
-                    description?: T;
-                    image?: T;
-                    id?: T;
-                  };
-              id?: T;
-              blockName?: T;
-            };
-        'ai-intelligence'?:
-          | T
-          | {
-              eyebrow?: T;
-              headline?: T;
-              headlineHighlight?: T;
-              subheadline?: T;
-              tabs?:
-                | T
-                | {
-                    label?: T;
-                    items?:
-                      | T
-                      | {
-                          title?: T;
-                          body?: T;
-                          image?: T;
-                          id?: T;
-                        };
-                    id?: T;
-                  };
-              id?: T;
-              blockName?: T;
-            };
-        insights?:
-          | T
-          | {
-              id?: T;
-              blockName?: T;
-            };
-        industries?:
-          | T
-          | {
-              compactMode?: T;
-              eyebrow?: T;
-              headline?: T;
-              headlineHighlight?: T;
-              subheadline?: T;
-              items?:
-                | T
-                | {
-                    icon?: T;
-                    title?: T;
-                    description?: T;
-                    realWin?: T;
-                    id?: T;
-                  };
-              id?: T;
-              blockName?: T;
-            };
-        comparison?:
-          | T
-          | {
-              eyebrow?: T;
-              headline?: T;
-              headlineHighlight?: T;
-              columns?:
-                | T
-                | {
-                    name?: T;
-                    isUs?: T;
-                    id?: T;
-                  };
-              rows?:
-                | T
-                | {
-                    feature?: T;
-                    cells?:
-                      | T
-                      | {
-                          state?: T;
-                          note?: T;
-                          id?: T;
-                        };
-                    id?: T;
-                  };
-              id?: T;
-              blockName?: T;
-            };
-        pricing?:
-          | T
-          | {
-              eyebrow?: T;
-              headline?: T;
-              headlineHighlight?: T;
-              subheadline?: T;
-              plans?: T;
-              guaranteeNote?: T;
-              billing?:
-                | T
-                | {
-                    monthlyLabel?: T;
-                    annualLabel?: T;
-                    annualBadge?: T;
-                    annualNote?: T;
-                  };
-              comparePlansHeadline?: T;
-              featuresLabel?: T;
-              id?: T;
-              blockName?: T;
-            };
-        testimonials?:
-          | T
-          | {
-              eyebrow?: T;
-              headline?: T;
-              items?:
-                | T
-                | {
-                    quote?: T;
-                    author?: T;
-                    role?: T;
-                    avatar?: T;
-                    id?: T;
-                  };
-              id?: T;
-              blockName?: T;
-            };
-        faq?:
-          | T
-          | {
-              eyebrow?: T;
-              headline?: T;
-              subheadline?: T;
-              items?:
-                | T
-                | {
-                    question?: T;
-                    answer?: T;
-                    id?: T;
-                  };
-              id?: T;
-              blockName?: T;
-            };
-        'rich-text'?:
-          | T
-          | {
-              content?: T;
-              id?: T;
-              blockName?: T;
-            };
-        cta?:
-          | T
-          | {
-              eyebrow?: T;
-              headline?: T;
-              headlineHighlight?: T;
-              subtext?: T;
-              primaryLabel?: T;
-              primaryHref?: T;
-              secondaryLabel?: T;
-              secondaryHref?: T;
-              riskNote?: T;
-              variant?: T;
-              id?: T;
-              blockName?: T;
-            };
-        image?:
-          | T
-          | {
-              image?: T;
-              caption?: T;
-              size?: T;
-              id?: T;
-              blockName?: T;
-            };
-      };
-  updatedAt?: T;
-  createdAt?: T;
-  globalType?: T;
+        text: string;
+        id?: string | null;
+      }[]
+    | null;
+  welcomeHeadline?: string | null;
+  welcomeSubline?: string | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "pricing-page_select".
+ * via the `definition` "contact-page".
  */
-export interface PricingPageSelect<T extends boolean = true> {
-  header?:
-    | T
-    | {
-        eyebrow?: T;
-        headline?: T;
-        headlineHighlight?: T;
-        subheadline?: T;
-      };
-  plans?: T;
-  guaranteeNote?: T;
-  billing?:
-    | T
-    | {
-        monthlyLabel?: T;
-        annualLabel?: T;
-        annualBadge?: T;
-        annualNote?: T;
-      };
-  comparePlansHeadline?: T;
-  featuresLabel?: T;
-  faq?:
-    | T
-    | {
-        eyebrow?: T;
-        headline?: T;
-        subheadline?: T;
-        items?:
-          | T
-          | {
-              question?: T;
-              answer?: T;
-              id?: T;
-            };
-      };
-  updatedAt?: T;
-  createdAt?: T;
-  globalType?: T;
+export interface ContactPage {
+  id: number;
+  headline?: string | null;
+  subheadline?: string | null;
+  email?: string | null;
+  address?: string | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -2090,6 +2159,38 @@ export interface ThemeSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "login-page_select".
+ */
+export interface LoginPageSelect<T extends boolean = true> {
+  headline?: T;
+  subheadline?: T;
+  bullets?:
+    | T
+    | {
+        text?: T;
+        id?: T;
+      };
+  welcomeHeadline?: T;
+  welcomeSubline?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "contact-page_select".
+ */
+export interface ContactPageSelect<T extends boolean = true> {
+  headline?: T;
+  subheadline?: T;
+  email?: T;
+  address?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "collections_widget".
  */
 export interface CollectionsWidget {
@@ -2106,55 +2207,6 @@ export interface Auth {
   [k: string]: unknown;
 }
 
-
-export interface LoginPage {
-  id: number;
-  headline?: string | null;
-  subheadline?: string | null;
-  bullets?:
-    | {
-        text: string;
-        id?: string | null;
-      }[]
-    | null;
-  welcomeHeadline?: string | null;
-  welcomeSubline?: string | null;
-  updatedAt?: string | null;
-  createdAt?: string | null;
-}
-export interface LoginPageSelect<T extends boolean = true> {
-  headline?: T;
-  subheadline?: T;
-  bullets?:
-    | T
-    | {
-        text?: T;
-        id?: T;
-      };
-  welcomeHeadline?: T;
-  welcomeSubline?: T;
-  updatedAt?: T;
-  createdAt?: T;
-  globalType?: T;
-}
-export interface ContactPage {
-  id: number;
-  headline?: string | null;
-  subheadline?: string | null;
-  email?: string | null;
-  address?: string | null;
-  updatedAt?: string | null;
-  createdAt?: string | null;
-}
-export interface ContactPageSelect<T extends boolean = true> {
-  headline?: T;
-  subheadline?: T;
-  email?: T;
-  address?: T;
-  updatedAt?: T;
-  createdAt?: T;
-  globalType?: T;
-}
 
 declare module 'payload' {
   export interface GeneratedTypes extends Config {}
