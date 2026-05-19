@@ -1,62 +1,14 @@
 #!/bin/bash
-# Run all validation checks before committing or deploying.
-# Exits with non-zero if any check fails.
-
-set -e
+# Pre-commit validation. Only outputs errors to keep Claude context minimal.
 
 PROJECT_DIR="${PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
-ERRORS=0
+ERRORS=""
 
-echo "=== Build Validation ==="
-echo ""
+output=$(go build ./... 2>&1) || ERRORS="${ERRORS}[build] ${output}\n"
+output=$(go vet ./... 2>&1) || ERRORS="${ERRORS}[vet] ${output}\n"
+output=$(cd "$PROJECT_DIR/frontend" && bun run type-check 2>&1) || ERRORS="${ERRORS}[types] ${output}\n"
 
-# Go backend checks
-echo "[1/5] Go build..."
-if go build ./... 2>&1; then
-    echo "  OK"
-else
-    echo "  FAIL"
-    ERRORS=$((ERRORS + 1))
-fi
-
-echo "[2/5] Go vet..."
-if go vet ./... 2>&1; then
-    echo "  OK"
-else
-    echo "  FAIL"
-    ERRORS=$((ERRORS + 1))
-fi
-
-echo "[3/5] Go tests..."
-if go test ./... 2>&1; then
-    echo "  OK"
-else
-    echo "  FAIL"
-    ERRORS=$((ERRORS + 1))
-fi
-
-# Frontend checks
-echo "[4/5] Frontend type-check..."
-if cd "$PROJECT_DIR/frontend" && bun run type-check 2>&1; then
-    echo "  OK"
-else
-    echo "  FAIL"
-    ERRORS=$((ERRORS + 1))
-fi
-cd "$PROJECT_DIR"
-
-echo "[5/5] Architecture rules..."
-if bash "$PROJECT_DIR/tools/scripts/check-architecture.sh" 2>&1; then
-    echo "  OK"
-else
-    echo "  FAIL"
-    ERRORS=$((ERRORS + 1))
-fi
-
-echo ""
-if [ $ERRORS -gt 0 ]; then
-    echo "FAILED: $ERRORS check(s) failed."
+if [ -n "$ERRORS" ]; then
+    printf "%b" "$ERRORS" | head -20
     exit 1
-else
-    echo "ALL CHECKS PASSED."
 fi

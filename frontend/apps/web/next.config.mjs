@@ -17,6 +17,10 @@ const nextConfig = {
     ],
   },
 
+  experimental: {
+    turbopackServerFastRefresh: true,
+  },
+
   allowedDevOrigins: [
     'localhost',
     'localhost:3000',

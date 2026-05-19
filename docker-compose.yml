@@ -74,8 +74,8 @@ services:
 
   scraper:
     build:
-      context: .
-      dockerfile: modules/infra/scraper/Dockerfile
+      context: ./modules/infra/scraper
+      dockerfile: Dockerfile
     container_name: pulzifi-scraper
     restart: unless-stopped
     shm_size: '1gb'

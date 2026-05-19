@@ -51,10 +51,11 @@ dev: check-env ## Start local dev (postgres + scraper + API + worker with hot re
 	@echo "$(GREEN)Starting local dev environment...$(NC)"
 	@docker-compose up --remove-orphans
 
-dev-web: ## Start Next.js on :3001 (Go on :3000 proxies unmatched routes)
+dev-web: check-env ## Start Next.js on :3001 (Go on :3000 proxies unmatched routes)
 	@echo "$(GREEN)Starting Next.js on :3001...$(NC)"
 	@echo "$(YELLOW)Access the app at http://<tenant>.localhost:3000 (Go serves as entry point)$(NC)"
-	@cd frontend/apps/web && PORT=3001 bun dev
+	@set -a; . $(PWD)/$(ENV_FILE); set +a; \
+		cd frontend/apps/web && PORT=3001 bun dev
 
 down: ## Stop local dev environment
 	@docker-compose down -v

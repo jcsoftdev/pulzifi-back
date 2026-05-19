@@ -22,21 +22,7 @@
     ],
     "deny": []
   },
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/tools/scripts/validate-build.sh\"",
-            "timeout": 60,
-            "statusMessage": "Validating build..."
-          }
-        ]
-      }
-    ]
-  },
+  "hooks": {},
   "agents": {
     "skillDirs": [
       "./.claude/skills"

@@ -114,6 +114,15 @@ type Config struct {
 
 	// Gmail integration — reuses GoogleClientID/Secret; guarded by explicit flag
 	GmailIntegrationEnabled bool // GMAIL_INTEGRATION_ENABLED
+
+	// Stripe / Billing
+	StripeSecretKey          string
+	StripeWebhookSecret      string
+	StripePublishableKey     string
+	StripePortalReturnURL    string
+	StripeCheckoutSuccessURL string
+	StripeCheckoutCancelURL  string
+	BillingEnabled           bool // BILLING_ENABLED — gates /billing/* routes
 }
 
 func Load() *Config {
@@ -204,6 +213,14 @@ func Load() *Config {
 		TwilioQuotaPaidPerMonth: getEnvInt("TWILIO_QUOTA_PAID_PER_MONTH", 500),
 
 		GmailIntegrationEnabled: getEnvBool("GMAIL_INTEGRATION_ENABLED", false),
+
+		StripeSecretKey:          getEnv("STRIPE_SECRET_KEY", ""),
+		StripeWebhookSecret:      getEnv("STRIPE_WEBHOOK_SECRET", ""),
+		StripePublishableKey:     getEnv("STRIPE_PUBLISHABLE_KEY", ""),
+		StripePortalReturnURL:    getEnv("STRIPE_PORTAL_RETURN_URL", ""),
+		StripeCheckoutSuccessURL: getEnv("STRIPE_CHECKOUT_SUCCESS_URL", ""),
+		StripeCheckoutCancelURL:  getEnv("STRIPE_CHECKOUT_CANCEL_URL", ""),
+		BillingEnabled:           getEnvBool("BILLING_ENABLED", false),
 	}
 }
 

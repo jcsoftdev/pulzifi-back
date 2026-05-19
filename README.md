@@ -76,19 +76,55 @@ frontend/
    # Edit .env with your database credentials and JWT secret
    ```
 
-2. **Start the full development stack**
+2. **Install frontend dependencies** (required for `cms-migrate` and `dev-web`)
    ```bash
-   make dev      # Starts PostgreSQL, extractor, API server, and worker
+   cd frontend && bun install && cd ..
    ```
 
-3. **Start the frontend** (separate terminal)
+3. **Start PostgreSQL first** (required before migrations)
+   ```bash
+   docker-compose up -d postgres
+   # Wait ~5s until healthy
+   ```
+
+4. **Run migrations** (public + tenant schemas)
+   ```bash
+   make migrate
+   make cms-migrate   # only if using Payload CMS — requires step 2
+   ```
+
+   Skipping migrations makes the monolith crash on startup — schemas/tables won't exist yet.
+
+5. **Start the full development stack**
+   ```bash
+   make dev      # Starts scraper, API server, and worker (postgres already up)
+   ```
+
+6. **Start the frontend** (separate terminal)
    ```bash
    make dev-web  # Starts Next.js on :3001 (Go proxies from :3000)
    ```
 
-4. **Access the application**
+7. **Access the application**
    - App: `http://localhost:3000`
    - Swagger: `http://localhost:3000/swagger/`
+
+### Subsequent runs
+
+Once volumes exist, just:
+```bash
+make dev                    # full stack
+make migrate                # only if new migrations were pulled
+```
+
+### Full reset
+
+```bash
+make down                   # drops volumes
+docker-compose up -d postgres
+make migrate
+make dev
+```
 
 ## Development Commands
 
