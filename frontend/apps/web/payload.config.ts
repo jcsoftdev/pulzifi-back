@@ -90,9 +90,9 @@ export default buildConfig({
         read: () => true,
       },
       hooks: {
-        beforeChange: [
+        beforeValidate: [
           ({ operation, data }) => {
-            if (operation === 'update') delete data.id
+            if (operation === 'update' && data) delete data.id
             return data
           },
         ],
