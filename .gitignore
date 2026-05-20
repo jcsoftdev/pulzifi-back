@@ -92,3 +92,10 @@ tmp
 modules/*/docs/
 # Local Pi runtime state
 .atl/
+.pi/
+
+# Codegraph MCP index
+.codegraph/
+
+# Local Go build output (entry-point binaries at repo root)
+/server

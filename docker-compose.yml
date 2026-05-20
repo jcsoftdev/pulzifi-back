@@ -23,7 +23,7 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD:-pulzifi_password}
       POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=en_US.UTF-8 --lc-ctype=en_US.UTF-8"
     ports:
-      - "5434:5432"
+      - "${DB_PORT:-5434}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./database_setup.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
@@ -41,7 +41,7 @@ services:
     container_name: pulzifi-redis
     restart: unless-stopped
     ports:
-      - "6381:6379"
+      - "${DEV_REDIS_PORT:-6381}:6379"
     volumes:
       - redis-data:/data
     networks:
@@ -56,7 +56,7 @@ services:
     image: localstack/localstack:3.0
     container_name: pulzifi-localstack
     ports:
-      - "4566:4566"
+      - "${LOCALSTACK_PORT:-4566}:4566"
     environment:
       - SERVICES=s3
       - DEBUG=1
@@ -80,7 +80,7 @@ services:
     restart: unless-stopped
     shm_size: '1gb'
     ports:
-      - "3005:3000"
+      - "${SCRAPER_PORT:-3005}:3000"
     environment:
       PORT: 3000
       MAX_CONCURRENT_PAGES: 3
@@ -117,7 +117,7 @@ services:
         condition: service_healthy
     environment:
       HTTP_PORT: 3000
-      NEXTJS_URL: http://host.docker.internal:3001
+      NEXTJS_URL: http://host.docker.internal:${DEV_WEB_PORT:-3001}
       ENVIRONMENT: development
       ENABLE_WORKERS: "false"
       DB_HOST: postgres
@@ -129,12 +129,12 @@ services:
       MINIO_SECRET_KEY: test
       MINIO_BUCKET: ${MINIO_BUCKET:-pulzifi-snapshots}
       MINIO_USE_SSL: "false"
-      MINIO_PUBLIC_URL: http://localhost:4566
+      MINIO_PUBLIC_URL: http://localhost:${LOCALSTACK_PORT:-4566}
       EXTRACTOR_URL: http://scraper:3000
     env_file:
       - .env
     ports:
-      - "3000:3000"
+      - "${HTTP_PORT:-3000}:3000"
     volumes:
       - .:/workspace
     networks:

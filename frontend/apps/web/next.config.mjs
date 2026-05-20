@@ -1,5 +1,8 @@
 import { withPayload } from '@payloadcms/next/withPayload'
 
+const apiPort = process.env.HTTP_PORT ?? '3000'
+const localstackPort = process.env.LOCALSTACK_PORT ?? '4566'
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   transpilePackages: ['@workspace/ui', '@workspace/services', '@workspace/shared-http', '@workspace/notix'],
@@ -8,9 +11,9 @@ const nextConfig = {
     unoptimized: process.env.NODE_ENV === 'development',
     remotePatterns: [
       // Local MinIO (dev)
-      { protocol: 'http', hostname: 'localhost', port: '4566', pathname: '/**' },
+      { protocol: 'http', hostname: 'localhost', port: localstackPort, pathname: '/**' },
       // Payload local media API (dev)
-      { protocol: 'http', hostname: 'localhost', port: '3000', pathname: '/api/media/**' },
+      { protocol: 'http', hostname: 'localhost', port: apiPort, pathname: '/api/media/**' },
       // Production pulzifi.com assets
       { protocol: 'https', hostname: 'pulzifi.com', pathname: '/**' },
       { protocol: 'https', hostname: '*.pulzifi.com', pathname: '/**' },
@@ -23,17 +26,17 @@ const nextConfig = {
 
   allowedDevOrigins: [
     'localhost',
-    'localhost:3000',
+    `localhost:${apiPort}`,
     '*.localhost',
-    '*.localhost:3000',
+    `*.localhost:${apiPort}`,
     'app.local',
-    'app.local:3000',
+    `app.local:${apiPort}`,
     '*.app.local',
-    '*.app.local:3000',
+    `*.app.local:${apiPort}`,
     '*.pulzifi.local',
-    '*.pulzifi.local:3000',
+    `*.pulzifi.local:${apiPort}`,
     '*.local',
-    '*.local:3000',
+    `*.local:${apiPort}`,
     'pulzifi.com',
     '*.pulzifi.com',
   ],

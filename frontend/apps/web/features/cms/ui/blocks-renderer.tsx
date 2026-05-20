@@ -1,4 +1,5 @@
-import React, { memo } from 'react'
+import type React from 'react'
+import { memo } from 'react'
 
 import { AiIntelligenceBlock } from '../blocks/ai-intelligence-block'
 import { CtaBlock } from '../blocks/cta-block'

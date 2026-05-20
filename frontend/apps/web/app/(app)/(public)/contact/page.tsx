@@ -10,7 +10,7 @@ const FALLBACK = {
 }
 
 export default async function ContactPage() {
-  let props = { ...FALLBACK } as Parameters<typeof ContactClient>[0]
+  const props = { ...FALLBACK } as Parameters<typeof ContactClient>[0]
 
   try {
     const payload = await getPayloadClient()
