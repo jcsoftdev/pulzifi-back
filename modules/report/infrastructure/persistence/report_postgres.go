@@ -3,12 +3,37 @@ package persistence
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
+	"encoding/json"
 	"errors"
 
 	"github.com/google/uuid"
 	"github.com/jcsoftdev/pulzifi-back/modules/report/domain/entities"
 	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
 )
+
+// dbContent wraps entities.Content to provide sql.Scanner and driver.Valuer
+// without polluting the domain layer with infrastructure imports.
+type dbContent entities.Content
+
+func (c dbContent) Value() (driver.Value, error) {
+	if c == nil {
+		return nil, nil
+	}
+	return json.Marshal(c)
+}
+
+func (c *dbContent) Scan(value interface{}) error {
+	if value == nil {
+		*c = make(dbContent)
+		return nil
+	}
+	b, ok := value.([]byte)
+	if !ok {
+		return nil
+	}
+	return json.Unmarshal(b, c)
+}
 
 type ReportPostgresRepository struct {
 	db     *sql.DB
@@ -28,7 +53,7 @@ func (r *ReportPostgresRepository) Create(ctx context.Context, report *entities.
 	      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
 	_, err := r.db.ExecContext(ctx, q,
 		report.ID, report.PageID, report.Title, report.ReportDate,
-		report.Content, report.PDFURL, report.CreatedBy, report.CreatedAt,
+		dbContent(report.Content), report.PDFURL, report.CreatedBy, report.CreatedAt,
 	)
 	return err
 }
@@ -40,11 +65,12 @@ func (r *ReportPostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (*
 
 	var report entities.Report
 	var pdfURL sql.NullString
+	var content dbContent
 	q := `SELECT id, page_id, title, report_date, content, pdf_url, created_by, created_at
 	      FROM reports WHERE id = $1 AND deleted_at IS NULL`
 	err := r.db.QueryRowContext(ctx, q, id).Scan(
 		&report.ID, &report.PageID, &report.Title, &report.ReportDate,
-		&report.Content, &pdfURL, &report.CreatedBy, &report.CreatedAt,
+		&content, &pdfURL, &report.CreatedBy, &report.CreatedAt,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -52,6 +78,7 @@ func (r *ReportPostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (*
 		}
 		return nil, err
 	}
+	report.Content = entities.Content(content)
 	report.PDFURL = pdfURL.String
 	return &report, nil
 }
@@ -87,12 +114,14 @@ func (r *ReportPostgresRepository) scanRows(ctx context.Context, q string, args 
 	for rows.Next() {
 		var report entities.Report
 		var pdfURL sql.NullString
+		var content dbContent
 		if err := rows.Scan(
 			&report.ID, &report.PageID, &report.Title, &report.ReportDate,
-			&report.Content, &pdfURL, &report.CreatedBy, &report.CreatedAt,
+			&content, &pdfURL, &report.CreatedBy, &report.CreatedAt,
 		); err != nil {
 			return nil, err
 		}
+		report.Content = entities.Content(content)
 		report.PDFURL = pdfURL.String
 		reports = append(reports, &report)
 	}

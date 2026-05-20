@@ -2,8 +2,6 @@ package getdashboardstats
 
 import (
 	"context"
-	"encoding/json"
-	"net/http"
 
 	"github.com/jcsoftdev/pulzifi-back/modules/dashboard/domain/repositories"
 )
@@ -22,15 +20,4 @@ func (h *GetDashboardStatsHandler) Handle(ctx context.Context) (*GetDashboardSta
 		return nil, err
 	}
 	return buildResponse(stats), nil
-}
-
-func (h *GetDashboardStatsHandler) HandleHTTP(w http.ResponseWriter, r *http.Request) {
-	resp, err := h.Handle(r.Context())
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(resp)
 }

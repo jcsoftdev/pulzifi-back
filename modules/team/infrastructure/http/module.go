@@ -8,14 +8,13 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	emailservices "github.com/jcsoftdev/pulzifi-back/modules/email/domain/services"
-	"github.com/jcsoftdev/pulzifi-back/shared/contextkeys"
-	"github.com/jcsoftdev/pulzifi-back/modules/email/infrastructure/templates"
 	invitemember "github.com/jcsoftdev/pulzifi-back/modules/team/application/invite_member"
 	listmembers "github.com/jcsoftdev/pulzifi-back/modules/team/application/list_members"
 	removemember "github.com/jcsoftdev/pulzifi-back/modules/team/application/remove_member"
 	updatemember "github.com/jcsoftdev/pulzifi-back/modules/team/application/update_member"
+	domainservices "github.com/jcsoftdev/pulzifi-back/modules/team/domain/services"
 	"github.com/jcsoftdev/pulzifi-back/modules/team/infrastructure/persistence"
+	"github.com/jcsoftdev/pulzifi-back/shared/contextkeys"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
 	"github.com/jcsoftdev/pulzifi-back/shared/router"
@@ -28,13 +27,27 @@ const (
 )
 
 type Module struct {
-	db            *sql.DB
-	emailProvider emailservices.EmailProvider
-	frontendURL   string
+	db             *sql.DB
+	emailer        domainservices.Emailer
+	emailBuilder   domainservices.InviteEmailBuilder
+	tokenGenerator domainservices.TokenGenerator
+	frontendURL    string
 }
 
-func NewModuleWithDB(db *sql.DB, emailProvider emailservices.EmailProvider, frontendURL string) router.ModuleRegisterer {
-	return &Module{db: db, emailProvider: emailProvider, frontendURL: frontendURL}
+func NewModuleWithDB(
+	db *sql.DB,
+	emailer domainservices.Emailer,
+	emailBuilder domainservices.InviteEmailBuilder,
+	tokenGenerator domainservices.TokenGenerator,
+	frontendURL string,
+) router.ModuleRegisterer {
+	return &Module{
+		db:             db,
+		emailer:        emailer,
+		emailBuilder:   emailBuilder,
+		tokenGenerator: tokenGenerator,
+		frontendURL:    frontendURL,
+	}
 }
 
 func (m *Module) ModuleName() string {
@@ -91,7 +104,7 @@ func (m *Module) handleInviteMember(w http.ResponseWriter, r *http.Request) {
 	}
 
 	repo := persistence.NewTeamMemberPostgresRepository(m.db)
-	handler := invitemember.NewInviteMemberHandler(repo, m.db)
+	handler := invitemember.NewInviteMemberHandler(repo, m.tokenGenerator)
 
 	resp, err := handler.Handle(r.Context(), subdomain, inviterID, &req)
 	if err != nil {
@@ -119,8 +132,8 @@ func (m *Module) handleInviteMember(w http.ResponseWriter, r *http.Request) {
 		if resp.IsNewUser && resp.SetPasswordToken != "" {
 			loginURL = fmt.Sprintf("%s/invite/accept?token=%s", m.frontendURL, resp.SetPasswordToken)
 		}
-		subject, html := templates.TeamInvite(inviterEmail, subdomain, loginURL)
-		if sendErr := m.emailProvider.Send(r.Context(), req.Email, subject, html); sendErr != nil {
+		subject, html := m.emailBuilder.TeamInvite(inviterEmail, subdomain, loginURL)
+		if sendErr := m.emailer.Send(r.Context(), req.Email, subject, html); sendErr != nil {
 			logger.Error("Failed to send invite email", zap.Error(sendErr))
 		}
 	}()
@@ -230,8 +243,8 @@ func (m *Module) handleResendInvite(w http.ResponseWriter, r *http.Request) {
 		member.UserID,
 	)
 
-	// Generate a new invite token
-	token, err := invitemember.GenerateResetToken(r.Context(), m.db, member.UserID)
+	// Generate a new invite token via the domain service
+	token, err := m.tokenGenerator.Generate(r.Context(), member.UserID)
 	if err != nil {
 		logger.Error("Failed to generate invite token for resend", zap.Error(err))
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to resend invitation"})
@@ -245,8 +258,8 @@ func (m *Module) handleResendInvite(w http.ResponseWriter, r *http.Request) {
 			inviterEmail = "A team member"
 		}
 		loginURL := fmt.Sprintf("%s/invite/accept?token=%s", m.frontendURL, token)
-		subject, html := templates.TeamInvite(inviterEmail, subdomain, loginURL)
-		if sendErr := m.emailProvider.Send(r.Context(), member.Email, subject, html); sendErr != nil {
+		subject, html := m.emailBuilder.TeamInvite(inviterEmail, subdomain, loginURL)
+		if sendErr := m.emailer.Send(r.Context(), member.Email, subject, html); sendErr != nil {
 			logger.Error("Failed to resend invite email", zap.Error(sendErr))
 		}
 	}()

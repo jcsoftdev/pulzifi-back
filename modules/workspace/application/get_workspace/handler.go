@@ -2,8 +2,6 @@ package getworkspace
 
 import (
 	"context"
-	"database/sql"
-	"net/http"
 
 	"github.com/google/uuid"
 	"github.com/jcsoftdev/pulzifi-back/modules/workspace/domain/repositories"
@@ -22,10 +20,10 @@ func NewGetWorkspaceHandler(repo repositories.WorkspaceRepository) *GetWorkspace
 func (h *GetWorkspaceHandler) Handle(ctx context.Context, id uuid.UUID) (*GetWorkspaceResponse, error) {
 	workspace, err := h.repo.GetByID(ctx, id)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, ErrWorkspaceNotFound
-		}
 		return nil, err
+	}
+	if workspace == nil {
+		return nil, ErrWorkspaceNotFound
 	}
 
 	return &GetWorkspaceResponse{
@@ -36,8 +34,4 @@ func (h *GetWorkspaceHandler) Handle(ctx context.Context, id uuid.UUID) (*GetWor
 		CreatedBy: workspace.CreatedBy,
 		CreatedAt: workspace.CreatedAt,
 	}, nil
-}
-
-func (h *GetWorkspaceHandler) HandleHTTP(w http.ResponseWriter, r *http.Request) {
-	// Not used directly as we parse ID in module
 }

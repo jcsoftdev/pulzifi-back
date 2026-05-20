@@ -8,14 +8,16 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	bulkdeletepages "github.com/jcsoftdev/pulzifi-back/modules/page/application/bulk_delete_pages"
 	createpage "github.com/jcsoftdev/pulzifi-back/modules/page/application/create_page"
 	deletepage "github.com/jcsoftdev/pulzifi-back/modules/page/application/delete_page"
 	getpage "github.com/jcsoftdev/pulzifi-back/modules/page/application/get_page"
 	listpages "github.com/jcsoftdev/pulzifi-back/modules/page/application/list_pages"
 	updatepage "github.com/jcsoftdev/pulzifi-back/modules/page/application/update_page"
+	pageservices "github.com/jcsoftdev/pulzifi-back/modules/page/domain/services"
 	"github.com/jcsoftdev/pulzifi-back/modules/page/infrastructure/persistence"
-	"github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/extractor"
+	"github.com/jcsoftdev/pulzifi-back/shared/contextkeys"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
 	"github.com/jcsoftdev/pulzifi-back/shared/router"
@@ -25,7 +27,7 @@ import (
 // Module implements the router.ModuleRegisterer interface for the Page module
 type Module struct {
 	db              *sql.DB
-	extractorClient *extractor.HTTPClient
+	previewStreamer  pageservices.PagePreviewStreamer
 }
 
 // NewModule creates a new instance of the Page module
@@ -40,11 +42,11 @@ func NewModuleWithDB(db *sql.DB) router.ModuleRegisterer {
 	}
 }
 
-// NewModuleWithExtractor creates a new instance with database and extractor client
-func NewModuleWithExtractor(db *sql.DB, extractorClient *extractor.HTTPClient) router.ModuleRegisterer {
+// NewModuleWithExtractor creates a new instance with database and preview streamer
+func NewModuleWithExtractor(db *sql.DB, previewStreamer pageservices.PagePreviewStreamer) router.ModuleRegisterer {
 	return &Module{
-		db:              db,
-		extractorClient: extractorClient,
+		db:             db,
+		previewStreamer: previewStreamer,
 	}
 }
 
@@ -78,7 +80,7 @@ func (m *Module) RegisterHTTPRoutes(router chi.Router) {
 // The extractor emits "progress", "result", and "error" SSE events which
 // are forwarded to the client in real-time for live progress feedback.
 func (m *Module) handlePreviewPage(w http.ResponseWriter, r *http.Request) {
-	if m.extractorClient == nil {
+	if m.previewStreamer == nil {
 		http.Error(w, "Extractor service not configured", http.StatusServiceUnavailable)
 		return
 	}
@@ -96,13 +98,13 @@ func (m *Module) handlePreviewPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := m.extractorClient.PreviewStream(r.Context(), req.URL, req.BlockAdsCookies)
+	body, err := m.previewStreamer.PreviewStream(r.Context(), req.URL, req.BlockAdsCookies)
 	if err != nil {
 		logger.Error("Failed to start preview stream", zap.Error(err))
 		http.Error(w, "Failed to preview page", http.StatusInternalServerError)
 		return
 	}
-	defer resp.Body.Close()
+	defer body.Close()
 
 	// Set SSE headers and proxy the stream
 	w.Header().Set("Content-Type", "text/event-stream")
@@ -134,14 +136,14 @@ func (m *Module) handlePreviewPage(w http.ResponseWriter, r *http.Request) {
 	go func() {
 		buf := make([]byte, 4096)
 		for {
-			n, err := resp.Body.Read(buf)
+			n, rErr := body.Read(buf)
 			if n > 0 {
 				chunk := make([]byte, n)
 				copy(chunk, buf[:n])
 				readCh <- readResult{data: chunk}
 			}
-			if err != nil {
-				readCh <- readResult{err: err}
+			if rErr != nil {
+				readCh <- readResult{err: rErr}
 				return
 			}
 		}
@@ -165,11 +167,10 @@ func (m *Module) handlePreviewPage(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		case <-keepalive.C:
-			// SSE comment — ignored by clients, keeps the connection alive.
-			if _, err := w.Write([]byte(":keepalive\n\n")); err != nil {
+			if _, writeErr := w.Write([]byte(": keepalive\n\n")); writeErr != nil {
 				return
 			}
-			if err := rc.Flush(); err != nil {
+			if flushErr := rc.Flush(); flushErr != nil {
 				return
 			}
 		case <-r.Context().Done():
@@ -200,15 +201,43 @@ func (m *Module) handleCreatePage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var req createpage.CreatePageRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.WorkspaceID == uuid.Nil || req.Name == "" || req.URL == "" {
+		http.Error(w, "workspace_id, name, and url are required", http.StatusBadRequest)
+		return
+	}
+
+	userIDStr, ok := r.Context().Value(contextkeys.UserIDKey).(string)
+	if !ok {
+		logger.Error("User ID not found in context")
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	createdBy, err := uuid.Parse(userIDStr)
+	if err != nil {
+		logger.Error("Invalid user ID", zap.Error(err))
+		http.Error(w, "invalid user ID", http.StatusBadRequest)
+		return
+	}
+
 	// Get tenant from context
 	tenant := middleware.GetTenantFromContext(r.Context())
-
-	// Create repository with dynamic tenant
 	repo := persistence.NewPagePostgresRepository(m.db, tenant)
 
-	// Use real handler
 	handler := createpage.NewCreatePageHandler(repo)
-	handler.HandleHTTP(w, r)
+	resp, err := handler.Handle(r.Context(), &req, createdBy)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(resp)
 }
 
 // handleListPages lists all pages
@@ -232,15 +261,39 @@ func (m *Module) handleListPages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get tenant from context
-	tenant := middleware.GetTenantFromContext(r.Context())
+	workspaceIDStr := r.URL.Query().Get("workspace_id")
+	if workspaceIDStr == "" {
+		logger.ErrorWithContext(r.Context(), "workspace_id query parameter is required")
+		http.Error(w, "workspace_id query parameter is required", http.StatusBadRequest)
+		return
+	}
+	workspaceID, err := uuid.Parse(workspaceIDStr)
+	if err != nil {
+		logger.ErrorWithContext(r.Context(), "Invalid workspace_id format",
+			zap.String("workspace_id", workspaceIDStr),
+			zap.Error(err),
+		)
+		http.Error(w, "invalid workspace_id", http.StatusBadRequest)
+		return
+	}
 
-	// Create repository with dynamic tenant
+	tenant := middleware.GetTenantFromContext(r.Context())
 	repo := persistence.NewPagePostgresRepository(m.db, tenant)
 
-	// Use real handler
 	handler := listpages.NewListPagesHandler(repo)
-	handler.HandleHTTP(w, r)
+	response, err := handler.Handle(r.Context(), workspaceID)
+	if err != nil {
+		logger.ErrorWithContext(r.Context(), "Failed to list pages",
+			zap.String("workspace_id", workspaceID.String()),
+			zap.Error(err),
+		)
+		http.Error(w, "failed to list pages\n", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(response)
 }
 
 // handleGetPage gets a page by ID
@@ -258,10 +311,31 @@ func (m *Module) handleGetPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	idStr := chi.URLParam(r, "id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		http.Error(w, "Invalid page ID", http.StatusBadRequest)
+		return
+	}
+
 	tenant := middleware.GetTenantFromContext(r.Context())
 	repo := persistence.NewPagePostgresRepository(m.db, tenant)
 	handler := getpage.NewGetPageHandler(repo)
-	handler.HandleHTTP(w, r)
+
+	resp, err := handler.Handle(r.Context(), id)
+	if err != nil {
+		logger.Error("Failed to get page", zap.Error(err))
+		http.Error(w, "Failed to get page", http.StatusInternalServerError)
+		return
+	}
+	if resp == nil {
+		http.Error(w, "Page not found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(resp)
 }
 
 // handleUpdatePage updates a page
@@ -281,10 +355,37 @@ func (m *Module) handleUpdatePage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	idStr := chi.URLParam(r, "id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		http.Error(w, "Invalid page ID", http.StatusBadRequest)
+		return
+	}
+
+	var req updatepage.UpdatePageRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
 	tenant := middleware.GetTenantFromContext(r.Context())
 	repo := persistence.NewPagePostgresRepository(m.db, tenant)
 	handler := updatepage.NewUpdatePageHandler(repo)
-	handler.HandleHTTP(w, r)
+
+	resp, err := handler.Handle(r.Context(), id, &req)
+	if err != nil {
+		logger.Error("Failed to update page", zap.Error(err))
+		http.Error(w, "Failed to update page", http.StatusInternalServerError)
+		return
+	}
+	if resp == nil {
+		http.Error(w, "Page not found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(resp)
 }
 
 // handleDeletePage deletes a page
@@ -300,10 +401,24 @@ func (m *Module) handleDeletePage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	idStr := chi.URLParam(r, "id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		http.Error(w, "Invalid page ID", http.StatusBadRequest)
+		return
+	}
+
 	tenant := middleware.GetTenantFromContext(r.Context())
 	repo := persistence.NewPagePostgresRepository(m.db, tenant)
 	handler := deletepage.NewDeletePageHandler(repo)
-	handler.HandleHTTP(w, r)
+
+	if err := handler.Handle(r.Context(), id); err != nil {
+		logger.Error("Failed to delete page", zap.Error(err))
+		http.Error(w, "Failed to delete page", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // handleBulkDeletePages deletes multiple pages at once
@@ -321,8 +436,35 @@ func (m *Module) handleBulkDeletePages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var req bulkdeletepages.BulkDeletePagesRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	if len(req.IDs) == 0 {
+		http.Error(w, "ids must not be empty", http.StatusBadRequest)
+		return
+	}
+
+	ids := make([]uuid.UUID, 0, len(req.IDs))
+	for _, idStr := range req.IDs {
+		id, err := uuid.Parse(idStr)
+		if err != nil {
+			http.Error(w, "Invalid page ID: "+idStr, http.StatusBadRequest)
+			return
+		}
+		ids = append(ids, id)
+	}
+
 	tenant := middleware.GetTenantFromContext(r.Context())
 	repo := persistence.NewPagePostgresRepository(m.db, tenant)
 	handler := bulkdeletepages.NewBulkDeletePagesHandler(repo)
-	handler.HandleHTTP(w, r)
+
+	if err := handler.Handle(r.Context(), ids); err != nil {
+		logger.Error("Failed to bulk delete pages", zap.Error(err))
+		http.Error(w, "Failed to delete pages", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }

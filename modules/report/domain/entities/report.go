@@ -1,8 +1,6 @@
 package entities
 
 import (
-	"database/sql/driver"
-	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -21,22 +19,3 @@ type Report struct {
 }
 
 type Content map[string]interface{}
-
-func (c Content) Value() (driver.Value, error) {
-	if c == nil {
-		return nil, nil
-	}
-	return json.Marshal(c)
-}
-
-func (c *Content) Scan(value interface{}) error {
-	if value == nil {
-		*c = make(Content)
-		return nil
-	}
-	bytes, ok := value.([]byte)
-	if !ok {
-		return nil
-	}
-	return json.Unmarshal(bytes, c)
-}

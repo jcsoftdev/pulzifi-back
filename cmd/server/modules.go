@@ -25,6 +25,8 @@ import (
 	email "github.com/jcsoftdev/pulzifi-back/modules/email/infrastructure/http"
 	emailproviders "github.com/jcsoftdev/pulzifi-back/modules/email/infrastructure/providers"
 	insight "github.com/jcsoftdev/pulzifi-back/modules/insight/infrastructure/http"
+	insightwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/insight"
+	insightservices "github.com/jcsoftdev/pulzifi-back/modules/insight/domain/services"
 	dispatchevent "github.com/jcsoftdev/pulzifi-back/modules/integration/application/dispatch_event"
 	integration "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/http"
 	intoauth "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/oauth"
@@ -65,6 +67,8 @@ import (
 	adminwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/admin"
 	authwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/auth"
 	intwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/integration"
+	pagewiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/page"
+	teamwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/team"
 	"go.uber.org/zap"
 )
 
@@ -147,7 +151,7 @@ func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus 
 	}
 
 	intRepo := intpersistence.NewIntegrationPostgresRepository(db, intEnc)
-	intStateSigner := intoauth.NewStateSigner(intKey, 10*time.Minute)
+	intStateSigner := intoauth.NewStateSignerAdapter(intoauth.NewStateSigner(intKey, 10*time.Minute))
 
 	// Provider registry — Slack + email (via adapter wrapping the existing email module).
 	slackClient := slackprovider.New(cfg.SlackClientID, cfg.SlackClientSecret)
@@ -236,7 +240,7 @@ func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus 
 		{"Email", email.NewModule(emailProvider)},
 		{"Organization", organization.NewModule(orgRepo)},
 		{"Workspace", workspace.NewModuleWithDB(db)},
-		{"Page", page.NewModuleWithExtractor(db, snapshotextractor.NewHTTPClient(cfg.ExtractorURL))},
+		{"Page", page.NewModuleWithExtractor(db, pagewiring.NewExtractorPreviewStreamerAdapter(snapshotextractor.NewHTTPClient(cfg.ExtractorURL)))},
 		{"Alert", func() router.ModuleRegisterer {
 			m := alert.NewModuleWithDB(db)
 			if am, ok := m.(*alert.Module); ok {
@@ -262,11 +266,22 @@ func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus 
 				})
 			}()},
 		{"Integration", integrationMod},
-		{"Insight", insight.NewModuleWithDB(db, pubsub.NewInsightBroker())},
+		{"Insight", insight.NewModuleWithDeps(
+			db,
+			pubsub.NewInsightBroker(),
+			func(tenant string) insightservices.CheckReader { return insightwiring.NewCheckReaderAdapter(db, tenant) },
+			func(tenant string) insightservices.PageConfigReader { return insightwiring.NewPageConfigReaderAdapter(db, tenant) },
+		)},
 		{"Report", report.NewModuleWithDB(db)},
 		{"Usage", usage.NewModuleWithDB(db)},
 		{"Dashboard", dashboard.NewModuleWithDB(db)},
-		{"Team", team.NewModuleWithDB(db, emailProvider, cfg.FrontendURL)},
+		{"Team", team.NewModuleWithDB(
+			db,
+			teamwiring.NewEmailerAdapter(emailProvider),
+			teamwiring.NewInviteEmailBuilderAdapter(),
+			teamwiring.NewTokenGeneratorAdapter(db),
+			cfg.FrontendURL,
+		)},
 	}
 
 	// ---------------------------------------------------------------------------

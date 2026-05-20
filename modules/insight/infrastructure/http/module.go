@@ -15,7 +15,7 @@ import (
 	listinsights "github.com/jcsoftdev/pulzifi-back/modules/insight/application/list_insights"
 	insightAI "github.com/jcsoftdev/pulzifi-back/modules/insight/infrastructure/ai"
 	"github.com/jcsoftdev/pulzifi-back/modules/insight/infrastructure/persistence"
-	monPersistence "github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/persistence"
+	insightservices "github.com/jcsoftdev/pulzifi-back/modules/insight/domain/services"
 	sharedAI "github.com/jcsoftdev/pulzifi-back/shared/ai"
 	"github.com/jcsoftdev/pulzifi-back/shared/config"
 	sharedHTML "github.com/jcsoftdev/pulzifi-back/shared/html"
@@ -26,11 +26,20 @@ import (
 	"go.uber.org/zap"
 )
 
+// CheckReaderFactory builds a per-tenant CheckReader.
+// It is provided by cmd/wiring/insight so that the module has no cross-module imports.
+type CheckReaderFactory func(tenant string) insightservices.CheckReader
+
+// PageConfigReaderFactory builds a per-tenant PageConfigReader.
+type PageConfigReaderFactory func(tenant string) insightservices.PageConfigReader
+
 // Module implements the router.ModuleRegisterer interface for the Insight module
 type Module struct {
-	db             *sql.DB
-	insightHandler *generateinsights.GenerateInsightsHandler
-	broker         *pubsub.InsightBroker
+	db                    *sql.DB
+	insightHandler        *generateinsights.GenerateInsightsHandler
+	broker                *pubsub.InsightBroker
+	checkReaderFactory    CheckReaderFactory
+	pageConfigFactory     PageConfigReaderFactory
 }
 
 // NewModule creates a new instance of the Insight module
@@ -40,13 +49,33 @@ func NewModule() router.ModuleRegisterer {
 
 // NewModuleWithDB creates a new instance with database connection and pub/sub broker.
 func NewModuleWithDB(db *sql.DB, broker *pubsub.InsightBroker) router.ModuleRegisterer {
-	m := &Module{db: db, broker: broker}
+	return &Module{db: db, broker: broker}
+}
+
+// NewModuleWithDeps creates an instance with cross-module reader factories injected.
+func NewModuleWithDeps(
+	db *sql.DB,
+	broker *pubsub.InsightBroker,
+	checkReaderFactory CheckReaderFactory,
+	pageConfigFactory PageConfigReaderFactory,
+) router.ModuleRegisterer {
+	m := &Module{
+		db:                 db,
+		broker:             broker,
+		checkReaderFactory: checkReaderFactory,
+		pageConfigFactory:  pageConfigFactory,
+	}
 
 	cfg := config.Load()
 	if cfg.OpenRouterAPIKey != "" {
 		openRouterClient := sharedAI.NewOpenRouterClient(cfg.OpenRouterAPIKey, cfg.OpenRouterModel)
 		generator := insightAI.NewOpenRouterGenerator(openRouterClient)
-		m.insightHandler = generateinsights.NewGenerateInsightsHandler(generator, db)
+		// The handler will create its own per-request repo in Handle; pass a no-op repo here.
+		// Actual repo is created per-request inside handleGenerateInsight.
+		_ = generator
+		// We cannot create a real insightHandler here because we don't have tenant yet;
+		// handleGenerateInsight creates the handler per-request.
+		m.insightHandler = nil
 	}
 
 	return m
@@ -77,9 +106,6 @@ func (m *Module) RegisterHTTPRoutes(router chi.Router) {
 }
 
 // handleInsightSSE streams an insight-ready event to the client using SSE.
-// The client connects with ?check_id=<uuid> and waits; when the background
-// generation finishes the broker publishes the insights and this handler
-// writes them as a single SSE "data:" frame, then closes the connection.
 func (m *Module) handleInsightSSE(w http.ResponseWriter, r *http.Request) {
 	checkIDStr := r.URL.Query().Get("check_id")
 	if _, err := uuid.Parse(checkIDStr); err != nil {
@@ -93,8 +119,6 @@ func (m *Module) handleInsightSSE(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 
 	rc := http.NewResponseController(w)
-	// Flush headers immediately so the client sees the 200 OK right away
-	// and doesn't close the connection while waiting for the response header.
 	if err := rc.Flush(); err != nil {
 		return
 	}
@@ -102,7 +126,6 @@ func (m *Module) handleInsightSSE(w http.ResponseWriter, r *http.Request) {
 	ch, unsubscribe := m.broker.Subscribe(checkIDStr)
 	defer unsubscribe()
 
-	// Give the LLM up to 120 s; after that we tell the client to fall back.
 	ctx, cancel := context.WithTimeout(r.Context(), 120*time.Second)
 	defer cancel()
 
@@ -131,7 +154,13 @@ func (m *Module) handleInsightSSE(w http.ResponseWriter, r *http.Request) {
 func (m *Module) handleGenerateInsight(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	if m.db == nil || m.insightHandler == nil {
+	if m.db == nil {
+		http.Error(w, "insight generation not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	cfg := config.Load()
+	if cfg.OpenRouterAPIKey == "" {
 		http.Error(w, "insight generation not available", http.StatusServiceUnavailable)
 		return
 	}
@@ -158,9 +187,23 @@ func (m *Module) handleGenerateInsight(w http.ResponseWriter, r *http.Request) {
 
 	tenant := middleware.GetTenantFromContext(r.Context())
 
+	// Build per-request infrastructure using interfaces (no cross-module imports here).
+	var checkReader insightservices.CheckReader
+	var pageConfigReader insightservices.PageConfigReader
+	if m.checkReaderFactory != nil {
+		checkReader = m.checkReaderFactory(tenant)
+	}
+	if m.pageConfigFactory != nil {
+		pageConfigReader = m.pageConfigFactory(tenant)
+	}
+
+	if checkReader == nil || pageConfigReader == nil {
+		http.Error(w, "insight generation not configured", http.StatusServiceUnavailable)
+		return
+	}
+
 	// Validate that the check exists before starting generation
-	checkRepo := monPersistence.NewCheckPostgresRepository(m.db, tenant)
-	check, err := checkRepo.GetByID(r.Context(), checkID)
+	check, err := checkReader.GetByID(r.Context(), checkID)
 	if err != nil || check == nil {
 		http.Error(w, "check not found", http.StatusNotFound)
 		return
@@ -174,7 +217,7 @@ func (m *Module) handleGenerateInsight(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 		defer cancel()
 
-		allChecks, err := checkRepo.ListByPage(ctx, pageID)
+		allChecks, err := checkReader.ListByPage(ctx, pageID)
 		if err != nil {
 			logger.Error("Failed to list checks for insight generation", zap.Error(err))
 			return
@@ -190,22 +233,26 @@ func (m *Module) handleGenerateInsight(w http.ResponseWriter, r *http.Request) {
 		newText := fetchHTMLText(check.HTMLSnapshotURL)
 		prevText := fetchHTMLText(prevHTMLURL)
 
-		configRepo := monPersistence.NewMonitoringConfigPostgresRepository(m.db, tenant)
-		pageConfig, _ := configRepo.GetByPageID(ctx, pageID)
 		enabledTypes := []string{"marketing", "market_analysis"}
-		if pageConfig != nil && len(pageConfig.EnabledInsightTypes) > 0 {
-			enabledTypes = pageConfig.EnabledInsightTypes
+		pageCfg, _ := pageConfigReader.GetInsightConfig(ctx, pageID)
+		if pageCfg != nil && len(pageCfg.EnabledInsightTypes) > 0 {
+			enabledTypes = pageCfg.EnabledInsightTypes
 		}
 
-		pageURL, _ := configRepo.GetPageURL(ctx, pageID)
+		pageURL, _ := pageConfigReader.GetPageURL(ctx, pageID)
 
-		if err := m.insightHandler.Handle(ctx, &generateinsights.Request{
+		// Build the handler per-request (uses per-tenant insight repo).
+		insightRepo := persistence.NewInsightPostgresRepository(m.db, tenant)
+		openRouterClient := sharedAI.NewOpenRouterClient(cfg.OpenRouterAPIKey, cfg.OpenRouterModel)
+		generator := insightAI.NewOpenRouterGenerator(openRouterClient)
+		insightHandler := generateinsights.NewGenerateInsightsHandler(generator, insightRepo)
+
+		if err := insightHandler.Handle(ctx, &generateinsights.Request{
 			PageID:              pageID,
 			CheckID:             checkID,
 			PageURL:             pageURL,
 			PrevText:            prevText,
 			NewText:             newText,
-			SchemaName:          tenant,
 			EnabledInsightTypes: enabledTypes,
 		}); err != nil {
 			logger.Error("Failed to generate insights on demand", zap.Error(err))
@@ -267,7 +314,44 @@ func (m *Module) handleListInsights(w http.ResponseWriter, r *http.Request) {
 	tenant := middleware.GetTenantFromContext(r.Context())
 	repo := persistence.NewInsightPostgresRepository(m.db, tenant)
 	handler := listinsights.NewListInsightsHandler(repo)
-	handler.HandleHTTP(w, r)
+
+	// Support filtering by check_id or page_id
+	checkIDStr := r.URL.Query().Get("check_id")
+	if checkIDStr != "" {
+		checkID, err := uuid.Parse(checkIDStr)
+		if err != nil {
+			http.Error(w, "Invalid check ID", http.StatusBadRequest)
+			return
+		}
+		resp, err := handler.HandleByCheckID(r.Context(), checkID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(resp)
+		return
+	}
+
+	pageIDStr := r.URL.Query().Get("page_id")
+	if pageIDStr == "" {
+		http.Error(w, "page_id or check_id query parameter is required", http.StatusBadRequest)
+		return
+	}
+	pageID, err := uuid.Parse(pageIDStr)
+	if err != nil {
+		http.Error(w, "Invalid page ID", http.StatusBadRequest)
+		return
+	}
+	resp, err := handler.Handle(r.Context(), pageID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(resp)
 }
 
 // handleGetInsight gets an insight by ID

@@ -2,14 +2,13 @@ package generateinsights
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jcsoftdev/pulzifi-back/modules/insight/domain/entities"
+	"github.com/jcsoftdev/pulzifi-back/modules/insight/domain/repositories"
 	"github.com/jcsoftdev/pulzifi-back/modules/insight/domain/services"
-	insightPersistence "github.com/jcsoftdev/pulzifi-back/modules/insight/infrastructure/persistence"
 )
 
 var defaultInsightTypes = []string{"marketing", "market_analysis"}
@@ -17,14 +16,14 @@ var defaultInsightTypes = []string{"marketing", "market_analysis"}
 // GenerateInsightsHandler orchestrates insight generation and persistence.
 type GenerateInsightsHandler struct {
 	generator services.InsightGenerator
-	db        *sql.DB
+	repo      repositories.InsightRepository
 }
 
 // NewGenerateInsightsHandler creates a new GenerateInsightsHandler.
-func NewGenerateInsightsHandler(generator services.InsightGenerator, db *sql.DB) *GenerateInsightsHandler {
+func NewGenerateInsightsHandler(generator services.InsightGenerator, repo repositories.InsightRepository) *GenerateInsightsHandler {
 	return &GenerateInsightsHandler{
 		generator: generator,
-		db:        db,
+		repo:      repo,
 	}
 }
 
@@ -52,13 +51,12 @@ func (h *GenerateInsightsHandler) Handle(ctx context.Context, req *Request) erro
 		return nil
 	}
 
-	repo := insightPersistence.NewInsightPostgresRepository(h.db, req.SchemaName)
 	for _, insight := range insights {
 		insight.ID = uuid.New()
 		insight.PageID = req.PageID
 		insight.CheckID = req.CheckID
 		insight.CreatedAt = time.Now()
-		if err := repo.Create(ctx, insight); err != nil {
+		if err := h.repo.Create(ctx, insight); err != nil {
 			return fmt.Errorf("store insight %q: %w", insight.InsightType, err)
 		}
 	}

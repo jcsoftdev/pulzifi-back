@@ -167,9 +167,50 @@ func (m *Module) handleCreateWorkspace(w http.ResponseWriter, r *http.Request) {
 	// Create repository with dynamic tenant
 	repo := persistence.NewWorkspacePostgresRepository(m.db, tenant)
 
-	// Use real handler
+	// Parse request body
+	var req createworkspace.CreateWorkspaceRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.Header().Set(contentTypeHeader, applicationJSON)
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "invalid request body"})
+		return
+	}
+	if req.Name == "" || req.Type == "" {
+		w.Header().Set(contentTypeHeader, applicationJSON)
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "name and type are required"})
+		return
+	}
+
+	userIDStr, ok := r.Context().Value(contextkeys.UserIDKey).(string)
+	if !ok {
+		logger.Error("User ID not found in context")
+		w.Header().Set(contentTypeHeader, applicationJSON)
+		w.WriteHeader(http.StatusUnauthorized)
+		json.NewEncoder(w).Encode(map[string]string{"error": "unauthorized"})
+		return
+	}
+	createdBy, err := uuid.Parse(userIDStr)
+	if err != nil {
+		logger.Error("Invalid user ID", zap.Error(err))
+		w.Header().Set(contentTypeHeader, applicationJSON)
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "invalid user ID"})
+		return
+	}
+
 	handler := createworkspace.NewCreateWorkspaceHandler(repo)
-	handler.HandleHTTP(w, r)
+	resp, err := handler.Handle(r.Context(), &req, createdBy)
+	if err != nil {
+		w.Header().Set(contentTypeHeader, applicationJSON)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+
+	w.Header().Set(contentTypeHeader, applicationJSON)
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(resp)
 }
 
 // handleListWorkspaces lists all workspaces
@@ -323,9 +364,38 @@ func (m *Module) handleUpdateWorkspace(w http.ResponseWriter, r *http.Request) {
 	// Create repository with dynamic tenant
 	repo := persistence.NewWorkspacePostgresRepository(m.db, tenant)
 
-	// Use real handler
+	// Parse request body
+	var req updateworkspace.UpdateWorkspaceRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.Header().Set(contentTypeHeader, applicationJSON)
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "invalid request body"})
+		return
+	}
+
+	workspaceIDStr := chi.URLParam(r, "id")
+	workspaceID, err := uuid.Parse(workspaceIDStr)
+	if err != nil {
+		logger.Error("Invalid workspace ID", zap.Error(err))
+		w.Header().Set(contentTypeHeader, applicationJSON)
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": errInvalidWorkspaceID})
+		return
+	}
+
 	handler := updateworkspace.NewUpdateWorkspaceHandler(repo)
-	handler.HandleHTTP(w, r)
+	resp, err := handler.Handle(r.Context(), workspaceID, &req)
+	if err != nil {
+		logger.Error("Failed to update workspace", zap.Error(err))
+		w.Header().Set(contentTypeHeader, applicationJSON)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+
+	w.Header().Set(contentTypeHeader, applicationJSON)
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(resp)
 }
 
 // handleDeleteWorkspace deletes a workspace
@@ -387,7 +457,7 @@ func (m *Module) handleDeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 	repo := persistence.NewWorkspacePostgresRepository(m.db, tenant)
 
 	// Create handler
-	handler := delete_workspace.NewDeleteWorkspaceHandler(repo, m.db)
+	handler := delete_workspace.NewDeleteWorkspaceHandler(repo)
 
 	// Execute delete
 	if err := handler.Handle(r.Context(), workspaceID, userID); err != nil {

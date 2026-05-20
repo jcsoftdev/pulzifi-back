@@ -2,13 +2,10 @@ package createworkspace
 
 import (
 	"context"
-	"encoding/json"
-	"net/http"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jcsoftdev/pulzifi-back/modules/workspace/domain/entities"
-	"github.com/jcsoftdev/pulzifi-back/shared/contextkeys"
 	"github.com/jcsoftdev/pulzifi-back/modules/workspace/domain/repositories"
 	"github.com/jcsoftdev/pulzifi-back/modules/workspace/domain/value_objects"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
@@ -65,46 +62,3 @@ func (h *CreateWorkspaceHandler) Handle(ctx context.Context, req *CreateWorkspac
 	}, nil
 }
 
-// HTTP Handler wrapper
-func (h *CreateWorkspaceHandler) HandleHTTP(w http.ResponseWriter, r *http.Request) {
-	var req CreateWorkspaceRequest
-
-	// Parse JSON body
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
-
-	// Validate required fields
-	if req.Name == "" || req.Type == "" {
-		http.Error(w, "name and type are required", http.StatusBadRequest)
-		return
-	}
-
-	// Get user ID from context (set by auth middleware)
-	userIDStr, ok := r.Context().Value(contextkeys.UserIDKey).(string)
-	if !ok {
-		logger.Error("User ID not found in context")
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	createdBy, err := uuid.Parse(userIDStr)
-	if err != nil {
-		logger.Error("Invalid user ID", zap.Error(err))
-		http.Error(w, "invalid user ID", http.StatusBadRequest)
-		return
-	}
-
-	// Execute use case
-	resp, err := h.Handle(r.Context(), &req, createdBy)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	// Return response
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(resp)
-}

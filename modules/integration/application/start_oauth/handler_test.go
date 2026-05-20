@@ -45,9 +45,9 @@ func (r *stubRegistry) Get(t string) (services.ProviderClient, bool) {
 	return c, ok
 }
 
-func newSigner(t *testing.T) *intoauth.StateSigner {
+func newSigner(t *testing.T) services.StateSignerPort {
 	t.Helper()
-	return intoauth.NewStateSigner(bytes.Repeat([]byte{0x42}, 32), time.Hour)
+	return intoauth.NewStateSignerAdapter(intoauth.NewStateSigner(bytes.Repeat([]byte{0x42}, 32), time.Hour))
 }
 
 func TestStartOAuth_HappyPath(t *testing.T) {

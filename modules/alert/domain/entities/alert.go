@@ -1,8 +1,6 @@
 package entities
 
 import (
-	"database/sql/driver"
-	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -24,25 +22,6 @@ type Alert struct {
 
 // Metadata is flexible JSON data
 type Metadata map[string]interface{}
-
-func (m Metadata) Value() (driver.Value, error) {
-	if m == nil {
-		return nil, nil
-	}
-	return json.Marshal(m)
-}
-
-func (m *Metadata) Scan(value interface{}) error {
-	if value == nil {
-		*m = make(Metadata)
-		return nil
-	}
-	bytes, ok := value.([]byte)
-	if !ok {
-		return nil
-	}
-	return json.Unmarshal(bytes, &m)
-}
 
 type AlertWithPage struct {
 	Alert

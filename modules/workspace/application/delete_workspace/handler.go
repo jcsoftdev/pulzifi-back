@@ -2,7 +2,6 @@ package delete_workspace
 
 import (
 	"context"
-	"database/sql"
 
 	"github.com/google/uuid"
 	"github.com/jcsoftdev/pulzifi-back/modules/workspace/domain/repositories"
@@ -13,14 +12,12 @@ import (
 // DeleteWorkspaceHandler handles workspace deletion
 type DeleteWorkspaceHandler struct {
 	repo repositories.WorkspaceRepository
-	db   *sql.DB
 }
 
 // NewDeleteWorkspaceHandler creates a new handler
-func NewDeleteWorkspaceHandler(repo repositories.WorkspaceRepository, db *sql.DB) *DeleteWorkspaceHandler {
+func NewDeleteWorkspaceHandler(repo repositories.WorkspaceRepository) *DeleteWorkspaceHandler {
 	return &DeleteWorkspaceHandler{
 		repo: repo,
-		db:   db,
 	}
 }
 

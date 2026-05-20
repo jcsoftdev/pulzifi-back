@@ -8,7 +8,6 @@ import (
 	"github.com/jcsoftdev/pulzifi-back/modules/integration/domain/entities"
 	"github.com/jcsoftdev/pulzifi-back/modules/integration/domain/repositories"
 	"github.com/jcsoftdev/pulzifi-back/modules/integration/domain/services"
-	intoauth "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/oauth"
 )
 
 // Request carries the OAuth callback parameters received from the provider redirect.
@@ -31,12 +30,12 @@ type Response struct {
 // same org + service already exists).
 type Handler struct {
 	registry services.ProviderRegistry
-	signer   *intoauth.StateSigner
+	signer   services.StateSignerPort
 	repo     repositories.IntegrationRepository
 }
 
 // NewHandler constructs a Handler with its dependencies.
-func NewHandler(r services.ProviderRegistry, signer *intoauth.StateSigner, repo repositories.IntegrationRepository) *Handler {
+func NewHandler(r services.ProviderRegistry, signer services.StateSignerPort, repo repositories.IntegrationRepository) *Handler {
 	return &Handler{registry: r, signer: signer, repo: repo}
 }
 

@@ -277,7 +277,7 @@ func startGRPCServer(ctx context.Context, port string, db *sql.DB) {
 	// Register Organization gRPC service
 	orgRepo := orgpersistence.NewOrganizationPostgresRepository(db)
 	orgSvc := orgservices.NewOrganizationService()
-	createOrgHandler := createorgapp.NewCreateOrganizationHandler(orgRepo, orgSvc, db, nil)
+	createOrgHandler := createorgapp.NewCreateOrganizationHandler(orgRepo, orgSvc, nil)
 	getOrgHandler := getorgapp.NewGetOrganizationHandler(orgRepo)
 	orgServiceServer := orggrpc.NewOrganizationServiceServer(createOrgHandler, getOrgHandler, orgRepo)
 	pb.RegisterOrganizationServiceServer(grpcServer, orgServiceServer)

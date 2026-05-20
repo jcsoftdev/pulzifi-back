@@ -3,6 +3,8 @@ package persistence
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -10,6 +12,29 @@ import (
 	"github.com/jcsoftdev/pulzifi-back/modules/alert/domain/entities"
 	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
 )
+
+// dbMetadata wraps entities.Metadata to provide sql.Scanner and driver.Valuer
+// without polluting the domain layer with infrastructure imports.
+type dbMetadata entities.Metadata
+
+func (m dbMetadata) Value() (driver.Value, error) {
+	if m == nil {
+		return nil, nil
+	}
+	return json.Marshal(m)
+}
+
+func (m *dbMetadata) Scan(value interface{}) error {
+	if value == nil {
+		*m = make(dbMetadata)
+		return nil
+	}
+	b, ok := value.([]byte)
+	if !ok {
+		return nil
+	}
+	return json.Unmarshal(b, m)
+}
 
 type AlertPostgresRepository struct {
 	db     *sql.DB
@@ -27,7 +52,7 @@ func (r *AlertPostgresRepository) Create(ctx context.Context, alert *entities.Al
 	q := `INSERT INTO alerts (id, workspace_id, page_id, check_id, type, title, description, change_summary, metadata, created_at)
 		SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
 		WHERE EXISTS (SELECT 1 FROM checks WHERE id = $4)`
-	_, err := r.db.ExecContext(ctx, q, alert.ID, alert.WorkspaceID, alert.PageID, alert.CheckID, alert.Type, alert.Title, alert.Description, alert.ChangeSummary, alert.Metadata, alert.CreatedAt)
+	_, err := r.db.ExecContext(ctx, q, alert.ID, alert.WorkspaceID, alert.PageID, alert.CheckID, alert.Type, alert.Title, alert.Description, alert.ChangeSummary, dbMetadata(alert.Metadata), alert.CreatedAt)
 	return err
 }
 
@@ -37,14 +62,16 @@ func (r *AlertPostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (*e
 	}
 	var a entities.Alert
 	var readAt sql.NullTime
+	var metadata dbMetadata
 	q := `SELECT id, workspace_id, page_id, check_id, type, title, description, COALESCE(change_summary, ''), metadata, read_at, created_at FROM alerts WHERE id = $1`
-	err := r.db.QueryRowContext(ctx, q, id).Scan(&a.ID, &a.WorkspaceID, &a.PageID, &a.CheckID, &a.Type, &a.Title, &a.Description, &a.ChangeSummary, &a.Metadata, &readAt, &a.CreatedAt)
+	err := r.db.QueryRowContext(ctx, q, id).Scan(&a.ID, &a.WorkspaceID, &a.PageID, &a.CheckID, &a.Type, &a.Title, &a.Description, &a.ChangeSummary, &metadata, &readAt, &a.CreatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
 		return nil, err
 	}
+	a.Metadata = entities.Metadata(metadata)
 	if readAt.Valid {
 		a.ReadAt = &readAt.Time
 	}
@@ -65,9 +92,11 @@ func (r *AlertPostgresRepository) ListByWorkspace(ctx context.Context, workspace
 	for rows.Next() {
 		var a entities.Alert
 		var readAt sql.NullTime
-		if err := rows.Scan(&a.ID, &a.WorkspaceID, &a.PageID, &a.CheckID, &a.Type, &a.Title, &a.Description, &a.ChangeSummary, &a.Metadata, &readAt, &a.CreatedAt); err != nil {
+		var metadata dbMetadata
+		if err := rows.Scan(&a.ID, &a.WorkspaceID, &a.PageID, &a.CheckID, &a.Type, &a.Title, &a.Description, &a.ChangeSummary, &metadata, &readAt, &a.CreatedAt); err != nil {
 			return nil, err
 		}
+		a.Metadata = entities.Metadata(metadata)
 		if readAt.Valid {
 			a.ReadAt = &readAt.Time
 		}
@@ -111,9 +140,11 @@ func (r *AlertPostgresRepository) ListAll(ctx context.Context, limit int) ([]*en
 	for rows.Next() {
 		var a entities.AlertWithPage
 		var readAt sql.NullTime
-		if err := rows.Scan(&a.ID, &a.WorkspaceID, &a.PageID, &a.CheckID, &a.Type, &a.Title, &a.Description, &a.Metadata, &readAt, &a.CreatedAt, &a.PageName, &a.PageURL); err != nil {
+		var metadata dbMetadata
+		if err := rows.Scan(&a.ID, &a.WorkspaceID, &a.PageID, &a.CheckID, &a.Type, &a.Title, &a.Description, &metadata, &readAt, &a.CreatedAt, &a.PageName, &a.PageURL); err != nil {
 			return nil, err
 		}
+		a.Metadata = entities.Metadata(metadata)
 		if readAt.Valid {
 			a.ReadAt = &readAt.Time
 		}

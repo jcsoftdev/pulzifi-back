@@ -7,7 +7,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/jcsoftdev/pulzifi-back/modules/integration/domain/services"
-	intoauth "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/oauth"
 )
 
 type Request struct {
@@ -26,10 +25,10 @@ type Response struct {
 
 type Handler struct {
 	registry services.ProviderRegistry
-	signer   *intoauth.StateSigner
+	signer   services.StateSignerPort
 }
 
-func NewHandler(reg services.ProviderRegistry, signer *intoauth.StateSigner) *Handler {
+func NewHandler(reg services.ProviderRegistry, signer services.StateSignerPort) *Handler {
 	return &Handler{registry: reg, signer: signer}
 }
 
@@ -38,7 +37,7 @@ func (h *Handler) Handle(ctx context.Context, req Request) (*Response, error) {
 	if !ok {
 		return nil, errors.New("unknown provider")
 	}
-	state, err := h.signer.Sign(intoauth.StateClaims{
+	state, err := h.signer.Sign(services.StateClaims{
 		Provider:    req.Provider,
 		Tenant:      req.Tenant,
 		OrgID:       req.OrgID,

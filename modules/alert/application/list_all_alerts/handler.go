@@ -2,8 +2,6 @@ package listallalerts
 
 import (
 	"context"
-	"encoding/json"
-	"net/http"
 
 	"github.com/jcsoftdev/pulzifi-back/modules/alert/domain/repositories"
 )
@@ -45,16 +43,4 @@ func (h *ListAllAlertsHandler) Handle(ctx context.Context, limit int) (*ListAllA
 		})
 	}
 	return &ListAllAlertsResponse{Data: items, Total: total}, nil
-}
-
-func (h *ListAllAlertsHandler) HandleHTTP(w http.ResponseWriter, r *http.Request) {
-	resp, err := h.Handle(r.Context(), 20)
-	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "failed to list alerts"})
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
 }

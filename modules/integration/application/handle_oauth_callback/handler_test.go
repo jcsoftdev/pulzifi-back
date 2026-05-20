@@ -125,14 +125,14 @@ func (r *stubRegistry) Get(t string) (services.ProviderClient, bool) {
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
-func newSigner(t *testing.T, ttl time.Duration) *intoauth.StateSigner {
+func newSigner(t *testing.T, ttl time.Duration) services.StateSignerPort {
 	t.Helper()
-	return intoauth.NewStateSigner(bytes.Repeat([]byte{0x42}, 32), ttl)
+	return intoauth.NewStateSignerAdapter(intoauth.NewStateSigner(bytes.Repeat([]byte{0x42}, 32), ttl))
 }
 
-func validState(t *testing.T, signer *intoauth.StateSigner, provider string, orgID, userID uuid.UUID) string {
+func validState(t *testing.T, signer services.StateSignerPort, provider string, orgID, userID uuid.UUID) string {
 	t.Helper()
-	tok, err := signer.Sign(intoauth.StateClaims{
+	tok, err := signer.Sign(services.StateClaims{
 		Provider:    provider,
 		Tenant:      "acme",
 		OrgID:       orgID,

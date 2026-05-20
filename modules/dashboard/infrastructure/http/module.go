@@ -2,6 +2,7 @@ package http
 
 import (
 	"database/sql"
+	"encoding/json"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -51,5 +52,12 @@ func (m *Module) handleGetStats(w http.ResponseWriter, r *http.Request) {
 	tenant := middleware.GetTenantFromContext(r.Context())
 	repo := persistence.NewDashboardPostgresRepository(m.db, tenant)
 	handler := getdashboardstats.NewGetDashboardStatsHandler(repo)
-	handler.HandleHTTP(w, r)
+	resp, err := handler.Handle(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(resp)
 }

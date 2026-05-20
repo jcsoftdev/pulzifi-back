@@ -2,8 +2,6 @@ package countunreadalerts
 
 import (
 	"context"
-	"encoding/json"
-	"net/http"
 
 	"github.com/jcsoftdev/pulzifi-back/modules/alert/domain/repositories"
 )
@@ -25,16 +23,4 @@ func (h *CountUnreadAlertsHandler) Handle(ctx context.Context) (*CountUnreadAler
 		HasNotifications:  count > 0,
 		NotificationCount: count,
 	}, nil
-}
-
-func (h *CountUnreadAlertsHandler) HandleHTTP(w http.ResponseWriter, r *http.Request) {
-	resp, err := h.Handle(r.Context())
-	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "failed to count unread alerts"})
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
 }

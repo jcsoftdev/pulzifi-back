@@ -29,7 +29,6 @@ import (
 	"github.com/jcsoftdev/pulzifi-back/modules/integration/domain/entities"
 	"github.com/jcsoftdev/pulzifi-back/modules/integration/domain/repositories"
 	"github.com/jcsoftdev/pulzifi-back/modules/integration/domain/services"
-	intoauth "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/oauth"
 	"github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/persistence"
 	"github.com/jcsoftdev/pulzifi-back/shared/contextkeys"
 	"github.com/jcsoftdev/pulzifi-back/shared/featureflags"
@@ -47,7 +46,7 @@ type Deps struct {
 	DB                *sql.DB
 	IntRepo           repositories.IntegrationRepository // public-schema, encryption-aware
 	Registry          services.ProviderRegistry
-	StateSigner       *intoauth.StateSigner
+	StateSigner       services.StateSignerPort
 	OAuthRedirectBase string // e.g. "http://localhost:3000"
 
 	// Phase 2 additions:

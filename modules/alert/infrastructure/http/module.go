@@ -86,13 +86,22 @@ func (m *Module) handleCreateAlert(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get tenant from context
+	var req createalert.CreateAlertRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.WorkspaceID == uuid.Nil || req.PageID == uuid.Nil || req.CheckID == uuid.Nil {
+		http.Error(w, "workspace_id, page_id, and check_id are required", http.StatusBadRequest)
+		return
+	}
+	if req.Type == "" || req.Title == "" {
+		http.Error(w, "type and title are required", http.StatusBadRequest)
+		return
+	}
+
 	tenant := middleware.GetTenantFromContext(r.Context())
-
-	// Create repository with dynamic tenant
 	repo := persistence.NewAlertPostgresRepository(m.db, tenant)
-
-	// Use real handler
 	handler := createalert.NewCreateAlertHandler(repo)
 
 	// Wire event publishing if a bus is configured.
@@ -108,7 +117,15 @@ func (m *Module) handleCreateAlert(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	handler.HandleHTTP(w, r)
+	resp, err := handler.Handle(r.Context(), &req)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(resp)
 }
 
 // handleListAlerts lists all alerts for the current workspace
@@ -133,10 +150,8 @@ func (m *Module) handleListAlerts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get tenant from context
 	tenant := middleware.GetTenantFromContext(r.Context())
 
-	// Get workspace_id from query params
 	workspaceIDStr := r.URL.Query().Get("workspace_id")
 	if workspaceIDStr == "" {
 		w.WriteHeader(http.StatusBadRequest)
@@ -155,10 +170,7 @@ func (m *Module) handleListAlerts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create repository with dynamic tenant
 	repo := persistence.NewAlertPostgresRepository(m.db, tenant)
-
-	// List alerts
 	alerts, err := repo.ListByWorkspace(r.Context(), workspaceID)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -288,19 +300,42 @@ func (m *Module) handleCountUnread(w http.ResponseWriter, r *http.Request) {
 	tenant := middleware.GetTenantFromContext(r.Context())
 	repo := persistence.NewAlertPostgresRepository(m.db, tenant)
 	handler := countunreadalerts.NewCountUnreadAlertsHandler(repo)
-	handler.HandleHTTP(w, r)
+	resp, err := handler.Handle(r.Context())
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "failed to count unread alerts"})
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
 }
 
 func (m *Module) handleListAllAlerts(w http.ResponseWriter, r *http.Request) {
 	tenant := middleware.GetTenantFromContext(r.Context())
 	repo := persistence.NewAlertPostgresRepository(m.db, tenant)
 	handler := listallalerts.NewListAllAlertsHandler(repo)
-	handler.HandleHTTP(w, r)
+	resp, err := handler.Handle(r.Context(), 20)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "failed to list alerts"})
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
 }
 
 func (m *Module) handleMarkAllRead(w http.ResponseWriter, r *http.Request) {
 	tenant := middleware.GetTenantFromContext(r.Context())
 	repo := persistence.NewAlertPostgresRepository(m.db, tenant)
 	handler := markallalerts.NewMarkAllAlertsReadHandler(repo)
-	handler.HandleHTTP(w, r)
+	if err := handler.Handle(r.Context()); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "failed to mark alerts as read"})
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"message": "all alerts marked as read"})
 }

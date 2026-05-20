@@ -2,7 +2,6 @@ package create_organization
 
 import (
 	"context"
-	"database/sql"
 
 	"github.com/google/uuid"
 	"github.com/jcsoftdev/pulzifi-back/modules/organization/domain/entities"
@@ -23,7 +22,6 @@ type EventPublisher interface {
 type CreateOrganizationHandler struct {
 	repo      repositories.OrganizationRepository
 	service   *services.OrganizationService
-	db        *sql.DB
 	publisher EventPublisher
 }
 
@@ -31,13 +29,11 @@ type CreateOrganizationHandler struct {
 func NewCreateOrganizationHandler(
 	repo repositories.OrganizationRepository,
 	service *services.OrganizationService,
-	db *sql.DB,
 	publisher EventPublisher,
 ) *CreateOrganizationHandler {
 	return &CreateOrganizationHandler{
 		repo:      repo,
 		service:   service,
-		db:        db,
 		publisher: publisher,
 	}
 }
@@ -78,27 +74,9 @@ func (h *CreateOrganizationHandler) Handle(
 	// Create organization entity
 	org := entities.NewOrganization(req.Name, req.Subdomain, schemaName, userID)
 
-	// Start transaction
-	tx, err := h.db.BeginTx(ctx, nil)
-	if err != nil {
-		logger.Error("Failed to begin transaction", zap.Error(err))
-		return nil, err
-	}
-
-	// TODO: Implement the following in persistence layer:
-	// 1. Create organization in public.organizations table
-	// 2. Create tenant schema (using create_tenant_schema() function)
-	// 3. Add user as owner in organization_members table
-
-	// For now, just persist the organization
+	// Persist the organization
 	if err := h.repo.Create(ctx, org); err != nil {
-		tx.Rollback()
 		logger.Error("Failed to create organization", zap.Error(err))
-		return nil, err
-	}
-
-	if err := tx.Commit(); err != nil {
-		logger.Error("Failed to commit transaction", zap.Error(err))
 		return nil, err
 	}
 

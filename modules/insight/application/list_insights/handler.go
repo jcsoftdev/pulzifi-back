@@ -3,7 +3,6 @@ package listinsights
 import (
 	"context"
 	"encoding/json"
-	"net/http"
 
 	"github.com/google/uuid"
 	"github.com/jcsoftdev/pulzifi-back/modules/insight/domain/entities"
@@ -55,48 +54,4 @@ func buildResponse(insights []*entities.Insight) *ListInsightsResponse {
 		}
 	}
 	return response
-}
-
-func (h *ListInsightsHandler) HandleHTTP(w http.ResponseWriter, r *http.Request) {
-	// Support filtering by check_id (preferred when viewing a specific check)
-	// or by page_id (to list all insights for a page)
-	checkIDStr := r.URL.Query().Get("check_id")
-	if checkIDStr != "" {
-		checkID, err := uuid.Parse(checkIDStr)
-		if err != nil {
-			http.Error(w, "Invalid check ID", http.StatusBadRequest)
-			return
-		}
-		resp, err := h.HandleByCheckID(r.Context(), checkID)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(resp)
-		return
-	}
-
-	pageIDStr := r.URL.Query().Get("page_id")
-	if pageIDStr == "" {
-		http.Error(w, "page_id or check_id query parameter is required", http.StatusBadRequest)
-		return
-	}
-
-	pageID, err := uuid.Parse(pageIDStr)
-	if err != nil {
-		http.Error(w, "Invalid page ID", http.StatusBadRequest)
-		return
-	}
-
-	resp, err := h.Handle(r.Context(), pageID)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(resp)
 }

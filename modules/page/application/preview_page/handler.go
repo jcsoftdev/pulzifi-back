@@ -2,24 +2,20 @@ package previewpage
 
 import (
 	"context"
-	"encoding/json"
-	"net/http"
 
-	"github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/extractor"
-	"github.com/jcsoftdev/pulzifi-back/shared/logger"
-	"go.uber.org/zap"
+	pageservices "github.com/jcsoftdev/pulzifi-back/modules/page/domain/services"
 )
 
 type PreviewPageHandler struct {
-	extractorClient *extractor.HTTPClient
+	previewer pageservices.PagePreviewer
 }
 
-func NewPreviewPageHandler(extractorClient *extractor.HTTPClient) *PreviewPageHandler {
-	return &PreviewPageHandler{extractorClient: extractorClient}
+func NewPreviewPageHandler(previewer pageservices.PagePreviewer) *PreviewPageHandler {
+	return &PreviewPageHandler{previewer: previewer}
 }
 
 func (h *PreviewPageHandler) Handle(ctx context.Context, req *PreviewPageRequest) (*PreviewPageResponse, error) {
-	result, err := h.extractorClient.Preview(ctx, req.URL, req.BlockAdsCookies)
+	result, err := h.previewer.Preview(ctx, req.URL, req.BlockAdsCookies)
 	if err != nil {
 		return nil, err
 	}
@@ -42,27 +38,4 @@ func (h *PreviewPageHandler) Handle(ctx context.Context, req *PreviewPageRequest
 		PageHeight:       result.PageHeight,
 		Elements:         elements,
 	}, nil
-}
-
-func (h *PreviewPageHandler) HandleHTTP(w http.ResponseWriter, r *http.Request) {
-	var req PreviewPageRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
-
-	if req.URL == "" {
-		http.Error(w, "URL is required", http.StatusBadRequest)
-		return
-	}
-
-	resp, err := h.Handle(r.Context(), &req)
-	if err != nil {
-		logger.Error("Failed to preview page", zap.Error(err))
-		http.Error(w, "Failed to preview page", http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
 }
