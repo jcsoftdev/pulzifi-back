@@ -117,10 +117,4 @@ EXPOSE 8080
 
 WORKDIR /app/apps/web
 
-# tsx is invoked at boot by start:prod for cms-migrate. bunx fails to
-# resolve the workspace-local tsx in some Linux x64 baseline environments
-# (`Cannot find module './cjs/index.cjs' from ''`); a global install
-# bypasses that resolver path entirely.
-RUN bun install -g tsx@4.19.2
-
 CMD ["bun", "run", "start:prod"]
