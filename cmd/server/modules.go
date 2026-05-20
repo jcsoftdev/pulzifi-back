@@ -9,6 +9,14 @@ import (
 	admin "github.com/jcsoftdev/pulzifi-back/modules/admin/infrastructure/http"
 	adminpersistence "github.com/jcsoftdev/pulzifi-back/modules/admin/infrastructure/persistence"
 	alert "github.com/jcsoftdev/pulzifi-back/modules/alert/infrastructure/http"
+	billing "github.com/jcsoftdev/pulzifi-back/modules/billing/infrastructure/http"
+	createcheckoutsession "github.com/jcsoftdev/pulzifi-back/modules/billing/application/create_checkout_session"
+	createportalsession "github.com/jcsoftdev/pulzifi-back/modules/billing/application/create_portal_session"
+	getsubscription "github.com/jcsoftdev/pulzifi-back/modules/billing/application/get_subscription"
+	handlewebhook "github.com/jcsoftdev/pulzifi-back/modules/billing/application/handle_webhook"
+	billingpostgres "github.com/jcsoftdev/pulzifi-back/modules/billing/infrastructure/persistence/postgres"
+	billingstripe "github.com/jcsoftdev/pulzifi-back/modules/billing/infrastructure/stripe"
+	billingwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/billing"
 	auth "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/http"
 	authpersistence "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/persistence"
 	authservices "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/services"
@@ -236,6 +244,49 @@ func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus 
 		{"Usage", usage.NewModuleWithDB(db)},
 		{"Dashboard", dashboard.NewModuleWithDB(db)},
 		{"Team", team.NewModuleWithDB(db, emailProvider, cfg.FrontendURL)},
+	}
+
+	// ---------------------------------------------------------------------------
+	// Billing module wiring (gated behind BILLING_ENABLED)
+	// ---------------------------------------------------------------------------
+	if cfg.BillingEnabled {
+		stripeGateway := billingstripe.NewGateway(cfg.StripeSecretKey, cfg.StripeWebhookSecret)
+		planAssigner := billingwiring.NewPlanAssigner(db)
+
+		subscriptionRepo := billingpostgres.NewSubscriptionPostgresRepository(db)
+		webhookRepo := billingpostgres.NewWebhookEventPostgresRepository(db)
+		customerRepo := billingpostgres.NewCustomerPostgresRepository(db)
+
+		checkoutHandler := createcheckoutsession.NewHandler(stripeGateway, customerRepo)
+		portalHandler := createportalsession.NewHandler(stripeGateway, customerRepo)
+		subscriptionHandler := getsubscription.NewHandler(subscriptionRepo)
+		webhookHandler := handlewebhook.NewHandler(
+			stripeGateway,
+			cfg.StripeWebhookSecret,
+			planAssigner,
+			customerRepo,
+			webhookRepo,
+			subscriptionRepo,
+		)
+
+		billingMod := billing.NewModule(billing.Deps{
+			DB:                       db,
+			AuthMiddleware:           authMiddleware,
+			CheckoutHandler:          checkoutHandler,
+			PortalHandler:            portalHandler,
+			SubscriptionHandler:      subscriptionHandler,
+			WebhookHandler:           webhookHandler,
+			StripeCheckoutSuccessURL: cfg.StripeCheckoutSuccessURL,
+			StripeCheckoutCancelURL:  cfg.StripeCheckoutCancelURL,
+			StripePortalReturnURL:    cfg.StripePortalReturnURL,
+		})
+
+		moduleInstances = append(moduleInstances, struct {
+			name   string
+			module router.ModuleRegisterer
+		}{"Billing", billingMod})
+
+		logger.Info("Billing module enabled", zap.String("module", "Billing"))
 	}
 
 	logger.Info("Registering all modules", zap.Int("count", len(moduleInstances)))

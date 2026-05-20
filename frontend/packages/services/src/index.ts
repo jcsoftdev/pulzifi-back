@@ -39,3 +39,11 @@ export type {
 export { IntegrationsApi, DestinationsApi, DeliveriesApi } from './integration-api'
 export type { CreateReportDto, Report } from './report-api'
 export { ReportApi } from './report-api'
+export type {
+  BillingStatusDto,
+  CheckoutSessionDto,
+  PaymentStatusDto,
+  PortalSessionDto,
+  SubscriptionDto,
+} from './billing-api'
+export { BillingApi } from './billing-api'

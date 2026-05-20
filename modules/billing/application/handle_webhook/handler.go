@@ -1,0 +1,319 @@
+package handlewebhook
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/jcsoftdev/pulzifi-back/modules/billing/domain/entities"
+	"github.com/jcsoftdev/pulzifi-back/modules/billing/domain/repositories"
+	"github.com/jcsoftdev/pulzifi-back/modules/billing/domain/services"
+	"github.com/jcsoftdev/pulzifi-back/shared/logger"
+	"go.uber.org/zap"
+)
+
+// ErrInvalidSignature is returned when the Stripe-Signature header is missing or invalid.
+var ErrInvalidSignature = errors.New("billing: invalid or missing Stripe webhook signature")
+
+// Handler orchestrates Stripe webhook processing.
+type Handler struct {
+	gateway       services.StripeGateway
+	webhookSecret string
+	planAssigner  services.PlanAssigner
+	customerRepo  repositories.CustomerRepository
+	webhookRepo   repositories.WebhookEventRepository
+	subRepo       repositories.SubscriptionRepository
+}
+
+// NewHandler returns a Handler with its dependencies injected.
+func NewHandler(
+	gateway services.StripeGateway,
+	webhookSecret string,
+	planAssigner services.PlanAssigner,
+	customerRepo repositories.CustomerRepository,
+	webhookRepo repositories.WebhookEventRepository,
+	subRepo repositories.SubscriptionRepository,
+) *Handler {
+	return &Handler{
+		gateway:       gateway,
+		webhookSecret: webhookSecret,
+		planAssigner:  planAssigner,
+		customerRepo:  customerRepo,
+		webhookRepo:   webhookRepo,
+		subRepo:       subRepo,
+	}
+}
+
+// Handle processes a raw Stripe webhook payload.
+//
+//  1. Reject empty signature header immediately.
+//  2. ConstructEvent — validates HMAC signature.
+//  3. Idempotency: insert event into stripe_webhook_events; skip if duplicate.
+//  4. Dispatch to the appropriate sub-handler by event type.
+//  5. Mark the event as processed.
+func (h *Handler) Handle(ctx context.Context, rawBody []byte, signature string) error {
+	// 1. Guard: missing signature
+	if signature == "" {
+		return ErrInvalidSignature
+	}
+
+	// 2. Verify signature and parse event
+	event, err := h.gateway.ConstructEvent(rawBody, signature, h.webhookSecret)
+	if err != nil {
+		return ErrInvalidSignature
+	}
+
+	// 3. Idempotency check
+	we := &entities.WebhookEvent{
+		EventID:    event.ID,
+		EventType:  event.Type,
+		ReceivedAt: time.Now(),
+		Status:     entities.WebhookEventReceived,
+	}
+	inserted, err := h.webhookRepo.Save(ctx, we)
+	if err != nil {
+		return err
+	}
+	if !inserted {
+		// Duplicate — already processed; return 200 no-op
+		return nil
+	}
+
+	// 4. Dispatch
+	dispatchErr := h.dispatch(ctx, event)
+	if dispatchErr != nil {
+		logger.Error("webhook dispatch error", zap.String("event_id", event.ID), zap.String("event_type", event.Type), zap.Error(dispatchErr))
+		// Still mark as failed so ops can see it; don't return error to Stripe (would cause retry loop)
+		_ = h.webhookRepo.MarkProcessed(ctx, event.ID, entities.WebhookEventFailed)
+		return dispatchErr
+	}
+
+	// 5. Mark processed
+	_ = h.webhookRepo.MarkProcessed(ctx, event.ID, entities.WebhookEventProcessed)
+	return nil
+}
+
+// dispatch routes the event to the correct sub-handler.
+func (h *Handler) dispatch(ctx context.Context, event services.StripeEvent) error {
+	switch event.Type {
+	case "checkout.session.completed":
+		return h.handleCheckoutCompleted(ctx, event)
+	case "invoice.paid":
+		return h.handleInvoicePaid(ctx, event)
+	case "customer.subscription.updated":
+		return h.handleSubscriptionUpdated(ctx, event)
+	case "customer.subscription.deleted":
+		return h.handleSubscriptionDeleted(ctx, event)
+	case "invoice.payment_failed":
+		return h.handlePaymentFailed(ctx, event)
+	default:
+		// Unknown event — acknowledge silently (Stripe will not retry)
+		logger.Info("billing: ignoring unknown webhook event type", zap.String("type", event.Type))
+		return nil
+	}
+}
+
+// ── Sub-handlers ──────────────────────────────────────────────────────────────
+
+// checkoutSessionPayload is the subset we read from checkout.session.completed data.
+type checkoutSessionPayload struct {
+	Customer     string `json:"customer"`
+	Subscription string `json:"subscription"`
+}
+
+// subscriptionPayload is the subset we read from subscription events.
+type subscriptionPayload struct {
+	ID               string `json:"id"`
+	Customer         string `json:"customer"`
+	Status           string `json:"status"`
+	CurrentPeriodEnd int64  `json:"current_period_end"`
+	Items            struct {
+		Data []struct {
+			Price struct {
+				ID string `json:"id"`
+			} `json:"price"`
+		} `json:"data"`
+	} `json:"items"`
+}
+
+// invoicePayload is the subset we read from invoice events.
+type invoicePayload struct {
+	Customer     string `json:"customer"`
+	Subscription string `json:"subscription"`
+}
+
+func (h *Handler) handleCheckoutCompleted(ctx context.Context, event services.StripeEvent) error {
+	var payload checkoutSessionPayload
+	if err := json.Unmarshal(event.RawData, &payload); err != nil {
+		return err
+	}
+
+	// Fetch full subscription from Stripe
+	sub, err := h.gateway.RetrieveSubscription(ctx, payload.Subscription)
+	if err != nil {
+		return err
+	}
+
+	// Resolve org from customer
+	orgID, err := h.resolveOrgByCustomer(ctx, payload.Customer)
+	if err != nil {
+		return err
+	}
+
+	// Persist customer mapping (may already exist)
+	existing, _ := h.customerRepo.FindByOrgID(ctx, orgID)
+	if existing == nil {
+		_ = h.customerRepo.Save(ctx, &entities.Customer{
+			OrgID:            orgID,
+			StripeCustomerID: payload.Customer,
+		})
+	}
+
+	periodEnd := time.Unix(sub.CurrentPeriodEnd, 0)
+	return h.planAssigner.Assign(ctx, services.AssignInput{
+		OrgID:                orgID,
+		StripeSubscriptionID: sub.ID,
+		StripePriceID:        sub.PriceID,
+		StripeCustomerID:     payload.Customer,
+		BillingStatus:        entities.BillingActive,
+		CurrentPeriodEnd:     periodEnd,
+		PaymentStatus:        "ok",
+	})
+}
+
+func (h *Handler) handleInvoicePaid(ctx context.Context, event services.StripeEvent) error {
+	var payload invoicePayload
+	if err := json.Unmarshal(event.RawData, &payload); err != nil {
+		return err
+	}
+
+	sub, err := h.gateway.RetrieveSubscription(ctx, payload.Subscription)
+	if err != nil {
+		return err
+	}
+
+	orgID, err := h.resolveOrgByCustomer(ctx, payload.Customer)
+	if err != nil {
+		return err
+	}
+
+	periodEnd := time.Unix(sub.CurrentPeriodEnd, 0)
+	return h.planAssigner.Assign(ctx, services.AssignInput{
+		OrgID:                orgID,
+		StripeSubscriptionID: sub.ID,
+		StripePriceID:        sub.PriceID,
+		StripeCustomerID:     payload.Customer,
+		BillingStatus:        entities.BillingActive,
+		CurrentPeriodEnd:     periodEnd,
+		PaymentStatus:        "ok",
+	})
+}
+
+func (h *Handler) handleSubscriptionUpdated(ctx context.Context, event services.StripeEvent) error {
+	var payload subscriptionPayload
+	if err := json.Unmarshal(event.RawData, &payload); err != nil {
+		return err
+	}
+
+	orgID, err := h.resolveOrgByCustomer(ctx, payload.Customer)
+	if err != nil {
+		return err
+	}
+
+	var priceID string
+	if len(payload.Items.Data) > 0 {
+		priceID = payload.Items.Data[0].Price.ID
+	}
+
+	status, _ := entities.BillingStatusFromString(payload.Status)
+	periodEnd := time.Unix(payload.CurrentPeriodEnd, 0)
+
+	err = h.planAssigner.Assign(ctx, services.AssignInput{
+		OrgID:                orgID,
+		StripeSubscriptionID: payload.ID,
+		StripePriceID:        priceID,
+		StripeCustomerID:     payload.Customer,
+		BillingStatus:        status,
+		CurrentPeriodEnd:     periodEnd,
+		PaymentStatus:        "ok",
+	})
+	if errors.Is(err, services.ErrPlanNotFound) {
+		// FR5: unknown price_id — log a warning and acknowledge the event (200).
+		// Do NOT propagate: Stripe would retry indefinitely causing a storm.
+		logger.Warn("billing: subscription.updated with unknown price_id — ignoring",
+			zap.String("price_id", priceID),
+			zap.String("subscription_id", payload.ID),
+		)
+		return nil
+	}
+	return err
+}
+
+func (h *Handler) handleSubscriptionDeleted(ctx context.Context, event services.StripeEvent) error {
+	var payload subscriptionPayload
+	if err := json.Unmarshal(event.RawData, &payload); err != nil {
+		return err
+	}
+
+	orgID, err := h.resolveOrgByCustomer(ctx, payload.Customer)
+	if err != nil {
+		return err
+	}
+
+	// Empty priceID signals starter plan downgrade to the PlanAssigner
+	return h.planAssigner.Assign(ctx, services.AssignInput{
+		OrgID:                orgID,
+		StripeSubscriptionID: payload.ID,
+		StripePriceID:        "", // signals: downgrade to starter
+		StripeCustomerID:     payload.Customer,
+		BillingStatus:        entities.BillingCanceled,
+		CurrentPeriodEnd:     time.Unix(payload.CurrentPeriodEnd, 0),
+		PaymentStatus:        "ok",
+	})
+}
+
+func (h *Handler) handlePaymentFailed(ctx context.Context, event services.StripeEvent) error {
+	var payload invoicePayload
+	if err := json.Unmarshal(event.RawData, &payload); err != nil {
+		return err
+	}
+
+	sub, err := h.gateway.RetrieveSubscription(ctx, payload.Subscription)
+	if err != nil {
+		return err
+	}
+
+	orgID, err := h.resolveOrgByCustomer(ctx, payload.Customer)
+	if err != nil {
+		return err
+	}
+
+	periodEnd := time.Unix(sub.CurrentPeriodEnd, 0)
+	return h.planAssigner.Assign(ctx, services.AssignInput{
+		OrgID:                orgID,
+		StripeSubscriptionID: sub.ID,
+		StripePriceID:        sub.PriceID,
+		StripeCustomerID:     payload.Customer,
+		BillingStatus:        entities.BillingPastDue,
+		CurrentPeriodEnd:     periodEnd,
+		PaymentStatus:        "grace_period",
+	})
+}
+
+// resolveOrgByCustomer looks up the orgID associated with a Stripe customer ID.
+// Returns an error if the customer is not found (org has never completed checkout).
+func (h *Handler) resolveOrgByCustomer(ctx context.Context, customerID string) (uuid.UUID, error) {
+	customer, err := h.customerRepo.FindByStripeCustomerID(ctx, customerID)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	if customer == nil {
+		// Customer not yet persisted locally — this can happen on checkout.session.completed
+		// before we've stored the mapping. We fall back to uuid.Nil so the caller can
+		// optionally create the mapping. The PlanAssigner's UPSERT handles this via customerID.
+		return uuid.Nil, nil
+	}
+	return customer.OrgID, nil
+}

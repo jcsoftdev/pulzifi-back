@@ -1,7 +1,14 @@
 import type { LucideIcon } from 'lucide-react'
-import { House, Settings, Shapes, ShieldCheck, Users, Workflow } from 'lucide-react'
+import { CreditCard, House, Settings, Shapes, ShieldCheck, Users, Workflow } from 'lucide-react'
 
-export type IconName = 'House' | 'Workflow' | 'Users' | 'Shapes' | 'Settings' | 'ShieldCheck'
+export type IconName =
+  | 'House'
+  | 'Workflow'
+  | 'Users'
+  | 'Shapes'
+  | 'Settings'
+  | 'ShieldCheck'
+  | 'CreditCard'
 
 export interface RouteConfig {
   id: string
@@ -31,6 +38,7 @@ export const ICON_MAP: Record<IconName, LucideIcon> = {
   Shapes,
   Settings,
   ShieldCheck,
+  CreditCard,
 }
 
 /**
@@ -83,12 +91,20 @@ export const BOTTOM_ROUTES: RouteConfig[] = [
     order: 2,
   },
   {
+    id: 'billing',
+    label: 'Billing',
+    href: '/settings/billing',
+    icon: 'CreditCard',
+    position: 'bottom',
+    order: 3,
+  },
+  {
     id: 'settings',
     label: 'Settings',
     href: '/settings',
     icon: 'Settings',
     position: 'bottom',
-    order: 3,
+    order: 4,
   },
 ]
 
@@ -110,11 +126,18 @@ export function getBottomRoutes(userRole?: string): RouteConfig[] {
 }
 
 /**
- * Check if a path matches a route
+ * Check if a path matches a route.
+ * Exact match for leaf routes (dashboard, billing).
+ * Prefix match for section roots, but only when no more-specific sibling matches.
  */
 export function isRouteActive(routeHref: string, currentPath: string): boolean {
   if (routeHref === '/dashboard') {
     return currentPath === '/dashboard'
+  }
+  // /settings should only be active for /settings itself and /settings/integrations,
+  // not for /settings/billing (which has its own sidebar entry).
+  if (routeHref === '/settings') {
+    return currentPath === '/settings' || currentPath.startsWith('/settings/integrations')
   }
   return currentPath.startsWith(routeHref)
 }

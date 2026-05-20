@@ -2,7 +2,7 @@
 # Makefile for Pulzifi Backend
 # ============================================================
 
-.PHONY: help dev dev-web down logs build swagger clean migrate cms-migrate test test-integration test-db-reset
+.PHONY: help dev dev-web down logs build swagger clean migrate cms-migrate test test-integration test-billing-integration test-db-reset
 
 .DEFAULT_GOAL := help
 
@@ -28,9 +28,10 @@ help: ## Show this help message
 	@echo "  $(YELLOW)make cms-migrate$(NC)  - Push Payload CMS schema + seed data (requires dev server running for seed)"
 	@echo ""
 	@echo "$(GREEN)TESTS:$(NC)"
-	@echo "  $(YELLOW)make test$(NC)              - Run unit tests (no DB required)"
-	@echo "  $(YELLOW)make test-integration$(NC)  - Run integration tests against an isolated pulzifi_test DB"
-	@echo "  $(YELLOW)make test-db-reset$(NC)     - Drop and recreate the pulzifi_test DB from scratch"
+	@echo "  $(YELLOW)make test$(NC)                      - Run unit tests (no DB required)"
+	@echo "  $(YELLOW)make test-integration$(NC)          - Run ALL integration tests against an isolated pulzifi_test DB"
+	@echo "  $(YELLOW)make test-billing-integration$(NC)  - Run billing-only integration tests (stripe webhook + plan assigner)"
+	@echo "  $(YELLOW)make test-db-reset$(NC)             - Drop and recreate the pulzifi_test DB from scratch"
 	@echo ""
 	@echo "$(GREEN)BUILD:$(NC)"
 	@echo "  $(YELLOW)make build$(NC)    - Build API binary locally"
@@ -107,6 +108,21 @@ test-integration: check-env ## Run integration tests against an isolated pulzifi
 		echo "$(GREEN)Running integration tests...$(NC)" && \
 		DATABASE_URL="$$TEST_DB_URL" DB_NAME=$(TEST_DB_NAME) \
 			go test -tags=integration -count=1 ./...
+
+test-billing-integration: check-env ## Run billing integration tests only (webhook idempotency + plan assigner SQL)
+	@export $$(grep -v '^#' $(ENV_FILE) | xargs) && \
+		TEST_DB_URL="postgres://$$DB_USER:$$DB_PASSWORD@$$DB_HOST:$$DB_PORT/$(TEST_DB_NAME)?sslmode=disable" && \
+		echo "$(GREEN)Ensuring $(TEST_DB_NAME) database exists...$(NC)" && \
+		( docker exec pulzifi-postgres psql -U $$DB_USER -d postgres -tc "SELECT 1 FROM pg_database WHERE datname = '$(TEST_DB_NAME)'" | grep -q 1 || \
+			docker exec pulzifi-postgres psql -U $$DB_USER -d postgres -c "CREATE DATABASE $(TEST_DB_NAME)" ) && \
+		echo "$(GREEN)Applying public migrations to $(TEST_DB_NAME)...$(NC)" && \
+		go run ./cmd/migrate -db "$$TEST_DB_URL" -scope public -cmd up && \
+		echo "$(GREEN)Running billing integration tests...$(NC)" && \
+		DATABASE_URL="$$TEST_DB_URL" DB_NAME=$(TEST_DB_NAME) \
+			go test -tags=integration -count=1 -v \
+				./modules/billing/infrastructure/persistence/postgres/... \
+				./modules/billing/infrastructure/http/... \
+				./cmd/wiring/billing/...
 
 test-db-reset: check-env ## Drop and recreate pulzifi_test from scratch
 	@export $$(grep -v '^#' $(ENV_FILE) | xargs) && \

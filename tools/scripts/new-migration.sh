@@ -26,7 +26,7 @@ if [ ! -d "$MIGRATIONS_DIR" ]; then
 fi
 
 # Find the next sequence number
-LAST_NUM=$(ls "$MIGRATIONS_DIR"/*.up.sql 2>/dev/null | sort -V | tail -1 | grep -oP '\d{6}' | head -1)
+LAST_NUM=$(ls "$MIGRATIONS_DIR"/*.up.sql 2>/dev/null | sort -V | tail -1 | sed -E 's|.*/([0-9]{6}).*|\1|')
 if [ -z "$LAST_NUM" ]; then
     NEXT_NUM="000001"
 else

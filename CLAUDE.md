@@ -62,19 +62,21 @@ bun run type-check # TypeScript type checking
 
 ### Entry Points (`cmd/`)
 
-- **`cmd/server/`** — Main HTTP + gRPC monolith. Loads config, connects to PostgreSQL/Redis, registers 14 module routes under `/api/v1/*`, mounts BFF auth at `/api/auth/*`, proxies unmatched routes to Next.js, starts gRPC server for Organization service. If `ENABLE_WORKERS=true`, also runs background monitoring processes (all-in-one mode).
+- **`cmd/server/`** — Main HTTP + gRPC monolith. Loads config, connects to PostgreSQL/Redis, registers up to 15 module routes under `/api/v1/*` (billing requires `BILLING_ENABLED=true`), mounts BFF auth at `/api/auth/*`, proxies unmatched routes to Next.js, starts gRPC server for Organization service. If `ENABLE_WORKERS=true`, also runs background monitoring processes (all-in-one mode).
 - **`cmd/worker/`** — Standalone background worker. Runs monitoring scheduler, snapshot change detection, AI insight generation, alert creation, and email notifications.
 - **`cmd/migrate/`** — Database migration CLI. Supports flags: `-cmd` (up/down/version/force), `-scope` (all/public/tenant), `-tenant` (specific schema), `-steps`.
 - **`cmd/wiring/integration/`** — Cross-module adapter package (not a CLI). Houses anti-corruption adapters (email adapter, org plan lookup, quota adapter, tenant repo factory) that prevent direct module-to-module imports. Wired at startup by `cmd/server/modules.go`.
+- **`cmd/wiring/billing/`** — Billing cross-module adapter. `plan_assigner.go` implements `billing.PlanAssigner` via raw SQL on `public.organization_plans`, bridging the billing module to the organization/usage data without direct module imports.
 
 ### Module Structure
 
-There are 17 module directories in `modules/`. 14 are registered in the monolith server, plus 3 special-purpose modules:
+There are 18 module directories in `modules/`. 15 are registered in the monolith server (when enabled), plus 3 special-purpose modules:
 
 | Module | Type | Description |
 |--------|------|-------------|
 | admin | API | User registration approval workflow (SUPER_ADMIN) |
 | alert | API | Change detection alert notifications |
+| billing | API (BILLING_ENABLED) | Stripe payment gateway — checkout, subscription management, webhook handling; public schema only; gated by `BILLING_ENABLED` env flag |
 | api-docs | Standalone | Swagger/OpenAPI documentation hub (Gin, :9000, not part of monolith) |
 | auth | API | Authentication, JWT, OAuth (Google/GitHub), sessions, roles |
 | dashboard | API | Aggregated organization statistics |

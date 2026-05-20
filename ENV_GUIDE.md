@@ -309,3 +309,41 @@ For staging/production, create separate config files per environment and pass vi
 - **No OAuth?** Skip GOOGLE_CLIENT_ID/SECRET, GITHUB_CLIENT_ID/SECRET, OAUTH_REDIRECT_BASE_URL
 - **No AI Insights?** Skip OPENROUTER_API_KEY, OPENROUTER_MODEL, OPENROUTER_VISION_MODEL, PIXEL_DIFF_THRESHOLD
 - **No Email Alerts?** Skip RESEND_API_KEY, EMAIL_FROM_ADDRESS, EMAIL_FROM_NAME
+- **No Billing?** Leave `BILLING_ENABLED=false` (default) — all Stripe variables are ignored and no routes are exposed
+
+---
+
+## Stripe / Billing (Optional — API Server)
+
+> Activate by setting `BILLING_ENABLED=true`. Routes remain unexposed while disabled.
+
+- `BILLING_ENABLED` (default: false) — set `true` to expose `/api/v1/billing/*` routes
+- `STRIPE_SECRET_KEY` — Stripe restricted API key (e.g., `sk_live_...` or `sk_test_...`)
+- `STRIPE_WEBHOOK_SECRET` — Signing secret from Stripe webhook endpoint config (e.g., `whsec_...`)
+- `STRIPE_PUBLISHABLE_KEY` — Publishable key for frontend use (e.g., `pk_live_...` or `pk_test_...`)
+- `STRIPE_PORTAL_RETURN_URL` — URL Stripe returns to after Customer Portal (e.g., `https://app.pulzifi.com/settings/billing`)
+- `STRIPE_CHECKOUT_SUCCESS_URL` — Redirect after successful checkout (e.g., `https://app.pulzifi.com/settings/billing?checkout=success`)
+- `STRIPE_CHECKOUT_CANCEL_URL` — Redirect when checkout is cancelled (e.g., `https://app.pulzifi.com/settings/billing`)
+
+> **Important**: Register the webhook endpoint in the Stripe Dashboard pointing at `https://api.yourdomain.com/api/v1/billing/webhook`. Events to enable: `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, `invoice.payment_failed`.
+
+### Stripe Setup Checklist
+
+Follow this order when enabling billing for the first time:
+
+1. **Run migrations** — `make migrate scope=public cmd=up` applies the `stripe_billing` migration (adds `stripe_customer_id`, `stripe_webhook_events` table, and Stripe columns on `plans` / `organization_plans`).
+2. **Seed plan price IDs** — For each plan in `public.plans`, set `stripe_price_id_monthly` and `stripe_price_id_yearly` to the corresponding Stripe Price IDs from the Stripe Dashboard (Products → find your plan → copy Price ID). Example via psql:
+   ```sql
+   UPDATE public.plans SET stripe_price_id_monthly = 'price_xxx', stripe_price_id_yearly = 'price_yyy' WHERE code = 'pro';
+   ```
+3. **Register the webhook endpoint** in the Stripe Dashboard:
+   - URL: `https://api.yourdomain.com/api/v1/billing/webhook`
+   - Events to send: `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, `invoice.payment_failed`
+   - After saving, copy the **Signing secret** (`whsec_...`) → set as `STRIPE_WEBHOOK_SECRET`.
+4. **Set the remaining env vars** — `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_PORTAL_RETURN_URL`, `STRIPE_CHECKOUT_SUCCESS_URL`, `STRIPE_CHECKOUT_CANCEL_URL`.
+5. **Flip the flag** — Set `BILLING_ENABLED=true` and redeploy. All `/api/v1/billing/*` routes become available.
+6. **Smoke test** (optional but recommended):
+   ```bash
+   stripe trigger checkout.session.completed  # requires Stripe CLI
+   # Verify a row appears in public.stripe_webhook_events with status='processed'
+   ```

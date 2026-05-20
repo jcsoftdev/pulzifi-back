@@ -90,3 +90,5 @@ tmp
 /client_*
 .worktrees/
 modules/*/docs/
+# Local Pi runtime state
+.atl/
