@@ -157,6 +157,32 @@ bun run build      # Production build
 bun run lint:fix   # Format + lint (Biome)
 ```
 
+## Git Hooks (commit + push gates)
+
+The repo ships tracked hooks under `.githooks/`. Run once per clone:
+
+```bash
+bash tools/scripts/install-hooks.sh    # sets core.hooksPath -> .githooks
+```
+
+| Hook | Script | Checks |
+|------|--------|--------|
+| `pre-commit` | `tools/scripts/validate-build.sh` | `go build`, `go vet`, frontend `type-check` |
+| `pre-push`   | `tools/scripts/pre-push-validate.sh` | `go test`, `check-architecture.sh`, `bun test features/cms`, frontend `type-check`, frontend `lint` |
+
+The pre-push gate is the global error-catching net — fast feedback before the push leaves the machine. Failed checks print as `[name] <output>`, capped at 30 lines.
+
+## CMS (Payload) — block-ref invariant
+
+The Payload CMS seed wires `pages.blocks` to entries in the `block-library` collection by name. If a referenced block disappears, Payload rejects every page save with `"The following field is invalid: id"`.
+
+Guard rails in place:
+
+- **Fail-fast seed** — `frontend/apps/web/features/cms/seed.ts` `ref()` throws when a `block-library` name is missing instead of writing `ref: undefined`.
+- **Rebuild by default** — `seedCMSIfEmpty` always re-runs `seedAll`, keeping page block-refs aligned with current `block-library` ids on every deploy. Set `CMS_PRESERVE_EDITS=true` once real editor work begins to protect manual changes.
+- **`validateRefs(payload)`** — walks every page, asserts each `block-ref.ref` resolves in `block-library`. Used by the bun test suite and available for ad-hoc debugging.
+- **Pre-push test gate** — `bun test features/cms` runs the seed + validator against an in-memory fake Payload on every push.
+
 ## Architecture Overview
 
 - **Hexagonal Architecture + Vertical Slicing**: Each module is self-contained with domain, application, and infrastructure layers

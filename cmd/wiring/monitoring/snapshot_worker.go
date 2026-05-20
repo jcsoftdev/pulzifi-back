@@ -9,14 +9,12 @@ import (
 
 	"github.com/google/uuid"
 	emailservices "github.com/jcsoftdev/pulzifi-back/modules/email/domain/services"
-	generateinsights "github.com/jcsoftdev/pulzifi-back/modules/insight/application/generate_insights"
-	insightAI "github.com/jcsoftdev/pulzifi-back/modules/insight/infrastructure/ai"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/application/workers"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/persistence"
 	snapshotapp "github.com/jcsoftdev/pulzifi-back/modules/snapshot/application"
 	snapshotextractor "github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/extractor"
 	snapshotstorage "github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/storage"
-	sharedAI "github.com/jcsoftdev/pulzifi-back/shared/ai"
+	snapshotwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/snapshot"
 	"github.com/jcsoftdev/pulzifi-back/shared/config"
 	"github.com/jcsoftdev/pulzifi-back/shared/eventbus"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
@@ -33,8 +31,9 @@ type SnapshotWorkerDeps struct {
 }
 
 // NewSnapshotWorker builds and configures a *snapshotapp.SnapshotWorker from
-// snapshot/insight/email infrastructure. Returns a workers.SnapshotPort so
-// the monitoring module can consume it without cross-module imports.
+// snapshot/insight/email infrastructure via snapshot wiring adapters.
+// Returns a workers.SnapshotPort so the monitoring module can consume it
+// without cross-module imports.
 //
 // The onCheckDone callback must be set after the monitoring module's pubsub
 // broker is created; call worker.SetOnCheckDone(...) from cmd/server/modules.go
@@ -53,26 +52,40 @@ func NewSnapshotWorker(deps SnapshotWorkerDeps) (*snapshotapp.SnapshotWorker, er
 		}
 	}
 
-	extractorClient := snapshotextractor.NewHTTPClient(cfg.ExtractorURL)
+	extractorHTTPClient := snapshotextractor.NewHTTPClient(cfg.ExtractorURL)
 
-	var insightHandler *generateinsights.GenerateInsightsHandler
-	if cfg.OpenRouterAPIKey != "" {
-		openRouterClient := sharedAI.NewOpenRouterClient(cfg.OpenRouterAPIKey, cfg.OpenRouterModel)
-		generator := insightAI.NewOpenRouterGenerator(openRouterClient)
-		insightHandler = generateinsights.NewGenerateInsightsHandler(generator, deps.DB)
+	// Build snapshot port adapters via the snapshotwiring package.
+	extractorClient := snapshotwiring.NewExtractorClient(extractorHTTPClient)
+	monitoringReader := snapshotwiring.NewMonitoringReader(deps.DB)
+	checkRepoFactory := snapshotwiring.NewCheckRepoFactory(deps.DB)
+	alertCreator := snapshotwiring.NewAlertCreator(deps.DB)
+	insightDispatcher := snapshotwiring.NewInsightDispatcher(deps.DB, cfg)
+
+	var notificationEmailer snapshotapp.NotificationEmailerPort
+	if deps.EmailProvider != nil {
+		notificationEmailer = snapshotwiring.NewNotificationEmailer(deps.EmailProvider)
 	}
 
-	snapshotWorker := snapshotapp.NewSnapshotWorker(objectStorage, extractorClient, deps.DB, insightHandler, deps.EmailProvider, deps.FrontendURL)
+	workerDeps := snapshotapp.SnapshotWorkerDeps{
+		ObjectStorage:       objectStorage,
+		ExtractorClient:     extractorClient,
+		MonitoringReader:    monitoringReader,
+		CheckRepoFactory:    checkRepoFactory,
+		AlertCreator:        alertCreator,
+		NotificationEmailer: notificationEmailer,
+		InsightDispatcher:   insightDispatcher,
+		FrontendURL:         deps.FrontendURL,
+	}
+
+	snapshotWorker := snapshotapp.NewSnapshotWorker(workerDeps)
 	snapshotWorker.SetPixelDiffThreshold(cfg.PixelDiffThreshold)
 
 	if deps.EventBus != nil {
 		snapshotWorker.SetMessageBus(deps.EventBus)
 	}
 
-	// Initialize Vision AI analyzer if vision model is configured
-	if cfg.OpenRouterAPIKey != "" && cfg.OpenRouterVisionModel != "" {
-		visionClient := sharedAI.NewOpenRouterClient(cfg.OpenRouterAPIKey, cfg.OpenRouterVisionModel)
-		visionAnalyzer := insightAI.NewOpenRouterVisionAnalyzer(visionClient)
+	// Initialize Vision AI analyzer if vision model is configured.
+	if visionAnalyzer := snapshotwiring.NewVisionAnalyzer(cfg); visionAnalyzer != nil {
 		snapshotWorker.SetVisionAnalyzer(visionAnalyzer)
 		logger.Info("Vision AI analyzer initialized", zap.String("model", cfg.OpenRouterVisionModel))
 	}

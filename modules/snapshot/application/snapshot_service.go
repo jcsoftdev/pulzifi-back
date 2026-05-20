@@ -2,30 +2,33 @@ package application
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
-	generateinsights "github.com/jcsoftdev/pulzifi-back/modules/insight/application/generate_insights"
-	monEntities "github.com/jcsoftdev/pulzifi-back/modules/monitoring/domain/entities"
-	monPersistence "github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/persistence"
 	snapEntities "github.com/jcsoftdev/pulzifi-back/modules/snapshot/domain/entities"
 	"github.com/jcsoftdev/pulzifi-back/modules/snapshot/domain/repositories"
-	"github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/extractor"
+	snapServices "github.com/jcsoftdev/pulzifi-back/modules/snapshot/domain/services"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"go.uber.org/zap"
 )
 
+// Port type aliases for external callers constructing SnapshotWorkerDeps.
+type NotificationEmailerPort = snapServices.NotificationEmailer
+
+// SnapshotService orchestrates a one-shot snapshot capture from an event-bus request.
+// It creates a Check record, delegates execution to SnapshotWorker, then reads back
+// the result to produce a SnapshotResult.
 type SnapshotService struct {
-	worker *SnapshotWorker
-	db     *sql.DB
+	worker           *SnapshotWorker
+	checkRepoFactory func(schemaName string) snapServices.CheckRepository
 }
 
-func NewSnapshotService(objectStorage repositories.ObjectStorage, extractorClient *extractor.HTTPClient, db *sql.DB, insightHandler *generateinsights.GenerateInsightsHandler) *SnapshotService {
+// NewSnapshotService creates a SnapshotService backed by the given SnapshotWorker.
+func NewSnapshotService(objectStorage repositories.ObjectStorage, worker *SnapshotWorker, checkRepoFactory func(schemaName string) snapServices.CheckRepository) *SnapshotService {
 	return &SnapshotService{
-		worker: NewSnapshotWorker(objectStorage, extractorClient, db, insightHandler, nil, ""),
-		db:     db,
+		worker:           worker,
+		checkRepoFactory: checkRepoFactory,
 	}
 }
 
@@ -38,15 +41,11 @@ func (s *SnapshotService) CaptureAndUpload(ctx context.Context, req snapEntities
 	}
 
 	// Create a new Check entity
-	check := monEntities.Check{
-		ID:        uuid.New(),
-		PageID:    pageID,
-		Status:    "running",
-		CheckedAt: time.Now(),
-	}
+	check := snapEntities.NewCheck(pageID, "running", false)
+	check.CheckedAt = time.Now()
 
-	checkRepo := monPersistence.NewCheckPostgresRepository(s.db, req.SchemaName)
-	if err := checkRepo.Create(ctx, &check); err != nil {
+	checkRepo := s.checkRepoFactory(req.SchemaName)
+	if err := checkRepo.Create(ctx, check); err != nil {
 		return nil, fmt.Errorf("failed to create check: %w", err)
 	}
 

@@ -4,44 +4,35 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
-	"database/sql"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
-	alertentities "github.com/jcsoftdev/pulzifi-back/modules/alert/domain/entities"
-	alertPersistence "github.com/jcsoftdev/pulzifi-back/modules/alert/infrastructure/persistence"
-	emailservices "github.com/jcsoftdev/pulzifi-back/modules/email/domain/services"
-	"github.com/jcsoftdev/pulzifi-back/modules/email/infrastructure/templates"
-	generateinsights "github.com/jcsoftdev/pulzifi-back/modules/insight/application/generate_insights"
-	insightservices "github.com/jcsoftdev/pulzifi-back/modules/insight/domain/services"
-	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/domain/entities"
-	monPersistence "github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/persistence"
+	snapEntities "github.com/jcsoftdev/pulzifi-back/modules/snapshot/domain/entities"
 	"github.com/jcsoftdev/pulzifi-back/modules/snapshot/domain/repositories"
+	snapServices "github.com/jcsoftdev/pulzifi-back/modules/snapshot/domain/services"
 	imagecompare "github.com/jcsoftdev/pulzifi-back/modules/snapshot/domain/services"
-	"github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/extractor"
 	"github.com/jcsoftdev/pulzifi-back/shared/eventbus"
 	sharedHTML "github.com/jcsoftdev/pulzifi-back/shared/html"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
-	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
 	"go.uber.org/zap"
 )
 
 type SnapshotWorker struct {
 	objectStorage      repositories.ObjectStorage
-	extractorClient    *extractor.HTTPClient
-	db                 *sql.DB
+	extractorClient    snapServices.ExtractorClient
+	monitoringReader   snapServices.MonitoringReader
+	checkRepoFactory   func(schemaName string) snapServices.CheckRepository
+	alertCreator       snapServices.AlertCreator
+	notificationEmailer snapServices.NotificationEmailer
+	insightDispatcher  snapServices.InsightDispatcher
+	visionAnalyzer     snapServices.VisionAnalyzer
 	bus                eventbus.MessageBus
-	insightHandler     *generateinsights.GenerateInsightsHandler
-	emailProvider      emailservices.EmailProvider
 	frontendURL        string
-	visionAnalyzer     insightservices.VisionAnalyzer
 	pixelDiffThreshold float64
 	onCheckDone        func(pageID uuid.UUID, checkJSON []byte)
 }
@@ -53,7 +44,7 @@ func (s *SnapshotWorker) SetOnCheckDone(fn func(pageID uuid.UUID, checkJSON []by
 }
 
 // SetVisionAnalyzer sets the vision AI analyzer for screenshot comparison.
-func (s *SnapshotWorker) SetVisionAnalyzer(analyzer insightservices.VisionAnalyzer) {
+func (s *SnapshotWorker) SetVisionAnalyzer(analyzer snapServices.VisionAnalyzer) {
 	s.visionAnalyzer = analyzer
 }
 
@@ -70,7 +61,7 @@ func (s *SnapshotWorker) SetMessageBus(bus eventbus.MessageBus) {
 
 // notifyCheckDone serializes a check into the same DTO format the frontend
 // expects and invokes the onCheckDone callback if set.
-func (s *SnapshotWorker) notifyCheckDone(check *entities.Check) {
+func (s *SnapshotWorker) notifyCheckDone(check *snapEntities.Check) {
 	if s.onCheckDone == nil {
 		return
 	}
@@ -103,22 +94,36 @@ func (s *SnapshotWorker) notifyCheckDone(check *entities.Check) {
 	s.onCheckDone(check.PageID, payload)
 }
 
-func NewSnapshotWorker(objectStorage repositories.ObjectStorage, extractorClient *extractor.HTTPClient, db *sql.DB, insightHandler *generateinsights.GenerateInsightsHandler, emailProvider emailservices.EmailProvider, frontendURL string) *SnapshotWorker {
+// SnapshotWorkerDeps groups all dependencies for the SnapshotWorker.
+type SnapshotWorkerDeps struct {
+	ObjectStorage       repositories.ObjectStorage
+	ExtractorClient     snapServices.ExtractorClient
+	MonitoringReader    snapServices.MonitoringReader
+	CheckRepoFactory    func(schemaName string) snapServices.CheckRepository
+	AlertCreator        snapServices.AlertCreator
+	NotificationEmailer snapServices.NotificationEmailer
+	InsightDispatcher   snapServices.InsightDispatcher
+	FrontendURL         string
+}
+
+func NewSnapshotWorker(deps SnapshotWorkerDeps) *SnapshotWorker {
 	return &SnapshotWorker{
-		objectStorage:      objectStorage,
-		extractorClient:    extractorClient,
-		db:                 db,
-		insightHandler:     insightHandler,
-		emailProvider:      emailProvider,
-		frontendURL:        frontendURL,
-		pixelDiffThreshold: 0.001, // default
+		objectStorage:       deps.ObjectStorage,
+		extractorClient:     deps.ExtractorClient,
+		monitoringReader:    deps.MonitoringReader,
+		checkRepoFactory:    deps.CheckRepoFactory,
+		alertCreator:        deps.AlertCreator,
+		notificationEmailer: deps.NotificationEmailer,
+		insightDispatcher:   deps.InsightDispatcher,
+		frontendURL:         deps.FrontendURL,
+		pixelDiffThreshold:  0.001, // default
 	}
 }
 
 func (s *SnapshotWorker) ExecuteCheck(ctx context.Context, checkID uuid.UUID, targetURL string, schemaName string) error {
 	logger.Info("SnapshotWorker executing check", zap.String("check_id", checkID.String()), zap.String("url", targetURL))
 
-	checkRepo := monPersistence.NewCheckPostgresRepository(s.db, schemaName)
+	checkRepo := s.checkRepoFactory(schemaName)
 	check, err := checkRepo.GetByID(ctx, checkID)
 	if err != nil {
 		return err
@@ -141,8 +146,7 @@ func (s *SnapshotWorker) ExecuteCheck(ctx context.Context, checkID uuid.UUID, ta
 	}
 
 	// Fetch monitoring config before extraction to get block_ads_cookies + selector settings
-	configRepo := monPersistence.NewMonitoringConfigPostgresRepository(s.db, schemaName)
-	pageConfig, configErr := configRepo.GetByPageID(ctx, check.PageID)
+	pageConfig, configErr := s.monitoringReader.GetConfigByPageID(ctx, schemaName, check.PageID)
 	if configErr != nil {
 		logger.Warn("Failed to load monitoring config, using defaults",
 			zap.String("page_id", check.PageID.String()), zap.Error(configErr))
@@ -159,7 +163,7 @@ func (s *SnapshotWorker) ExecuteCheck(ctx context.Context, checkID uuid.UUID, ta
 		}
 	}
 
-	extractOpts := extractor.ExtractOptions{}
+	extractOpts := snapServices.ExtractOptions{}
 	if pageConfig != nil {
 		extractOpts.BlockAdsCookies = pageConfig.BlockAdsCookies
 		extractOpts.IgnoreSelectors = pageConfig.IgnoreSelectors
@@ -170,7 +174,7 @@ func (s *SnapshotWorker) ExecuteCheck(ctx context.Context, checkID uuid.UUID, ta
 				extractOpts.Selector = pageConfig.CSSSelector
 				extractOpts.SelectorXPath = pageConfig.XPathSelector
 				if pageConfig.SelectorOffsets != nil {
-					extractOpts.SelectorOffsets = &extractor.SelectorOffsets{
+					extractOpts.SelectorOffsets = &snapServices.SelectorOffsets{
 						Top:    pageConfig.SelectorOffsets.Top,
 						Right:  pageConfig.SelectorOffsets.Right,
 						Bottom: pageConfig.SelectorOffsets.Bottom,
@@ -180,8 +184,7 @@ func (s *SnapshotWorker) ExecuteCheck(ctx context.Context, checkID uuid.UUID, ta
 			}
 		case "sections":
 			// Query sections and pass them to the extractor for a single page load.
-			sectionRepo := monPersistence.NewMonitoredSectionPostgresRepository(s.db, schemaName)
-			pageSections, err := sectionRepo.ListByPageID(ctx, check.PageID)
+			pageSections, err := s.monitoringReader.ListSectionsByPageID(ctx, schemaName, check.PageID)
 			if err != nil {
 				logger.Error("Failed to load monitored sections, falling back to full-page",
 					zap.String("page_id", check.PageID.String()), zap.Error(err))
@@ -197,12 +200,12 @@ func (s *SnapshotWorker) ExecuteCheck(ctx context.Context, checkID uuid.UUID, ta
 				zap.String("page_id", check.PageID.String()),
 				zap.Int("section_count", len(pageSections)))
 
-			sectionsByID := make(map[uuid.UUID]*entities.MonitoredSection, len(pageSections))
+			sectionsByID := make(map[uuid.UUID]*snapEntities.MonitoredSection, len(pageSections))
 			for _, sec := range pageSections {
 				sectionsByID[sec.ID] = sec
-				opt := extractor.SectionExtractOption{ID: sec.ID.String(), Selector: sec.CSSSelector, SelectorXPath: sec.XPathSelector}
+				opt := snapServices.SectionExtractOption{ID: sec.ID.String(), Selector: sec.CSSSelector, SelectorXPath: sec.XPathSelector}
 				if sec.SelectorOffsets != nil {
-					opt.Offsets = &extractor.SelectorOffsets{Top: sec.SelectorOffsets.Top, Right: sec.SelectorOffsets.Right, Bottom: sec.SelectorOffsets.Bottom, Left: sec.SelectorOffsets.Left}
+					opt.Offsets = &snapServices.SelectorOffsets{Top: sec.SelectorOffsets.Top, Right: sec.SelectorOffsets.Right, Bottom: sec.SelectorOffsets.Bottom, Left: sec.SelectorOffsets.Left}
 				}
 				extractOpts.Sections = append(extractOpts.Sections, opt)
 			}
@@ -341,7 +344,7 @@ func (s *SnapshotWorker) ExecuteCheck(ctx context.Context, checkID uuid.UUID, ta
 			}
 
 			// Generate insights for enabled types
-			if s.insightHandler != nil && len(enabledInsightTypes) > 0 {
+			if s.insightDispatcher != nil && len(enabledInsightTypes) > 0 {
 				var diffText string
 				if contentDiff != nil && contentDiff.HasChanges {
 					diffText = sharedHTML.FormatDiffForAI(contentDiff)
@@ -358,7 +361,7 @@ func (s *SnapshotWorker) ExecuteCheck(ctx context.Context, checkID uuid.UUID, ta
 
 	s.notifyCheckDone(check)
 
-	if err := s.updatePageSnapshotMetadata(ctx, schemaName, check.PageID, imgURL, check.ChangeDetected); err != nil {
+	if err := s.monitoringReader.UpdatePageSnapshotMetadata(ctx, schemaName, check.PageID, imgURL, check.ChangeDetected); err != nil {
 		logger.Error("Failed to update page snapshot metadata", zap.Error(err), zap.String("page_id", check.PageID.String()))
 	}
 
@@ -374,7 +377,7 @@ func (s *SnapshotWorker) ExecuteCheck(ctx context.Context, checkID uuid.UUID, ta
 //	Stage 5: Normalized text hash fallback (legacy compatibility)
 //
 // Returns (changeDetected, changeSummary, contentDiff, diffImageBytes)
-func (s *SnapshotWorker) detectChange(ctx context.Context, prevCheck, currCheck *entities.Check, currImgBytes []byte, currBase64 string, pageURL string, currHTML string) (bool, string, *sharedHTML.ContentDiff, []byte) {
+func (s *SnapshotWorker) detectChange(ctx context.Context, prevCheck, currCheck *snapEntities.Check, currImgBytes []byte, currBase64 string, pageURL string, currHTML string) (bool, string, *sharedHTML.ContentDiff, []byte) {
 	pageID := currCheck.PageID.String()
 
 	// ── Stage 1: Content block hash comparison ───────────────────────────
@@ -608,7 +611,7 @@ func (s *SnapshotWorker) downloadScreenshot(url string) []byte {
 	return data
 }
 
-func (s *SnapshotWorker) getPreviousSuccessfulCheck(ctx context.Context, repo *monPersistence.CheckPostgresRepository, pageID, currentCheckID uuid.UUID) *entities.Check {
+func (s *SnapshotWorker) getPreviousSuccessfulCheck(ctx context.Context, repo snapServices.CheckRepository, pageID, currentCheckID uuid.UUID) *snapEntities.Check {
 	check, err := repo.GetPreviousSuccessfulByPage(ctx, pageID, currentCheckID)
 	if err != nil {
 		return nil
@@ -616,15 +619,13 @@ func (s *SnapshotWorker) getPreviousSuccessfulCheck(ctx context.Context, repo *m
 	return check
 }
 
-
-func (s *SnapshotWorker) createAlert(ctx context.Context, schemaName string, check *entities.Check, pageURL string, changeSummary string) {
-	if _, err := s.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(schemaName)); err != nil {
-		logger.Error("Failed to set search path for alert", zap.Error(err))
+func (s *SnapshotWorker) createAlert(ctx context.Context, schemaName string, check *snapEntities.Check, pageURL string, changeSummary string) {
+	if s.alertCreator == nil {
 		return
 	}
 
-	var workspaceID uuid.UUID
-	if err := s.db.QueryRowContext(ctx, `SELECT workspace_id FROM pages WHERE id = $1`, check.PageID).Scan(&workspaceID); err != nil {
+	workspaceID, err := s.monitoringReader.GetWorkspaceIDForPage(ctx, schemaName, check.PageID)
+	if err != nil {
 		logger.Error("Failed to get workspace_id for alert", zap.Error(err), zap.String("page_id", check.PageID.String()))
 		return
 	}
@@ -637,11 +638,18 @@ func (s *SnapshotWorker) createAlert(ctx context.Context, schemaName string, che
 		alertDescription = changeSummary
 	}
 
-	alert := alertentities.NewAlert(workspaceID, check.PageID, check.ID, "content_change", alertTitle, alertDescription)
-	alert.ChangeSummary = changeSummary
+	input := snapServices.AlertInput{
+		SchemaName:    schemaName,
+		WorkspaceID:   workspaceID,
+		PageID:        check.PageID,
+		CheckID:       check.ID,
+		AlertType:     "content_change",
+		Title:         alertTitle,
+		Description:   alertDescription,
+		ChangeSummary: changeSummary,
+	}
 
-	alertRepo := alertPersistence.NewAlertPostgresRepository(s.db, schemaName)
-	if err := alertRepo.Create(ctx, alert); err != nil {
+	if err := s.alertCreator.Create(ctx, input); err != nil {
 		logger.Error("Failed to create alert", zap.Error(err))
 	} else {
 		logger.Info("Alert created", zap.String("check_id", check.ID.String()))
@@ -655,16 +663,15 @@ func (s *SnapshotWorker) createAlert(ctx context.Context, schemaName string, che
 }
 
 // sendAlertEmails queries notification preferences for the page and sends email alerts.
-func (s *SnapshotWorker) sendAlertEmails(schemaName string, check *entities.Check, pageURL string, changeSummary string) {
-	if s.emailProvider == nil {
+func (s *SnapshotWorker) sendAlertEmails(schemaName string, check *snapEntities.Check, pageURL string, changeSummary string) {
+	if s.notificationEmailer == nil {
 		return
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	notifRepo := monPersistence.NewNotificationPreferencePostgresRepository(s.db, schemaName)
-	prefs, err := notifRepo.GetEmailEnabledByPage(ctx, check.PageID)
+	prefs, err := s.monitoringReader.GetEmailEnabledByPage(ctx, schemaName, check.PageID)
 	if err != nil {
 		logger.Error("Failed to get email-enabled preferences", zap.Error(err))
 		return
@@ -675,7 +682,7 @@ func (s *SnapshotWorker) sendAlertEmails(schemaName string, check *entities.Chec
 	}
 
 	// Filter preferences by change_types: empty means all types, otherwise must include "page_change"
-	var filteredPrefs []*entities.NotificationPreference
+	var filteredPrefs []*snapEntities.NotificationPreference
 	for _, pref := range prefs {
 		if len(pref.ChangeTypes) == 0 || sliceContains(pref.ChangeTypes, "page_change") {
 			filteredPrefs = append(filteredPrefs, pref)
@@ -694,16 +701,14 @@ func (s *SnapshotWorker) sendAlertEmails(schemaName string, check *entities.Chec
 	if changeSummary != "" {
 		changeType = changeSummary
 	}
-	subject, html := templates.AlertNotification(pageURL, changeType, dashboardURL)
 
 	for _, pref := range filteredPrefs {
-		// Look up user email
-		var email string
-		if err := s.db.QueryRowContext(ctx, `SELECT email FROM public.users WHERE id = $1`, pref.UserID).Scan(&email); err != nil {
+		email, err := s.monitoringReader.GetUserEmail(ctx, pref.UserID)
+		if err != nil {
 			logger.Error("Failed to get user email for alert notification", zap.Error(err), zap.String("user_id", pref.UserID.String()))
 			continue
 		}
-		if err := s.emailProvider.Send(ctx, email, subject, html); err != nil {
+		if err := s.notificationEmailer.SendAlertEmail(ctx, email, pageURL, changeType, dashboardURL); err != nil {
 			logger.Error("Failed to send alert email", zap.Error(err), zap.String("email", email))
 		}
 	}
@@ -711,11 +716,7 @@ func (s *SnapshotWorker) sendAlertEmails(schemaName string, check *entities.Chec
 
 // publishChangeDetected publishes a change.detected DomainEvent to the EventBus so that
 // the integration dispatch_event use case can fan-out to all enabled destinations.
-//
-// NOTE: in-memory EventBus is node-local. When running cmd/worker as a separate
-// process from cmd/server, the dispatcher subscriber does NOT receive these events.
-// Phase 4 will swap MessageBus to a network-backed implementation.
-func (s *SnapshotWorker) publishChangeDetected(parentCtx context.Context, tenant string, check *entities.Check, pageURL, changeSummary string) {
+func (s *SnapshotWorker) publishChangeDetected(parentCtx context.Context, tenant string, check *snapEntities.Check, pageURL, changeSummary string) {
 	if s.bus == nil {
 		return // dispatch disabled — bus not wired (tests, standalone runs)
 	}
@@ -725,22 +726,21 @@ func (s *SnapshotWorker) publishChangeDetected(parentCtx context.Context, tenant
 	defer cancel()
 	_ = parentCtx // reserved for future correlation-id propagation; unused now
 
-	// Look up org_id from tenant schema_name.
-	var orgID uuid.UUID
-	if err := s.db.QueryRowContext(ctx, `SELECT id FROM public.organizations WHERE schema_name = $1 AND deleted_at IS NULL`, tenant).Scan(&orgID); err != nil {
+	orgID, err := s.monitoringReader.GetOrgIDBySchemaName(ctx, tenant)
+	if err != nil {
 		logger.Error("publishChangeDetected: org lookup failed", zap.Error(err), zap.String("tenant", tenant))
 		return
 	}
 
-	// Set search_path then look up workspace_id and title for the page.
-	if _, err := s.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(tenant)); err != nil {
-		logger.Error("publishChangeDetected: search_path", zap.Error(err))
+	workspaceID, err := s.monitoringReader.GetWorkspaceIDForPage(ctx, tenant, check.PageID)
+	if err != nil {
+		logger.Error("publishChangeDetected: page/workspace lookup failed", zap.Error(err), zap.String("page_id", check.PageID.String()))
 		return
 	}
-	var workspaceID uuid.UUID
-	var pageTitle string
-	if err := s.db.QueryRowContext(ctx, `SELECT workspace_id, COALESCE(title,'') FROM pages WHERE id = $1`, check.PageID).Scan(&workspaceID, &pageTitle); err != nil {
-		logger.Error("publishChangeDetected: page lookup failed", zap.Error(err), zap.String("page_id", check.PageID.String()))
+
+	pageTitle, err := s.monitoringReader.GetPageTitle(ctx, tenant, check.PageID)
+	if err != nil {
+		logger.Error("publishChangeDetected: page title lookup failed", zap.Error(err), zap.String("page_id", check.PageID.String()))
 		return
 	}
 
@@ -777,12 +777,12 @@ func (s *SnapshotWorker) publishChangeDetected(parentCtx context.Context, tenant
 	}
 }
 
-// generateInsightsAsync calls the insight handler in the background after a change is detected.
-func (s *SnapshotWorker) generateInsightsAsync(check *entities.Check, pageURL, prevText, newText, schemaName string, enabledTypes []string, diffText string) {
+// generateInsightsAsync calls the insight dispatcher in the background after a change is detected.
+func (s *SnapshotWorker) generateInsightsAsync(check *snapEntities.Check, pageURL, prevText, newText, schemaName string, enabledTypes []string, diffText string) {
 	genCtx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 
-	err := s.insightHandler.Handle(genCtx, &generateinsights.Request{
+	err := s.insightDispatcher.Dispatch(genCtx, snapServices.InsightRequest{
 		PageID:              check.PageID,
 		CheckID:             check.ID,
 		PageURL:             pageURL,
@@ -817,75 +817,17 @@ func sliceContains(s []string, target string) bool {
 	return false
 }
 
-// fetchTextFromURL downloads HTML from the given URL and extracts plain text.
-// It retries up to 3 times with exponential backoff (1s, 2s, 4s) and uses a
-// 30-second timeout per attempt.
+// fetchTextFromURL downloads HTML from the given URL via the object storage client
+// and extracts plain text. Falls back to empty string on any error.
 func (s *SnapshotWorker) fetchTextFromURL(rawURL string) string {
-	if rawURL == "" {
+	html := s.fetchHTMLFromURL(rawURL)
+	if html == "" {
 		return ""
 	}
-
-	const maxRetries = 3
-	backoff := 1 * time.Second
-
-	var lastErr error
-	for attempt := 1; attempt <= maxRetries; attempt++ {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
-		if err != nil {
-			cancel()
-			logger.Error("Failed to create request for text extraction",
-				zap.String("url", rawURL), zap.Error(err))
-			return ""
-		}
-
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			cancel()
-			lastErr = err
-			logger.Warn("Fetch attempt failed, will retry",
-				zap.String("url", rawURL),
-				zap.Int("attempt", attempt),
-				zap.Int("max_retries", maxRetries),
-				zap.Duration("backoff", backoff),
-				zap.Error(err))
-			if attempt < maxRetries {
-				time.Sleep(backoff)
-				backoff *= 2
-			}
-			continue
-		}
-
-		content, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		cancel()
-		if err != nil {
-			lastErr = err
-			logger.Warn("Failed to read HTML body, will retry",
-				zap.String("url", rawURL),
-				zap.Int("attempt", attempt),
-				zap.Int("max_retries", maxRetries),
-				zap.Duration("backoff", backoff),
-				zap.Error(err))
-			if attempt < maxRetries {
-				time.Sleep(backoff)
-				backoff *= 2
-			}
-			continue
-		}
-
-		return sharedHTML.ExtractText(string(content))
-	}
-
-	logger.Error("All fetch attempts exhausted for text extraction",
-		zap.String("url", rawURL),
-		zap.Int("attempts", maxRetries),
-		zap.Error(lastErr))
-	return ""
+	return sharedHTML.ExtractText(html)
 }
 
-// fetchHTMLFromURL downloads raw HTML from the given URL. Uses the object storage
-// client. Returns empty string on failure.
+// fetchHTMLFromURL downloads raw HTML from the given URL using the object storage client.
 func (s *SnapshotWorker) fetchHTMLFromURL(rawURL string) string {
 	if rawURL == "" {
 		return ""
@@ -913,12 +855,12 @@ func (s *SnapshotWorker) fetchHTMLFromURL(rawURL string) string {
 // per page instead of one per section.
 func (s *SnapshotWorker) processSectionsFromExtractor(
 	ctx context.Context,
-	checkRepo *monPersistence.CheckPostgresRepository,
+	checkRepo snapServices.CheckRepository,
 	schemaName string,
 	parentCheckID uuid.UUID,
 	pageID uuid.UUID,
-	sectionsByID map[uuid.UUID]*entities.MonitoredSection,
-	sectionResults []extractor.SectionExtractResult,
+	sectionsByID map[uuid.UUID]*snapEntities.MonitoredSection,
+	sectionResults []snapServices.SectionExtractResult,
 	targetURL string,
 	enabledAlertConditions []string,
 ) bool {
@@ -971,7 +913,7 @@ func (s *SnapshotWorker) processSectionsFromExtractor(
 		sectionContentBlocks := sharedHTML.ExtractContentBlocks(sec.HTML)
 		sectionContentBlockHash := sharedHTML.HashContentBlocks(sectionContentBlocks)
 
-		sectionCheck := entities.NewCheck(pageID, "success", false)
+		sectionCheck := snapEntities.NewCheck(pageID, "success", false)
 		sectionCheck.SectionID = &section.ID
 		sectionCheck.ParentCheckID = &parentCheckID
 		sectionCheck.ScreenshotURL = imgURL
@@ -1032,24 +974,10 @@ func (s *SnapshotWorker) processSectionsFromExtractor(
 	}
 
 	if firstScreenshotURL != "" {
-		if err := s.updatePageSnapshotMetadata(ctx, schemaName, pageID, firstScreenshotURL, anyChanged); err != nil {
+		if err := s.monitoringReader.UpdatePageSnapshotMetadata(ctx, schemaName, pageID, firstScreenshotURL, anyChanged); err != nil {
 			logger.Error("Failed to update page snapshot metadata from sections", zap.Error(err))
 		}
 	}
 
 	return anyChanged
-}
-
-func (s *SnapshotWorker) updatePageSnapshotMetadata(ctx context.Context, schemaName string, pageID uuid.UUID, thumbnailURL string, changeDetected bool) error {
-	if _, err := s.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(schemaName)); err != nil {
-		return err
-	}
-
-	q := `UPDATE pages
-		SET thumbnail_url = $1,
-			last_change_detected_at = CASE WHEN $2 THEN NOW() ELSE last_change_detected_at END
-		WHERE id = $3`
-
-	_, err := s.db.ExecContext(ctx, q, thumbnailURL, changeDetected, pageID)
-	return err
 }
