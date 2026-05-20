@@ -2,9 +2,10 @@
 set -euo pipefail
 
 ENV_FILE="${1:-.env}"
+MODE="${2:-all}" # "docker" for make dev, "web" for make dev-web, "all" for both
 
-# Local development ports exposed on the host. Container-internal ports stay fixed.
-declare -A DEFAULT_PORTS=(
+# Ports from port-registry MCP — source of truth.
+declare -A REGISTRY_PORTS=(
   [HTTP_PORT]=3002
   [DEV_WEB_PORT]=3003
   [SCRAPER_PORT]=3005
@@ -14,7 +15,15 @@ declare -A DEFAULT_PORTS=(
   [GRPC_PORT]=9000
 )
 
-ordered_keys=(HTTP_PORT DEV_WEB_PORT SCRAPER_PORT DB_PORT DEV_REDIS_PORT LOCALSTACK_PORT GRPC_PORT)
+# Which keys each mode needs
+docker_keys=(HTTP_PORT SCRAPER_PORT DB_PORT DEV_REDIS_PORT LOCALSTACK_PORT GRPC_PORT)
+web_keys=(DEV_WEB_PORT)
+
+case "$MODE" in
+  docker) active_keys=("${docker_keys[@]}") ;;
+  web)    active_keys=("${web_keys[@]}") ;;
+  *)      active_keys=(HTTP_PORT DEV_WEB_PORT SCRAPER_PORT DB_PORT DEV_REDIS_PORT LOCALSTACK_PORT GRPC_PORT) ;;
+esac
 
 if [ ! -f "$ENV_FILE" ]; then
   if [ -f ".env.example" ]; then
@@ -24,43 +33,6 @@ if [ ! -f "$ENV_FILE" ]; then
     touch "$ENV_FILE"
   fi
 fi
-
-get_env_value() {
-  local key="$1"
-  local value=""
-  if [ -f "$ENV_FILE" ]; then
-    value=$(grep -E "^${key}=" "$ENV_FILE" | tail -n 1 | cut -d= -f2- || true)
-  fi
-  printf '%s' "$value"
-}
-
-is_port_busy() {
-  local port="$1"
-  lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1
-}
-
-contains_port() {
-  local needle="$1"
-  shift || true
-  local port
-  for port in "$@"; do
-    [ "$port" = "$needle" ] && return 0
-  done
-  return 1
-}
-
-pick_port() {
-  local requested="$1"
-  shift || true
-  local reserved=("$@")
-  local candidate="$requested"
-
-  while is_port_busy "$candidate" || contains_port "$candidate" "${reserved[@]}"; do
-    candidate=$((candidate + 1))
-  done
-
-  printf '%s' "$candidate"
-}
 
 upsert_env() {
   local key="$1"
@@ -75,26 +47,25 @@ upsert_env() {
   fi
 }
 
-selected=()
+get_env_value() {
+  local key="$1"
+  if [ -f "$ENV_FILE" ]; then
+    grep -E "^${key}=" "$ENV_FILE" | tail -n 1 | cut -d= -f2- || true
+  fi
+}
+
 declare -A PORTS
 
-for key in "${ordered_keys[@]}"; do
-  current="$(get_env_value "$key")"
-  if ! [[ "$current" =~ ^[0-9]+$ ]]; then
-    current="${DEFAULT_PORTS[$key]}"
-  fi
+# Always ensure all ports are in .env (docker-compose reads DEV_WEB_PORT too)
+for key in HTTP_PORT DEV_WEB_PORT SCRAPER_PORT DB_PORT DEV_REDIS_PORT LOCALSTACK_PORT GRPC_PORT; do
+  port="${REGISTRY_PORTS[$key]}"
+  PORTS[$key]="$port"
+  upsert_env "$key" "$port"
+done
 
-  chosen="$(pick_port "$current" "${selected[@]}")"
-  PORTS[$key]="$chosen"
-  selected+=("$chosen")
-
-  if [ "$chosen" != "$current" ]; then
-    echo "$key=$current is busy; using $chosen"
-  else
-    echo "$key=$chosen"
-  fi
-
-  upsert_env "$key" "$chosen"
+# Print only the active keys
+for key in "${active_keys[@]}"; do
+  echo "$key=${PORTS[$key]}"
 done
 
 api_port="${PORTS[HTTP_PORT]}"
@@ -108,8 +79,27 @@ upsert_env "OAUTH_REDIRECT_BASE_URL" "http://localhost:${api_port}"
 upsert_env "INTEGRATION_OAUTH_REDIRECT_BASE" "http://localhost:${api_port}"
 upsert_env "MINIO_PUBLIC_URL" "http://localhost:${localstack_port}"
 upsert_env "CORS_ALLOWED_ORIGINS" "http://localhost:${api_port},http://*.localhost:${api_port},http://localhost:${web_port},http://pulzifi.local:${api_port},http://*.pulzifi.local:${api_port}"
+upsert_env "PAYLOAD_CSRF_ORIGINS" "http://localhost:${api_port},http://localhost:${web_port}"
 
-cat <<EOF
+if [ "$MODE" = "docker" ]; then
+  cat <<EOF
+
+Dev ports (docker):
+  API / Go entrypoint: http://localhost:${api_port}
+  Scraper host port:  ${PORTS[SCRAPER_PORT]}
+  Postgres host port: ${PORTS[DB_PORT]}
+  Redis host port:    ${PORTS[DEV_REDIS_PORT]}
+  LocalStack port:    ${PORTS[LOCALSTACK_PORT]}
+  gRPC host port:     ${PORTS[GRPC_PORT]}
+EOF
+elif [ "$MODE" = "web" ]; then
+  cat <<EOF
+
+Dev ports (web):
+  Next.js dev server: http://localhost:${web_port}
+EOF
+else
+  cat <<EOF
 
 Dev ports ready:
   API / Go entrypoint: http://localhost:${api_port}
@@ -120,3 +110,4 @@ Dev ports ready:
   LocalStack port:    ${PORTS[LOCALSTACK_PORT]}
   gRPC host port:     ${PORTS[GRPC_PORT]}
 EOF
+fi

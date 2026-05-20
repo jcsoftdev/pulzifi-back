@@ -19,7 +19,7 @@ help: ## Show this help message
 	@echo ""
 	@echo "$(GREEN)DEVELOPMENT:$(NC)"
 	@echo "  $(YELLOW)make dev$(NC)      - Start local dev environment (postgres + extractor + hot reload)"
-	@echo "  $(YELLOW)make dev-web$(NC)  - Start Next.js on :3001 (Go on :3000 proxies unmatched routes)"
+	@echo "  $(YELLOW)make dev-web$(NC)  - Start Next.js (Go proxies unmatched routes)"
 	@echo "  $(YELLOW)make down$(NC)     - Stop local dev environment"
 	@echo "  $(YELLOW)make logs$(NC)     - View logs (use: make logs service=monolith)"
 	@echo ""
@@ -49,16 +49,16 @@ check-env:
 # ============================================================
 
 dev: check-env ## Start local dev (postgres + scraper + API + worker with hot reload)
-	@./tools/scripts/assign-dev-ports.sh $(ENV_FILE)
+	@./tools/scripts/assign-dev-ports.sh $(ENV_FILE) docker
 	@echo "$(GREEN)Starting local dev environment...$(NC)"
 	@docker-compose up --remove-orphans
 
 dev-web: check-env ## Start Next.js on configured DEV_WEB_PORT (Go proxies unmatched routes)
-	@./tools/scripts/assign-dev-ports.sh $(ENV_FILE)
+	@./tools/scripts/assign-dev-ports.sh $(ENV_FILE) web
 	@set -a; . $(PWD)/$(ENV_FILE); set +a; \
-		echo "$(GREEN)Starting Next.js on :$${DEV_WEB_PORT:-3001}...$(NC)"; \
-		echo "$(YELLOW)Access the app at http://<tenant>.localhost:$${HTTP_PORT:-3000} (Go serves as entry point)$(NC)"; \
-		cd frontend/apps/web && PORT=$${DEV_WEB_PORT:-3001} bun dev
+		echo "$(GREEN)Starting Next.js on :$${DEV_WEB_PORT}...$(NC)"; \
+		echo "$(YELLOW)Access the app at http://<tenant>.localhost:$${HTTP_PORT} (Go serves as entry point)$(NC)"; \
+		cd frontend/apps/web && PORT=$${DEV_WEB_PORT} bun dev
 
 down: ## Stop local dev environment
 	@docker-compose down -v
