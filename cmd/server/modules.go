@@ -52,7 +52,7 @@ import (
 	team "github.com/jcsoftdev/pulzifi-back/modules/team/infrastructure/http"
 	usage "github.com/jcsoftdev/pulzifi-back/modules/usage/infrastructure/http"
 	workspace "github.com/jcsoftdev/pulzifi-back/modules/workspace/infrastructure/http"
-	"github.com/jcsoftdev/pulzifi-back/shared/bff"
+	"github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/bff"
 	"github.com/jcsoftdev/pulzifi-back/shared/config"
 	"github.com/jcsoftdev/pulzifi-back/shared/crypto"
 	"github.com/jcsoftdev/pulzifi-back/shared/eventbus"

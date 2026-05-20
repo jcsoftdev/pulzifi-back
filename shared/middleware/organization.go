@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	authmw "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/middleware"
+	"github.com/jcsoftdev/pulzifi-back/shared/contextkeys"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"go.uber.org/zap"
 )
@@ -23,7 +23,7 @@ func NewOrganizationMiddleware(db *sql.DB) *OrganizationMiddleware {
 func (m *OrganizationMiddleware) RequireOrganizationMembership(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Get user ID from context (set by AuthMiddleware)
-		userIDStr, ok := r.Context().Value(authmw.UserIDKey).(string)
+		userIDStr, ok := r.Context().Value(contextkeys.UserIDKey).(string)
 		if !ok {
 			logger.Warn("User ID not found in context for organization check")
 			m.forbidden(w, "unauthorized")

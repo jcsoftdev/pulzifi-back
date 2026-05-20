@@ -10,14 +10,18 @@ import (
 	"github.com/google/uuid"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/services"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/cookies"
+	"github.com/jcsoftdev/pulzifi-back/shared/contextkeys"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"go.uber.org/zap"
 )
 
-type ContextKey string
+// ContextKey is an alias for the shared context key type to prevent import cycles.
+type ContextKey = contextkeys.ContextKey
 
 const (
-	UserIDKey    ContextKey = "user_id"
+	// UserIDKey is re-exported from shared/contextkeys so callers that import this
+	// package continue to work without modification.
+	UserIDKey    = contextkeys.UserIDKey
 	UserEmailKey ContextKey = "user_email"
 	UserRolesKey ContextKey = "user_roles"
 	UserPermsKey ContextKey = "user_permissions"

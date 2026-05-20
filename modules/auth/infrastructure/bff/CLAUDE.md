@@ -1,4 +1,4 @@
-# BFF Package (`shared/bff/`)
+# BFF Package (`modules/auth/infrastructure/bff/`)
 
 Backend-For-Frontend auth handler for cross-subdomain cookie management.
 
