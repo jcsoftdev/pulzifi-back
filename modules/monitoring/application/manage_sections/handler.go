@@ -2,15 +2,10 @@ package managesections
 
 import (
 	"context"
-	"encoding/json"
-	"net/http"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/domain/entities"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/domain/repositories"
-	"github.com/jcsoftdev/pulzifi-back/shared/logger"
-	"go.uber.org/zap"
 )
 
 // ManageSectionsHandler handles CRUD operations for monitored sections.
@@ -116,67 +111,6 @@ func (h *ManageSectionsHandler) SaveAll(ctx context.Context, pageID uuid.UUID, r
 // DeleteSection removes a single section by ID.
 func (h *ManageSectionsHandler) DeleteSection(ctx context.Context, sectionID uuid.UUID) error {
 	return h.sectionRepo.Delete(ctx, sectionID)
-}
-
-// HandleListHTTP is the HTTP handler for GET /pages/{pageId}/sections
-func (h *ManageSectionsHandler) HandleListHTTP(w http.ResponseWriter, r *http.Request) {
-	pageID, err := uuid.Parse(chi.URLParam(r, "pageId"))
-	if err != nil {
-		http.Error(w, "invalid page_id", http.StatusBadRequest)
-		return
-	}
-
-	resp, err := h.List(r.Context(), pageID)
-	if err != nil {
-		logger.Error("Failed to list sections", zap.Error(err))
-		http.Error(w, "failed to list sections", http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
-}
-
-// HandleSaveHTTP is the HTTP handler for POST /pages/{pageId}/sections
-func (h *ManageSectionsHandler) HandleSaveHTTP(w http.ResponseWriter, r *http.Request) {
-	pageID, err := uuid.Parse(chi.URLParam(r, "pageId"))
-	if err != nil {
-		http.Error(w, "invalid page_id", http.StatusBadRequest)
-		return
-	}
-
-	var req SaveSectionsRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
-		return
-	}
-
-	resp, err := h.SaveAll(r.Context(), pageID, &req)
-	if err != nil {
-		logger.Error("Failed to save sections", zap.Error(err))
-		http.Error(w, "failed to save sections", http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
-}
-
-// HandleDeleteHTTP is the HTTP handler for DELETE /pages/{pageId}/sections/{sectionId}
-func (h *ManageSectionsHandler) HandleDeleteHTTP(w http.ResponseWriter, r *http.Request) {
-	sectionID, err := uuid.Parse(chi.URLParam(r, "sectionId"))
-	if err != nil {
-		http.Error(w, "invalid section_id", http.StatusBadRequest)
-		return
-	}
-
-	if err := h.DeleteSection(r.Context(), sectionID); err != nil {
-		logger.Error("Failed to delete section", zap.Error(err))
-		http.Error(w, "failed to delete section", http.StatusInternalServerError)
-		return
-	}
-
-	w.WriteHeader(http.StatusNoContent)
 }
 
 func toSectionResponse(s *entities.MonitoredSection) *SectionResponse {

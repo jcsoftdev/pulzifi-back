@@ -19,6 +19,7 @@ import (
 	twilioprovider "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers/twilio"
 	deliveryworker "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/worker"
 	monitoring "github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/http"
+	monitoringwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/monitoring"
 	intwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/integration"
 	emailproviders "github.com/jcsoftdev/pulzifi-back/modules/email/infrastructure/providers"
 	"github.com/jcsoftdev/pulzifi-back/modules/integration/domain/services"
@@ -46,12 +47,23 @@ func main() {
 	// ---------------------------------------------------------------------------
 	// Monitoring background processes
 	// ---------------------------------------------------------------------------
-	mod := monitoring.NewModuleWithDB(db, eventbus.GetInstance(), nil, "")
-	if monitoringModule, ok := mod.(*monitoring.Module); ok {
-		monitoringModule.StartBackgroundProcesses()
-	} else {
-		logger.Logger.Fatal("Failed to cast monitoring module")
+	emailProvider := emailproviders.NewResendProvider(cfg.ResendAPIKey, cfg.EmailFromAddress, cfg.EmailFromName)
+	snapshotWorker, err := monitoringwiring.NewSnapshotWorker(monitoringwiring.SnapshotWorkerDeps{
+		DB:            db,
+		EventBus:      eventbus.GetInstance(),
+		EmailProvider: emailProvider,
+		FrontendURL:   cfg.FrontendURL,
+		Cfg:           cfg,
+	})
+	if err != nil {
+		logger.Error("Failed to build snapshot worker for monitoring", zap.Error(err))
 	}
+	monitoringMod := monitoring.NewModuleWithDeps(monitoring.Deps{
+		DB:               db,
+		EventBus:         eventbus.GetInstance(),
+		SnapshotExecutor: snapshotWorker,
+	})
+	monitoringMod.StartBackgroundProcesses()
 
 	// ---------------------------------------------------------------------------
 	// Integration delivery worker
@@ -75,7 +87,6 @@ func main() {
 
 	intRepo := intpersistence.NewIntegrationPostgresRepository(db, intEnc)
 
-	emailProvider := emailproviders.NewResendProvider(cfg.ResendAPIKey, cfg.EmailFromAddress, cfg.EmailFromName)
 	slackClient := slackprovider.New(cfg.SlackClientID, cfg.SlackClientSecret)
 	intEmailClient := emailprovider.New(intwiring.NewEmailAdapter(emailProvider))
 	discordClient := discordprovider.New(cfg.DiscordClientID, cfg.DiscordClientSecret)

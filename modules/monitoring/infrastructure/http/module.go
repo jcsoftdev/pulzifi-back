@@ -12,9 +12,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	emailservices "github.com/jcsoftdev/pulzifi-back/modules/email/domain/services"
-	generateinsights "github.com/jcsoftdev/pulzifi-back/modules/insight/application/generate_insights"
-	insightAI "github.com/jcsoftdev/pulzifi-back/modules/insight/infrastructure/ai"
 	bulkupdatemonitoringconfig "github.com/jcsoftdev/pulzifi-back/modules/monitoring/application/bulk_update_monitoring_config"
 	createcheck "github.com/jcsoftdev/pulzifi-back/modules/monitoring/application/create_check"
 	createmonitoringconfig "github.com/jcsoftdev/pulzifi-back/modules/monitoring/application/create_monitoring_config"
@@ -25,13 +22,9 @@ import (
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/application/orchestrator"
 	updatemonitoringconfig "github.com/jcsoftdev/pulzifi-back/modules/monitoring/application/update_monitoring_config"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/application/workers"
+	monitoringservices "github.com/jcsoftdev/pulzifi-back/modules/monitoring/domain/services"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/persistence"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/scheduler"
-	snapshotapp "github.com/jcsoftdev/pulzifi-back/modules/snapshot/application"
-	snapshotextractor "github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/extractor"
-	snapshotstorage "github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/storage"
-	sharedAI "github.com/jcsoftdev/pulzifi-back/shared/ai"
-	"github.com/jcsoftdev/pulzifi-back/shared/config"
 	"github.com/jcsoftdev/pulzifi-back/shared/eventbus"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
@@ -40,6 +33,15 @@ import (
 	"github.com/lib/pq"
 	"go.uber.org/zap"
 )
+
+// Deps contains all external dependencies for the Monitoring module.
+// Cross-module dependencies (snapshot, email, insight) are provided via
+// the SnapshotExecutor port, constructed by cmd/wiring/monitoring.
+type Deps struct {
+	DB               *sql.DB
+	EventBus         *eventbus.EventBus
+	SnapshotExecutor monitoringservices.SnapshotExecutor
+}
 
 // Module implements the router.ModuleRegisterer interface for the Monitoring module
 type Module struct {
@@ -55,61 +57,23 @@ func NewModule() router.ModuleRegisterer {
 	return &Module{}
 }
 
-// NewModuleWithDB creates a new instance with database connection
-func NewModuleWithDB(db *sql.DB, eventBus *eventbus.EventBus, emailProvider emailservices.EmailProvider, frontendURL string) router.ModuleRegisterer {
+// NewModuleWithDeps creates a new instance with all dependencies injected.
+// Cross-module concerns (snapshot, insight, email) are provided via deps.SnapshotExecutor.
+func NewModuleWithDeps(deps Deps) *Module {
 	m := &Module{
-		db:       db,
-		eventBus: eventBus,
-	}
-
-	// Initialize Configuration
-	cfg := config.Load()
-
-	// Initialize Snapshot Infrastructure
-	objectStorage, err := snapshotstorage.NewObjectStorage(cfg)
-	if err != nil {
-		objectStorage = nil // Ensure interface is truly nil, not a nil concrete pointer
-		logger.Error("Failed to initialize object storage client — snapshot uploads will fail", zap.Error(err))
-	} else if objectStorage != nil {
-		if err := objectStorage.EnsureBucket(context.Background()); err != nil {
-			logger.Error("Failed to initialize object storage", zap.Error(err))
-		}
-	}
-
-	extractorClient := snapshotextractor.NewHTTPClient(cfg.ExtractorURL)
-
-	var insightHandler *generateinsights.GenerateInsightsHandler
-	if cfg.OpenRouterAPIKey != "" {
-		openRouterClient := sharedAI.NewOpenRouterClient(cfg.OpenRouterAPIKey, cfg.OpenRouterModel)
-		generator := insightAI.NewOpenRouterGenerator(openRouterClient)
-		insightHandler = generateinsights.NewGenerateInsightsHandler(generator, m.db)
-	}
-
-	snapshotWorker := snapshotapp.NewSnapshotWorker(objectStorage, extractorClient, m.db, insightHandler, emailProvider, frontendURL)
-
-	// Set pixel diff threshold from config
-	snapshotWorker.SetPixelDiffThreshold(cfg.PixelDiffThreshold)
-
-	// Wire the EventBus so publishChangeDetected can fan-out to integration destinations.
-	if m.eventBus != nil {
-		snapshotWorker.SetMessageBus(m.eventBus)
-	}
-
-	// Initialize Vision AI analyzer if vision model is configured
-	if cfg.OpenRouterAPIKey != "" && cfg.OpenRouterVisionModel != "" {
-		visionClient := sharedAI.NewOpenRouterClient(cfg.OpenRouterAPIKey, cfg.OpenRouterVisionModel)
-		visionAnalyzer := insightAI.NewOpenRouterVisionAnalyzer(visionClient)
-		snapshotWorker.SetVisionAnalyzer(visionAnalyzer)
-		logger.Info("Vision AI analyzer initialized", zap.String("model", cfg.OpenRouterVisionModel))
+		db:       deps.DB,
+		eventBus: deps.EventBus,
 	}
 
 	// Initialize the check broker for SSE push notifications.
 	m.checkBroker = pubsub.NewCheckBroker()
 
 	// Wire OnCheckDone so successful/error completions are pushed to SSE subscribers.
-	snapshotWorker.SetOnCheckDone(func(pageID uuid.UUID, checkJSON []byte) {
-		m.checkBroker.Publish(pageID.String(), checkJSON)
-	})
+	if deps.SnapshotExecutor != nil {
+		deps.SnapshotExecutor.SetOnCheckDone(func(pageID uuid.UUID, checkJSON []byte) {
+			m.checkBroker.Publish(pageID.String(), checkJSON)
+		})
+	}
 
 	// Create WorkerPool with a callback that marks failed checks in the DB.
 	failCheck := func(ctx context.Context, checkID uuid.UUID, schemaName string, errMsg string) {
@@ -141,7 +105,7 @@ func NewModuleWithDB(db *sql.DB, eventBus *eventbus.EventBus, emailProvider emai
 		})
 		m.checkBroker.Publish(check.PageID.String(), payload)
 	}
-	m.workerPool = workers.NewWorkerPool(snapshotWorker, 100, failCheck)
+	m.workerPool = workers.NewWorkerPool(deps.SnapshotExecutor, 100, failCheck)
 
 	// In API-only mode we still need immediate dispatch capability when user updates frequency.
 	// Start a lightweight in-process worker to consume TriggerPageCheck jobs.
@@ -163,6 +127,17 @@ func NewModuleWithDB(db *sql.DB, eventBus *eventbus.EventBus, emailProvider emai
 	m.scheduler = scheduler.NewScheduler(m.db, orch)
 
 	return m
+}
+
+// NewModuleWithDB creates a new instance with database connection.
+// Deprecated: use NewModuleWithDeps for clean dependency injection.
+// Kept for the cmd/worker entry point which does not need snapshot/email/insight.
+func NewModuleWithDB(db *sql.DB, eventBus *eventbus.EventBus) router.ModuleRegisterer {
+	return NewModuleWithDeps(Deps{
+		DB:               db,
+		EventBus:         eventBus,
+		SnapshotExecutor: nil,
+	})
 }
 
 // StartBackgroundProcesses initializes and starts the Scheduler, Orchestrator, and Workers
@@ -253,9 +228,27 @@ func (m *Module) handleCreateCheck(w http.ResponseWriter, r *http.Request) {
 	// Create repository with dynamic tenant
 	repo := persistence.NewCheckPostgresRepository(m.db, tenant)
 
-	// Use real handler
+	// Use handler with parsed inputs
+	var req createcheck.CreateCheckRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.PageID == [16]byte{} || req.Status == "" {
+		http.Error(w, "page_id and status are required", http.StatusBadRequest)
+		return
+	}
+
 	handler := createcheck.NewCreateCheckHandler(repo)
-	handler.HandleHTTP(w, r)
+	resp, err := handler.Handle(r.Context(), &req)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(resp)
 }
 
 // handleListChecks lists monitoring checks for a page
@@ -314,10 +307,44 @@ func (m *Module) handleListChecksByPage(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	pageIDStr := chi.URLParam(r, "pageId")
+	pageID, err := uuid.Parse(pageIDStr)
+	if err != nil {
+		http.Error(w, "Invalid page ID", http.StatusBadRequest)
+		return
+	}
+
 	tenant := middleware.GetTenantFromContext(r.Context())
 	repo := persistence.NewCheckPostgresRepository(m.db, tenant)
 	handler := listchecks.NewListChecksHandler(repo)
-	handler.HandleHTTP(w, r)
+
+	// Optional section_id filter
+	var resp *listchecks.ListChecksResponse
+	sectionIDStr := r.URL.Query().Get("section_id")
+	if sectionIDStr != "" {
+		sectionID, err := uuid.Parse(sectionIDStr)
+		if err != nil {
+			http.Error(w, "Invalid section_id", http.StatusBadRequest)
+			return
+		}
+		resp, err = handler.HandleBySection(r.Context(), pageID, &sectionID)
+		if err != nil {
+			logger.Error("Failed to list checks by section", zap.Error(err))
+			http.Error(w, "Failed to list checks", http.StatusInternalServerError)
+			return
+		}
+	} else {
+		resp, err = handler.Handle(r.Context(), pageID)
+		if err != nil {
+			logger.Error("Failed to list checks", zap.Error(err))
+			http.Error(w, "Failed to list checks", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(resp)
 }
 
 // handleRunNow triggers an immediate monitoring check for a page
@@ -464,15 +491,29 @@ func (m *Module) handleCreateMonitoringConfig(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	// Get tenant from context
 	tenant := middleware.GetTenantFromContext(r.Context())
-
-	// Create repository with dynamic tenant
 	repo := persistence.NewMonitoringConfigPostgresRepository(m.db, tenant)
 
-	// Use real handler
+	var req createmonitoringconfig.CreateMonitoringConfigRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.PageID == [16]byte{} || req.CheckFrequency == "" {
+		http.Error(w, "page_id and check_frequency are required", http.StatusBadRequest)
+		return
+	}
+
 	handler := createmonitoringconfig.NewCreateMonitoringConfigHandler(repo, m.scheduler)
-	handler.HandleHTTP(w, r)
+	resp, err := handler.Handle(r.Context(), &req)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(resp)
 }
 
 // handleGetMonitoringConfig gets a monitoring config by page ID
@@ -495,10 +536,30 @@ func (m *Module) handleGetMonitoringConfig(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	pageIDStr := chi.URLParam(r, "pageId")
+	pageID, err := uuid.Parse(pageIDStr)
+	if err != nil {
+		http.Error(w, "Invalid page ID", http.StatusBadRequest)
+		return
+	}
+
 	tenant := middleware.GetTenantFromContext(r.Context())
 	repo := persistence.NewMonitoringConfigPostgresRepository(m.db, tenant)
 	handler := getmonitoringconfig.NewGetMonitoringConfigHandler(repo)
-	handler.HandleHTTP(w, r)
+
+	resp, err := handler.Handle(r.Context(), pageID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if resp == nil {
+		http.Error(w, "Monitoring config not found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(resp)
 }
 
 // handleUpdateMonitoringConfig updates or creates a monitoring config by page ID
@@ -524,15 +585,34 @@ func (m *Module) handleUpdateMonitoringConfig(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	// Get tenant from context
-	tenant := middleware.GetTenantFromContext(r.Context())
+	pageIDStr := chi.URLParam(r, "pageId")
+	pageID, err := uuid.Parse(pageIDStr)
+	if err != nil {
+		logger.Error("Invalid page ID", zap.Error(err))
+		http.Error(w, "invalid page_id", http.StatusBadRequest)
+		return
+	}
 
-	// Create repository with dynamic tenant
+	var req updatemonitoringconfig.UpdateMonitoringConfigRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	tenant := middleware.GetTenantFromContext(r.Context())
 	repo := persistence.NewMonitoringConfigPostgresRepository(m.db, tenant)
 
-	// Use real handler
 	handler := updatemonitoringconfig.NewUpdateMonitoringConfigHandler(repo, m.eventBus, tenant, m.scheduler)
-	handler.HandleHTTP(w, r)
+	response, err := handler.Handle(r.Context(), pageID, &req)
+	if err != nil {
+		logger.Error("Failed to update monitoring config", zap.Error(err))
+		http.Error(w, "failed to update monitoring config", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(response)
 }
 
 // handleBulkUpdateMonitoringConfig updates check frequency for multiple pages at once
@@ -550,10 +630,41 @@ func (m *Module) handleBulkUpdateMonitoringConfig(w http.ResponseWriter, r *http
 		return
 	}
 
+	var req bulkupdatemonitoringconfig.BulkUpdateMonitoringConfigRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	if len(req.PageIDs) == 0 {
+		http.Error(w, "page_ids must not be empty", http.StatusBadRequest)
+		return
+	}
+	if req.CheckFrequency == "" {
+		http.Error(w, "check_frequency is required", http.StatusBadRequest)
+		return
+	}
+
+	pageIDs := make([]uuid.UUID, 0, len(req.PageIDs))
+	for _, idStr := range req.PageIDs {
+		id, err := uuid.Parse(idStr)
+		if err != nil {
+			http.Error(w, "Invalid page ID: "+idStr, http.StatusBadRequest)
+			return
+		}
+		pageIDs = append(pageIDs, id)
+	}
+
 	tenant := middleware.GetTenantFromContext(r.Context())
 	repo := persistence.NewMonitoringConfigPostgresRepository(m.db, tenant)
 	handler := bulkupdatemonitoringconfig.NewBulkUpdateMonitoringConfigHandler(repo)
-	handler.HandleHTTP(w, r)
+
+	if err := handler.Handle(r.Context(), pageIDs, req.CheckFrequency); err != nil {
+		logger.Error("Failed to bulk update monitoring config", zap.Error(err))
+		http.Error(w, "Failed to update check frequency", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // handleCreateNotificationPreference creates a new notification preference
@@ -578,15 +689,33 @@ func (m *Module) handleCreateNotificationPreference(w http.ResponseWriter, r *ht
 		return
 	}
 
-	// Get tenant from context
 	tenant := middleware.GetTenantFromContext(r.Context())
-
-	// Create repository with dynamic tenant
 	repo := persistence.NewNotificationPreferencePostgresRepository(m.db, tenant)
 
-	// Use real handler
+	var req createnotificationpreference.CreateNotificationPreferenceRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	if (req.WorkspaceID == nil && req.PageID == nil) || (req.WorkspaceID != nil && req.PageID != nil) {
+		http.Error(w, "Either workspace_id or page_id must be provided, not both", http.StatusBadRequest)
+		return
+	}
+	if req.UserID == [16]byte{} {
+		http.Error(w, "user_id is required", http.StatusBadRequest)
+		return
+	}
+
 	handler := createnotificationpreference.NewCreateNotificationPreferenceHandler(repo)
-	handler.HandleHTTP(w, r)
+	resp, err := handler.Handle(r.Context(), &req)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(resp)
 }
 
 // handleGetNotificationPreference gets a notification preference by ID
@@ -642,11 +771,27 @@ func (m *Module) handleListSections(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Database not initialized", http.StatusInternalServerError)
 		return
 	}
+
+	pageID, err := uuid.Parse(chi.URLParam(r, "pageId"))
+	if err != nil {
+		http.Error(w, "invalid page_id", http.StatusBadRequest)
+		return
+	}
+
 	tenant := middleware.GetTenantFromContext(r.Context())
 	sectionRepo := persistence.NewMonitoredSectionPostgresRepository(m.db, tenant)
 	configRepo := persistence.NewMonitoringConfigPostgresRepository(m.db, tenant)
 	handler := managesections.NewManageSectionsHandler(sectionRepo, configRepo)
-	handler.HandleListHTTP(w, r)
+
+	resp, err := handler.List(r.Context(), pageID)
+	if err != nil {
+		logger.Error("Failed to list sections", zap.Error(err))
+		http.Error(w, "failed to list sections", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
 }
 
 // handleSaveSections replaces all monitored sections for a page
@@ -665,11 +810,33 @@ func (m *Module) handleSaveSections(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Database not initialized", http.StatusInternalServerError)
 		return
 	}
+
+	pageID, err := uuid.Parse(chi.URLParam(r, "pageId"))
+	if err != nil {
+		http.Error(w, "invalid page_id", http.StatusBadRequest)
+		return
+	}
+
+	var req managesections.SaveSectionsRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
 	tenant := middleware.GetTenantFromContext(r.Context())
 	sectionRepo := persistence.NewMonitoredSectionPostgresRepository(m.db, tenant)
 	configRepo := persistence.NewMonitoringConfigPostgresRepository(m.db, tenant)
 	handler := managesections.NewManageSectionsHandler(sectionRepo, configRepo)
-	handler.HandleSaveHTTP(w, r)
+
+	resp, err := handler.SaveAll(r.Context(), pageID, &req)
+	if err != nil {
+		logger.Error("Failed to save sections", zap.Error(err))
+		http.Error(w, "failed to save sections", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
 }
 
 // handleDeleteSection deletes a single monitored section
@@ -686,11 +853,25 @@ func (m *Module) handleDeleteSection(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Database not initialized", http.StatusInternalServerError)
 		return
 	}
+
+	sectionID, err := uuid.Parse(chi.URLParam(r, "sectionId"))
+	if err != nil {
+		http.Error(w, "invalid section_id", http.StatusBadRequest)
+		return
+	}
+
 	tenant := middleware.GetTenantFromContext(r.Context())
 	sectionRepo := persistence.NewMonitoredSectionPostgresRepository(m.db, tenant)
 	configRepo := persistence.NewMonitoringConfigPostgresRepository(m.db, tenant)
 	handler := managesections.NewManageSectionsHandler(sectionRepo, configRepo)
-	handler.HandleDeleteHTTP(w, r)
+
+	if err := handler.DeleteSection(r.Context(), sectionID); err != nil {
+		logger.Error("Failed to delete section", zap.Error(err))
+		http.Error(w, "failed to delete section", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // handleCheckSSE streams check-updated events to the client using SSE.

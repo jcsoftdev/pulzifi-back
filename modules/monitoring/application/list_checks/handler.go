@@ -2,15 +2,10 @@ package listchecks
 
 import (
 	"context"
-	"encoding/json"
-	"net/http"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/domain/entities"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/domain/repositories"
-	"github.com/jcsoftdev/pulzifi-back/shared/logger"
-	"go.uber.org/zap"
 )
 
 type ListChecksHandler struct {
@@ -98,42 +93,4 @@ func buildResponseWithSections(parentChecks []*entities.Check, sectionsByParent 
 		response.Checks[i] = cr
 	}
 	return response
-}
-
-func (h *ListChecksHandler) HandleHTTP(w http.ResponseWriter, r *http.Request) {
-	pageIDStr := chi.URLParam(r, "pageId")
-	pageID, err := uuid.Parse(pageIDStr)
-	if err != nil {
-		http.Error(w, "Invalid page ID", http.StatusBadRequest)
-		return
-	}
-
-	var resp *ListChecksResponse
-
-	// Optional section_id filter
-	sectionIDStr := r.URL.Query().Get("section_id")
-	if sectionIDStr != "" {
-		sectionID, err := uuid.Parse(sectionIDStr)
-		if err != nil {
-			http.Error(w, "Invalid section_id", http.StatusBadRequest)
-			return
-		}
-		resp, err = h.HandleBySection(r.Context(), pageID, &sectionID)
-		if err != nil {
-			logger.Error("Failed to list checks by section", zap.Error(err))
-			http.Error(w, "Failed to list checks", http.StatusInternalServerError)
-			return
-		}
-	} else {
-		resp, err = h.Handle(r.Context(), pageID)
-		if err != nil {
-			logger.Error("Failed to list checks", zap.Error(err))
-			http.Error(w, "Failed to list checks", http.StatusInternalServerError)
-			return
-		}
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(resp)
 }

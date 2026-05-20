@@ -2,20 +2,18 @@ package create_monitoring_config
 
 import (
 	"context"
-	"encoding/json"
-	"net/http"
 
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/domain/entities"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/domain/repositories"
-	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/scheduler"
+	monitoringservices "github.com/jcsoftdev/pulzifi-back/modules/monitoring/domain/services"
 )
 
 type CreateMonitoringConfigHandler struct {
 	repo      repositories.MonitoringConfigRepository
-	scheduler *scheduler.Scheduler
+	scheduler monitoringservices.Scheduler
 }
 
-func NewCreateMonitoringConfigHandler(repo repositories.MonitoringConfigRepository, scheduler *scheduler.Scheduler) *CreateMonitoringConfigHandler {
+func NewCreateMonitoringConfigHandler(repo repositories.MonitoringConfigRepository, scheduler monitoringservices.Scheduler) *CreateMonitoringConfigHandler {
 	return &CreateMonitoringConfigHandler{
 		repo:      repo,
 		scheduler: scheduler,
@@ -35,44 +33,15 @@ func (h *CreateMonitoringConfigHandler) Handle(ctx context.Context, req *CreateM
 	}
 
 	return &CreateMonitoringConfigResponse{
-		ID:                    config.ID,
-		PageID:                config.PageID,
-		CheckFrequency:        config.CheckFrequency,
-		ScheduleType:          config.ScheduleType,
-		Timezone:              config.Timezone,
-		BlockAdsCookies:       config.BlockAdsCookies,
-		EnabledInsightTypes:   config.EnabledInsightTypes,
+		ID:                     config.ID,
+		PageID:                 config.PageID,
+		CheckFrequency:         config.CheckFrequency,
+		ScheduleType:           config.ScheduleType,
+		Timezone:               config.Timezone,
+		BlockAdsCookies:        config.BlockAdsCookies,
+		EnabledInsightTypes:    config.EnabledInsightTypes,
 		EnabledAlertConditions: config.EnabledAlertConditions,
-		CustomAlertCondition:  config.CustomAlertCondition,
-		CreatedAt:             config.CreatedAt,
+		CustomAlertCondition:   config.CustomAlertCondition,
+		CreatedAt:              config.CreatedAt,
 	}, nil
-}
-
-// HTTP Handler wrapper
-func (h *CreateMonitoringConfigHandler) HandleHTTP(w http.ResponseWriter, r *http.Request) {
-	var req CreateMonitoringConfigRequest
-
-	// Parse JSON body
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
-
-	// Validate required fields
-	if req.PageID == [16]byte{} || req.CheckFrequency == "" {
-		http.Error(w, "page_id and check_frequency are required", http.StatusBadRequest)
-		return
-	}
-
-	// Execute use case
-	resp, err := h.Handle(r.Context(), &req)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	// Return response
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(resp)
 }

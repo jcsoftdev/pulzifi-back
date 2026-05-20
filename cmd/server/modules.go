@@ -42,6 +42,7 @@ import (
 	"github.com/jcsoftdev/pulzifi-back/shared/featureflags"
 	"github.com/jcsoftdev/pulzifi-back/shared/integrationusage"
 	monitoring "github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/http"
+	monitoringwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/monitoring"
 	orgservices "github.com/jcsoftdev/pulzifi-back/modules/organization/domain/services"
 	organization "github.com/jcsoftdev/pulzifi-back/modules/organization/infrastructure/http"
 	orgmessaging "github.com/jcsoftdev/pulzifi-back/modules/organization/infrastructure/messaging"
@@ -243,7 +244,23 @@ func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus 
 			}
 			return m
 		}()},
-		{"Monitoring", monitoring.NewModuleWithDB(db, eventBus, emailProvider, cfg.FrontendURL)},
+		{"Monitoring", func() router.ModuleRegisterer {
+				snapshotWorker, err := monitoringwiring.NewSnapshotWorker(monitoringwiring.SnapshotWorkerDeps{
+					DB:            db,
+					EventBus:      eventBus,
+					EmailProvider: emailProvider,
+					FrontendURL:   cfg.FrontendURL,
+					Cfg:           cfg,
+				})
+				if err != nil {
+					logger.Error("Failed to build snapshot worker, monitoring will run without snapshot execution", zap.Error(err))
+				}
+				return monitoring.NewModuleWithDeps(monitoring.Deps{
+					DB:               db,
+					EventBus:         eventBus,
+					SnapshotExecutor: snapshotWorker,
+				})
+			}()},
 		{"Integration", integrationMod},
 		{"Insight", insight.NewModuleWithDB(db, pubsub.NewInsightBroker())},
 		{"Report", report.NewModuleWithDB(db)},

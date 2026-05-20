@@ -2,18 +2,15 @@ package updatemonitoringconfig
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"net/http"
 	"strings"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/application/orchestrator"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/domain/entities"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/domain/repositories"
-	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/scheduler"
+	monitoringservices "github.com/jcsoftdev/pulzifi-back/modules/monitoring/domain/services"
 	"github.com/jcsoftdev/pulzifi-back/shared/eventbus"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"go.uber.org/zap"
@@ -23,10 +20,10 @@ type UpdateMonitoringConfigHandler struct {
 	repo      repositories.MonitoringConfigRepository
 	eventBus  *eventbus.EventBus
 	tenant    string
-	scheduler *scheduler.Scheduler
+	scheduler monitoringservices.Scheduler
 }
 
-func NewUpdateMonitoringConfigHandler(repo repositories.MonitoringConfigRepository, eventBus *eventbus.EventBus, tenant string, scheduler *scheduler.Scheduler) *UpdateMonitoringConfigHandler {
+func NewUpdateMonitoringConfigHandler(repo repositories.MonitoringConfigRepository, eventBus *eventbus.EventBus, tenant string, scheduler monitoringservices.Scheduler) *UpdateMonitoringConfigHandler {
 	return &UpdateMonitoringConfigHandler{
 		repo:      repo,
 		eventBus:  eventBus,
@@ -333,36 +330,4 @@ func normalizeCheckFrequency(input string) string {
 	default:
 		return input
 	}
-}
-
-// HTTP Handler wrapper
-func (h *UpdateMonitoringConfigHandler) HandleHTTP(w http.ResponseWriter, r *http.Request) {
-	// Parse JSON body
-	var req UpdateMonitoringConfigRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
-
-	// Get page ID from URL
-	pageIDStr := chi.URLParam(r, "pageId")
-	pageID, err := uuid.Parse(pageIDStr)
-	if err != nil {
-		logger.Error("Invalid page ID", zap.Error(err))
-		http.Error(w, "invalid page_id", http.StatusBadRequest)
-		return
-	}
-
-	// Execute handler
-	response, err := h.Handle(r.Context(), pageID, &req)
-	if err != nil {
-		logger.Error("Failed to update monitoring config", zap.Error(err))
-		http.Error(w, "failed to update monitoring config", http.StatusInternalServerError)
-		return
-	}
-
-	// Return JSON response
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(response)
 }

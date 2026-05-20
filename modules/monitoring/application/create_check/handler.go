@@ -2,8 +2,6 @@ package createcheck
 
 import (
 	"context"
-	"encoding/json"
-	"net/http"
 
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/domain/entities"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/domain/repositories"
@@ -19,17 +17,7 @@ func NewCreateCheckHandler(repo repositories.CheckRepository) *CreateCheckHandle
 
 func (h *CreateCheckHandler) Handle(ctx context.Context, req *CreateCheckRequest) (*CreateCheckResponse, error) {
 	// Create check entity
-	check := &entities.Check{
-		PageID:          req.PageID,
-		Status:          req.Status,
-		ChangeDetected:  req.ChangeDetected,
-		ChangeType:      req.ChangeType,
-		ScreenshotURL:   req.ScreenshotURL,
-		HTMLSnapshotURL: req.HTMLSnapshotURL,
-		ErrorMessage:    req.ErrorMessage,
-		DurationMs:      req.DurationMs,
-	}
-	check = entities.NewCheck(req.PageID, req.Status, req.ChangeDetected)
+	check := entities.NewCheck(req.PageID, req.Status, req.ChangeDetected)
 	check.ChangeType = req.ChangeType
 	check.ScreenshotURL = req.ScreenshotURL
 	check.HTMLSnapshotURL = req.HTMLSnapshotURL
@@ -50,33 +38,4 @@ func (h *CreateCheckHandler) Handle(ctx context.Context, req *CreateCheckRequest
 		ChangeType:     check.ChangeType,
 		CheckedAt:      check.CheckedAt,
 	}, nil
-}
-
-// HTTP Handler wrapper
-func (h *CreateCheckHandler) HandleHTTP(w http.ResponseWriter, r *http.Request) {
-	var req CreateCheckRequest
-
-	// Parse JSON body
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
-
-	// Validate required fields
-	if req.PageID == [16]byte{} || req.Status == "" {
-		http.Error(w, "page_id and status are required", http.StatusBadRequest)
-		return
-	}
-
-	// Execute use case
-	resp, err := h.Handle(r.Context(), &req)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	// Return response
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(resp)
 }
