@@ -17,6 +17,7 @@ COPY frontend/packages/services/package.json ./packages/services/
 COPY frontend/packages/shared-http/package.json ./packages/shared-http/
 COPY frontend/packages/notix/package.json ./packages/notix/
 COPY frontend/packages/typescript-config/package.json ./packages/typescript-config/
+COPY frontend/patches/ ./patches/
 
 RUN bun install --frozen-lockfile
 
