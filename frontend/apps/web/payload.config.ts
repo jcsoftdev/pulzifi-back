@@ -89,6 +89,14 @@ export default buildConfig({
       access: {
         read: () => true,
       },
+      hooks: {
+        beforeChange: [
+          ({ operation, data }) => {
+            if (operation === 'update') delete data.id
+            return data
+          },
+        ],
+      },
       admin: {
         useAsTitle: 'name',
         description:
