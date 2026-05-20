@@ -4,27 +4,23 @@ import (
 	"context"
 	"strings"
 
-	adminrepos "github.com/jcsoftdev/pulzifi-back/modules/admin/domain/repositories"
-	orgrepos "github.com/jcsoftdev/pulzifi-back/modules/organization/domain/repositories"
-	orgservices "github.com/jcsoftdev/pulzifi-back/modules/organization/domain/services"
+	authservices "github.com/jcsoftdev/pulzifi-back/modules/auth/domain/services"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"go.uber.org/zap"
 )
 
 // Handler checks whether a subdomain is available for registration
 type Handler struct {
-	regReqRepo adminrepos.RegistrationRequestRepository
-	orgRepo    orgrepos.OrganizationRepository
-	orgService *orgservices.OrganizationService
+	regReqWriter authservices.RegistrationRequestWriter
+	orgDirectory authservices.OrganizationDirectory
 }
 
 // NewHandler creates a new handler instance
 func NewHandler(
-	regReqRepo adminrepos.RegistrationRequestRepository,
-	orgRepo orgrepos.OrganizationRepository,
-	orgService *orgservices.OrganizationService,
+	regReqWriter authservices.RegistrationRequestWriter,
+	orgDirectory authservices.OrganizationDirectory,
 ) *Handler {
-	return &Handler{regReqRepo: regReqRepo, orgRepo: orgRepo, orgService: orgService}
+	return &Handler{regReqWriter: regReqWriter, orgDirectory: orgDirectory}
 }
 
 // Response is the result of a subdomain availability check
@@ -37,11 +33,11 @@ type Response struct {
 func (h *Handler) Handle(ctx context.Context, subdomain string) (*Response, error) {
 	subdomain = strings.TrimSpace(strings.ToLower(subdomain))
 
-	if err := h.orgService.ValidateSubdomain(subdomain); err != nil {
+	if err := h.orgDirectory.ValidateSubdomain(subdomain); err != nil {
 		return &Response{Available: false, Message: err.Error()}, nil
 	}
 
-	count, err := h.orgRepo.CountBySubdomain(ctx, subdomain)
+	count, err := h.orgDirectory.CountBySubdomain(ctx, subdomain)
 	if err != nil {
 		logger.Error("Failed to check subdomain uniqueness", zap.Error(err))
 		return nil, err
@@ -50,7 +46,7 @@ func (h *Handler) Handle(ctx context.Context, subdomain string) (*Response, erro
 		return &Response{Available: false, Message: "subdomain is already in use"}, nil
 	}
 
-	pendingExists, err := h.regReqRepo.ExistsPendingBySubdomain(ctx, subdomain)
+	pendingExists, err := h.regReqWriter.ExistsPendingBySubdomain(ctx, subdomain)
 	if err != nil {
 		logger.Error("Failed to check pending subdomain", zap.Error(err))
 		return nil, err

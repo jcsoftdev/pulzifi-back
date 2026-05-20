@@ -4,13 +4,10 @@ import (
 	"context"
 	"strings"
 
-	adminentities "github.com/jcsoftdev/pulzifi-back/modules/admin/domain/entities"
-	adminrepos "github.com/jcsoftdev/pulzifi-back/modules/admin/domain/repositories"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/entities"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/errors"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/repositories"
-	orgrepos "github.com/jcsoftdev/pulzifi-back/modules/organization/domain/repositories"
-	orgservices "github.com/jcsoftdev/pulzifi-back/modules/organization/domain/services"
+	authservices "github.com/jcsoftdev/pulzifi-back/modules/auth/domain/services"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
@@ -18,42 +15,39 @@ import (
 
 // Handler handles user registration
 type Handler struct {
-	userRepo       repositories.UserRepository
-	regReqRepo     adminrepos.RegistrationRequestRepository
-	orgRepo        orgrepos.OrganizationRepository
-	orgService     *orgservices.OrganizationService
+	userRepo     repositories.UserRepository
+	regReqWriter authservices.RegistrationRequestWriter
+	orgDirectory authservices.OrganizationDirectory
 }
 
 // NewHandler creates a new handler instance
 func NewHandler(
 	userRepo repositories.UserRepository,
-	regReqRepo adminrepos.RegistrationRequestRepository,
-	orgRepo orgrepos.OrganizationRepository,
-	orgService *orgservices.OrganizationService,
+	regReqWriter authservices.RegistrationRequestWriter,
+	orgDirectory authservices.OrganizationDirectory,
 ) *Handler {
 	return &Handler{
-		userRepo:   userRepo,
-		regReqRepo: regReqRepo,
-		orgRepo:    orgRepo,
-		orgService: orgService,
+		userRepo:     userRepo,
+		regReqWriter: regReqWriter,
+		orgDirectory: orgDirectory,
 	}
 }
 
 // Handle executes the register use case
 func (h *Handler) Handle(ctx context.Context, req *Request) (*Response, error) {
 	// Validate organization name
-	if err := h.orgService.ValidateOrganizationName(req.OrganizationName); err != nil {
+	if err := h.orgDirectory.ValidateOrganizationName(req.OrganizationName); err != nil {
 		return nil, errors.NewUserError("INVALID_ORG_NAME", err.Error())
 	}
 
 	// Validate and normalize subdomain
 	subdomain := strings.TrimSpace(strings.ToLower(req.OrganizationSubdomain))
-	if err := h.orgService.ValidateSubdomain(subdomain); err != nil {
+	if err := h.orgDirectory.ValidateSubdomain(subdomain); err != nil {
 		return nil, errors.NewUserError("INVALID_SUBDOMAIN", err.Error())
 	}
 
 	// Check subdomain uniqueness against existing (approved) organizations
-	count, err := h.orgRepo.CountBySubdomain(ctx, subdomain)
+	count, err := h.orgDirectory.CountBySubdomain(ctx, subdomain)
 	if err != nil {
 		logger.Error("Failed to check subdomain uniqueness", zap.Error(err))
 		return nil, err
@@ -63,7 +57,7 @@ func (h *Handler) Handle(ctx context.Context, req *Request) (*Response, error) {
 	}
 
 	// Check subdomain uniqueness against pending registration requests
-	pendingExists, err := h.regReqRepo.ExistsPendingBySubdomain(ctx, subdomain)
+	pendingExists, err := h.regReqWriter.ExistsPendingBySubdomain(ctx, subdomain)
 	if err != nil {
 		logger.Error("Failed to check pending subdomain", zap.Error(err))
 		return nil, err
@@ -100,9 +94,9 @@ func (h *Handler) Handle(ctx context.Context, req *Request) (*Response, error) {
 		return nil, err
 	}
 
-	// Create registration request
-	regReq := adminentities.NewRegistrationRequest(user.ID, req.OrganizationName, subdomain)
-	if err := h.regReqRepo.Create(ctx, regReq); err != nil {
+	// Create registration request using auth's own type
+	regReq := authservices.NewPendingRegistration(user.ID, req.OrganizationName, subdomain)
+	if err := h.regReqWriter.Create(ctx, regReq); err != nil {
 		logger.Error("Failed to create registration request", zap.Error(err))
 		return nil, err
 	}

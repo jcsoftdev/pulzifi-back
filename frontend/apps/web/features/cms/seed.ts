@@ -611,20 +611,21 @@ export type SeedResult = { seeded: boolean; reason?: string }
 type PlanId = string | number
 
 export async function seedCMSIfEmpty(payload: Payload): Promise<SeedResult> {
-  const plansResult = await payload.find({ collection: 'plans', limit: 1 })
-  const plansEmpty = plansResult.totalDocs === 0
+  // CMS_PRESERVE_EDITS=true → only seed when collections empty (protects editor changes).
+  // Default (unset/false) → always rebuild on boot so page block-refs stay in sync with
+  // block-library ids. Flip this on once real editor work begins.
+  const preserveEdits = process.env.CMS_PRESERVE_EDITS === 'true'
 
-  const pagesResult = await payload.find({ collection: 'pages', limit: 1 })
-  const pagesEmpty = pagesResult.totalDocs === 0
-
-  if (plansEmpty || pagesEmpty) {
-    await seedAll(payload)
-    return { seeded: true }
+  if (preserveEdits) {
+    const plansResult = await payload.find({ collection: 'plans', limit: 1 })
+    const pagesResult = await payload.find({ collection: 'pages', limit: 1 })
+    if (plansResult.totalDocs > 0 && pagesResult.totalDocs > 0) {
+      return { seeded: false, reason: 'preserve-edits' }
+    }
   }
 
-  // Data already exists — never overwrite editor-managed content on redeploy.
-  // To force a re-seed, run `bun scripts/cms-migrate.ts --fresh` or hit /api/seed-cms.
-  return { seeded: false, reason: 'data-exists' }
+  await seedAll(payload)
+  return { seeded: true }
 }
 
 // Idempotent: returns existing plan IDs if any, otherwise creates from PLANS.
@@ -718,7 +719,15 @@ export async function seedAll(payload: Payload): Promise<void> {
     }
   }
 
-  const ref = (name: string) => ({ blockType: 'block-ref', ref: libraryByName.get(name) })
+  const ref = (name: string) => {
+    const id = libraryByName.get(name)
+    if (id === undefined) {
+      throw new Error(
+        `[seed] block-library entry "${name}" not found. Known: ${Array.from(libraryByName.keys()).join(', ')}`,
+      )
+    }
+    return { blockType: 'block-ref', ref: id }
+  }
 
   // Upsert home page — replace blocks if it exists (refs may be stale from a previous partial seed)
   const existingHome = await payload.find({ collection: 'pages', where: { slug: { equals: 'home' } }, limit: 1 })
@@ -851,4 +860,52 @@ export async function seedAll(payload: Payload): Promise<void> {
       borderStrong: 'rgba(0, 0, 0, 0.16)',
     },
   })
+}
+
+export type BrokenRef = {
+  pageSlug: string
+  pageId: string | number
+  blockIndex: number
+  missingRefId: string | number
+}
+
+type PageBlock = { blockType?: string; ref?: string | number | { id?: string | number } }
+type PageDoc = { id: string | number; slug?: string; blocks?: PageBlock[] }
+
+// Walks every page, asserts every block-ref points to a live block-library doc.
+// Pure read-only. Returns the list of broken refs (empty = healthy).
+export async function validateRefs(payload: Payload): Promise<BrokenRef[]> {
+  const broken: BrokenRef[] = []
+  const pages = await payload.find({ collection: 'pages', limit: 500, depth: 0 })
+
+  for (const raw of pages.docs as PageDoc[]) {
+    const blocks = raw.blocks ?? []
+    for (let i = 0; i < blocks.length; i++) {
+      const block = blocks[i]
+      if (!block || block.blockType !== 'block-ref') continue
+      const refValue = block.ref
+      const refId =
+        typeof refValue === 'object' && refValue !== null ? refValue.id : refValue
+      if (refId === undefined || refId === null) {
+        broken.push({
+          pageSlug: raw.slug ?? '<no-slug>',
+          pageId: raw.id,
+          blockIndex: i,
+          missingRefId: '<empty>',
+        })
+        continue
+      }
+      try {
+        await payload.findByID({ collection: 'block-library', id: refId, depth: 0 })
+      } catch {
+        broken.push({
+          pageSlug: raw.slug ?? '<no-slug>',
+          pageId: raw.id,
+          blockIndex: i,
+          missingRefId: refId,
+        })
+      }
+    }
+  }
+  return broken
 }

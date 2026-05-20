@@ -13,7 +13,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	adminrepos "github.com/jcsoftdev/pulzifi-back/modules/admin/domain/repositories"
 	checksubdomain "github.com/jcsoftdev/pulzifi-back/modules/auth/application/check_subdomain"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/application/get_current_user"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/application/login"
@@ -27,10 +26,6 @@ import (
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/cookies"
 	authmw "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/middleware"
 	oauthproviders "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/oauth"
-	emailservices "github.com/jcsoftdev/pulzifi-back/modules/email/domain/services"
-	"github.com/jcsoftdev/pulzifi-back/modules/email/infrastructure/templates"
-	orgrepos "github.com/jcsoftdev/pulzifi-back/modules/organization/domain/repositories"
-	orgservices "github.com/jcsoftdev/pulzifi-back/modules/organization/domain/services"
 	"github.com/jcsoftdev/pulzifi-back/shared/config"
 	"github.com/jcsoftdev/pulzifi-back/shared/eventbus"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
@@ -49,7 +44,7 @@ type Module struct {
 	tokenService          services.TokenService
 	authService           services.AuthService
 	userRepo              repositories.UserRepository
-	emailProvider         emailservices.EmailProvider
+	notifier              services.RegistrationNotifier
 	oauthProviders        map[string]oauthproviders.Provider
 	refreshTokenRepo      repositories.RefreshTokenRepository
 	eventBus              *eventbus.EventBus
@@ -64,15 +59,14 @@ type ModuleDeps struct {
 	RefreshTokenRepo repositories.RefreshTokenRepository
 	RoleRepo         repositories.RoleRepository
 	PermRepo         repositories.PermissionRepository
-	RegReqRepo       adminrepos.RegistrationRequestRepository
-	OrgRepo          orgrepos.OrganizationRepository
-	OrgService       *orgservices.OrganizationService
+	RegReqWriter     services.RegistrationRequestWriter
+	OrgDirectory     services.OrganizationDirectory
 	AuthService      services.AuthService
 	TokenService     services.TokenService
 	CookieDomain     string
 	CookieSecure     bool
 	FrontendURL      string
-	EmailProvider    emailservices.EmailProvider
+	Notifier         services.RegistrationNotifier
 	EventBus         *eventbus.EventBus
 	DB               *sql.DB
 	OrgContextLookup services.OrgContextLookup // optional; nil → org omitted from /me
@@ -95,8 +89,8 @@ func NewModule(deps ModuleDeps) router.ModuleRegisterer {
 	}
 
 	return &Module{
-		registerHandler:       register.NewHandler(deps.UserRepo, deps.RegReqRepo, deps.OrgRepo, deps.OrgService),
-		checkSubdomainHandler: checksubdomain.NewHandler(deps.RegReqRepo, deps.OrgRepo, deps.OrgService),
+		registerHandler:       register.NewHandler(deps.UserRepo, deps.RegReqWriter, deps.OrgDirectory),
+		checkSubdomainHandler: checksubdomain.NewHandler(deps.RegReqWriter, deps.OrgDirectory),
 		loginHandler:          login.NewHandler(deps.AuthService, deps.UserRepo, deps.RefreshTokenRepo, deps.TokenService),
 		logoutHandler:         logout.NewHandler(deps.RefreshTokenRepo),
 		refreshHandler:        refreshapp.NewHandler(deps.RefreshTokenRepo, deps.UserRepo, deps.TokenService),
@@ -105,7 +99,7 @@ func NewModule(deps ModuleDeps) router.ModuleRegisterer {
 		tokenService:          deps.TokenService,
 		authService:           deps.AuthService,
 		userRepo:              deps.UserRepo,
-		emailProvider:         deps.EmailProvider,
+		notifier:              deps.Notifier,
 		eventBus:              deps.EventBus,
 		oauthProviders:        oauthProviderMap,
 		refreshTokenRepo:      deps.RefreshTokenRepo,
@@ -181,8 +175,7 @@ func (m *Module) handleRegister(w http.ResponseWriter, r *http.Request) {
 	}
 
 	go func() {
-		subject, html := templates.RegistrationSubmitted(response.FirstName, req.OrganizationName)
-		if sendErr := m.emailProvider.Send(context.Background(), response.Email, subject, html); sendErr != nil {
+		if sendErr := m.notifier.SendRegistrationSubmitted(context.Background(), response.Email, response.FirstName, req.OrganizationName); sendErr != nil {
 			logger.Error("Failed to send registration confirmation email", zap.Error(sendErr))
 		}
 	}()
@@ -422,9 +415,8 @@ func (m *Module) handleForgotPassword(w http.ResponseWriter, r *http.Request) {
 
 	// Send password reset email
 	resetURL := fmt.Sprintf("%s/reset-password?token=%s", m.frontendURL, token)
-	subject, html := templates.PasswordReset(user.FirstName, resetURL)
 	go func() {
-		if err := m.emailProvider.Send(context.Background(), user.Email, subject, html); err != nil {
+		if err := m.notifier.SendPasswordReset(context.Background(), user.Email, user.FirstName, resetURL); err != nil {
 			logger.Error("Failed to send password reset email", zap.Error(err))
 		}
 	}()

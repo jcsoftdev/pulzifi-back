@@ -62,6 +62,7 @@ import (
 	"github.com/jcsoftdev/pulzifi-back/shared/pubsub"
 	"github.com/jcsoftdev/pulzifi-back/shared/router"
 	adminwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/admin"
+	authwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/auth"
 	intwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/integration"
 	"go.uber.org/zap"
 )
@@ -93,21 +94,26 @@ func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus 
 	// Composed org-context lookup for /me (flags + plan + identity in one query).
 	orgContextLookup := intwiring.NewOrgContextLookup(db)
 
+	// Auth wiring adapters — bridge auth module ports to concrete implementations
+	// from admin, organization, and email modules without creating cross-module imports.
+	authRegReqWriter := authwiring.NewRegistrationWriterAdapter(regReqRepo)
+	authOrgDirectory := authwiring.NewOrganizationDirectoryAdapter(orgRepo, orgService)
+	authNotifier := authwiring.NewNotifierAdapter(emailProvider)
+
 	// Create auth module and set global middleware
 	authModule := auth.NewModule(auth.ModuleDeps{
 		UserRepo:         userRepo,
 		RefreshTokenRepo: refreshTokenRepo,
 		RoleRepo:         roleRepo,
 		PermRepo:         permRepo,
-		RegReqRepo:       regReqRepo,
-		OrgRepo:          orgRepo,
-		OrgService:       orgService,
+		RegReqWriter:     authRegReqWriter,
+		OrgDirectory:     authOrgDirectory,
 		AuthService:      authService,
 		TokenService:     jwtService,
 		CookieDomain:     cfg.CookieDomain,
 		CookieSecure:     cookieSecure,
 		FrontendURL:      cfg.FrontendURL,
-		EmailProvider:    emailProvider,
+		Notifier:         authNotifier,
 		EventBus:         eventBus,
 		DB:               db,
 		OrgContextLookup: orgContextLookup,

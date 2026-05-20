@@ -11,6 +11,7 @@
         "start:prod": "bunx tsx scripts/cms-migrate.ts && next start -p ${PORT:-8080}",
     "type-check": "tsc --noEmit",
     "type-check:fast": "tsgo --noEmit",
+    "test": "bun test features/cms",
     "format": "biome format ../../ --write",
     "payload": "payload",
     "generate:types": "payload generate:types",
