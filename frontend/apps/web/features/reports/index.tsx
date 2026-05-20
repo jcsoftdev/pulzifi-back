@@ -1,10 +1,10 @@
 'use client'
 
 import type { Page } from '@workspace/services'
+import { Button } from '@workspace/ui/components/atoms/button'
 import { Plus } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { notification } from '@/lib/notification'
-import { Button } from '@workspace/ui/components/atoms/button'
 import { useReports } from './application/use-reports'
 import { CreateReportDialog } from './ui/create-report-dialog'
 import { ReportsTable } from './ui/reports-table'
@@ -33,15 +33,23 @@ export function ReportsFeature({ workspaceId, pages }: Readonly<ReportsFeaturePr
           reportDate: data.reportDate,
         })
         setCreateOpen(false)
-        notification.success({ title: 'Report created', description: `"${data.title}" has been created.` })
+        notification.success({
+          title: 'Report created',
+          description: `"${data.title}" has been created.`,
+        })
       } catch (err) {
         setActionError(err instanceof Error ? err : new Error('Failed to create report'))
-        notification.error({ title: 'Failed to create report', description: err instanceof Error ? err.message : 'Please try again.' })
+        notification.error({
+          title: 'Failed to create report',
+          description: err instanceof Error ? err.message : 'Please try again.',
+        })
       } finally {
         setActionLoading(false)
       }
     },
-    [createReport]
+    [
+      createReport,
+    ]
   )
 
   return (

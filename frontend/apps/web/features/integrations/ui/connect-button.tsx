@@ -6,8 +6,14 @@ import { useState } from 'react'
 import type { Integration } from '../domain/types'
 import { TwilioBYOModal } from './twilio-byo-modal'
 
-const PAID_PLANS = ['pro', 'business']
-const FREE_PLANS = ['starter', '']
+const PAID_PLANS = [
+  'pro',
+  'business',
+]
+const FREE_PLANS = [
+  'starter',
+  '',
+]
 
 interface ConnectButtonProps {
   providerKey: string

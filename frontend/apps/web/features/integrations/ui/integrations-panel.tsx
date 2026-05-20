@@ -15,7 +15,14 @@ export function IntegrationsPanel({ integrations, me }: Readonly<IntegrationsPan
 
   const integrationsFlags = (
     me?.organization?.featureFlags as
-      | { integrations?: { discord?: boolean; twilio?: boolean; sheets?: boolean; teams?: boolean } }
+      | {
+          integrations?: {
+            discord?: boolean
+            twilio?: boolean
+            sheets?: boolean
+            teams?: boolean
+          }
+        }
       | undefined
   )?.integrations
 

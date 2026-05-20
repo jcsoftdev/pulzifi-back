@@ -1,16 +1,18 @@
 'use client'
 
-import { DestinationsApi, IntegrationsApi, OrganizationApi } from '@workspace/services'
 import type { Destination, Integration } from '@workspace/services'
-import { useEffect, useState, use } from 'react'
-import { notification } from '@/lib/notification'
+import { DestinationsApi, IntegrationsApi, OrganizationApi } from '@workspace/services'
+import Link from 'next/link'
+import { use, useEffect, useState } from 'react'
+import { DeliveryLogTable } from '@/features/integrations/ui/delivery-log-table'
 import { DestinationForm } from '@/features/integrations/ui/destination-form'
 import { DestinationsList } from '@/features/integrations/ui/destinations-list'
-import { DeliveryLogTable } from '@/features/integrations/ui/delivery-log-table'
-import Link from 'next/link'
+import { notification } from '@/lib/notification'
 
 interface ProviderPageProps {
-  params: Promise<{ provider: string }>
+  params: Promise<{
+    provider: string
+  }>
 }
 
 export default function ProviderPage({ params }: ProviderPageProps) {
@@ -31,9 +33,7 @@ export default function ProviderPage({ params }: ProviderPageProps) {
         ])
         setOrgId(org.id)
 
-        const found = integrations.find(
-          (i) => i.serviceType === provider && i.status === 'active'
-        )
+        const found = integrations.find((i) => i.serviceType === provider && i.status === 'active')
         setIntegration(found ?? null)
 
         const dests = await DestinationsApi.list({
@@ -52,14 +52,18 @@ export default function ProviderPage({ params }: ProviderPageProps) {
       }
     }
     load()
-  }, [provider])
+  }, [
+    provider,
+  ])
 
   const handleDisconnect = async () => {
     if (!integration) return
     try {
       await IntegrationsApi.disconnect(integration.id)
       setIntegration(null)
-      notification.success({ title: `${provider} disconnected` })
+      notification.success({
+        title: `${provider} disconnected`,
+      })
     } catch (err) {
       notification.error({
         title: 'Failed to disconnect',
@@ -69,12 +73,14 @@ export default function ProviderPage({ params }: ProviderPageProps) {
   }
 
   const handleDestinationAdded = (dest: Destination) => {
-    setDestinations((prev) => [...prev, dest])
+    setDestinations((prev) => [
+      ...prev,
+      dest,
+    ])
     setShowForm(false)
   }
 
-  const providerLabel =
-    provider.charAt(0).toUpperCase() + provider.slice(1).replace(/_/g, ' ')
+  const providerLabel = provider.charAt(0).toUpperCase() + provider.slice(1).replace(/_/g, ' ')
 
   if (loading) {
     return (

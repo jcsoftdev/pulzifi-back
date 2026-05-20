@@ -1,10 +1,13 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
+import { type RefObject, useCallback, useEffect, useRef, useState } from 'react'
 
 export function useInView<T extends HTMLElement = HTMLDivElement>(
   options?: IntersectionObserverInit
-): [RefObject<T | null>, boolean] {
+): [
+  RefObject<T | null>,
+  boolean,
+] {
   const ref = useRef<T | null>(null)
   const [isInView, setIsInView] = useState(false)
 
@@ -20,14 +23,22 @@ export function useInView<T extends HTMLElement = HTMLDivElement>(
           observer.unobserve(el)
         }
       },
-      { threshold: 0.15, ...options }
+      {
+        threshold: 0.15,
+        ...options,
+      }
     )
 
     observer.observe(el)
     return () => observer.disconnect()
-  }, [options])
+  }, [
+    options,
+  ])
 
-  return [ref, isInView]
+  return [
+    ref,
+    isInView,
+  ]
 }
 
 export function useCountUp(end: number, duration = 2000, startWhenVisible = false) {
@@ -53,9 +64,16 @@ export function useCountUp(end: number, duration = 2000, startWhenVisible = fals
 
     frame = requestAnimationFrame(animate)
     return () => cancelAnimationFrame(frame)
-  }, [end, duration, started])
+  }, [
+    end,
+    duration,
+    started,
+  ])
 
   const start = useCallback(() => setStarted(true), [])
 
-  return { count, start }
+  return {
+    count,
+    start,
+  }
 }

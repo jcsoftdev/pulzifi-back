@@ -2,7 +2,9 @@ export function UpgradeBanner() {
   return (
     <div className="rounded-2xl bg-sidebar-accent px-8 py-6 flex items-center justify-between gap-4 overflow-hidden">
       <div className="flex-1">
-        <p className="text-sm text-muted-foreground font-medium">Don&apos;t miss what matters next</p>
+        <p className="text-sm text-muted-foreground font-medium">
+          Don&apos;t miss what matters next
+        </p>
         <h2 className="text-xl font-bold text-foreground mt-1 leading-snug">
           More alerts, deeper context, and faster intelligence,
           <br />
@@ -18,6 +20,7 @@ export function UpgradeBanner() {
       <div className="hidden sm:block flex-shrink-0 w-32 h-32 relative">
         {/* Decorative illustration placeholder */}
         <div className="w-full h-full rounded-full bg-primary/15 flex items-center justify-center">
+          {/* biome-ignore lint/a11y/noSvgWithoutTitle: aria-hidden decorative illustration */}
           <svg
             xmlns="http://www.w3.org/2000/svg"
             className="w-16 h-16 text-primary opacity-60"
@@ -25,6 +28,7 @@ export function UpgradeBanner() {
             viewBox="0 0 24 24"
             stroke="currentColor"
             strokeWidth={1.5}
+            aria-hidden
           >
             <path
               strokeLinecap="round"

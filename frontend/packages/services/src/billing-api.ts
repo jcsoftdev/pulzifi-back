@@ -21,12 +21,7 @@ export interface SubscriptionDto {
   updated_at: string
 }
 
-export type BillingStatusDto =
-  | 'active'
-  | 'past_due'
-  | 'canceled'
-  | 'incomplete'
-  | 'trialing'
+export type BillingStatusDto = 'active' | 'past_due' | 'canceled' | 'incomplete' | 'trialing'
 
 export type PaymentStatusDto = 'ok' | 'grace_period' | 'failed'
 
@@ -48,23 +43,31 @@ export const BillingApi = {
   async createCheckoutSession(
     planId: string,
     billingCycle: 'monthly' | 'yearly'
-  ): Promise<{ checkoutUrl: string }> {
+  ): Promise<{
+    checkoutUrl: string
+  }> {
     const http = await getHttpClient()
     const response = await http.post<CheckoutSessionDto>('/api/v1/billing/checkout', {
       plan_id: planId,
       billing_cycle: billingCycle,
     })
-    return { checkoutUrl: response.checkout_url }
+    return {
+      checkoutUrl: response.checkout_url,
+    }
   },
 
   /**
    * Open the Stripe Customer Portal for managing existing subscriptions.
    * Returns a portal_url to redirect the user to.
    */
-  async openCustomerPortal(): Promise<{ portalUrl: string }> {
+  async openCustomerPortal(): Promise<{
+    portalUrl: string
+  }> {
     const http = await getHttpClient()
     const response = await http.post<PortalSessionDto>('/api/v1/billing/portal', {})
-    return { portalUrl: response.portal_url }
+    return {
+      portalUrl: response.portal_url,
+    }
   },
 
   /**
@@ -85,7 +88,15 @@ export const BillingApi = {
       return await http.get<SubscriptionDto>('/api/v1/billing/subscription')
     } catch (err) {
       // BillingEnabled=false → API returns 404 on all billing routes
-      if (err instanceof Error && 'status' in err && (err as { status: number }).status === 404) {
+      if (
+        err instanceof Error &&
+        'status' in err &&
+        (
+          err as {
+            status: number
+          }
+        ).status === 404
+      ) {
         return null
       }
       if (err instanceof Error && err.message?.includes('404')) {

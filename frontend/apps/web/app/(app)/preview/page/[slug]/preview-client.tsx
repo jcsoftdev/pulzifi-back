@@ -9,8 +9,13 @@ import { PreviewModeProvider } from '@/features/landing/lib/preview-mode'
 import { buildThemeStyle } from '@/lib/theme-style'
 
 type NavbarData = {
-  logo?: { url?: string } | null
-  links?: { label: string; href: string }[]
+  logo?: {
+    url?: string
+  } | null
+  links?: {
+    label: string
+    href: string
+  }[]
   signinLabel?: string
   signinHref?: string
   primaryCtaLabel?: string
@@ -18,14 +23,29 @@ type NavbarData = {
 }
 
 type FooterData = {
-  logo?: { url?: string } | null
+  logo?: {
+    url?: string
+  } | null
   tagline?: string
-  groups?: { heading: string; links: { label: string; href: string }[] }[]
-  socialLinks?: { platform: string; href: string }[]
+  groups?: {
+    heading: string
+    links: {
+      label: string
+      href: string
+    }[]
+  }[]
+  socialLinks?: {
+    platform: string
+    href: string
+  }[]
 }
 
 type PageData = {
-  blocks?: { blockType: string; id?: string; [key: string]: unknown }[]
+  blocks?: {
+    blockType: string
+    id?: string
+    [key: string]: unknown
+  }[]
 }
 
 type ThemeData = Record<string, string | null | undefined>
@@ -70,7 +90,12 @@ export function PagePreviewClient({
     depth: 1,
   })
 
-  const themeStyle = useMemo(() => buildThemeStyle(theme), [theme])
+  const themeStyle = useMemo(
+    () => buildThemeStyle(theme),
+    [
+      theme,
+    ]
+  )
 
   const navProps = useMemo(() => {
     const links = navbar?.links?.length ? navbar.links : undefined
@@ -86,15 +111,20 @@ export function PagePreviewClient({
       primaryCtaHref: navbar?.primaryCtaHref,
       logoUrl,
     }
-  }, [navbar])
+  }, [
+    navbar,
+  ])
 
   const footerProps = useMemo(() => {
     const groups = footer?.groups?.length
       ? Object.fromEntries(
           footer.groups.map((g) => [
             g.heading,
-            g.links?.map((l) => ({ label: l.label, href: l.href })) ?? [],
-          ]),
+            g.links?.map((l) => ({
+              label: l.label,
+              href: l.href,
+            })) ?? [],
+          ])
         )
       : undefined
     const logoUrl =
@@ -107,14 +137,24 @@ export function PagePreviewClient({
       socialLinks: footer?.socialLinks?.length ? footer.socialLinks : undefined,
       logoUrl,
     }
-  }, [footer])
+  }, [
+    footer,
+  ])
 
-  const blocks = useMemo(() => page?.blocks ?? [], [page])
+  const blocks = useMemo(
+    () => page?.blocks ?? [],
+    [
+      page,
+    ]
+  )
 
   return (
     <PreviewModeProvider value={true}>
       <div className="min-h-screen bg-[var(--pz-page-bg)]">
-        {themeStyle && <style dangerouslySetInnerHTML={{ __html: themeStyle }} />}
+        {themeStyle && (
+          // biome-ignore lint/security/noDangerouslySetInnerHtml: intentional theme CSS injection — controlled server-side input
+          <style dangerouslySetInnerHTML={{ __html: themeStyle }} />
+        )}
         <Navbar {...navProps} />
         <main>
           <BlocksRenderer blocks={blocks} />

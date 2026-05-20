@@ -214,12 +214,8 @@
           "tableFrom": "users_sessions",
           "tableTo": "users",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -451,12 +447,8 @@
           "tableFrom": "block_library_blocks_hero_dashboard_alerts",
           "tableTo": "block_library_blocks_hero",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -554,12 +546,8 @@
           "tableFrom": "block_library_blocks_hero_kpis",
           "tableTo": "block_library_blocks_hero",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -751,12 +739,8 @@
           "tableFrom": "block_library_blocks_hero",
           "tableTo": "media",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "image_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["image_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -765,12 +749,8 @@
           "tableFrom": "block_library_blocks_hero",
           "tableTo": "block_library",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -848,12 +828,8 @@
           "tableFrom": "block_library_blocks_logos_items",
           "tableTo": "block_library_blocks_logos",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -958,12 +934,8 @@
           "tableFrom": "block_library_blocks_logos",
           "tableTo": "block_library",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1053,12 +1025,8 @@
           "tableFrom": "block_library_blocks_problem_cards",
           "tableTo": "block_library_blocks_problem",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1175,12 +1143,8 @@
           "tableFrom": "block_library_blocks_problem",
           "tableTo": "block_library",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1264,12 +1228,8 @@
           "tableFrom": "block_library_blocks_stats_items",
           "tableTo": "block_library_blocks_stats",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1368,12 +1328,8 @@
           "tableFrom": "block_library_blocks_stats",
           "tableTo": "block_library",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1483,12 +1439,8 @@
           "tableFrom": "block_library_blocks_how_it_works_steps",
           "tableTo": "block_library_blocks_how_it_works",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1611,12 +1563,8 @@
           "tableFrom": "block_library_blocks_how_it_works",
           "tableTo": "block_library",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1700,12 +1648,8 @@
           "tableFrom": "block_library_blocks_features_bullets",
           "tableTo": "block_library_blocks_features",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1783,12 +1727,8 @@
           "tableFrom": "block_library_blocks_features_demo_actions",
           "tableTo": "block_library_blocks_features",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1893,12 +1833,8 @@
           "tableFrom": "block_library_blocks_features_cards",
           "tableTo": "media",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "image_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["image_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -1907,12 +1843,8 @@
           "tableFrom": "block_library_blocks_features_cards",
           "tableTo": "block_library_blocks_features",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2065,12 +1997,8 @@
           "tableFrom": "block_library_blocks_features",
           "tableTo": "block_library",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2160,12 +2088,8 @@
           "tableFrom": "block_library_blocks_ai_intelligence_tabs_items",
           "tableTo": "block_library_blocks_ai_intelligence_tabs",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2243,12 +2167,8 @@
           "tableFrom": "block_library_blocks_ai_intelligence_tabs",
           "tableTo": "block_library_blocks_ai_intelligence",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2371,12 +2291,8 @@
           "tableFrom": "block_library_blocks_ai_intelligence",
           "tableTo": "block_library",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2475,12 +2391,8 @@
           "tableFrom": "block_library_blocks_insights",
           "tableTo": "block_library",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2576,12 +2488,8 @@
           "tableFrom": "block_library_blocks_industries_items",
           "tableTo": "block_library_blocks_industries",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2711,12 +2619,8 @@
           "tableFrom": "block_library_blocks_industries",
           "tableTo": "block_library",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2800,12 +2704,8 @@
           "tableFrom": "block_library_blocks_comparison_columns",
           "tableTo": "block_library_blocks_comparison",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2891,12 +2791,8 @@
           "tableFrom": "block_library_blocks_comparison_rows_cells",
           "tableTo": "block_library_blocks_comparison_rows",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2974,12 +2870,8 @@
           "tableFrom": "block_library_blocks_comparison_rows",
           "tableTo": "block_library_blocks_comparison",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -3096,12 +2988,8 @@
           "tableFrom": "block_library_blocks_comparison",
           "tableTo": "block_library",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -3266,12 +3154,8 @@
           "tableFrom": "block_library_blocks_pricing",
           "tableTo": "block_library",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -3382,12 +3266,8 @@
           "tableFrom": "block_library_blocks_testimonials_items",
           "tableTo": "media",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "avatar_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["avatar_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -3396,12 +3276,8 @@
           "tableFrom": "block_library_blocks_testimonials_items",
           "tableTo": "block_library_blocks_testimonials",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -3512,12 +3388,8 @@
           "tableFrom": "block_library_blocks_testimonials",
           "tableTo": "block_library",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -3601,12 +3473,8 @@
           "tableFrom": "block_library_blocks_faq_items",
           "tableTo": "block_library_blocks_faq",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -3723,12 +3591,8 @@
           "tableFrom": "block_library_blocks_faq",
           "tableTo": "block_library",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -3833,12 +3697,8 @@
           "tableFrom": "block_library_blocks_rich_text",
           "tableTo": "block_library",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -3999,12 +3859,8 @@
           "tableFrom": "block_library_blocks_cta",
           "tableTo": "block_library",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -4138,12 +3994,8 @@
           "tableFrom": "block_library_blocks_image",
           "tableTo": "media",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "image_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["image_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -4152,12 +4004,8 @@
           "tableFrom": "block_library_blocks_image",
           "tableTo": "block_library",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -4268,12 +4116,8 @@
           "tableFrom": "block_library_blocks_login_form",
           "tableTo": "block_library",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -4390,12 +4234,8 @@
           "tableFrom": "block_library_blocks_register_form",
           "tableTo": "block_library",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -4515,12 +4355,8 @@
           "tableFrom": "block_library_blocks_block_ref",
           "tableTo": "block_library",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "ref_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["ref_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -4529,12 +4365,8 @@
           "tableFrom": "block_library_blocks_block_ref",
           "tableTo": "block_library",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -4718,12 +4550,8 @@
           "tableFrom": "block_library_rels",
           "tableTo": "block_library",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -4732,12 +4560,8 @@
           "tableFrom": "block_library_rels",
           "tableTo": "plans",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "plans_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["plans_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -4847,12 +4671,8 @@
           "tableFrom": "pages_blocks_hero_dashboard_alerts",
           "tableTo": "pages_blocks_hero",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -4950,12 +4770,8 @@
           "tableFrom": "pages_blocks_hero_kpis",
           "tableTo": "pages_blocks_hero",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -5147,12 +4963,8 @@
           "tableFrom": "pages_blocks_hero",
           "tableTo": "media",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "image_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["image_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -5161,12 +4973,8 @@
           "tableFrom": "pages_blocks_hero",
           "tableTo": "pages",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -5244,12 +5052,8 @@
           "tableFrom": "pages_blocks_logos_items",
           "tableTo": "pages_blocks_logos",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -5354,12 +5158,8 @@
           "tableFrom": "pages_blocks_logos",
           "tableTo": "pages",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -5449,12 +5249,8 @@
           "tableFrom": "pages_blocks_problem_cards",
           "tableTo": "pages_blocks_problem",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -5571,12 +5367,8 @@
           "tableFrom": "pages_blocks_problem",
           "tableTo": "pages",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -5660,12 +5452,8 @@
           "tableFrom": "pages_blocks_stats_items",
           "tableTo": "pages_blocks_stats",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -5764,12 +5552,8 @@
           "tableFrom": "pages_blocks_stats",
           "tableTo": "pages",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -5879,12 +5663,8 @@
           "tableFrom": "pages_blocks_how_it_works_steps",
           "tableTo": "pages_blocks_how_it_works",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -6007,12 +5787,8 @@
           "tableFrom": "pages_blocks_how_it_works",
           "tableTo": "pages",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -6096,12 +5872,8 @@
           "tableFrom": "pages_blocks_features_bullets",
           "tableTo": "pages_blocks_features",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -6179,12 +5951,8 @@
           "tableFrom": "pages_blocks_features_demo_actions",
           "tableTo": "pages_blocks_features",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -6289,12 +6057,8 @@
           "tableFrom": "pages_blocks_features_cards",
           "tableTo": "media",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "image_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["image_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -6303,12 +6067,8 @@
           "tableFrom": "pages_blocks_features_cards",
           "tableTo": "pages_blocks_features",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -6461,12 +6221,8 @@
           "tableFrom": "pages_blocks_features",
           "tableTo": "pages",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -6556,12 +6312,8 @@
           "tableFrom": "pages_blocks_ai_intelligence_tabs_items",
           "tableTo": "pages_blocks_ai_intelligence_tabs",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -6639,12 +6391,8 @@
           "tableFrom": "pages_blocks_ai_intelligence_tabs",
           "tableTo": "pages_blocks_ai_intelligence",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -6767,12 +6515,8 @@
           "tableFrom": "pages_blocks_ai_intelligence",
           "tableTo": "pages",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -6871,12 +6615,8 @@
           "tableFrom": "pages_blocks_insights",
           "tableTo": "pages",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -6972,12 +6712,8 @@
           "tableFrom": "pages_blocks_industries_items",
           "tableTo": "pages_blocks_industries",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -7107,12 +6843,8 @@
           "tableFrom": "pages_blocks_industries",
           "tableTo": "pages",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -7196,12 +6928,8 @@
           "tableFrom": "pages_blocks_comparison_columns",
           "tableTo": "pages_blocks_comparison",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -7287,12 +7015,8 @@
           "tableFrom": "pages_blocks_comparison_rows_cells",
           "tableTo": "pages_blocks_comparison_rows",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -7370,12 +7094,8 @@
           "tableFrom": "pages_blocks_comparison_rows",
           "tableTo": "pages_blocks_comparison",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -7492,12 +7212,8 @@
           "tableFrom": "pages_blocks_comparison",
           "tableTo": "pages",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -7662,12 +7378,8 @@
           "tableFrom": "pages_blocks_pricing",
           "tableTo": "pages",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -7778,12 +7490,8 @@
           "tableFrom": "pages_blocks_testimonials_items",
           "tableTo": "media",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "avatar_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["avatar_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -7792,12 +7500,8 @@
           "tableFrom": "pages_blocks_testimonials_items",
           "tableTo": "pages_blocks_testimonials",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -7908,12 +7612,8 @@
           "tableFrom": "pages_blocks_testimonials",
           "tableTo": "pages",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -7997,12 +7697,8 @@
           "tableFrom": "pages_blocks_faq_items",
           "tableTo": "pages_blocks_faq",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -8119,12 +7815,8 @@
           "tableFrom": "pages_blocks_faq",
           "tableTo": "pages",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -8229,12 +7921,8 @@
           "tableFrom": "pages_blocks_rich_text",
           "tableTo": "pages",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -8395,12 +8083,8 @@
           "tableFrom": "pages_blocks_cta",
           "tableTo": "pages",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -8534,12 +8218,8 @@
           "tableFrom": "pages_blocks_image",
           "tableTo": "media",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "image_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["image_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -8548,12 +8228,8 @@
           "tableFrom": "pages_blocks_image",
           "tableTo": "pages",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -8664,12 +8340,8 @@
           "tableFrom": "pages_blocks_login_form",
           "tableTo": "pages",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -8786,12 +8458,8 @@
           "tableFrom": "pages_blocks_register_form",
           "tableTo": "pages",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -8911,12 +8579,8 @@
           "tableFrom": "pages_blocks_block_ref",
           "tableTo": "block_library",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "ref_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["ref_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -8925,12 +8589,8 @@
           "tableFrom": "pages_blocks_block_ref",
           "tableTo": "pages",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -9087,12 +8747,8 @@
           "tableFrom": "pages",
           "tableTo": "media",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "meta_image_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["meta_image_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -9206,12 +8862,8 @@
           "tableFrom": "pages_rels",
           "tableTo": "pages",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -9220,12 +8872,8 @@
           "tableFrom": "pages_rels",
           "tableTo": "plans",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "plans_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["plans_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -9341,12 +8989,8 @@
           "tableFrom": "_pages_v_blocks_hero_dashboard_alerts",
           "tableTo": "_pages_v_blocks_hero",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -9450,12 +9094,8 @@
           "tableFrom": "_pages_v_blocks_hero_kpis",
           "tableTo": "_pages_v_blocks_hero",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -9653,12 +9293,8 @@
           "tableFrom": "_pages_v_blocks_hero",
           "tableTo": "media",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "image_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["image_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -9667,12 +9303,8 @@
           "tableFrom": "_pages_v_blocks_hero",
           "tableTo": "_pages_v",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -9756,12 +9388,8 @@
           "tableFrom": "_pages_v_blocks_logos_items",
           "tableTo": "_pages_v_blocks_logos",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -9872,12 +9500,8 @@
           "tableFrom": "_pages_v_blocks_logos",
           "tableTo": "_pages_v",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -9973,12 +9597,8 @@
           "tableFrom": "_pages_v_blocks_problem_cards",
           "tableTo": "_pages_v_blocks_problem",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -10101,12 +9721,8 @@
           "tableFrom": "_pages_v_blocks_problem",
           "tableTo": "_pages_v",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -10196,12 +9812,8 @@
           "tableFrom": "_pages_v_blocks_stats_items",
           "tableTo": "_pages_v_blocks_stats",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -10306,12 +9918,8 @@
           "tableFrom": "_pages_v_blocks_stats",
           "tableTo": "_pages_v",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -10427,12 +10035,8 @@
           "tableFrom": "_pages_v_blocks_how_it_works_steps",
           "tableTo": "_pages_v_blocks_how_it_works",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -10561,12 +10165,8 @@
           "tableFrom": "_pages_v_blocks_how_it_works",
           "tableTo": "_pages_v",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -10656,12 +10256,8 @@
           "tableFrom": "_pages_v_blocks_features_bullets",
           "tableTo": "_pages_v_blocks_features",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -10745,12 +10341,8 @@
           "tableFrom": "_pages_v_blocks_features_demo_actions",
           "tableTo": "_pages_v_blocks_features",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -10861,12 +10453,8 @@
           "tableFrom": "_pages_v_blocks_features_cards",
           "tableTo": "media",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "image_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["image_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -10875,12 +10463,8 @@
           "tableFrom": "_pages_v_blocks_features_cards",
           "tableTo": "_pages_v_blocks_features",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -11039,12 +10623,8 @@
           "tableFrom": "_pages_v_blocks_features",
           "tableTo": "_pages_v",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -11140,12 +10720,8 @@
           "tableFrom": "_pages_v_blocks_ai_intelligence_tabs_items",
           "tableTo": "_pages_v_blocks_ai_intelligence_tabs",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -11229,12 +10805,8 @@
           "tableFrom": "_pages_v_blocks_ai_intelligence_tabs",
           "tableTo": "_pages_v_blocks_ai_intelligence",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -11363,12 +10935,8 @@
           "tableFrom": "_pages_v_blocks_ai_intelligence",
           "tableTo": "_pages_v",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -11473,12 +11041,8 @@
           "tableFrom": "_pages_v_blocks_insights",
           "tableTo": "_pages_v",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -11580,12 +11144,8 @@
           "tableFrom": "_pages_v_blocks_industries_items",
           "tableTo": "_pages_v_blocks_industries",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -11721,12 +11281,8 @@
           "tableFrom": "_pages_v_blocks_industries",
           "tableTo": "_pages_v",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -11816,12 +11372,8 @@
           "tableFrom": "_pages_v_blocks_comparison_columns",
           "tableTo": "_pages_v_blocks_comparison",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -11913,12 +11465,8 @@
           "tableFrom": "_pages_v_blocks_comparison_rows_cells",
           "tableTo": "_pages_v_blocks_comparison_rows",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -12002,12 +11550,8 @@
           "tableFrom": "_pages_v_blocks_comparison_rows",
           "tableTo": "_pages_v_blocks_comparison",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -12130,12 +11674,8 @@
           "tableFrom": "_pages_v_blocks_comparison",
           "tableTo": "_pages_v",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -12306,12 +11846,8 @@
           "tableFrom": "_pages_v_blocks_pricing",
           "tableTo": "_pages_v",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -12428,12 +11964,8 @@
           "tableFrom": "_pages_v_blocks_testimonials_items",
           "tableTo": "media",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "avatar_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["avatar_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -12442,12 +11974,8 @@
           "tableFrom": "_pages_v_blocks_testimonials_items",
           "tableTo": "_pages_v_blocks_testimonials",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -12564,12 +12092,8 @@
           "tableFrom": "_pages_v_blocks_testimonials",
           "tableTo": "_pages_v",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -12659,12 +12183,8 @@
           "tableFrom": "_pages_v_blocks_faq_items",
           "tableTo": "_pages_v_blocks_faq",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -12787,12 +12307,8 @@
           "tableFrom": "_pages_v_blocks_faq",
           "tableTo": "_pages_v",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -12903,12 +12419,8 @@
           "tableFrom": "_pages_v_blocks_rich_text",
           "tableTo": "_pages_v",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -13075,12 +12587,8 @@
           "tableFrom": "_pages_v_blocks_cta",
           "tableTo": "_pages_v",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -13220,12 +12728,8 @@
           "tableFrom": "_pages_v_blocks_image",
           "tableTo": "media",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "image_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["image_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -13234,12 +12738,8 @@
           "tableFrom": "_pages_v_blocks_image",
           "tableTo": "_pages_v",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -13356,12 +12856,8 @@
           "tableFrom": "_pages_v_blocks_login_form",
           "tableTo": "_pages_v",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -13484,12 +12980,8 @@
           "tableFrom": "_pages_v_blocks_register_form",
           "tableTo": "_pages_v",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -13615,12 +13107,8 @@
           "tableFrom": "_pages_v_blocks_block_ref",
           "tableTo": "block_library",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "ref_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["ref_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -13629,12 +13117,8 @@
           "tableFrom": "_pages_v_blocks_block_ref",
           "tableTo": "_pages_v",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -13875,12 +13359,8 @@
           "tableFrom": "_pages_v",
           "tableTo": "pages",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -13889,12 +13369,8 @@
           "tableFrom": "_pages_v",
           "tableTo": "media",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "version_meta_image_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["version_meta_image_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -14008,12 +13484,8 @@
           "tableFrom": "_pages_v_rels",
           "tableTo": "_pages_v",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -14022,12 +13494,8 @@
           "tableFrom": "_pages_v_rels",
           "tableTo": "plans",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "plans_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["plans_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -14236,12 +13704,8 @@
           "tableFrom": "posts",
           "tableTo": "media",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "hero_image_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["hero_image_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -14250,12 +13714,8 @@
           "tableFrom": "posts",
           "tableTo": "media",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "meta_image_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["meta_image_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -14548,12 +14008,8 @@
           "tableFrom": "_posts_v",
           "tableTo": "posts",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -14562,12 +14018,8 @@
           "tableFrom": "_posts_v",
           "tableTo": "media",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "version_hero_image_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["version_hero_image_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -14576,12 +14028,8 @@
           "tableFrom": "_posts_v",
           "tableTo": "media",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "version_meta_image_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["version_meta_image_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -14666,12 +14114,8 @@
           "tableFrom": "plans_features",
           "tableTo": "plans",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -15140,12 +14584,8 @@
           "tableFrom": "payload_locked_documents_rels",
           "tableTo": "payload_locked_documents",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -15154,12 +14594,8 @@
           "tableFrom": "payload_locked_documents_rels",
           "tableTo": "media",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "media_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["media_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -15168,12 +14604,8 @@
           "tableFrom": "payload_locked_documents_rels",
           "tableTo": "users",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "users_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["users_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -15182,12 +14614,8 @@
           "tableFrom": "payload_locked_documents_rels",
           "tableTo": "block_library",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "block_library_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["block_library_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -15196,12 +14624,8 @@
           "tableFrom": "payload_locked_documents_rels",
           "tableTo": "pages",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "pages_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["pages_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -15210,12 +14634,8 @@
           "tableFrom": "payload_locked_documents_rels",
           "tableTo": "posts",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "posts_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["posts_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -15224,12 +14644,8 @@
           "tableFrom": "payload_locked_documents_rels",
           "tableTo": "plans",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "plans_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["plans_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -15434,12 +14850,8 @@
           "tableFrom": "payload_preferences_rels",
           "tableTo": "payload_preferences",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -15448,12 +14860,8 @@
           "tableFrom": "payload_preferences_rels",
           "tableTo": "users",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "users_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["users_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -15613,12 +15021,8 @@
           "tableFrom": "navbar_links",
           "tableTo": "navbar",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -15709,12 +15113,8 @@
           "tableFrom": "navbar",
           "tableTo": "media",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "logo_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["logo_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -15798,12 +15198,8 @@
           "tableFrom": "footer_groups_links",
           "tableTo": "footer_groups",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -15881,12 +15277,8 @@
           "tableFrom": "footer_groups",
           "tableTo": "footer",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -15971,12 +15363,8 @@
           "tableFrom": "footer_social_links",
           "tableTo": "footer",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -16051,12 +15439,8 @@
           "tableFrom": "footer",
           "tableTo": "media",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "logo_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["logo_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -16237,12 +15621,8 @@
           "tableFrom": "login_page_bullets",
           "tableTo": "login_page",
           "schemaTo": "cms",
-          "columnsFrom": [
-            "_parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["_parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -16376,219 +15756,127 @@
     "cms.enum_block_library_blocks_hero_dashboard_alerts_tone": {
       "name": "enum_block_library_blocks_hero_dashboard_alerts_tone",
       "schema": "cms",
-      "values": [
-        "signal",
-        "amber",
-        "teal",
-        "ink"
-      ]
+      "values": ["signal", "amber", "teal", "ink"]
     },
     "cms.enum_block_library_blocks_hero_kpis_delta_direction": {
       "name": "enum_block_library_blocks_hero_kpis_delta_direction",
       "schema": "cms",
-      "values": [
-        "up",
-        "down"
-      ]
+      "values": ["up", "down"]
     },
     "cms.enum_block_library_blocks_how_it_works_steps_mock_type": {
       "name": "enum_block_library_blocks_how_it_works_steps_mock_type",
       "schema": "cms",
-      "values": [
-        "url",
-        "insight",
-        "alerts"
-      ]
+      "values": ["url", "insight", "alerts"]
     },
     "cms.enum_block_library_blocks_comparison_rows_cells_state": {
       "name": "enum_block_library_blocks_comparison_rows_cells_state",
       "schema": "cms",
-      "values": [
-        "yes",
-        "no",
-        "partial"
-      ]
+      "values": ["yes", "no", "partial"]
     },
     "cms.enum_block_library_blocks_cta_variant": {
       "name": "enum_block_library_blocks_cta_variant",
       "schema": "cms",
-      "values": [
-        "primary",
-        "secondary"
-      ]
+      "values": ["primary", "secondary"]
     },
     "cms.enum_block_library_blocks_image_size": {
       "name": "enum_block_library_blocks_image_size",
       "schema": "cms",
-      "values": [
-        "full",
-        "contained"
-      ]
+      "values": ["full", "contained"]
     },
     "cms.enum_pages_blocks_hero_dashboard_alerts_tone": {
       "name": "enum_pages_blocks_hero_dashboard_alerts_tone",
       "schema": "cms",
-      "values": [
-        "signal",
-        "amber",
-        "teal",
-        "ink"
-      ]
+      "values": ["signal", "amber", "teal", "ink"]
     },
     "cms.enum_pages_blocks_hero_kpis_delta_direction": {
       "name": "enum_pages_blocks_hero_kpis_delta_direction",
       "schema": "cms",
-      "values": [
-        "up",
-        "down"
-      ]
+      "values": ["up", "down"]
     },
     "cms.enum_pages_blocks_how_it_works_steps_mock_type": {
       "name": "enum_pages_blocks_how_it_works_steps_mock_type",
       "schema": "cms",
-      "values": [
-        "url",
-        "insight",
-        "alerts"
-      ]
+      "values": ["url", "insight", "alerts"]
     },
     "cms.enum_pages_blocks_comparison_rows_cells_state": {
       "name": "enum_pages_blocks_comparison_rows_cells_state",
       "schema": "cms",
-      "values": [
-        "yes",
-        "no",
-        "partial"
-      ]
+      "values": ["yes", "no", "partial"]
     },
     "cms.enum_pages_blocks_cta_variant": {
       "name": "enum_pages_blocks_cta_variant",
       "schema": "cms",
-      "values": [
-        "primary",
-        "secondary"
-      ]
+      "values": ["primary", "secondary"]
     },
     "cms.enum_pages_blocks_image_size": {
       "name": "enum_pages_blocks_image_size",
       "schema": "cms",
-      "values": [
-        "full",
-        "contained"
-      ]
+      "values": ["full", "contained"]
     },
     "cms.enum_pages_status": {
       "name": "enum_pages_status",
       "schema": "cms",
-      "values": [
-        "draft",
-        "published"
-      ]
+      "values": ["draft", "published"]
     },
     "cms.enum__pages_v_blocks_hero_dashboard_alerts_tone": {
       "name": "enum__pages_v_blocks_hero_dashboard_alerts_tone",
       "schema": "cms",
-      "values": [
-        "signal",
-        "amber",
-        "teal",
-        "ink"
-      ]
+      "values": ["signal", "amber", "teal", "ink"]
     },
     "cms.enum__pages_v_blocks_hero_kpis_delta_direction": {
       "name": "enum__pages_v_blocks_hero_kpis_delta_direction",
       "schema": "cms",
-      "values": [
-        "up",
-        "down"
-      ]
+      "values": ["up", "down"]
     },
     "cms.enum__pages_v_blocks_how_it_works_steps_mock_type": {
       "name": "enum__pages_v_blocks_how_it_works_steps_mock_type",
       "schema": "cms",
-      "values": [
-        "url",
-        "insight",
-        "alerts"
-      ]
+      "values": ["url", "insight", "alerts"]
     },
     "cms.enum__pages_v_blocks_comparison_rows_cells_state": {
       "name": "enum__pages_v_blocks_comparison_rows_cells_state",
       "schema": "cms",
-      "values": [
-        "yes",
-        "no",
-        "partial"
-      ]
+      "values": ["yes", "no", "partial"]
     },
     "cms.enum__pages_v_blocks_cta_variant": {
       "name": "enum__pages_v_blocks_cta_variant",
       "schema": "cms",
-      "values": [
-        "primary",
-        "secondary"
-      ]
+      "values": ["primary", "secondary"]
     },
     "cms.enum__pages_v_blocks_image_size": {
       "name": "enum__pages_v_blocks_image_size",
       "schema": "cms",
-      "values": [
-        "full",
-        "contained"
-      ]
+      "values": ["full", "contained"]
     },
     "cms.enum__pages_v_version_status": {
       "name": "enum__pages_v_version_status",
       "schema": "cms",
-      "values": [
-        "draft",
-        "published"
-      ]
+      "values": ["draft", "published"]
     },
     "cms.enum_posts_category": {
       "name": "enum_posts_category",
       "schema": "cms",
-      "values": [
-        "Product",
-        "Company",
-        "Guide"
-      ]
+      "values": ["Product", "Company", "Guide"]
     },
     "cms.enum_posts_status": {
       "name": "enum_posts_status",
       "schema": "cms",
-      "values": [
-        "draft",
-        "published"
-      ]
+      "values": ["draft", "published"]
     },
     "cms.enum__posts_v_version_category": {
       "name": "enum__posts_v_version_category",
       "schema": "cms",
-      "values": [
-        "Product",
-        "Company",
-        "Guide"
-      ]
+      "values": ["Product", "Company", "Guide"]
     },
     "cms.enum__posts_v_version_status": {
       "name": "enum__posts_v_version_status",
       "schema": "cms",
-      "values": [
-        "draft",
-        "published"
-      ]
+      "values": ["draft", "published"]
     },
     "cms.enum_footer_social_links_platform": {
       "name": "enum_footer_social_links_platform",
       "schema": "cms",
-      "values": [
-        "twitter",
-        "linkedin",
-        "github",
-        "youtube",
-        "other"
-      ]
+      "values": ["twitter", "linkedin", "github", "youtube", "other"]
     }
   },
   "schemas": {

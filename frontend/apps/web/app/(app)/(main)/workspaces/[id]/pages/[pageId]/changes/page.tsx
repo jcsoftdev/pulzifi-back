@@ -1,7 +1,13 @@
 'use client'
 
-import type { Check, Insight, MonitoredSection, Page, BlockDiffDto } from '@workspace/services/page-api'
 import { PageApi, UsageApi } from '@workspace/services'
+import type {
+  BlockDiffDto,
+  Check,
+  Insight,
+  MonitoredSection,
+  Page,
+} from '@workspace/services/page-api'
 import { Button } from '@workspace/ui/components/atoms/button'
 import { Settings, Zap } from 'lucide-react'
 import { useParams, useSearchParams } from 'next/navigation'
@@ -10,7 +16,7 @@ import { ChangesViewService } from '@/features/changes-view/domain/changes-view-
 import { ChangesViewLayout } from '@/features/changes-view/ui/changes-view-layout'
 import { IntelligentInsights } from '@/features/changes-view/ui/intelligent-insights'
 import { SectionNavTabs } from '@/features/changes-view/ui/section-nav-tabs'
-import { TextChanges, type TextChangeSection } from '@/features/changes-view/ui/text-changes'
+import { type TextChangeSection, TextChanges } from '@/features/changes-view/ui/text-changes'
 import { VisualPulse } from '@/features/changes-view/ui/visual-pulse'
 import type { DiffRow } from '@/features/changes-view/utils/simple-diff'
 import { diffWords } from '@/features/changes-view/utils/simple-diff'
@@ -21,10 +27,24 @@ function VisualPulseSkeleton() {
       <div className="relative w-full select-none overflow-hidden rounded-lg border border-border shadow-sm bg-muted/10 h-[500px] animate-pulse">
         <div
           className="absolute top-0 bottom-0 w-1 bg-primary z-10 flex items-center justify-center"
-          style={{ left: '50%', transform: 'translateX(-50%)' }}
+          style={{
+            left: '50%',
+            transform: 'translateX(-50%)',
+          }}
         >
           <div className="w-8 h-16 bg-primary rounded-lg flex items-center justify-center shadow-lg">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary-foreground" aria-hidden="true">
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="text-primary-foreground"
+              aria-hidden="true"
+            >
               <path d="m9 18 6-6-6-6" />
             </svg>
           </div>
@@ -38,17 +58,37 @@ function VisualPulseSkeleton() {
 function blockDiffToDiffRow(d: BlockDiffDto): DiffRow {
   switch (d.op) {
     case 'added':
-      return { kind: 'added', segments: [{ type: 'added', text: d.block.text }] }
+      return {
+        kind: 'added',
+        segments: [
+          {
+            type: 'added',
+            text: d.block.text,
+          },
+        ],
+      }
     case 'removed':
-      return { kind: 'removed', segments: [{ type: 'removed', text: d.block.text }] }
+      return {
+        kind: 'removed',
+        segments: [
+          {
+            type: 'removed',
+            text: d.block.text,
+          },
+        ],
+      }
     case 'changed': {
       const oldText = d.old_block?.text ?? ''
       const segments = diffWords(oldText, d.block.text)
-      return { kind: 'inline', segments }
+      return {
+        kind: 'inline',
+        segments,
+      }
     }
   }
 }
 
+// biome-ignore lint/correctness/noUnusedVariables: kept for future use
 function InsightsSkeleton() {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -60,8 +100,8 @@ function InsightsSkeleton() {
             Do you need Intelligent Insights for this change?
           </h3>
           <p className="text-sm text-muted-foreground max-w-sm">
-            Pulzify detected a meaningful update and turned it into an actionable insight.
-            Click below to see what&apos;s behind the change.
+            Pulzify detected a meaningful update and turned it into an actionable insight. Click
+            below to see what&apos;s behind the change.
           </p>
           <Button className="mt-2 gap-2 bg-violet-600 hover:bg-violet-700 text-white" disabled>
             <Zap className="h-4 w-4" />
@@ -109,23 +149,35 @@ export default function ChangesPage() {
   const hasSections = sections.length > 0
 
   // All section checks (with sectionId) and all parent/full-page checks (without).
-  const sectionChecks = useMemo(() => checks.filter((c) => !!c.sectionId), [checks])
-  const parentChecks = useMemo(() => checks.filter((c) => !c.sectionId), [checks])
+  const sectionChecks = useMemo(
+    () => checks.filter((c) => !!c.sectionId),
+    [
+      checks,
+    ]
+  )
+  const parentChecks = useMemo(
+    () => checks.filter((c) => !c.sectionId),
+    [
+      checks,
+    ]
+  )
 
   // Build a list of unique "execution groups" from parent checks for the "All sections" dropdown.
   // Each parent check represents one monitoring execution.
   // For specific section mode, use that section's checks directly.
-  const filteredChecks = selectedSectionId === 'all'
-    ? (hasSections ? parentChecks : checks)
-    : sectionChecks.filter((c) => c.sectionId === selectedSectionId)
+  const filteredChecks =
+    selectedSectionId === 'all'
+      ? hasSections
+        ? parentChecks
+        : checks
+      : sectionChecks.filter((c) => c.sectionId === selectedSectionId)
 
   // Checks within the storage period that appear in the dropdown.
   const storageCutoff = new Date()
   storageCutoff.setDate(storageCutoff.getDate() - storagePeriodDays)
   const dropdownChecks = filteredChecks.filter(
     (c) =>
-      (c.status === 'success' && new Date(c.checkedAt) >= storageCutoff) ||
-      c.id === checkIdParam
+      (c.status === 'success' && new Date(c.checkedAt) >= storageCutoff) || c.id === checkIdParam
   )
   // Resolve active check: checkIdParam (if in current filter) → first dropdown → latest in filter.
   const paramInFilter = checkIdParam ? filteredChecks.find((c) => c.id === checkIdParam) : undefined
@@ -144,7 +196,9 @@ export default function ChangesPage() {
     }
     // Each group is already sorted DESC (flattened from parent checks sorted DESC)
     return map
-  }, [sectionChecks])
+  }, [
+    sectionChecks,
+  ])
 
   // When "All sections" is selected and the active check is a parent check,
   // gather its section children for display.
@@ -166,12 +220,19 @@ export default function ChangesPage() {
       if (arr[0]) result.push(arr[0])
     }
     return result
-  }, [activeCheck, sectionChecks, sectionChecksBySectionId, hasSections])
+  }, [
+    activeCheck,
+    sectionChecks,
+    sectionChecksBySectionId,
+    hasSections,
+  ])
 
   // For a specific-section view, find the previous check with the same sectionId.
   const previousCheck = filteredChecks
     .slice(activeCheckIndex + 1)
-    .find((c) => c.status === 'success' && !!c.screenshotUrl && c.sectionId === activeCheck?.sectionId)
+    .find(
+      (c) => c.status === 'success' && !!c.screenshotUrl && c.sectionId === activeCheck?.sectionId
+    )
 
   // Find previous section checks for "All sections" comparison.
   // For each active section check, find the next-oldest check with the same sectionId.
@@ -188,7 +249,12 @@ export default function ChangesPage() {
       if (prev) result.push(prev)
     }
     return result
-  }, [activeCheck, activeSectionChecks, sectionChecksBySectionId, hasSections])
+  }, [
+    activeCheck,
+    activeSectionChecks,
+    sectionChecksBySectionId,
+    hasSections,
+  ])
 
   const activeSection = activeCheck?.sectionId
     ? sections.find((s) => s.id === activeCheck.sectionId)
@@ -235,7 +301,10 @@ export default function ChangesPage() {
       }
     }
     loadData()
-  }, [pageId, checkIdParam])
+  }, [
+    pageId,
+    checkIdParam,
+  ])
 
   // Build section-grouped text changes for the TextChanges component.
   const textChangeSections = useMemo<TextChangeSection[]>(() => {
@@ -243,9 +312,7 @@ export default function ChangesPage() {
     if (selectedSectionId === 'all' && activeSectionChecks.length > 0) {
       const sectionDiffs: TextChangeSection[] = activeSectionChecks.map((sc) => ({
         sectionName: sections.find((s) => s.id === sc.sectionId)?.name,
-        changes: sc.contentDiff?.has_changes
-          ? sc.contentDiff.diffs.map(blockDiffToDiffRow)
-          : [],
+        changes: sc.contentDiff?.has_changes ? sc.contentDiff.diffs.map(blockDiffToDiffRow) : [],
         changeDetected: sc.changeDetected,
       }))
       // At least one section check exists — use section-grouped view.
@@ -254,13 +321,20 @@ export default function ChangesPage() {
     }
     // Single section or full-page: single group
     if (!activeCheck?.contentDiff?.has_changes) return []
-    return [{
-      sectionName: activeCheck.sectionId
-        ? sections.find((s) => s.id === activeCheck.sectionId)?.name
-        : undefined,
-      changes: activeCheck.contentDiff.diffs.map(blockDiffToDiffRow),
-    }]
-  }, [activeCheck, selectedSectionId, activeSectionChecks, sections])
+    return [
+      {
+        sectionName: activeCheck.sectionId
+          ? sections.find((s) => s.id === activeCheck.sectionId)?.name
+          : undefined,
+        changes: activeCheck.contentDiff.diffs.map(blockDiffToDiffRow),
+      },
+    ]
+  }, [
+    activeCheck,
+    selectedSectionId,
+    activeSectionChecks,
+    sections,
+  ])
 
   if (loading) {
     return (
@@ -268,7 +342,9 @@ export default function ChangesPage() {
         <div className="flex flex-col gap-6 md:gap-8 px-4 md:px-0">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex flex-col gap-0.5">
-              <span className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Change detected on</span>
+              <span className="text-xs text-muted-foreground uppercase tracking-wide font-medium">
+                Change detected on
+              </span>
               <div className="h-9 w-56 bg-muted rounded animate-pulse" />
             </div>
             <div className="w-full md:w-64 flex flex-col gap-1">
@@ -308,7 +384,9 @@ export default function ChangesPage() {
           return (
             <div key={sc.id}>
               {sectionMeta && (
-                <h4 className="text-sm font-medium text-muted-foreground mb-2">{sectionMeta.name}</h4>
+                <h4 className="text-sm font-medium text-muted-foreground mb-2">
+                  {sectionMeta.name}
+                </h4>
               )}
               <VisualPulse
                 currentScreenshotUrl={sc.screenshotUrl}
@@ -357,8 +435,8 @@ export default function ChangesPage() {
         storagePeriodDays={storagePeriodDays}
         sections={sections}
       >
-        {activeTab === 'visual' && (
-          selectedSectionId === 'all' && activeSectionChecks.length > 0 ? (
+        {activeTab === 'visual' &&
+          (selectedSectionId === 'all' && activeSectionChecks.length > 0 ? (
             renderAllSectionsView()
           ) : (
             <VisualPulse
@@ -367,8 +445,7 @@ export default function ChangesPage() {
               diffImageUrl={activeCheck?.diffImageUrl}
               sectionName={activeSectionName}
             />
-          )
-        )}
+          ))}
         {activeTab === 'text' && <TextChanges sections={textChangeSections} />}
         {activeTab === 'insights' && (
           <IntelligentInsights

@@ -31,6 +31,7 @@ export function HowItWorksSection({
   const items = steps ?? []
 
   return (
+    // biome-ignore lint/correctness/useUniqueElementIds: static nav anchor ID
     <SectionFrame bg="white" id="how-it-works">
       {/* Section header */}
       <div className="mx-auto max-w-2xl text-center">
@@ -59,10 +60,7 @@ export function HowItWorksSection({
             className="flex flex-col"
           >
             {/* Wireframe mock at top */}
-            <StepMock
-              mockType={step.mockType ?? 'url'}
-              mockText={step.mockText}
-            />
+            <StepMock mockType={step.mockType ?? 'url'} mockText={step.mockText} />
 
             {/* Numbered circle */}
             <div className="mt-6 flex size-8 items-center justify-center rounded-full bg-[var(--pz-accent)] text-white text-sm font-bold">

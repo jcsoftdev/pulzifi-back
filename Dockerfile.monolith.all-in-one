@@ -24,8 +24,8 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Expose only the app port
-EXPOSE 9090
+# Expose API HTTP and gRPC ports used by cmd/server.
+EXPOSE 3000 9000
 
 # Start with air for hot reload
 CMD ["air", "-c", ".air.toml"]

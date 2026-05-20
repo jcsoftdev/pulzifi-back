@@ -10,12 +10,14 @@ import {
 } from '@workspace/ui/components/atoms/card'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useState } from 'react'
+import { useId, useState } from 'react'
 
 export default function InviteAcceptPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const token = searchParams.get('token') ?? ''
+  const passwordId = useId()
+  const confirmPasswordId = useId()
 
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -83,7 +85,9 @@ export default function InviteAcceptPage() {
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
             <CardTitle className="text-2xl">Password Set</CardTitle>
-            <CardDescription>Your password has been set successfully. Redirecting to login...</CardDescription>
+            <CardDescription>
+              Your password has been set successfully. Redirecting to login...
+            </CardDescription>
           </CardHeader>
         </Card>
       </div>
@@ -109,11 +113,11 @@ export default function InviteAcceptPage() {
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <label htmlFor="password" className="text-sm font-medium">
+                <label htmlFor={passwordId} className="text-sm font-medium">
                   New Password
                 </label>
                 <input
-                  id="password"
+                  id={passwordId}
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -125,11 +129,11 @@ export default function InviteAcceptPage() {
               </div>
 
               <div className="space-y-2">
-                <label htmlFor="confirmPassword" className="text-sm font-medium">
+                <label htmlFor={confirmPasswordId} className="text-sm font-medium">
                   Confirm Password
                 </label>
                 <input
-                  id="confirmPassword"
+                  id={confirmPasswordId}
                   type="password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}

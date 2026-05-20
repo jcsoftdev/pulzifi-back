@@ -1,5 +1,5 @@
-import { SettingsFeature } from '@/features/settings'
 import { AuthApi } from '@workspace/services'
+import { SettingsFeature } from '@/features/settings'
 
 export default async function SettingsPage() {
   let userEmail: string | undefined

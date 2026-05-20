@@ -7,17 +7,41 @@ import { useTransition } from 'react'
 import { notification } from '@/lib/notification'
 
 const INSIGHT_TYPES = [
-  { id: 'marketing', label: 'Marketing Lens' },
-  { id: 'market_analysis', label: 'Market Analysis' },
-  { id: 'business_opportunities', label: 'Business Opportunities' },
-  { id: 'job_recommendation', label: 'Job recommendation' },
+  {
+    id: 'marketing',
+    label: 'Marketing Lens',
+  },
+  {
+    id: 'market_analysis',
+    label: 'Market Analysis',
+  },
+  {
+    id: 'business_opportunities',
+    label: 'Business Opportunities',
+  },
+  {
+    id: 'job_recommendation',
+    label: 'Job recommendation',
+  },
 ] as const
 
 const ALERT_CONDITIONS = [
-  { id: 'any_changes', label: 'Any changes' },
-  { id: 'new_article', label: 'A new article is published on the site' },
-  { id: 'new_comment', label: 'New comment added' },
-  { id: 'main_nav_changes', label: "Site's main navigation menu changes" },
+  {
+    id: 'any_changes',
+    label: 'Any changes',
+  },
+  {
+    id: 'new_article',
+    label: 'A new article is published on the site',
+  },
+  {
+    id: 'new_comment',
+    label: 'New comment added',
+  },
+  {
+    id: 'main_nav_changes',
+    label: "Site's main navigation menu changes",
+  },
 ] as const
 
 interface IntelligentInsightsCardProps {
@@ -32,8 +56,13 @@ export function IntelligentInsightsCard({
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
 
-  const enabledInsightTypes = config?.enabledInsightTypes ?? ['marketing', 'market_analysis']
-  const enabledAlertConditions = config?.enabledAlertConditions ?? ['any_changes']
+  const enabledInsightTypes = config?.enabledInsightTypes ?? [
+    'marketing',
+    'market_analysis',
+  ]
+  const enabledAlertConditions = config?.enabledAlertConditions ?? [
+    'any_changes',
+  ]
   const customAlertCondition = config?.customAlertCondition ?? ''
 
   const save = (updates: Partial<MonitoringConfig>) => {
@@ -41,10 +70,15 @@ export function IntelligentInsightsCard({
       try {
         await PageApi.updateMonitoringConfig(pageId, updates)
         router.refresh()
-        notification.success({ title: 'Preferences saved' })
+        notification.success({
+          title: 'Preferences saved',
+        })
       } catch (error) {
         console.error('Failed to update insight preferences', error)
-        notification.error({ title: 'Failed to save preferences', description: error instanceof Error ? error.message : 'Please try again.' })
+        notification.error({
+          title: 'Failed to save preferences',
+          description: error instanceof Error ? error.message : 'Please try again.',
+        })
       }
     })
   }
@@ -52,20 +86,32 @@ export function IntelligentInsightsCard({
   const toggleInsightType = (id: string) => {
     const next = enabledInsightTypes.includes(id)
       ? enabledInsightTypes.filter((t) => t !== id)
-      : [...enabledInsightTypes, id]
-    save({ enabledInsightTypes: next })
+      : [
+          ...enabledInsightTypes,
+          id,
+        ]
+    save({
+      enabledInsightTypes: next,
+    })
   }
 
   const toggleAlertCondition = (id: string) => {
     const next = enabledAlertConditions.includes(id)
       ? enabledAlertConditions.filter((a) => a !== id)
-      : [...enabledAlertConditions, id]
-    save({ enabledAlertConditions: next })
+      : [
+          ...enabledAlertConditions,
+          id,
+        ]
+    save({
+      enabledAlertConditions: next,
+    })
   }
 
   const handleCustomAlertBlur = (value: string) => {
     if (value !== customAlertCondition) {
-      save({ customAlertCondition: value })
+      save({
+        customAlertCondition: value,
+      })
     }
   }
 

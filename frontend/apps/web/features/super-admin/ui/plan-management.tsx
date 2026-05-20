@@ -1,7 +1,6 @@
 'use client'
 
 import { type AdminOrganizationPlan, type AdminPlan, SuperAdminApi } from '@workspace/services'
-import { notification } from '@/lib/notification'
 import {
   Badge,
   Button,
@@ -18,6 +17,7 @@ import {
 } from '@workspace/ui/components/atoms'
 import { Gift, Loader2 } from 'lucide-react'
 import { useCallback, useEffect, useState, useTransition } from 'react'
+import { notification } from '@/lib/notification'
 
 export function PlanManagement() {
   const [isPending, startTransition] = useTransition()
@@ -52,10 +52,16 @@ export function PlanManagement() {
       try {
         await SuperAdminApi.assignPlan(organizationId, planCode)
         await loadData()
-        notification.success({ title: 'Plan updated', description: `Plan changed to ${planCode}.` })
+        notification.success({
+          title: 'Plan updated',
+          description: `Plan changed to ${planCode}.`,
+        })
       } catch {
         setActionError('Failed to update plan for this organization.')
-        notification.error({ title: 'Failed to update plan', description: 'Please try again.' })
+        notification.error({
+          title: 'Failed to update plan',
+          description: 'Please try again.',
+        })
       }
     })
   }
@@ -72,7 +78,10 @@ export function PlanManagement() {
         })
       } catch {
         setActionError('Failed to gift free month.')
-        notification.error({ title: 'Failed to gift month', description: 'The period may already exist.' })
+        notification.error({
+          title: 'Failed to gift month',
+          description: 'The period may already exist.',
+        })
       }
     })
   }

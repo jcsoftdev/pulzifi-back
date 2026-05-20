@@ -54,7 +54,13 @@ export const SuperAdminApi = {
     })
   },
 
-  async giftMonth(organizationId: string): Promise<{ gifted_period: { period_start: string; period_end: string; checks_allowed: number } }> {
+  async giftMonth(organizationId: string): Promise<{
+    gifted_period: {
+      period_start: string
+      period_end: string
+      checks_allowed: number
+    }
+  }> {
     const http = await getHttpClient()
     return http.post(`/api/v1/usage/admin/organizations/${organizationId}/gift-month`, {})
   },

@@ -67,7 +67,10 @@ export function MemberCard({ member, isCurrentUser, onEdit, onDelete }: Readonly
       </div>
 
       {/* Name */}
-      <span className="text-xs text-center text-foreground leading-tight max-w-full truncate" title={label}>
+      <span
+        className="text-xs text-center text-foreground leading-tight max-w-full truncate"
+        title={label}
+      >
         {label}
       </span>
     </div>

@@ -1,3 +1,4 @@
+// biome-ignore-all lint/suspicious/noArrayIndexKey: nav dots are intrinsically position-based
 'use client'
 
 import { cn } from '@workspace/ui/lib/utils'
@@ -34,22 +35,77 @@ type IndustriesSectionProps = {
 }
 
 const ACCENT_COLORS = [
-  { bg: 'bg-violet-50', border: 'border-violet-200/60', badge: 'bg-violet-100 text-violet-700', dot: 'bg-violet-500', icon: 'text-violet-600', iconBg: 'bg-violet-100' },
-  { bg: 'bg-sky-50', border: 'border-sky-200/60', badge: 'bg-sky-100 text-sky-700', dot: 'bg-sky-500', icon: 'text-sky-600', iconBg: 'bg-sky-100' },
-  { bg: 'bg-emerald-50', border: 'border-emerald-200/60', badge: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500', icon: 'text-emerald-600', iconBg: 'bg-emerald-100' },
-  { bg: 'bg-amber-50', border: 'border-amber-200/60', badge: 'bg-amber-100 text-amber-700', dot: 'bg-amber-500', icon: 'text-amber-600', iconBg: 'bg-amber-100' },
-  { bg: 'bg-rose-50', border: 'border-rose-200/60', badge: 'bg-rose-100 text-rose-700', dot: 'bg-rose-500', icon: 'text-rose-600', iconBg: 'bg-rose-100' },
-  { bg: 'bg-teal-50', border: 'border-teal-200/60', badge: 'bg-teal-100 text-teal-700', dot: 'bg-teal-500', icon: 'text-teal-600', iconBg: 'bg-teal-100' },
+  {
+    bg: 'bg-violet-50',
+    border: 'border-violet-200/60',
+    badge: 'bg-violet-100 text-violet-700',
+    dot: 'bg-violet-500',
+    icon: 'text-violet-600',
+    iconBg: 'bg-violet-100',
+  },
+  {
+    bg: 'bg-sky-50',
+    border: 'border-sky-200/60',
+    badge: 'bg-sky-100 text-sky-700',
+    dot: 'bg-sky-500',
+    icon: 'text-sky-600',
+    iconBg: 'bg-sky-100',
+  },
+  {
+    bg: 'bg-emerald-50',
+    border: 'border-emerald-200/60',
+    badge: 'bg-emerald-100 text-emerald-700',
+    dot: 'bg-emerald-500',
+    icon: 'text-emerald-600',
+    iconBg: 'bg-emerald-100',
+  },
+  {
+    bg: 'bg-amber-50',
+    border: 'border-amber-200/60',
+    badge: 'bg-amber-100 text-amber-700',
+    dot: 'bg-amber-500',
+    icon: 'text-amber-600',
+    iconBg: 'bg-amber-100',
+  },
+  {
+    bg: 'bg-rose-50',
+    border: 'border-rose-200/60',
+    badge: 'bg-rose-100 text-rose-700',
+    dot: 'bg-rose-500',
+    icon: 'text-rose-600',
+    iconBg: 'bg-rose-100',
+  },
+  {
+    bg: 'bg-teal-50',
+    border: 'border-teal-200/60',
+    badge: 'bg-teal-100 text-teal-700',
+    dot: 'bg-teal-500',
+    icon: 'text-teal-600',
+    iconBg: 'bg-teal-100',
+  },
 ]
 
-const ICONS: LucideIcon[] = [ShoppingCart, Megaphone, Home, Scale, Rocket, BarChart3]
+const ICONS: LucideIcon[] = [
+  ShoppingCart,
+  Megaphone,
+  Home,
+  Scale,
+  Rocket,
+  BarChart3,
+]
 
-function IndustryCard({ item, index, isActive, onClick }: {
+function IndustryCard({
+  item,
+  index,
+  isActive,
+  onClick,
+}: {
   item: IndustryItem
   index: number
   isActive: boolean
   onClick: () => void
 }) {
+  // biome-ignore lint/style/noNonNullAssertion: ACCENT_COLORS is non-empty, fallback ?? ensures access is safe
   const color = ACCENT_COLORS[index % ACCENT_COLORS.length] ?? ACCENT_COLORS[0]!
   const Icon = (ICONS[index % ICONS.length] ?? ShoppingCart) as LucideIcon
 
@@ -62,43 +118,53 @@ function IndustryCard({ item, index, isActive, onClick }: {
         'transition-all duration-300 cursor-pointer',
         isActive
           ? `${color.bg} ${color.border} shadow-lg -translate-y-1`
-          : 'bg-white border-[var(--pz-card-border)] hover:-translate-y-0.5 hover:shadow-md hover:border-[var(--pz-card-border-strong)]',
+          : 'bg-white border-[var(--pz-card-border)] hover:-translate-y-0.5 hover:shadow-md hover:border-[var(--pz-card-border-strong)]'
       )}
     >
       <div className="flex items-start justify-between">
-        <div className={cn(
-          'flex size-11 items-center justify-center rounded-xl',
-          'transition-colors duration-300',
-          isActive ? color.iconBg : 'bg-[var(--pz-page-bg-alt)]',
-        )}>
-          <Icon className={cn(
-            'size-5 transition-colors duration-300',
-            isActive ? color.icon : 'text-[var(--pz-ink-2)]',
-          )} />
+        <div
+          className={cn(
+            'flex size-11 items-center justify-center rounded-xl',
+            'transition-colors duration-300',
+            isActive ? color.iconBg : 'bg-[var(--pz-page-bg-alt)]'
+          )}
+        >
+          <Icon
+            className={cn(
+              'size-5 transition-colors duration-300',
+              isActive ? color.icon : 'text-[var(--pz-ink-2)]'
+            )}
+          />
         </div>
-        <div className={cn(
-          'size-2 rounded-full mt-1 transition-all duration-300',
-          isActive ? color.dot : 'bg-[var(--pz-card-border)]',
-        )} />
+        <div
+          className={cn(
+            'size-2 rounded-full mt-1 transition-all duration-300',
+            isActive ? color.dot : 'bg-[var(--pz-card-border)]'
+          )}
+        />
       </div>
 
       <h3 className="font-semibold text-[17px] leading-snug tracking-tight text-[var(--pz-ink)]">
         {item.title}
       </h3>
 
-      <p className={cn(
-        'text-sm leading-relaxed transition-colors duration-300',
-        isActive ? 'text-[var(--pz-ink)]' : 'text-[var(--pz-ink-2)]',
-        'line-clamp-3',
-      )}>
+      <p
+        className={cn(
+          'text-sm leading-relaxed transition-colors duration-300',
+          isActive ? 'text-[var(--pz-ink)]' : 'text-[var(--pz-ink-2)]',
+          'line-clamp-3'
+        )}
+      >
         {item.description}
       </p>
 
       {item.realWin && (
-        <div className={cn(
-          'mt-auto flex items-center gap-1.5 text-xs font-medium transition-colors duration-200',
-          isActive ? color.icon : 'text-[var(--pz-ink-2)]/60 group-hover:text-[var(--pz-ink-2)]',
-        )}>
+        <div
+          className={cn(
+            'mt-auto flex items-center gap-1.5 text-xs font-medium transition-colors duration-200',
+            isActive ? color.icon : 'text-[var(--pz-ink-2)]/60 group-hover:text-[var(--pz-ink-2)]'
+          )}
+        >
           <span>Real win</span>
           <ArrowRight className="size-3" />
         </div>
@@ -119,16 +185,17 @@ export function IndustriesSection({
   if (!items?.length) return null
 
   const active = items[activeIndex]
+  // biome-ignore lint/style/noNonNullAssertion: ACCENT_COLORS is non-empty, fallback ?? ensures access is safe
   const color = ACCENT_COLORS[activeIndex % ACCENT_COLORS.length] ?? ACCENT_COLORS[0]!
   const ActiveIcon = (ICONS[activeIndex % ICONS.length] ?? ShoppingCart) as LucideIcon
 
   return (
+    // biome-ignore lint/correctness/useUniqueElementIds: static nav anchor ID
     <SectionFrame id="usecases" bg="white">
       <AnimatedSection className="mx-auto max-w-2xl text-center">
         {eyebrow && <Eyebrow className="mb-4">{eyebrow}</Eyebrow>}
         <h2 className="font-heading text-4xl font-bold tracking-tight leading-[1.1] text-[var(--pz-ink)] md:text-5xl">
-          {headline}{' '}
-          {headlineHighlight && <Highlight tone="accent">{headlineHighlight}</Highlight>}
+          {headline} {headlineHighlight && <Highlight tone="accent">{headlineHighlight}</Highlight>}
         </h2>
         {subheadline && (
           <p className="mt-4 text-lg leading-relaxed text-[var(--pz-ink-2)]">{subheadline}</p>
@@ -154,18 +221,28 @@ export function IndustriesSection({
           delay={120}
           className="lg:col-span-2 lg:sticky lg:top-24 lg:self-start"
         >
-          <div className={cn(
-            'rounded-2xl border p-8 transition-all duration-500',
-            color.bg, color.border,
-          )}>
-            <div className={cn(
-              'flex size-16 items-center justify-center rounded-2xl mb-6 shadow-sm',
-              color.iconBg,
-            )}>
+          <div
+            className={cn(
+              'rounded-2xl border p-8 transition-all duration-500',
+              color.bg,
+              color.border
+            )}
+          >
+            <div
+              className={cn(
+                'flex size-16 items-center justify-center rounded-2xl mb-6 shadow-sm',
+                color.iconBg
+              )}
+            >
               <ActiveIcon className={cn('size-8', color.icon)} />
             </div>
 
-            <span className={cn('inline-block rounded-full px-3 py-1 text-xs font-semibold mb-4', color.badge)}>
+            <span
+              className={cn(
+                'inline-block rounded-full px-3 py-1 text-xs font-semibold mb-4',
+                color.badge
+              )}
+            >
               Use Case {activeIndex + 1} of {items.length}
             </span>
 
@@ -198,7 +275,7 @@ export function IndustriesSection({
                     'h-1.5 rounded-full transition-all duration-300',
                     i === activeIndex
                       ? `w-6 ${color.dot}`
-                      : 'w-1.5 bg-[var(--pz-card-border)] hover:bg-[var(--pz-ink-2)]/30',
+                      : 'w-1.5 bg-[var(--pz-card-border)] hover:bg-[var(--pz-ink-2)]/30'
                   )}
                   aria-label={`Go to ${items[i]?.title ?? ''}`}
                 />

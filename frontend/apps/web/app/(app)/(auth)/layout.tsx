@@ -2,20 +2,16 @@ export const dynamic = 'force-dynamic'
 
 import { AuthApi } from '@workspace/services'
 import { extractTenantFromHostname } from '@workspace/shared-http'
-import { env } from '@/lib/env'
 import { isRedirectError } from 'next/dist/client/components/redirect-error'
 import { cookies, headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { AuthProvider } from '@/components/providers/auth-provider'
+import { env } from '@/lib/env'
 
 /**
  * Build the tenant subdomain URL to redirect an already-authenticated user.
  */
-function buildTenantRedirectUrl(
-  host: string,
-  protocol: string,
-  tenant: string
-): string {
+function buildTenantRedirectUrl(host: string, protocol: string, tenant: string): string {
   // NEXT_PUBLIC_APP_BASE_URL overrides everything — use it when set.
   // Required when running behind a local HTTPS proxy where the host header
   // and browser location.port don't reflect the real port (e.g. proxy on 443

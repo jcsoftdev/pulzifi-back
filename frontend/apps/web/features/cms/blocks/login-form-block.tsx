@@ -12,11 +12,15 @@ type LoginFormBlockData = {
   subheadline?: string
 }
 
-type Props = { block: LoginFormBlockData }
+type Props = {
+  block: LoginFormBlockData
+}
 
 export function LoginFormBlock({ block }: Props) {
   return (
-    <Suspense fallback={<main className="flex flex-1 items-center justify-center px-4 pb-12 pt-24" />}>
+    <Suspense
+      fallback={<main className="flex flex-1 items-center justify-center px-4 pb-12 pt-24" />}
+    >
       <LoginFormInner block={block} />
     </Suspense>
   )
@@ -36,10 +40,14 @@ function LoginFormInner({ block }: Props) {
     const errorParam = searchParams.get('error')
     if (errorParam === 'SessionExpired') setError('Your session has expired. Please sign in again.')
     else if (errorParam === 'PendingApproval')
-      setInfoBanner('Your account is pending approval by an administrator. Please check back later.')
+      setInfoBanner(
+        'Your account is pending approval by an administrator. Please check back later.'
+      )
     if (searchParams.get('registered') === 'true')
       setInfoBanner('Registration successful! Please wait for admin approval before logging in.')
-  }, [searchParams])
+  }, [
+    searchParams,
+  ])
 
   const getHostInfo = () => {
     const hostname = globalThis.location.hostname
@@ -61,7 +69,13 @@ function LoginFormInner({ block }: Props) {
         : isLocalhost
           ? 'localhost'
           : hostname.split('.').slice(-2).join('.')
-    return { hostname, isLocalhost, protocol, port, baseDomain }
+    return {
+      hostname,
+      isLocalhost,
+      protocol,
+      port,
+      baseDomain,
+    }
   }
 
   const handleLogin = async (credentials: { email: string; password: string }) => {
@@ -85,7 +99,7 @@ function LoginFormInner({ block }: Props) {
       const isOnSubdomain = hostname !== baseDomain
       if (isOnSubdomain && loginResponse.nonce) {
         const baseSessionUrl = new URL(
-          `${protocol}//${baseDomain}${portSuffix}/api/auth/set-base-session`,
+          `${protocol}//${baseDomain}${portSuffix}/api/auth/set-base-session`
         )
         baseSessionUrl.searchParams.set('nonce', loginResponse.nonce)
         baseSessionUrl.searchParams.set('tenant', tenant)
@@ -95,13 +109,20 @@ function LoginFormInner({ block }: Props) {
         globalThis.location.href = tenantCallbackUrl.toString()
       }
     } catch (err: unknown) {
-      const axiosError = err as { response?: { status?: number; data?: { code?: string } } }
+      const axiosError = err as {
+        response?: {
+          status?: number
+          data?: {
+            code?: string
+          }
+        }
+      }
       if (axiosError?.response?.status === 403) {
         const code = axiosError.response?.data?.code
         setError(
           code === 'USER_REJECTED'
             ? 'Your account has been rejected. Please contact support.'
-            : 'Your account is pending approval by an administrator.',
+            : 'Your account is pending approval by an administrator.'
         )
       } else {
         setError('Invalid email or password')

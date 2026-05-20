@@ -1,14 +1,20 @@
 'use client'
 
-import { DestinationsApi, PageApi, WorkspaceApi } from '@workspace/services'
 import type { Page, Workspace } from '@workspace/services'
-import type { CreateDestinationInput, Destination, ScopeType, Target } from '../domain/types'
+import { DestinationsApi, PageApi, WorkspaceApi } from '@workspace/services'
 import { useCallback, useEffect, useState } from 'react'
 import { notification } from '@/lib/notification'
+import type { CreateDestinationInput, Destination, ScopeType, Target } from '../domain/types'
 
 const AVAILABLE_EVENTS = [
-  { value: 'change.detected', label: 'Change detected' },
-  { value: 'alert.created', label: 'Alert created' },
+  {
+    value: 'change.detected',
+    label: 'Change detected',
+  },
+  {
+    value: 'alert.created',
+    label: 'Alert created',
+  },
 ]
 
 const E164_REGEX = /^\+[1-9]\d{6,14}$/
@@ -26,7 +32,7 @@ interface DestinationFormProps {
 export function DestinationForm({
   providerKey,
   integrationId,
-  scopeType: defaultScopeType,
+  scopeType: _defaultScopeType,
   scopeId: defaultScopeId,
   destination,
   onSuccess,
@@ -36,15 +42,13 @@ export function DestinationForm({
   // Slack: channel selected from dropdown
   const [targets, setTargets] = useState<Target[]>([])
   const [selectedTarget, setSelectedTarget] = useState<string>(
-    destination?.target?.channel_id as string ?? ''
+    (destination?.target?.channel_id as string) ?? ''
   )
   const [loadingTargets, setLoadingTargets] = useState(false)
 
   // Email: comma-separated list
   const [emailInput, setEmailInput] = useState<string>(
-    destination?.target?.emails
-      ? (destination.target.emails as string[]).join(', ')
-      : ''
+    destination?.target?.emails ? (destination.target.emails as string[]).join(', ') : ''
   )
 
   // Twilio: comma-separated phone numbers
@@ -57,7 +61,10 @@ export function DestinationForm({
 
   // Events checkboxes
   const [selectedEvents, setSelectedEvents] = useState<string[]>(
-    destination?.events ?? ['change.detected', 'alert.created']
+    destination?.events ?? [
+      'change.detected',
+      'alert.created',
+    ]
   )
 
   // Scope picker (create mode only)
@@ -82,11 +89,16 @@ export function DestinationForm({
     } finally {
       setLoadingTargets(false)
     }
-  }, [providerKey, integrationId])
+  }, [
+    providerKey,
+    integrationId,
+  ])
 
   useEffect(() => {
     fetchTargets()
-  }, [fetchTargets])
+  }, [
+    fetchTargets,
+  ])
 
   // Load workspaces when scope is workspace or page
   useEffect(() => {
@@ -94,7 +106,10 @@ export function DestinationForm({
     WorkspaceApi.listWorkspaces()
       .then((res) => setWorkspaces(res.workspaces))
       .catch(() => setWorkspaces([]))
-  }, [scope, isEdit])
+  }, [
+    scope,
+    isEdit,
+  ])
 
   // Load pages when workspace is selected in page scope
   useEffect(() => {
@@ -105,11 +120,20 @@ export function DestinationForm({
     PageApi.listByWorkspace(workspaceId)
       .then(setPages)
       .catch(() => setPages([]))
-  }, [scope, workspaceId, isEdit])
+  }, [
+    scope,
+    workspaceId,
+    isEdit,
+  ])
 
   const toggleEvent = (value: string) => {
     setSelectedEvents((prev) =>
-      prev.includes(value) ? prev.filter((e) => e !== value) : [...prev, value]
+      prev.includes(value)
+        ? prev.filter((e) => e !== value)
+        : [
+            ...prev,
+            value,
+          ]
     )
   }
 
@@ -119,41 +143,53 @@ export function DestinationForm({
       .map((p) => p.trim())
       .filter(Boolean)
 
-  const validatePhones = (phones: string[]): string[] =>
-    phones.filter((p) => !E164_REGEX.test(p))
+  const validatePhones = (phones: string[]): string[] => phones.filter((p) => !E164_REGEX.test(p))
 
   const buildTarget = (): Record<string, unknown> => {
     if (providerKey === 'slack') {
       const found = targets.find((t) => t.id === selectedTarget)
-      return { channel_id: selectedTarget, channel_name: found?.name ?? '' }
+      return {
+        channel_id: selectedTarget,
+        channel_name: found?.name ?? '',
+      }
     }
     if (providerKey === 'twilio') {
       const phones = parsePhones()
-      return { phone_numbers: phones }
+      return {
+        phone_numbers: phones,
+      }
     }
     // email
     const emails = emailInput
       .split(',')
       .map((e) => e.trim())
       .filter(Boolean)
-    return { emails }
+    return {
+      emails,
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (selectedEvents.length === 0) {
-      notification.error({ title: 'Select at least one event' })
+      notification.error({
+        title: 'Select at least one event',
+      })
       return
     }
 
     // Validate scope picker
     if (!isEdit) {
       if (scope === 'workspace' && !workspaceId) {
-        notification.error({ title: 'Select a workspace' })
+        notification.error({
+          title: 'Select a workspace',
+        })
         return
       }
       if (scope === 'page' && (!workspaceId || !pageId)) {
-        notification.error({ title: 'Select a workspace and a page' })
+        notification.error({
+          title: 'Select a workspace and a page',
+        })
         return
       }
     }
@@ -161,20 +197,26 @@ export function DestinationForm({
     const target = buildTarget()
 
     if (providerKey === 'slack' && !selectedTarget) {
-      notification.error({ title: 'Select a Slack channel' })
+      notification.error({
+        title: 'Select a Slack channel',
+      })
       return
     }
     if (providerKey === 'email') {
       const emails = (target.emails as string[]) ?? []
       if (emails.length === 0) {
-        notification.error({ title: 'Enter at least one email address' })
+        notification.error({
+          title: 'Enter at least one email address',
+        })
         return
       }
     }
     if (providerKey === 'twilio') {
       const phones = parsePhones()
       if (phones.length === 0) {
-        notification.error({ title: 'Enter at least one phone number' })
+        notification.error({
+          title: 'Enter at least one phone number',
+        })
         return
       }
       const invalid = validatePhones(phones)
@@ -197,14 +239,14 @@ export function DestinationForm({
           target,
           events: selectedEvents,
         })
-        notification.success({ title: 'Destination updated' })
+        notification.success({
+          title: 'Destination updated',
+        })
       } else {
         // Resolve scope_type and scope_id from picker (create mode)
         const resolvedScopeType: ScopeType = scope
         const resolvedScopeId =
-          scope === 'org' ? defaultScopeId
-          : scope === 'workspace' ? workspaceId
-          : pageId
+          scope === 'org' ? defaultScopeId : scope === 'workspace' ? workspaceId : pageId
 
         const body: CreateDestinationInput = {
           service_type: providerKey,
@@ -212,10 +254,16 @@ export function DestinationForm({
           scope_id: resolvedScopeId,
           target,
           events: selectedEvents,
-          ...(integrationId ? { integration_id: integrationId } : {}),
+          ...(integrationId
+            ? {
+                integration_id: integrationId,
+              }
+            : {}),
         }
         result = await DestinationsApi.create(body)
-        notification.success({ title: 'Destination created' })
+        notification.success({
+          title: 'Destination created',
+        })
       }
       onSuccess(result)
     } catch (err) {
@@ -233,6 +281,7 @@ export function DestinationForm({
       {/* Slack: channel selector */}
       {providerKey === 'slack' && (
         <div>
+          {/* biome-ignore lint/a11y/noLabelWithoutControl: visual label above control — association implied by proximity */}
           <label className="text-xs font-medium text-muted-foreground block mb-1.5">
             Slack channel
           </label>
@@ -258,6 +307,7 @@ export function DestinationForm({
       {/* Email: recipients */}
       {providerKey === 'email' && (
         <div>
+          {/* biome-ignore lint/a11y/noLabelWithoutControl: visual label above control — association implied by proximity */}
           <label className="text-xs font-medium text-muted-foreground block mb-1.5">
             Email recipients
           </label>
@@ -268,13 +318,16 @@ export function DestinationForm({
             rows={2}
             className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none"
           />
-          <p className="text-xs text-muted-foreground mt-1">Separate multiple addresses with commas.</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Separate multiple addresses with commas.
+          </p>
         </div>
       )}
 
       {/* Twilio: phone numbers */}
       {providerKey === 'twilio' && (
         <div>
+          {/* biome-ignore lint/a11y/noLabelWithoutControl: visual label above control — association implied by proximity */}
           <label className="text-xs font-medium text-muted-foreground block mb-1.5">
             Phone numbers (E.164)
           </label>
@@ -310,11 +363,15 @@ export function DestinationForm({
       {/* Scope picker (create mode only) */}
       {!isEdit && (
         <fieldset className="space-y-2">
-          <legend className="text-xs font-medium text-muted-foreground mb-1.5">
-            Notify scope
-          </legend>
+          <legend className="text-xs font-medium text-muted-foreground mb-1.5">Notify scope</legend>
           <div className="flex gap-4">
-            {(['org', 'workspace', 'page'] as ScopeType[]).map((s) => (
+            {(
+              [
+                'org',
+                'workspace',
+                'page',
+              ] as ScopeType[]
+            ).map((s) => (
               <label key={s} className="flex items-center gap-1.5 cursor-pointer select-none">
                 <input
                   type="radio"
@@ -337,6 +394,7 @@ export function DestinationForm({
 
           {(scope === 'workspace' || scope === 'page') && (
             <div className="mt-2">
+              {/* biome-ignore lint/a11y/noLabelWithoutControl: visual label above control — association implied by proximity */}
               <label className="text-xs font-medium text-muted-foreground block mb-1">
                 Workspace
               </label>
@@ -360,9 +418,8 @@ export function DestinationForm({
 
           {scope === 'page' && workspaceId && (
             <div className="mt-2">
-              <label className="text-xs font-medium text-muted-foreground block mb-1">
-                Page
-              </label>
+              {/* biome-ignore lint/a11y/noLabelWithoutControl: visual label above control — association implied by proximity */}
+              <label className="text-xs font-medium text-muted-foreground block mb-1">Page</label>
               <select
                 value={pageId}
                 onChange={(e) => setPageId(e.target.value)}
@@ -382,9 +439,8 @@ export function DestinationForm({
 
       {/* Events */}
       <div>
-        <label className="text-xs font-medium text-muted-foreground block mb-1.5">
-          Notify on
-        </label>
+        {/* biome-ignore lint/a11y/noLabelWithoutControl: visual section label for checkbox group — not directly associated with a single control */}
+        <label className="text-xs font-medium text-muted-foreground block mb-1.5">Notify on</label>
         <div className="flex flex-wrap gap-3">
           {AVAILABLE_EVENTS.map((ev) => (
             <label key={ev.value} className="flex items-center gap-2 cursor-pointer select-none">

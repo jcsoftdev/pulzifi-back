@@ -117,6 +117,7 @@ services:
         condition: service_healthy
     environment:
       HTTP_PORT: 3000
+      GRPC_PORT: 9000
       NEXTJS_URL: http://host.docker.internal:${DEV_WEB_PORT:-3001}
       ENVIRONMENT: development
       ENABLE_WORKERS: "false"
@@ -135,6 +136,7 @@ services:
       - .env
     ports:
       - "${HTTP_PORT:-3000}:3000"
+      - "${GRPC_PORT:-9000}:9000"
     volumes:
       - .:/workspace
     networks:

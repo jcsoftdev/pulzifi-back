@@ -37,10 +37,28 @@ export const ChangesViewService = {
 
     // Block-level tags that should produce paragraph breaks in the output
     const BLOCK_TAGS = new Set([
-      'P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6',
-      'LI', 'TD', 'TH', 'BLOCKQUOTE', 'PRE',
-      'DIV', 'ARTICLE', 'SECTION', 'HEADER',
-      'FOOTER', 'NAV', 'MAIN', 'ASIDE', 'FIGCAPTION', 'TR',
+      'P',
+      'H1',
+      'H2',
+      'H3',
+      'H4',
+      'H5',
+      'H6',
+      'LI',
+      'TD',
+      'TH',
+      'BLOCKQUOTE',
+      'PRE',
+      'DIV',
+      'ARTICLE',
+      'SECTION',
+      'HEADER',
+      'FOOTER',
+      'NAV',
+      'MAIN',
+      'ASIDE',
+      'FIGCAPTION',
+      'TR',
     ])
 
     // Recursively walk the DOM, wrapping block elements with newlines

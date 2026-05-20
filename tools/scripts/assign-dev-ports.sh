@@ -5,15 +5,16 @@ ENV_FILE="${1:-.env}"
 
 # Local development ports exposed on the host. Container-internal ports stay fixed.
 declare -A DEFAULT_PORTS=(
-  [HTTP_PORT]=3000
-  [DEV_WEB_PORT]=3001
+  [HTTP_PORT]=3002
+  [DEV_WEB_PORT]=3003
   [SCRAPER_PORT]=3005
-  [DB_PORT]=5434
-  [DEV_REDIS_PORT]=6381
-  [LOCALSTACK_PORT]=4566
+  [DB_PORT]=5436
+  [DEV_REDIS_PORT]=6382
+  [LOCALSTACK_PORT]=4567
+  [GRPC_PORT]=9000
 )
 
-ordered_keys=(HTTP_PORT DEV_WEB_PORT SCRAPER_PORT DB_PORT DEV_REDIS_PORT LOCALSTACK_PORT)
+ordered_keys=(HTTP_PORT DEV_WEB_PORT SCRAPER_PORT DB_PORT DEV_REDIS_PORT LOCALSTACK_PORT GRPC_PORT)
 
 if [ ! -f "$ENV_FILE" ]; then
   if [ -f ".env.example" ]; then
@@ -117,4 +118,5 @@ Dev ports ready:
   Postgres host port: ${PORTS[DB_PORT]}
   Redis host port:    ${PORTS[DEV_REDIS_PORT]}
   LocalStack port:    ${PORTS[LOCALSTACK_PORT]}
+  gRPC host port:     ${PORTS[GRPC_PORT]}
 EOF

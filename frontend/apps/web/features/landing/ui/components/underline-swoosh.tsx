@@ -8,11 +8,15 @@ export function UnderlineSwoosh({ children }: UnderlineSwooshProps) {
   return (
     <span className="relative inline-block italic">
       {children}
+      {/* biome-ignore lint/a11y/noSvgWithoutTitle: aria-hidden decorative swoosh */}
       <svg
         aria-hidden
         data-pz-swoosh
         className="absolute left-0 w-full"
-        style={{ bottom: '-8px', height: '12px' }}
+        style={{
+          bottom: '-8px',
+          height: '12px',
+        }}
         viewBox="0 0 100 12"
         preserveAspectRatio="none"
         fill="none"

@@ -19,7 +19,10 @@ export function SessionRefresher() {
     if (attempted.current) return
     attempted.current = true
 
-    fetch('/api/auth/refresh', { method: 'POST', credentials: 'include' })
+    fetch('/api/auth/refresh', {
+      method: 'POST',
+      credentials: 'include',
+    })
       .then((res) => {
         if (res.ok) {
           // Full reload ensures the layout (AuthGuard) re-runs with fresh cookies

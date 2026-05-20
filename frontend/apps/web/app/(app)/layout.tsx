@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import { DM_Sans, DM_Serif_Display, Geist, Geist_Mono, Outfit, Syne } from 'next/font/google'
 
 import '@workspace/ui/globals.css'
-import { NotificationProvider } from '@/lib/notification'
 import { Providers } from '@/components/providers'
+import { NotificationProvider } from '@/lib/notification'
 
 const metadataBase = process.env.NEXT_PUBLIC_APP_BASE_URL
   ? new URL(process.env.NEXT_PUBLIC_APP_BASE_URL)
@@ -32,7 +32,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    images: ['/opengraph-image'],
+    images: [
+      '/opengraph-image',
+    ],
   },
 }
 
@@ -55,25 +57,44 @@ const fontMono = Geist_Mono({
 // until (main) dashboard routes are audited for `font-heading` consumers to avoid regressions.
 const fontHeading = DM_Serif_Display({
   weight: '400',
-  subsets: ['latin'],
+  subsets: [
+    'latin',
+  ],
   variable: '--font-heading',
 })
 
 const fontLogo = Outfit({
-  subsets: ['latin'],
+  subsets: [
+    'latin',
+  ],
   variable: '--font-logo',
 })
 
 const fontDisplay = Syne({
-  subsets: ['latin'],
-  weight: ['400', '600', '700', '800'],
+  subsets: [
+    'latin',
+  ],
+  weight: [
+    '400',
+    '600',
+    '700',
+    '800',
+  ],
   variable: '--font-display',
   display: 'swap',
 })
 
 const fontBody = DM_Sans({
-  subsets: ['latin'],
-  weight: ['300', '400', '500', '600', '700'],
+  subsets: [
+    'latin',
+  ],
+  weight: [
+    '300',
+    '400',
+    '500',
+    '600',
+    '700',
+  ],
   variable: '--font-body',
   display: 'swap',
 })
@@ -85,7 +106,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${fontSans.variable} ${fontMono.variable} ${fontHeading.variable} ${fontLogo.variable} ${fontDisplay.variable} ${fontBody.variable} font-sans antialiased`}>
+      <body
+        className={`${fontSans.variable} ${fontMono.variable} ${fontHeading.variable} ${fontLogo.variable} ${fontDisplay.variable} ${fontBody.variable} font-sans antialiased`}
+      >
         <Providers>{children}</Providers>
         <NotificationProvider />
       </body>

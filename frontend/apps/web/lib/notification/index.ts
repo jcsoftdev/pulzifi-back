@@ -1,18 +1,17 @@
 export type {
-	INotificationPort,
-	NotificationId,
-	NotificationLevel,
-	NotificationOptions,
-	NotificationPromiseOptions,
-} from "./notification-port";
-
-export { NotixNotificationAdapter } from "./notix-adapter";
-export { NotificationProvider } from "./notification-provider";
+  INotificationPort,
+  NotificationId,
+  NotificationLevel,
+  NotificationOptions,
+  NotificationPromiseOptions,
+} from './notification-port'
+export { NotificationProvider } from './notification-provider'
+export { NotixNotificationAdapter } from './notix-adapter'
 
 // ─── Default singleton ───────────────────────────────────────────────────────
 // Swap the adapter here to change the underlying toast library.
 
-import { NotixNotificationAdapter } from "./notix-adapter";
-import type { INotificationPort } from "./notification-port";
+import type { INotificationPort } from './notification-port'
+import { NotixNotificationAdapter } from './notix-adapter'
 
-export const notification: INotificationPort = new NotixNotificationAdapter();
+export const notification: INotificationPort = new NotixNotificationAdapter()

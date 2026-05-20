@@ -1,5 +1,5 @@
-import { UsageService } from '@/features/usage/domain/services/usage-service'
 import { ChecksTag } from '@workspace/ui/components/molecules'
+import { UsageService } from '@/features/usage/domain/services/usage-service'
 
 export async function ChecksDataLoader() {
   const checksData = await UsageService.getChecksData()

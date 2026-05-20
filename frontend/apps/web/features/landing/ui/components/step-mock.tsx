@@ -29,7 +29,11 @@ function UrlInputMock({ text }: { text?: string }) {
         <div className="h-2.5 w-3/4 rounded bg-gray-200" />
         <div className="h-2.5 w-1/2 rounded bg-gray-200" />
         <div className="mt-3 grid grid-cols-3 gap-2">
-          {[1, 2, 3].map((n) => (
+          {[
+            1,
+            2,
+            3,
+          ].map((n) => (
             <div key={n} className="h-10 rounded-lg border border-gray-200 bg-white p-1.5">
               <div className="h-1.5 w-2/3 rounded bg-gray-200" />
               <div className="mt-1.5 h-2.5 w-full rounded bg-[var(--pz-accent)] opacity-30" />
@@ -81,27 +85,34 @@ function InsightCardMock({ text: _text }: { text?: string }) {
 
 function AlertListMock({ text: _text }: { text?: string }) {
   const rows = [
-    { icon: '🔴', color: 'border-red-200 bg-red-50' },
-    { icon: '⚡', color: 'border-yellow-200 bg-yellow-50' },
-    { icon: '📣', color: 'border-teal-200 bg-teal-50' },
+    {
+      icon: '🔴',
+      color: 'border-red-200 bg-red-50',
+    },
+    {
+      icon: '⚡',
+      color: 'border-yellow-200 bg-yellow-50',
+    },
+    {
+      icon: '📣',
+      color: 'border-teal-200 bg-teal-50',
+    },
   ]
   return (
     <div className="h-[220px] w-full rounded-xl border border-gray-200 bg-gray-50 p-4">
       {/* Header */}
       <div className="flex items-center gap-2 pb-3">
         <AlertCircle className="size-4 text-gray-400" aria-hidden />
-        <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">
-          Alerts
-        </span>
+        <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">Alerts</span>
         <span className="ml-auto rounded-full bg-gray-200 px-2 py-0.5 text-[10px] text-gray-500">
           3 new
         </span>
       </div>
       {/* Alert rows */}
       <div className="space-y-2">
-        {rows.map((row, i) => (
+        {rows.map((row) => (
           <div
-            key={i}
+            key={row.icon}
             className={`flex items-start gap-2 rounded-lg border px-2.5 py-2 ${row.color}`}
           >
             <span className="text-sm leading-none" aria-hidden>

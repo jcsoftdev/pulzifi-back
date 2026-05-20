@@ -2,13 +2,8 @@
 
 import { cn } from '@workspace/ui/lib/utils'
 import Link from 'next/link'
-import {
-  useClipReveal,
-  useHeadlineReveal,
-  useHeroTimeline,
-  useParallaxBlob,
-} from '../lib/gsap'
-import { DashboardMock, type DashboardAlert, type KpiItem } from './components/dashboard-mock'
+import { useClipReveal, useHeadlineReveal, useHeroTimeline, useParallaxBlob } from '../lib/gsap'
+import { type DashboardAlert, DashboardMock, type KpiItem } from './components/dashboard-mock'
 import { Eyebrow } from './components/eyebrow'
 import { LandingButton } from './components/landing-button'
 import { UnderlineSwoosh } from './components/underline-swoosh'
@@ -124,7 +119,8 @@ export function HeroSection({
           data-pz-blob-speed="0.08"
           className="absolute bottom-0 left-0 h-[400px] w-[400px] translate-y-1/4 -translate-x-1/4"
           style={{
-            background: 'radial-gradient(circle, color-mix(in srgb, var(--pz-accent-teal) 15%, transparent) 0%, transparent 60%)',
+            background:
+              'radial-gradient(circle, color-mix(in srgb, var(--pz-accent-teal) 15%, transparent) 0%, transparent 60%)',
             filter: 'blur(120px)',
             opacity: 0.25,
           }}
@@ -167,10 +163,7 @@ export function HeroSection({
             </h1>
 
             {/* Subheadline */}
-            <p
-              data-pz-hero-sub
-              className="max-w-xl text-lg leading-relaxed text-[var(--pz-ink-2)]"
-            >
+            <p data-pz-hero-sub className="max-w-xl text-lg leading-relaxed text-[var(--pz-ink-2)]">
               {subheadline ??
                 'Automate your competitive intelligence. Get instant alerts when sites change, prices drop, or content updates.'}
             </p>
@@ -193,7 +186,7 @@ export function HeroSection({
                   className={cn(
                     'inline-flex items-center gap-1 text-sm font-medium text-[var(--pz-ink-2)]',
                     'transition-colors hover:text-[var(--pz-accent)]',
-                    'focus-visible:ring-2 focus-visible:ring-[var(--pz-accent)] focus-visible:outline-none focus-visible:rounded',
+                    'focus-visible:ring-2 focus-visible:ring-[var(--pz-accent)] focus-visible:outline-none focus-visible:rounded'
                   )}
                 >
                   {secondaryCtaLabel} →
@@ -203,22 +196,32 @@ export function HeroSection({
 
             {/* Trust strip */}
             {trustLine && (
-              <div
-                data-pz-hero-trust
-                className="flex flex-wrap items-center gap-4"
-              >
+              <div data-pz-hero-trust className="flex flex-wrap items-center gap-4">
                 <div className="flex -space-x-2" aria-hidden>
                   {AVATAR_COLORS.map((c) => (
                     <span
                       key={c}
                       className="size-7 rounded-full border-2 border-white"
-                      style={{ background: c }}
+                      style={{
+                        background: c,
+                      }}
                     />
                   ))}
                 </div>
                 <div className="flex items-center gap-1" aria-hidden>
-                  {[1, 2, 3, 4, 5].map((i) => (
-                    <svg key={i} viewBox="0 0 12 12" className="size-3 fill-[var(--pz-accent-gold)]">
+                  {[
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                  ].map((i) => (
+                    // biome-ignore lint/a11y/noSvgWithoutTitle: decorative star rating icon
+                    <svg
+                      key={i}
+                      viewBox="0 0 12 12"
+                      className="size-3 fill-[var(--pz-accent-gold)]"
+                    >
                       <path d="M6 0l1.5 3.9H12l-3.3 2.4 1.3 4L6 8.1 2 10.3l1.3-4L0 3.9h4.5z" />
                     </svg>
                   ))}

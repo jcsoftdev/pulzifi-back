@@ -8,8 +8,13 @@ import { PreviewModeProvider } from '@/features/landing/lib/preview-mode'
 import { buildThemeStyle } from '@/lib/theme-style'
 
 type NavbarData = {
-  logo?: { url?: string } | null
-  links?: { label: string; href: string }[]
+  logo?: {
+    url?: string
+  } | null
+  links?: {
+    label: string
+    href: string
+  }[]
   signinLabel?: string
   signinHref?: string
   primaryCtaLabel?: string
@@ -37,7 +42,12 @@ export function PreviewClient({ initialNavbar, initialTheme, serverURL }: Props)
     depth: 0,
   })
 
-  const themeStyle = useMemo(() => buildThemeStyle(theme), [theme])
+  const themeStyle = useMemo(
+    () => buildThemeStyle(theme),
+    [
+      theme,
+    ]
+  )
 
   const navProps = useMemo(() => {
     const links = navbar?.links?.length ? navbar.links : undefined
@@ -53,12 +63,17 @@ export function PreviewClient({ initialNavbar, initialTheme, serverURL }: Props)
       primaryCtaHref: navbar?.primaryCtaHref,
       logoUrl,
     }
-  }, [navbar])
+  }, [
+    navbar,
+  ])
 
   return (
     <PreviewModeProvider value={true}>
       <div className="min-h-screen bg-[var(--pz-page-bg)]">
-        {themeStyle && <style dangerouslySetInnerHTML={{ __html: themeStyle }} />}
+        {themeStyle && (
+          // biome-ignore lint/security/noDangerouslySetInnerHtml: intentional theme CSS injection — controlled server-side input
+          <style dangerouslySetInnerHTML={{ __html: themeStyle }} />
+        )}
         <Navbar {...navProps} />
         <div className="min-h-[60vh] flex items-center justify-center text-[var(--pz-ink-2)] text-sm">
           Navbar preview — scroll to see consolidation

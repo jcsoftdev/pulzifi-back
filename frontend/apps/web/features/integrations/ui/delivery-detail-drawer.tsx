@@ -1,16 +1,16 @@
 'use client'
 
-import { DeliveriesApi } from '@workspace/services'
 import type { DeliveryDetail, DeliveryStatus } from '@workspace/services'
-import { useEffect, useState } from 'react'
-import { notification } from '@/lib/notification'
+import { DeliveriesApi } from '@workspace/services'
 import {
   Sheet,
   SheetContent,
+  SheetDescription,
   SheetHeader,
   SheetTitle,
-  SheetDescription,
 } from '@workspace/ui/components/atoms/sheet'
+import { useEffect, useState } from 'react'
+import { notification } from '@/lib/notification'
 
 const STATUS_COLORS: Record<DeliveryStatus, string> = {
   pending: 'bg-yellow-500/15 text-yellow-700 dark:text-yellow-400',
@@ -37,7 +37,11 @@ interface CollapsibleSectionProps {
   defaultOpen?: boolean
 }
 
-function CollapsibleSection({ title, children, defaultOpen = false }: Readonly<CollapsibleSectionProps>) {
+function CollapsibleSection({
+  title,
+  children,
+  defaultOpen = false,
+}: Readonly<CollapsibleSectionProps>) {
   const [open, setOpen] = useState(defaultOpen)
   return (
     <div className="border border-border rounded-lg overflow-hidden">
@@ -49,11 +53,7 @@ function CollapsibleSection({ title, children, defaultOpen = false }: Readonly<C
         <span className="text-xs font-semibold text-foreground">{title}</span>
         <span className="text-muted-foreground text-xs">{open ? '▲' : '▼'}</span>
       </button>
-      {open && (
-        <div className="px-4 py-3 bg-background">
-          {children}
-        </div>
-      )}
+      {open && <div className="px-4 py-3 bg-background">{children}</div>}
     </div>
   )
 }
@@ -82,18 +82,25 @@ export function DeliveryDetailDrawer({
     DeliveriesApi.get(deliveryId)
       .then(setDetail)
       .catch(() => {
-        notification.error({ title: 'Failed to load delivery details' })
+        notification.error({
+          title: 'Failed to load delivery details',
+        })
         onClose()
       })
       .finally(() => setLoading(false))
-  }, [deliveryId, onClose])
+  }, [
+    deliveryId,
+    onClose,
+  ])
 
   const handleRetry = async () => {
     if (!detail) return
     setRetrying(true)
     try {
       await DeliveriesApi.retry(detail.id)
-      notification.success({ title: 'Retry queued' })
+      notification.success({
+        title: 'Retry queued',
+      })
       onRetried?.()
       onClose()
     } catch (err) {
@@ -107,12 +114,15 @@ export function DeliveryDetailDrawer({
   }
 
   return (
-    <Sheet open={Boolean(deliveryId)} onOpenChange={(isOpen) => { if (!isOpen) onClose() }}>
+    <Sheet
+      open={Boolean(deliveryId)}
+      onOpenChange={(isOpen) => {
+        if (!isOpen) onClose()
+      }}
+    >
       <SheetContent className="w-full sm:max-w-lg overflow-y-auto flex flex-col gap-0 p-0">
         <SheetHeader className="px-6 pt-6 pb-4 border-b border-border">
-          <SheetTitle className="text-base font-semibold">
-            Delivery detail
-          </SheetTitle>
+          <SheetTitle className="text-base font-semibold">Delivery detail</SheetTitle>
           {detail && (
             <SheetDescription asChild>
               <div className="flex items-center gap-2 mt-1">
@@ -135,7 +145,11 @@ export function DeliveryDetailDrawer({
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
           {loading && (
             <div className="space-y-3">
-              {[1, 2, 3].map((n) => (
+              {[
+                1,
+                2,
+                3,
+              ].map((n) => (
                 <div key={n} className="h-10 bg-muted/40 rounded-lg animate-pulse" />
               ))}
             </div>
@@ -147,19 +161,27 @@ export function DeliveryDetailDrawer({
               <div className="grid grid-cols-2 gap-3 text-xs">
                 <div>
                   <p className="text-muted-foreground">Created</p>
-                  <p className="text-foreground font-medium mt-0.5">{formatDate(detail.createdAt)}</p>
+                  <p className="text-foreground font-medium mt-0.5">
+                    {formatDate(detail.createdAt)}
+                  </p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Last attempt</p>
-                  <p className="text-foreground font-medium mt-0.5">{formatDate(detail.lastAttemptAt)}</p>
+                  <p className="text-foreground font-medium mt-0.5">
+                    {formatDate(detail.lastAttemptAt)}
+                  </p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Next attempt</p>
-                  <p className="text-foreground font-medium mt-0.5">{formatDate(detail.nextAttemptAt)}</p>
+                  <p className="text-foreground font-medium mt-0.5">
+                    {formatDate(detail.nextAttemptAt)}
+                  </p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Delivered</p>
-                  <p className="text-foreground font-medium mt-0.5">{formatDate(detail.deliveredAt)}</p>
+                  <p className="text-foreground font-medium mt-0.5">
+                    {formatDate(detail.deliveredAt)}
+                  </p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Attempts</p>
@@ -199,7 +221,10 @@ export function DeliveryDetailDrawer({
 
               {/* Attempt history */}
               {detail.attemptHistory && detail.attemptHistory.length > 0 && (
-                <CollapsibleSection title={`Attempt history (${detail.attemptHistory.length})`} defaultOpen>
+                <CollapsibleSection
+                  title={`Attempt history (${detail.attemptHistory.length})`}
+                  defaultOpen
+                >
                   <ol className="space-y-3">
                     {detail.attemptHistory.map((attempt, idx) => (
                       // biome-ignore lint/suspicious/noArrayIndexKey: attempt history items have no unique id

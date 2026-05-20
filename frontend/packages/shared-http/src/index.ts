@@ -9,6 +9,6 @@ export {
 export { FetchHttpClient } from './fetch-client'
 // Tenant utilities
 export { extractTenantFromHostname, getTenantFromWindow } from './tenant-utils'
+export { refreshAndRetry } from './token-refresh'
 export type { HttpResponse, IHttpClient, RequestConfig } from './types'
 export { HttpError, UnauthorizedError } from './types'
-export { refreshAndRetry } from './token-refresh'

@@ -41,7 +41,7 @@ export function CompareBars({
     <div className="absolute inset-0 flex items-center gap-0.5">
       {bars.map((h, i) => (
         <div
-          key={i}
+          key={`bar-${i}-${h}`}
           className={
             variant === 'noisy'
               ? 'w-full bg-foreground opacity-30'

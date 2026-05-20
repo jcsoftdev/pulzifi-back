@@ -1,7 +1,12 @@
 import { RichText } from '@payloadcms/richtext-lexical/react'
 import type { SerializedEditorState } from 'lexical'
 
-type Props = { block: { blockType: 'rich-text'; content: SerializedEditorState } }
+type Props = {
+  block: {
+    blockType: 'rich-text'
+    content: SerializedEditorState
+  }
+}
 
 export function RichTextBlock({ block }: Props) {
   return (

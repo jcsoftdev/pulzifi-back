@@ -29,10 +29,16 @@ export function TeamFeature({ currentUserId }: Readonly<TeamFeatureProps>) {
     try {
       await inviteMember(email, role)
       setInviteOpen(false)
-      notification.success({ title: 'Invitation sent', description: `An invite has been sent to ${email}.` })
+      notification.success({
+        title: 'Invitation sent',
+        description: `An invite has been sent to ${email}.`,
+      })
     } catch (err) {
       setActionError(err instanceof Error ? err : new Error('Failed to invite member'))
-      notification.error({ title: 'Failed to send invitation', description: err instanceof Error ? err.message : 'Please try again.' })
+      notification.error({
+        title: 'Failed to send invitation',
+        description: err instanceof Error ? err.message : 'Please try again.',
+      })
     } finally {
       setActionLoading(false)
     }
@@ -44,10 +50,15 @@ export function TeamFeature({ currentUserId }: Readonly<TeamFeatureProps>) {
     try {
       await updateMember(memberId, role)
       setEditingMember(null)
-      notification.success({ title: 'Member role updated' })
+      notification.success({
+        title: 'Member role updated',
+      })
     } catch (err) {
       setActionError(err instanceof Error ? err : new Error('Failed to update member'))
-      notification.error({ title: 'Failed to update member', description: err instanceof Error ? err.message : 'Please try again.' })
+      notification.error({
+        title: 'Failed to update member',
+        description: err instanceof Error ? err.message : 'Please try again.',
+      })
     } finally {
       setActionLoading(false)
     }
@@ -60,10 +71,15 @@ export function TeamFeature({ currentUserId }: Readonly<TeamFeatureProps>) {
     try {
       await removeMember(deletingMember.id)
       setDeletingMember(null)
-      notification.success({ title: 'Member removed' })
+      notification.success({
+        title: 'Member removed',
+      })
     } catch (err) {
       setActionError(err instanceof Error ? err : new Error('Failed to remove member'))
-      notification.error({ title: 'Failed to remove member', description: err instanceof Error ? err.message : 'Please try again.' })
+      notification.error({
+        title: 'Failed to remove member',
+        description: err instanceof Error ? err.message : 'Please try again.',
+      })
     } finally {
       setActionLoading(false)
     }
@@ -98,14 +114,16 @@ export function TeamFeature({ currentUserId }: Readonly<TeamFeatureProps>) {
 
         {/* Member cards */}
         {loading ? (
-          <>
-            {[1, 2, 3].map((n) => (
-              <div key={n} className="flex flex-col items-center gap-2 w-20">
-                <div className="w-16 h-16 rounded-full bg-muted animate-pulse" />
-                <div className="h-3 w-14 bg-muted animate-pulse rounded" />
-              </div>
-            ))}
-          </>
+          [
+            1,
+            2,
+            3,
+          ].map((n) => (
+            <div key={n} className="flex flex-col items-center gap-2 w-20">
+              <div className="w-16 h-16 rounded-full bg-muted animate-pulse" />
+              <div className="h-3 w-14 bg-muted animate-pulse rounded" />
+            </div>
+          ))
         ) : (
           members.map((member) => (
             <MemberCard

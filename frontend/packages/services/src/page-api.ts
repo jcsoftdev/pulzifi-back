@@ -1,4 +1,9 @@
-import { getHttpClient, HttpError, getTenantFromWindow, refreshAndRetry } from '@workspace/shared-http'
+import {
+  getHttpClient,
+  getTenantFromWindow,
+  HttpError,
+  refreshAndRetry,
+} from '@workspace/shared-http'
 
 // Internal: Backend response types (snake_case from Go)
 interface PageBackendDto {
@@ -257,8 +262,13 @@ function transformMonitoringConfig(backend: MonitoringConfigBackendDto): Monitor
     scheduleType: backend.schedule_type,
     timezone: backend.timezone,
     blockAdsCookies: backend.block_ads_cookies,
-    enabledInsightTypes: backend.enabled_insight_types ?? ['marketing', 'market_analysis'],
-    enabledAlertConditions: backend.enabled_alert_conditions ?? ['any_changes'],
+    enabledInsightTypes: backend.enabled_insight_types ?? [
+      'marketing',
+      'market_analysis',
+    ],
+    enabledAlertConditions: backend.enabled_alert_conditions ?? [
+      'any_changes',
+    ],
     customAlertCondition: backend.custom_alert_condition ?? '',
     selectorType: backend.selector_type ?? 'full_page',
     cssSelector: backend.css_selector ?? '',
@@ -274,14 +284,22 @@ export interface PreviewElement {
   selector: string
   xpath: string
   tag: string
-  rect: { x: number; y: number; w: number; h: number }
+  rect: {
+    x: number
+    y: number
+    w: number
+    h: number
+  }
   text_preview: string
   semantic_role: string
 }
 
 export interface PagePreviewResult {
   screenshot_base64: string
-  viewport: { width: number; height: number }
+  viewport: {
+    width: number
+    height: number
+  }
   page_height: number
   elements: PreviewElement[]
 }
@@ -369,10 +387,16 @@ function toFriendlyPreviewError(raw: string): string {
 export const PageApi = {
   async previewPage(url: string, blockAdsCookies = false): Promise<PagePreviewResult> {
     const http = await getHttpClient()
-    return http.post<PagePreviewResult>('/api/v1/pages/preview', {
-      url,
-      block_ads_cookies: blockAdsCookies,
-    }, { timeout: 150_000 })
+    return http.post<PagePreviewResult>(
+      '/api/v1/pages/preview',
+      {
+        url,
+        block_ads_cookies: blockAdsCookies,
+      },
+      {
+        timeout: 150_000,
+      }
+    )
   },
 
   /**
@@ -387,10 +411,12 @@ export const PageApi = {
     url: string,
     blockAdsCookies = false,
     onProgress?: (progress: PreviewProgress) => void,
-    signal?: AbortSignal,
+    signal?: AbortSignal
   ): Promise<PagePreviewResult> {
     const origin = globalThis.window?.location?.origin ?? ''
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    }
     const tenant = getTenantFromWindow()
     if (tenant) {
       headers['X-Tenant'] = tenant
@@ -401,7 +427,10 @@ export const PageApi = {
         method: 'POST',
         headers,
         credentials: 'same-origin',
-        body: JSON.stringify({ url, block_ads_cookies: blockAdsCookies }),
+        body: JSON.stringify({
+          url,
+          block_ads_cookies: blockAdsCookies,
+        }),
         signal,
       })
 
@@ -421,7 +450,7 @@ export const PageApi = {
           ? 'Could not reach this page. Please check the URL and try again.'
           : resp.status >= 500
             ? 'Our preview service is temporarily unavailable. Please try again in a moment.'
-            : `Preview failed (${resp.status}). Please try again.`,
+            : `Preview failed (${resp.status}). Please try again.`
       )
     }
 
@@ -477,7 +506,11 @@ export const PageApi = {
 
         // Normalize \r\n to \n — sse_starlette (Python) uses \r\n as the
         // default SSE separator, so \r\n\r\n would never match a \n\n search.
-        buffer += decoder.decode(value, { stream: true }).replaceAll('\r\n', '\n')
+        buffer += decoder
+          .decode(value, {
+            stream: true,
+          })
+          .replaceAll('\r\n', '\n')
 
         // Parse complete SSE frames (delimited by double newline)
         for (
@@ -509,7 +542,7 @@ export const PageApi = {
     }
     if (!result) {
       throw new Error(
-        'The page took too long to load or the connection was interrupted. Please try again.',
+        'The page took too long to load or the connection was interrupted. Please try again.'
       )
     }
 
@@ -571,13 +604,23 @@ export const PageApi = {
       check_frequency: data.checkFrequency ?? 'Off',
       schedule_type: data.scheduleType ?? 'all_time',
       block_ads_cookies: data.blockAdsCookies ?? true,
-      enabled_insight_types: data.enabledInsightTypes ?? ['marketing', 'market_analysis'],
-      enabled_alert_conditions: data.enabledAlertConditions ?? ['any_changes'],
+      enabled_insight_types: data.enabledInsightTypes ?? [
+        'marketing',
+        'market_analysis',
+      ],
+      enabled_alert_conditions: data.enabledAlertConditions ?? [
+        'any_changes',
+      ],
       custom_alert_condition: data.customAlertCondition ?? '',
       selector_type: data.selectorType ?? 'full_page',
       css_selector: data.cssSelector ?? '',
       xpath_selector: data.xpathSelector ?? '',
-      selector_offsets: data.selectorOffsets ?? { top: 0, right: 0, bottom: 0, left: 0 },
+      selector_offsets: data.selectorOffsets ?? {
+        top: 0,
+        right: 0,
+        bottom: 0,
+        left: 0,
+      },
     }
     try {
       await http.put(`/api/v1/monitoring/configs/${page.id}`, configPayload)
@@ -595,7 +638,12 @@ export const PageApi = {
           name: s.name,
           css_selector: s.cssSelector,
           xpath_selector: s.xpathSelector ?? '',
-          selector_offsets: s.selectorOffsets ?? { top: 0, right: 0, bottom: 0, left: 0 },
+          selector_offsets: s.selectorOffsets ?? {
+            top: 0,
+            right: 0,
+            bottom: 0,
+            left: 0,
+          },
           rect: s.rect,
           viewport_width: s.viewportWidth,
           sort_order: s.sortOrder ?? i,
@@ -629,7 +677,9 @@ export const PageApi = {
 
   async bulkDeletePages(ids: string[]): Promise<void> {
     const http = await getHttpClient()
-    await http.post('/api/v1/pages/bulk-delete', { ids })
+    await http.post('/api/v1/pages/bulk-delete', {
+      ids,
+    })
   },
 
   async bulkUpdateFrequency(pageIds: string[], checkFrequency: string): Promise<void> {
@@ -663,9 +713,12 @@ export const PageApi = {
     if (data.scheduleType) payload.schedule_type = data.scheduleType
     if (data.timezone) payload.timezone = data.timezone
     if (data.blockAdsCookies !== undefined) payload.block_ads_cookies = data.blockAdsCookies
-    if (data.enabledInsightTypes !== undefined) payload.enabled_insight_types = data.enabledInsightTypes
-    if (data.enabledAlertConditions !== undefined) payload.enabled_alert_conditions = data.enabledAlertConditions
-    if (data.customAlertCondition !== undefined) payload.custom_alert_condition = data.customAlertCondition
+    if (data.enabledInsightTypes !== undefined)
+      payload.enabled_insight_types = data.enabledInsightTypes
+    if (data.enabledAlertConditions !== undefined)
+      payload.enabled_alert_conditions = data.enabledAlertConditions
+    if (data.customAlertCondition !== undefined)
+      payload.custom_alert_condition = data.customAlertCondition
     if (data.selectorType !== undefined) payload.selector_type = data.selectorType
     if (data.cssSelector !== undefined) payload.css_selector = data.cssSelector
     if (data.xpathSelector !== undefined) payload.xpath_selector = data.xpathSelector
@@ -706,14 +759,21 @@ export const PageApi = {
       name: s.name,
       css_selector: s.cssSelector,
       xpath_selector: s.xpathSelector ?? '',
-      selector_offsets: s.selectorOffsets ?? { top: 0, right: 0, bottom: 0, left: 0 },
+      selector_offsets: s.selectorOffsets ?? {
+        top: 0,
+        right: 0,
+        bottom: 0,
+        left: 0,
+      },
       rect: s.rect,
       viewport_width: s.viewportWidth,
       sort_order: s.sortOrder ?? i,
     }))
     const response = await http.post<{
       sections: MonitoredSectionBackendDto[]
-    }>(`/api/v1/monitoring/sections/page/${pageId}`, { sections: payload })
+    }>(`/api/v1/monitoring/sections/page/${pageId}`, {
+      sections: payload,
+    })
     return response.sections.map(transformSection)
   },
 
@@ -723,7 +783,9 @@ export const PageApi = {
   },
 
   async listByWorkspace(workspaceId: string): Promise<Page[]> {
-    return PageApi.listPages({ workspaceId })
+    return PageApi.listPages({
+      workspaceId,
+    })
   },
 
   async listInsights(pageId: string, checkId?: string): Promise<Insight[]> {

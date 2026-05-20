@@ -2,9 +2,9 @@
 
 import { motion } from 'motion/react'
 import {
-  type CSSProperties,
   type ComponentPropsWithoutRef,
   type ComponentType,
+  type CSSProperties,
   type ReactNode,
   useCallback,
   useEffect,
@@ -14,12 +14,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import {
-  BLUR_RATIO,
-  DEFAULT_ROUNDNESS,
-  SPRING,
-  TOAST_WIDTH as BODY_WIDTH,
-} from '../../constants'
+import { BLUR_RATIO, TOAST_WIDTH as BODY_WIDTH, DEFAULT_ROUNDNESS, SPRING } from '../../constants'
 import type { ToastState } from '../../domain/entities/types'
 import { GooeyDefs } from './gooey-defs'
 
@@ -67,12 +62,10 @@ interface NotixAnchorOwnProps {
 }
 
 // biome-ignore lint/suspicious/noExplicitAny: needed for generic component constraint
-export type NotixAnchorProps<
-  C extends ComponentType<any> = ComponentType<any>,
-> = NotixAnchorOwnProps & { as: C } & Omit<
-    ComponentPropsWithoutRef<C>,
-    keyof NotixAnchorOwnProps | 'as'
-  >
+export type NotixAnchorProps<C extends ComponentType<any> = ComponentType<any>> =
+  NotixAnchorOwnProps & {
+    as: C
+  } & Omit<ComponentPropsWithoutRef<C>, keyof NotixAnchorOwnProps | 'as'>
 
 /* ─── Component ─── */
 
@@ -92,7 +85,10 @@ export function NotixAnchor<C extends ComponentType<any>>({
 }: NotixAnchorProps<C>) {
   const [open, setOpen] = useState(false)
   const [ready, setReady] = useState(false)
-  const [pillSize, setPillSize] = useState({ w: 0, h: 0 })
+  const [pillSize, setPillSize] = useState({
+    w: 0,
+    h: 0,
+  })
   const [triggerRadius, setTriggerRadius] = useState(0)
   const [contentHeight, setContentHeight] = useState(0)
 
@@ -110,7 +106,10 @@ export function NotixAnchor<C extends ComponentType<any>>({
   useLayoutEffect(() => {
     const el = triggerRef.current
     if (!el) return
-    setPillSize({ w: el.offsetWidth, h: el.offsetHeight })
+    setPillSize({
+      w: el.offsetWidth,
+      h: el.offsetHeight,
+    })
     // Temporarily lift the data attribute so the CSS rule
     // `border-radius: transparent !important` doesn't interfere
     el.removeAttribute('data-notix-anchor-header')
@@ -152,22 +151,21 @@ export function NotixAnchor<C extends ComponentType<any>>({
     }
     document.addEventListener('mousedown', onDown)
     return () => document.removeEventListener('mousedown', onDown)
-  }, [open])
+  }, [
+    open,
+  ])
 
   const handleClick = useCallback(() => setOpen((p) => !p), [])
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        setOpen(false)
-      }
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault()
-        setOpen((p) => !p)
-      }
-    },
-    [],
-  )
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      setOpen(false)
+    }
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      setOpen((p) => !p)
+    }
+  }, [])
 
   /* ─── Derived sizes ─── */
   const pillW = pillSize.w || 40
@@ -191,33 +189,73 @@ export function NotixAnchor<C extends ComponentType<any>>({
 
   /* ─── Motion targets ─── */
   const pillAnimate = useMemo(
-    () => ({ x: pillX, width: pillW, height: pillRectH }),
-    [pillX, pillW, pillRectH]
+    () => ({
+      x: pillX,
+      width: pillW,
+      height: pillRectH,
+    }),
+    [
+      pillX,
+      pillW,
+      pillRectH,
+    ]
   )
 
   const bodyAnimate = useMemo(
-    () => ({ height: open ? contentHeight : 0, opacity: open ? 1 : 0 }),
-    [open, contentHeight]
+    () => ({
+      height: open ? contentHeight : 0,
+      opacity: open ? 1 : 0,
+    }),
+    [
+      open,
+      contentHeight,
+    ]
   )
 
   const pillTransition = useMemo(
-    () => (ready ? SPRING : { duration: 0 }),
-    [ready]
+    () =>
+      ready
+        ? SPRING
+        : {
+            duration: 0,
+          },
+    [
+      ready,
+    ]
   )
 
   const bodyTransition = useMemo(
-    () => (open ? SPRING : { ...SPRING, bounce: 0 }),
-    [open]
+    () =>
+      open
+        ? SPRING
+        : {
+            ...SPRING,
+            bounce: 0,
+          },
+    [
+      open,
+    ]
   )
 
   /* ─── Styles ─── */
   const rootStyle = useMemo(
     () =>
       ({
-        ...(onFill ? { '--notix-on-fill': onFill } : {}),
-        ...(accentColor ? { '--_c': accentColor } : {}),
+        ...(onFill
+          ? {
+              '--notix-on-fill': onFill,
+            }
+          : {}),
+        ...(accentColor
+          ? {
+              '--_c': accentColor,
+            }
+          : {}),
       }) as CSSProperties,
-    [onFill, accentColor]
+    [
+      onFill,
+      accentColor,
+    ]
   )
 
   // Border is applied as a drop-shadow ON TOP of the gooey filter output
@@ -227,20 +265,33 @@ export function NotixAnchor<C extends ComponentType<any>>({
     if (resolvedStrokeWidth > 0 && resolvedStroke !== 'none') {
       const blur = `${resolvedStrokeWidth * 0.5}px`
       const shadow = `drop-shadow(0 0 ${blur} ${resolvedStroke})`
-      return { filter: `url(#${filterId}) ${shadow} ${shadow}` }
+      return {
+        filter: `url(#${filterId}) ${shadow} ${shadow}`,
+      }
     }
-    return { filter: `url(#${filterId})` }
-  }, [filterId, resolvedStroke, resolvedStrokeWidth])
+    return {
+      filter: `url(#${filterId})`,
+    }
+  }, [
+    filterId,
+    resolvedStroke,
+    resolvedStrokeWidth,
+  ])
 
   // Fill only — no stroke on individual rects (border comes from canvas drop-shadow)
   const rectStyle = useMemo<CSSProperties>(
-    () => ({ fill: resolvedFill }),
-    [resolvedFill]
+    () => ({
+      fill: resolvedFill,
+    }),
+    [
+      resolvedFill,
+    ]
   )
 
   const viewBox = `0 0 ${svgW} ${svgH}`
 
   return (
+    // biome-ignore lint/a11y/useSemanticElements: composite widget with SVG canvas — cannot be a plain <button>
     <div
       ref={wrapperRef}
       data-notix-anchor
@@ -291,10 +342,13 @@ export function NotixAnchor<C extends ComponentType<any>>({
       </div>
 
       {/* Trigger — data-notix-anchor-header strips its own bg/border so SVG shows through */}
-      {/* biome-ignore lint/suspicious/noExplicitAny: generic spread requires cast */}
       <Trigger
         ref={triggerRef}
-        {...({ 'data-notix-anchor-header': '', ...triggerProps } as any)}
+        {...({
+          'data-notix-anchor-header': '',
+          ...triggerProps,
+          // biome-ignore lint/suspicious/noExplicitAny: generic spread requires cast
+        } as any)}
       />
 
       {/* Content panel overlaid on the body rect */}
@@ -310,10 +364,7 @@ export function NotixAnchor<C extends ComponentType<any>>({
             </div>
           )}
           {description && (
-            <div
-              data-notix-anchor-description
-              className={classNames?.description}
-            >
+            <div data-notix-anchor-description className={classNames?.description}>
               {description}
             </div>
           )}

@@ -27,10 +27,15 @@ export function AdvancedSettingsCard({
       try {
         await PageApi.updateMonitoringConfig(pageId, updates)
         router.refresh()
-        notification.success({ title: 'Settings saved' })
+        notification.success({
+          title: 'Settings saved',
+        })
       } catch (error) {
         console.error('Failed to update config', error)
-        notification.error({ title: 'Failed to save settings', description: error instanceof Error ? error.message : 'Please try again.' })
+        notification.error({
+          title: 'Failed to save settings',
+          description: error instanceof Error ? error.message : 'Please try again.',
+        })
       }
     })
   }

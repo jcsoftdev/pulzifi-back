@@ -1,9 +1,12 @@
 'use client'
 
 import { usePathname } from 'next/navigation'
-import { useEffect, type ReactNode } from 'react'
+import { type ReactNode, useEffect } from 'react'
 
-const EXCLUDE_PREFIXES = ['/cms-admin', '/api']
+const EXCLUDE_PREFIXES = [
+  '/cms-admin',
+  '/api',
+]
 
 export function SmoothScrollProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname() ?? '/'
@@ -27,7 +30,10 @@ export function SmoothScrollProvider({ children }: { children: ReactNode }) {
 
       gsap.registerPlugin(ScrollTrigger)
 
-      const lenis = new Lenis({ lerp: 0.1, smoothWheel: true })
+      const lenis = new Lenis({
+        lerp: 0.1,
+        smoothWheel: true,
+      })
       const onScroll = () => ScrollTrigger.update()
       lenis.on('scroll', onScroll)
 
@@ -48,7 +54,9 @@ export function SmoothScrollProvider({ children }: { children: ReactNode }) {
       cancelled = true
       cleanup?.()
     }
-  }, [isExcluded])
+  }, [
+    isExcluded,
+  ])
 
   return <>{children}</>
 }

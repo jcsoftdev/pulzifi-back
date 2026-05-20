@@ -1,7 +1,7 @@
 'use client'
 
-import { BillingApi } from '@workspace/services'
 import type { SubscriptionDto } from '@workspace/services'
+import { BillingApi } from '@workspace/services'
 import { useCallback, useEffect, useState } from 'react'
 
 interface UseSubscriptionReturn {
@@ -37,7 +37,14 @@ export function useSubscription(): UseSubscriptionReturn {
 
   useEffect(() => {
     fetch()
-  }, [fetch])
+  }, [
+    fetch,
+  ])
 
-  return { subscription, isLoading, error, refresh: fetch }
+  return {
+    subscription,
+    isLoading,
+    error,
+    refresh: fetch,
+  }
 }

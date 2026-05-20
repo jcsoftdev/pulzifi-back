@@ -3,10 +3,10 @@
 import { type Page, PageApi } from '@workspace/services/page-api'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { notification } from '@/lib/notification'
+import type { EditPageDto } from '@/features/page/domain/types'
 import { DeletePageDialog } from '@/features/page/ui/delete-page-dialog'
 import { EditPageDialog } from '@/features/page/ui/edit-page-dialog'
-import type { EditPageDto } from '@/features/page/domain/types'
+import { notification } from '@/lib/notification'
 import { PageInfoCard } from './page-info-card'
 
 interface PageInfoWithActionsProps {
@@ -95,7 +95,9 @@ export function PageInfoWithActions({
     setIsActionLoading(true)
     try {
       await PageApi.deletePage(page.id)
-      notification.success({ title: 'Page deleted' })
+      notification.success({
+        title: 'Page deleted',
+      })
       router.push(`/workspaces/${workspaceId}`)
     } catch (err) {
       console.error('Failed to delete page:', err)
@@ -121,7 +123,10 @@ export function PageInfoWithActions({
     setIsRunning(true)
     try {
       await PageApi.triggerCheck(page.id)
-      notification.success({ title: 'Check triggered', description: 'A new check is running now.' })
+      notification.success({
+        title: 'Check triggered',
+        description: 'A new check is running now.',
+      })
       // Signal ChecksHistory to refresh (fallback in case SSE is delayed).
       window.dispatchEvent(new Event('checks:refresh'))
     } catch (err) {

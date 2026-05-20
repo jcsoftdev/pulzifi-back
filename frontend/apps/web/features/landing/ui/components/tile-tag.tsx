@@ -18,7 +18,7 @@ export function TileTag({ icon, label, onClick, className }: TileTagProps) {
         'bg-white p-4 transition',
         'hover:-translate-y-1 hover:shadow-[var(--pz-card-shadow-hover,0_8px_30px_-8px_rgba(0,0,0,0.10))]',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--pz-accent)] focus-visible:ring-offset-2',
-        className,
+        className
       )}
     >
       {typeof icon === 'string' ? (

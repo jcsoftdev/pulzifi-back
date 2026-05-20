@@ -1,3 +1,4 @@
+// biome-ignore-all lint/style/noNonNullAssertion: array accesses in this file are all guarded by loop conditions
 export type DiffSegmentType = 'added' | 'removed' | 'unchanged'
 
 export interface DiffSegment {
@@ -25,13 +26,16 @@ export type DiffResult = DiffRow[]
 function buildLcsTable(a: string[], b: string[]): number[][] {
   const m = a.length
   const n = b.length
-  const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0))
+  const dp: number[][] = Array.from(
+    {
+      length: m + 1,
+    },
+    () => new Array(n + 1).fill(0)
+  )
   for (let i = 1; i <= m; i++) {
     for (let j = 1; j <= n; j++) {
       dp[i]![j] =
-        a[i - 1] === b[j - 1]
-          ? dp[i - 1]![j - 1]! + 1
-          : Math.max(dp[i - 1]![j]!, dp[i]![j - 1]!)
+        a[i - 1] === b[j - 1] ? dp[i - 1]![j - 1]! + 1 : Math.max(dp[i - 1]![j]!, dp[i]![j - 1]!)
     }
   }
   return dp
@@ -40,22 +44,37 @@ function buildLcsTable(a: string[], b: string[]): number[][] {
 function backtrackLcs(
   oldWords: string[],
   newWords: string[],
-  dp: number[][],
-): Array<{ type: DiffSegmentType; word: string }> {
-  const rawOps: Array<{ type: DiffSegmentType; word: string }> = []
+  dp: number[][]
+): Array<{
+  type: DiffSegmentType
+  word: string
+}> {
+  const rawOps: Array<{
+    type: DiffSegmentType
+    word: string
+  }> = []
   let i = oldWords.length
   let j = newWords.length
 
   while (i > 0 || j > 0) {
     if (i > 0 && j > 0 && oldWords[i - 1] === newWords[j - 1]) {
-      rawOps.unshift({ type: 'unchanged', word: oldWords[i - 1]! })
+      rawOps.unshift({
+        type: 'unchanged',
+        word: oldWords[i - 1]!,
+      })
       i--
       j--
     } else if (i > 0 && (j === 0 || dp[i - 1]![j]! >= dp[i]![j - 1]!)) {
-      rawOps.unshift({ type: 'removed', word: oldWords[i - 1]! })
+      rawOps.unshift({
+        type: 'removed',
+        word: oldWords[i - 1]!,
+      })
       i--
     } else {
-      rawOps.unshift({ type: 'added', word: newWords[j - 1]! })
+      rawOps.unshift({
+        type: 'added',
+        word: newWords[j - 1]!,
+      })
       j--
     }
   }
@@ -67,8 +86,24 @@ export function diffWords(oldLine: string, newLine: string): DiffSegment[] {
   const oldWords = oldLine.split(/\s+/).filter(Boolean)
   const newWords = newLine.split(/\s+/).filter(Boolean)
 
-  if (oldWords.length === 0) return newLine.trim() ? [{ type: 'added', text: newLine.trim() }] : []
-  if (newWords.length === 0) return oldLine.trim() ? [{ type: 'removed', text: oldLine.trim() }] : []
+  if (oldWords.length === 0)
+    return newLine.trim()
+      ? [
+          {
+            type: 'added',
+            text: newLine.trim(),
+          },
+        ]
+      : []
+  if (newWords.length === 0)
+    return oldLine.trim()
+      ? [
+          {
+            type: 'removed',
+            text: oldLine.trim(),
+          },
+        ]
+      : []
 
   const dp = buildLcsTable(oldWords, newWords)
   const rawOps = backtrackLcs(oldWords, newWords, dp)
@@ -77,7 +112,11 @@ export function diffWords(oldLine: string, newLine: string): DiffSegment[] {
   for (const op of rawOps) {
     const last = segments.at(-1)
     if (last?.type === op.type) last.text += ` ${op.word}`
-    else segments.push({ type: op.type, text: op.word })
+    else
+      segments.push({
+        type: op.type,
+        text: op.word,
+      })
   }
 
   return segments
@@ -100,11 +139,20 @@ function jaccardSimilarity(a: string, b: string): number {
 }
 
 function matchParagraphs(oldParas: string[], newParas: string[]): Map<number, number> {
-  const candidates: Array<{ oldIdx: number; newIdx: number; score: number }> = []
+  const candidates: Array<{
+    oldIdx: number
+    newIdx: number
+    score: number
+  }> = []
   for (let i = 0; i < oldParas.length; i++) {
     for (let j = 0; j < newParas.length; j++) {
       const score = jaccardSimilarity(oldParas[i]!, newParas[j]!)
-      if (score >= MATCH_THRESHOLD) candidates.push({ oldIdx: i, newIdx: j, score })
+      if (score >= MATCH_THRESHOLD)
+        candidates.push({
+          oldIdx: i,
+          newIdx: j,
+          score,
+        })
     }
   }
   candidates.sort((a, b) => b.score - a.score)
@@ -127,14 +175,23 @@ function matchParagraphs(oldParas: string[], newParas: string[]): Map<number, nu
 // ---------------------------------------------------------------------------
 
 export function diffLines(oldText: string, newText: string): DiffResult {
-  const oldParas = oldText.split('\n').map((l) => l.trim()).filter(Boolean)
-  const newParas = newText.split('\n').map((l) => l.trim()).filter(Boolean)
+  const oldParas = oldText
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean)
+  const newParas = newText
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean)
 
   const newToOld = matchParagraphs(oldParas, newParas)
   const matchedOldIndices = new Set(newToOld.values())
 
   const unmatchedOld = oldParas
-    .map((text, i) => ({ text, i }))
+    .map((text, i) => ({
+      text,
+      i,
+    }))
     .filter(({ i }) => !matchedOldIndices.has(i))
   let unmatchedOldCursor = 0
 
@@ -148,22 +205,50 @@ export function diffLines(oldText: string, newText: string): DiffResult {
       // then the new one — the UI groups them into one before/after card
       if (unmatchedOldCursor < unmatchedOld.length) {
         const entry = unmatchedOld[unmatchedOldCursor++]!
-        result.push({ kind: 'removed', segments: [{ type: 'removed', text: entry.text }] })
+        result.push({
+          kind: 'removed',
+          segments: [
+            {
+              type: 'removed',
+              text: entry.text,
+            },
+          ],
+        })
       }
-      result.push({ kind: 'added', segments: [{ type: 'added', text: newParas[j]! }] })
+      result.push({
+        kind: 'added',
+        segments: [
+          {
+            type: 'added',
+            text: newParas[j]!,
+          },
+        ],
+      })
     } else {
       const oldPara = oldParas[matchedOldIdx]!
       const newPara = newParas[j]!
       if (oldPara === newPara) continue
       const segments = diffWords(oldPara, newPara)
-      if (segments.length > 0) result.push({ kind: 'inline', segments })
+      if (segments.length > 0)
+        result.push({
+          kind: 'inline',
+          segments,
+        })
     }
   }
 
   // Net deletions (more removed than added)
   while (unmatchedOldCursor < unmatchedOld.length) {
     const entry = unmatchedOld[unmatchedOldCursor++]!
-    result.push({ kind: 'removed', segments: [{ type: 'removed', text: entry.text }] })
+    result.push({
+      kind: 'removed',
+      segments: [
+        {
+          type: 'removed',
+          text: entry.text,
+        },
+      ],
+    })
   }
 
   return result

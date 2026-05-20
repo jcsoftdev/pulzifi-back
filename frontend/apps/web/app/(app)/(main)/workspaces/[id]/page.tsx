@@ -1,5 +1,5 @@
-import { Suspense } from 'react'
 import type { BreadcrumbItem } from '@workspace/ui/components/molecules'
+import { Suspense } from 'react'
 import { getPagesServer } from '@/features/page/application/services/server'
 import { getWorkspaceServer } from '@/features/workspace/application/services/server'
 import { WorkspaceDetailFeature } from '@/features/workspace-detail'
@@ -40,10 +40,20 @@ export default async function WorkspaceDetailPage({ params }: WorkspaceDetailPag
 
   return (
     <>
-      <WorkspaceBreadcrumbs breadcrumbs={[
-        { label: 'Workspaces', href: '/workspaces' },
-        { label: <span className="inline-block h-4 w-24 bg-muted rounded animate-pulse align-middle" />, isCurrent: true },
-      ]} />
+      <WorkspaceBreadcrumbs
+        breadcrumbs={[
+          {
+            label: 'Workspaces',
+            href: '/workspaces',
+          },
+          {
+            label: (
+              <span className="inline-block h-4 w-24 bg-muted rounded animate-pulse align-middle" />
+            ),
+            isCurrent: true,
+          },
+        ]}
+      />
       <Suspense fallback={<WorkspaceDetailSkeleton />}>
         <WorkspaceDetailLoader id={id} />
       </Suspense>

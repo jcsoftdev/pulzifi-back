@@ -8,7 +8,10 @@ import { PricingCard } from './components/pricing-card'
 import { PricingComparisonTable } from './components/pricing-comparison-table'
 import { SectionFrame } from './components/section-frame'
 
-type PricingFeature = { text?: string; included?: boolean }
+type PricingFeature = {
+  text?: string
+  included?: boolean
+}
 type PricingPlan = {
   name: string
   price: string
@@ -54,7 +57,11 @@ export function PricingSection({
 }: Readonly<PricingSectionProps> = {}) {
   const items = plans ?? []
   const [cycle, setCycle] = useState<'monthly' | 'annual'>('monthly')
-  const cardsRef = useCardStagger<HTMLDivElement>({ scale: true, stagger: 0.1, y: 32 })
+  const cardsRef = useCardStagger<HTMLDivElement>({
+    scale: true,
+    stagger: 0.1,
+    y: 32,
+  })
 
   const hasAnnual = items.some((p) => p.priceAnnual)
 
@@ -70,6 +77,7 @@ export function PricingSection({
   }))
 
   return (
+    // biome-ignore lint/correctness/useUniqueElementIds: static nav anchor ID
     <SectionFrame id="pricing" bg="alt" className="relative overflow-hidden">
       {/* Gold blob — top center */}
       <div className="pointer-events-none absolute inset-0 -z-10 flex justify-center" aria-hidden>

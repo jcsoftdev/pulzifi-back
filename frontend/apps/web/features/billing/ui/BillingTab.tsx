@@ -1,13 +1,13 @@
 'use client'
 
-import { useState } from 'react'
 import { Button } from '@workspace/ui/components/atoms/button'
-import { useSubscription } from '../application/useSubscription'
+import { useState } from 'react'
 import { useCreateCheckout } from '../application/useCreateCheckout'
-import { SubscriptionStatusCard } from './SubscriptionStatusCard'
-import { PlanCard } from './PlanCard'
+import { useSubscription } from '../application/useSubscription'
 import type { Plan } from '../domain/plan'
 import type { BillingCycle } from '../domain/subscription'
+import { PlanCard } from './PlanCard'
+import { SubscriptionStatusCard } from './SubscriptionStatusCard'
 
 /**
  * Static plan catalog.
@@ -22,7 +22,12 @@ const PLANS: Plan[] = [
     description: 'For small teams getting started with monitoring.',
     priceMonthly: 0,
     priceYearly: 0,
-    features: ['3 workspaces', '10 pages', '500 checks/month', '7-day history'],
+    features: [
+      '3 workspaces',
+      '10 pages',
+      '500 checks/month',
+      '7-day history',
+    ],
   },
   {
     id: 'pro',

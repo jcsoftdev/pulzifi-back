@@ -1,15 +1,18 @@
-import { ReportApi } from '@workspace/services'
-import type { BreadcrumbItem } from '@workspace/ui/components/molecules'
+import { type Report, ReportApi } from '@workspace/services'
 import { Badge } from '@workspace/ui/components/atoms/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@workspace/ui/components/atoms/card'
-import { ExternalLink, ArrowLeft } from 'lucide-react'
+import type { BreadcrumbItem } from '@workspace/ui/components/molecules'
+import { ArrowLeft, ExternalLink } from 'lucide-react'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getWorkspaceServer } from '@/features/workspace/application/services/server'
 import { WorkspaceBreadcrumbs } from '../../workspace-breadcrumbs'
 
 interface ReportDetailPageProps {
-  params: Promise<{ id: string; reportId: string }>
+  params: Promise<{
+    id: string
+    reportId: string
+  }>
 }
 
 export default async function ReportDetailPage({ params }: ReportDetailPageProps) {
@@ -17,7 +20,7 @@ export default async function ReportDetailPage({ params }: ReportDetailPageProps
 
   const workspace = await getWorkspaceServer(workspaceId)
 
-  let report
+  let report: Report | undefined
   try {
     report = await ReportApi.getReport(reportId)
   } catch {
@@ -31,10 +34,22 @@ export default async function ReportDetailPage({ params }: ReportDetailPageProps
   })
 
   const breadcrumbs: BreadcrumbItem[] = [
-    { label: 'Workspaces', href: '/workspaces' },
-    { label: workspace.name, href: `/workspaces/${workspaceId}` },
-    { label: 'Reports', href: `/workspaces/${workspaceId}/reports` },
-    { label: report.title, isCurrent: true },
+    {
+      label: 'Workspaces',
+      href: '/workspaces',
+    },
+    {
+      label: workspace.name,
+      href: `/workspaces/${workspaceId}`,
+    },
+    {
+      label: 'Reports',
+      href: `/workspaces/${workspaceId}/reports`,
+    },
+    {
+      label: report.title,
+      isCurrent: true,
+    },
   ]
 
   return (

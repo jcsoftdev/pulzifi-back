@@ -18,8 +18,8 @@ import {
 import { cn } from '@workspace/ui/lib/utils'
 import { ChevronDown, Clock, RefreshCcw, Trash2 } from 'lucide-react'
 import { useState } from 'react'
-import { CHECK_FREQUENCY_OPTIONS } from '../domain/types'
 import type { Page } from '../domain/types'
+import { CHECK_FREQUENCY_OPTIONS } from '../domain/types'
 
 export interface PagesTableProps {
   pages: Page[]

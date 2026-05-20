@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@workspace/ui/components/atoms/select'
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import type { TeamMember } from '../domain/types'
 import { memberFullName } from '../domain/types'
 
@@ -37,12 +37,15 @@ export function EditMemberDialog({
   isLoading,
   error,
 }: Readonly<EditMemberDialogProps>) {
+  const roleId = useId()
   const [role, setRole] = useState<string>(member?.role ?? 'MEMBER')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
     if (member) setRole(member.role)
-  }, [member])
+  }, [
+    member,
+  ])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -69,12 +72,13 @@ export function EditMemberDialog({
           <form onSubmit={handleSubmit}>
             <div className="grid gap-4 py-4">
               <p className="text-sm text-muted-foreground">
-                Changing role for <span className="font-medium text-foreground">{memberFullName(member)}</span>
+                Changing role for{' '}
+                <span className="font-medium text-foreground">{memberFullName(member)}</span>
               </p>
               <div className="grid gap-2">
-                <Label htmlFor="edit-role">Role</Label>
+                <Label htmlFor={roleId}>Role</Label>
                 <Select value={role} onValueChange={setRole} disabled={busy}>
-                  <SelectTrigger id="edit-role">
+                  <SelectTrigger id={roleId}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -84,7 +88,9 @@ export function EditMemberDialog({
                 </Select>
               </div>
               {error && (
-                <p className="text-sm text-destructive">{error.message || 'Something went wrong'}</p>
+                <p className="text-sm text-destructive">
+                  {error.message || 'Something went wrong'}
+                </p>
               )}
             </div>
             <DialogFooter>

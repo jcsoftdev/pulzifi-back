@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
-import { Plus, X } from 'lucide-react'
 import { cn } from '@workspace/ui/lib/utils'
+import { Plus, X } from 'lucide-react'
+import { useState } from 'react'
 
 interface FaqItemProps {
   question: string
@@ -55,7 +55,9 @@ export function FaqItem({ question, answer }: Readonly<FaqItemProps>) {
         onClick={() => setIsOpen(!isOpen)}
         aria-expanded={isOpen}
       >
-        <span className="flex-1 text-base font-normal leading-6 text-[var(--pz-ink)] sm:text-xl sm:leading-7">{question}</span>
+        <span className="flex-1 text-base font-normal leading-6 text-[var(--pz-ink)] sm:text-xl sm:leading-7">
+          {question}
+        </span>
         <span className="shrink-0">
           {isOpen ? (
             <X className="size-6 text-[var(--pz-ink)]" />

@@ -22,7 +22,13 @@ export default function MainLayout({
           </Suspense>
         }
         checksSlot={
-          <Suspense fallback={<div className="hidden md:block"><div className="h-7 w-44 bg-muted rounded-md animate-pulse" /></div>}>
+          <Suspense
+            fallback={
+              <div className="hidden md:block">
+                <div className="h-7 w-44 bg-muted rounded-md animate-pulse" />
+              </div>
+            }
+          >
             <ChecksDataLoader />
           </Suspense>
         }

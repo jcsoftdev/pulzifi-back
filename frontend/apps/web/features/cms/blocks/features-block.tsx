@@ -1,3 +1,4 @@
+// biome-ignore-all lint/style/noNonNullAssertion: assertions guarded by .filter() predicates above
 import { FeaturesSection } from '@/features/landing'
 
 type Props = {
@@ -7,13 +8,22 @@ type Props = {
     headline?: string | null
     headlineHighlight?: string | null
     intro?: string | null
-    bullets?: { title?: string | null; description?: string | null }[] | null
+    bullets?:
+      | {
+          title?: string | null
+          description?: string | null
+        }[]
+      | null
     demoTitle?: string | null
     demoBadge?: string | null
     demoSite?: string | null
     demoChange?: string | null
     demoAnalysis?: string | null
-    demoActions?: { label?: string | null }[] | null
+    demoActions?:
+      | {
+          label?: string | null
+        }[]
+      | null
   }
 }
 
@@ -27,7 +37,10 @@ export function FeaturesBlock({ block }: Props) {
       bullets={
         block.bullets
           ?.filter((b) => b.title && b.description)
-          .map((b) => ({ title: b.title!, description: b.description! })) ?? undefined
+          .map((b) => ({
+            title: b.title!,
+            description: b.description!,
+          })) ?? undefined
       }
       demoTitle={block.demoTitle ?? undefined}
       demoBadge={block.demoBadge ?? undefined}
@@ -37,7 +50,9 @@ export function FeaturesBlock({ block }: Props) {
       demoActions={
         block.demoActions
           ?.filter((a) => a.label)
-          .map((a) => ({ label: a.label! })) ?? undefined
+          .map((a) => ({
+            label: a.label!,
+          })) ?? undefined
       }
     />
   )

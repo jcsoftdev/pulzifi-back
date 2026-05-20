@@ -1,22 +1,43 @@
 'use client'
 
 import { DeliveriesApi } from '@workspace/services'
-import type { Delivery, DeliveryStatus } from '../domain/types'
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { notification } from '@/lib/notification'
+import type { Delivery, DeliveryStatus } from '../domain/types'
 import { DeliveryDetailDrawer } from './delivery-detail-drawer'
 
 interface DeliveryLogTableProps {
   destinationId: string
 }
 
-const STATUS_FILTERS: { value: DeliveryStatus | 'all'; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'delivered', label: 'Delivered' },
-  { value: 'pending', label: 'Pending' },
-  { value: 'in_flight', label: 'In flight' },
-  { value: 'failed', label: 'Failed' },
-  { value: 'dead', label: 'Dead' },
+const STATUS_FILTERS: {
+  value: DeliveryStatus | 'all'
+  label: string
+}[] = [
+  {
+    value: 'all',
+    label: 'All',
+  },
+  {
+    value: 'delivered',
+    label: 'Delivered',
+  },
+  {
+    value: 'pending',
+    label: 'Pending',
+  },
+  {
+    value: 'in_flight',
+    label: 'In flight',
+  },
+  {
+    value: 'failed',
+    label: 'Failed',
+  },
+  {
+    value: 'dead',
+    label: 'Dead',
+  },
 ]
 
 const STATUS_COLORS: Record<DeliveryStatus, string> = {
@@ -60,14 +81,20 @@ export function DeliveryLogTable({ destinationId }: Readonly<DeliveryLogTablePro
     try {
       const { data } = await DeliveriesApi.list({
         destination_id: destinationId,
-        ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
+        ...(statusFilter !== 'all'
+          ? {
+              status: statusFilter,
+            }
+          : {}),
         limit: PAGE_SIZE,
         offset: page * PAGE_SIZE,
       })
       setDeliveries(data)
     } catch {
       if (!silent) {
-        notification.error({ title: 'Failed to load delivery log' })
+        notification.error({
+          title: 'Failed to load delivery log',
+        })
       }
     } finally {
       if (!silent) setLoading(false)
@@ -75,12 +102,18 @@ export function DeliveryLogTable({ destinationId }: Readonly<DeliveryLogTablePro
   }
 
   // Initial + on filter/page change
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional — fetchDeliveries is stable, deps are the actual change triggers
   useEffect(() => {
     fetchDeliveries()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [destinationId, statusFilter, page])
+  }, [
+    destinationId,
+    statusFilter,
+    page,
+  ])
 
   // 10s polling
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional — fetchDeliveries is stable, deps are the actual change triggers
   useEffect(() => {
     intervalRef.current = setInterval(() => {
       fetchDeliveries(true)
@@ -89,13 +122,19 @@ export function DeliveryLogTable({ destinationId }: Readonly<DeliveryLogTablePro
       if (intervalRef.current) clearInterval(intervalRef.current)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [destinationId, statusFilter, page])
+  }, [
+    destinationId,
+    statusFilter,
+    page,
+  ])
 
   const handleRetry = async (id: string) => {
     setRetrying(id)
     try {
       await DeliveriesApi.retry(id)
-      notification.success({ title: 'Retry queued' })
+      notification.success({
+        title: 'Retry queued',
+      })
       await fetchDeliveries()
     } catch (err) {
       notification.error({
@@ -197,7 +236,11 @@ export function DeliveryLogTable({ destinationId }: Readonly<DeliveryLogTablePro
       {/* Table */}
       {loading ? (
         <div className="space-y-2">
-          {[1, 2, 3].map((n) => (
+          {[
+            1,
+            2,
+            3,
+          ].map((n) => (
             <div key={n} className="h-12 bg-muted/40 rounded-lg animate-pulse" />
           ))}
         </div>
@@ -252,6 +295,7 @@ export function DeliveryLogTable({ destinationId }: Readonly<DeliveryLogTablePro
                       setOpenDrawerId(d.id)
                     }}
                   >
+                    {/* biome-ignore lint/a11y/useKeyWithClickEvents: stopPropagation td — parent tr handles keyboard */}
                     <td className="px-3 py-3 w-8" onClick={(e) => e.stopPropagation()}>
                       {isDead && (
                         <input
@@ -281,6 +325,7 @@ export function DeliveryLogTable({ destinationId }: Readonly<DeliveryLogTablePro
                     <td className="px-4 py-3 text-xs text-muted-foreground max-w-xs truncate">
                       {truncate(d.errorMessage)}
                     </td>
+                    {/* biome-ignore lint/a11y/useKeyWithClickEvents: stopPropagation td — parent tr handles keyboard */}
                     <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                       {(d.status === 'failed' || d.status === 'dead') && (
                         <button

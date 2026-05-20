@@ -15,8 +15,7 @@ export default async function Page() {
     userName = user.name.split(' ')[0] ?? user.name
     monthlyChecks = checksData.current
     maxMonthlyChecks = checksData.max || 2000
-    usagePercent =
-      checksData.max > 0 ? Math.round((checksData.current / checksData.max) * 100) : 0
+    usagePercent = checksData.max > 0 ? Math.round((checksData.current / checksData.max) * 100) : 0
   } catch {
     // Non-critical — feature still renders without this data
   }

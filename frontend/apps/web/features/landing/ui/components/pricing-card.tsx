@@ -35,7 +35,7 @@ function extractNumeric(price: string): number {
 function PriceDisplay({
   price,
   priceAnnual,
-  period,
+  period: _period,
   billingCycle,
 }: {
   price: string
@@ -45,7 +45,12 @@ function PriceDisplay({
 }) {
   const activePrice = billingCycle === 'annual' && priceAnnual ? priceAnnual : price
   const isNumeric = /\d/.test(activePrice)
-  const numericVal = useMemo(() => extractNumeric(activePrice), [activePrice])
+  const numericVal = useMemo(
+    () => extractNumeric(activePrice),
+    [
+      activePrice,
+    ]
+  )
   const prefix = isNumeric ? activePrice.replace(/[\d,]+.*/, '') : ''
 
   const countRef = usePriceCountUp<HTMLSpanElement>(0, numericVal, {
@@ -87,7 +92,9 @@ export function PricingCard({
   annualNote,
   featuresLabel,
 }: Readonly<PricingCardProps>) {
-  const tiltRef = useTilt<HTMLDivElement>({ max: 5 })
+  const tiltRef = useTilt<HTMLDivElement>({
+    max: 5,
+  })
 
   return (
     <div className="relative pt-5">
@@ -103,7 +110,7 @@ export function PricingCard({
         ref={tiltRef}
         className={cn(
           'flex flex-1 flex-col gap-6 rounded-2xl border border-[var(--pz-card-border)] bg-white p-5 shadow-[var(--pz-card-shadow-rest)] sm:p-[30px] transition-all duration-300',
-          popular && 'ring-2 ring-[var(--pz-accent)] shadow-[var(--pz-shadow-accent-lg)]',
+          popular && 'ring-2 ring-[var(--pz-accent)] shadow-[var(--pz-shadow-accent-lg)]'
         )}
       >
         <div className="flex flex-col gap-3.5">
@@ -140,7 +147,9 @@ export function PricingCard({
         </LandingButton>
 
         <div className="flex flex-col gap-4 p-3.5">
-          <h4 className="text-xl font-medium leading-8 tracking-[-0.6px] text-[#111]">{featuresLabel ?? 'Features:'}</h4>
+          <h4 className="text-xl font-medium leading-8 tracking-[-0.6px] text-[#111]">
+            {featuresLabel ?? 'Features:'}
+          </h4>
           <ul className="flex flex-col gap-2.5">
             {features.map((f) => {
               const included = f.included !== false
@@ -149,7 +158,7 @@ export function PricingCard({
                   <span
                     className={cn(
                       'flex size-5 shrink-0 items-center justify-center rounded-full',
-                      included ? 'bg-[var(--pz-dark-surface)]' : 'bg-black/10',
+                      included ? 'bg-[var(--pz-dark-surface)]' : 'bg-black/10'
                     )}
                   >
                     {included ? (
@@ -161,7 +170,7 @@ export function PricingCard({
                   <span
                     className={cn(
                       'text-base leading-6',
-                      included ? 'text-[var(--pz-ink-2)]' : 'text-[#999] line-through',
+                      included ? 'text-[var(--pz-ink-2)]' : 'text-[#999] line-through'
                     )}
                   >
                     {f.text}

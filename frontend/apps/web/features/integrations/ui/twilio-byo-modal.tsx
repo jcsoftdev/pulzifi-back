@@ -1,17 +1,17 @@
 'use client'
 
 import { IntegrationsApi } from '@workspace/services'
-import type { Integration } from '../domain/types'
-import { useState } from 'react'
-import { notification } from '@/lib/notification'
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
-  DialogTitle,
   DialogDescription,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from '@workspace/ui/components/atoms/dialog'
+import { useId, useState } from 'react'
+import { notification } from '@/lib/notification'
+import type { Integration } from '../domain/types'
 
 interface TwilioBYOModalProps {
   open: boolean
@@ -20,6 +20,9 @@ interface TwilioBYOModalProps {
 }
 
 export function TwilioBYOModal({ open, onClose, onConnected }: Readonly<TwilioBYOModalProps>) {
+  const accountSidId = useId()
+  const authTokenId = useId()
+  const fromNumberId = useId()
   const [accountSid, setAccountSid] = useState('')
   const [authToken, setAuthToken] = useState('')
   const [fromNumber, setFromNumber] = useState('')
@@ -29,7 +32,9 @@ export function TwilioBYOModal({ open, onClose, onConnected }: Readonly<TwilioBY
     e.preventDefault()
 
     if (!accountSid.trim() || !authToken.trim() || !fromNumber.trim()) {
-      notification.error({ title: 'All fields are required' })
+      notification.error({
+        title: 'All fields are required',
+      })
       return
     }
 
@@ -40,7 +45,10 @@ export function TwilioBYOModal({ open, onClose, onConnected }: Readonly<TwilioBY
         auth_token: authToken.trim(),
         from_number: fromNumber.trim(),
       })
-      notification.success({ title: 'Twilio connected', description: 'BYO credentials saved.' })
+      notification.success({
+        title: 'Twilio connected',
+        description: 'BYO credentials saved.',
+      })
       onConnected(integration)
       onClose()
     } catch (err) {
@@ -54,7 +62,12 @@ export function TwilioBYOModal({ open, onClose, onConnected }: Readonly<TwilioBY
   }
 
   return (
-    <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) onClose() }}>
+    <Dialog
+      open={open}
+      onOpenChange={(isOpen) => {
+        if (!isOpen) onClose()
+      }}
+    >
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Connect your Twilio account</DialogTitle>
@@ -67,13 +80,13 @@ export function TwilioBYOModal({ open, onClose, onConnected }: Readonly<TwilioBY
         <form onSubmit={handleSubmit} className="space-y-4 pt-2">
           <div>
             <label
-              htmlFor="twilio-account-sid"
+              htmlFor={accountSidId}
               className="text-xs font-medium text-muted-foreground block mb-1.5"
             >
               Account SID
             </label>
             <input
-              id="twilio-account-sid"
+              id={accountSidId}
               type="text"
               value={accountSid}
               onChange={(e) => setAccountSid(e.target.value)}
@@ -85,13 +98,13 @@ export function TwilioBYOModal({ open, onClose, onConnected }: Readonly<TwilioBY
 
           <div>
             <label
-              htmlFor="twilio-auth-token"
+              htmlFor={authTokenId}
               className="text-xs font-medium text-muted-foreground block mb-1.5"
             >
               Auth Token
             </label>
             <input
-              id="twilio-auth-token"
+              id={authTokenId}
               type="password"
               value={authToken}
               onChange={(e) => setAuthToken(e.target.value)}
@@ -103,13 +116,13 @@ export function TwilioBYOModal({ open, onClose, onConnected }: Readonly<TwilioBY
 
           <div>
             <label
-              htmlFor="twilio-from-number"
+              htmlFor={fromNumberId}
               className="text-xs font-medium text-muted-foreground block mb-1.5"
             >
               From number (E.164)
             </label>
             <input
-              id="twilio-from-number"
+              id={fromNumberId}
               type="text"
               value={fromNumber}
               onChange={(e) => setFromNumber(e.target.value)}

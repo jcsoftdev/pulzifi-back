@@ -1,11 +1,18 @@
 import { type NextRequest, NextResponse } from 'next/server'
-import { getPayloadClient } from '@/lib/payload'
 import { seedAll, seedCMSIfEmpty } from '@/features/cms/seed'
+import { getPayloadClient } from '@/lib/payload'
 
 export async function POST(req: NextRequest) {
   const secret = req.headers.get('x-seed-secret')
   if (!process.env.SEED_SECRET || secret !== process.env.SEED_SECRET) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return NextResponse.json(
+      {
+        error: 'Unauthorized',
+      },
+      {
+        status: 401,
+      }
+    )
   }
 
   const url = new URL(req.url)
@@ -16,19 +23,33 @@ export async function POST(req: NextRequest) {
 
     if (force) {
       await seedAll(payload)
-      return NextResponse.json({ message: 'Force re-seeded landing/navbar/footer.' })
+      return NextResponse.json({
+        message: 'Force re-seeded landing/navbar/footer.',
+      })
     }
 
     const result = await seedCMSIfEmpty(payload)
     return NextResponse.json(
       result.seeded
-        ? { message: 'Seeded successfully.' }
-        : { message: 'Already seeded, skipping. Pass ?force=1 to overwrite.' },
+        ? {
+            message: 'Seeded successfully.',
+          }
+        : {
+            message: 'Already seeded, skipping. Pass ?force=1 to overwrite.',
+          }
     )
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     const stack = err instanceof Error ? err.stack : undefined
     console.error('[seed-cms] failed:', err)
-    return NextResponse.json({ error: message, stack }, { status: 500 })
+    return NextResponse.json(
+      {
+        error: message,
+        stack,
+      },
+      {
+        status: 500,
+      }
+    )
   }
 }

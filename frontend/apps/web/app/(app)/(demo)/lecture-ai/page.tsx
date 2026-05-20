@@ -139,6 +139,7 @@ export default function LectureAiLandingPage() {
       </section>
 
       {/* How it Works Steps */}
+      {/* biome-ignore lint/correctness/useUniqueElementIds: anchor navigation target — intentional static id */}
       <section id="how-it-works" className="py-24 bg-background">
         <div className="container mx-auto px-6">
           <div className="text-center mb-16 max-w-3xl mx-auto">
@@ -416,6 +417,7 @@ export default function LectureAiLandingPage() {
       </section>
 
       {/* Features Grid */}
+      {/* biome-ignore lint/correctness/useUniqueElementIds: anchor navigation target — intentional static id */}
       <section id="features" className="py-24">
         <div className="container mx-auto px-6">
           <div className="text-center mb-16 max-w-3xl mx-auto">
@@ -539,6 +541,7 @@ export default function LectureAiLandingPage() {
       </section>
 
       {/* Testimonials */}
+      {/* biome-ignore lint/correctness/useUniqueElementIds: anchor navigation target — intentional static id */}
       <section id="testimonials" className="py-24">
         <div className="container mx-auto px-6">
           <div className="text-center mb-16 max-w-3xl mx-auto">
@@ -568,12 +571,13 @@ export default function LectureAiLandingPage() {
                   'Being able to search through the transcript for specific algorithms mentioned in class is a game changer.',
               },
             ].map((t, i) => (
-              <div key={i} className="bg-card p-6 rounded-2xl border border-border shadow-sm">
+              <div key={t.name} className="bg-card p-6 rounded-2xl border border-border shadow-sm">
                 <div className="flex items-center gap-1 mb-4 text-primary">
                   {Array.from({
                     length: 5,
                   }).map((_, j) => (
-                    <Sparkles key={j} className="w-4 h-4 fill-current" />
+                    // biome-ignore lint/suspicious/noArrayIndexKey: fixed-length star rating — no meaningful key available
+                    <Sparkles key={`star-${i}-${j}`} className="w-4 h-4 fill-current" />
                   ))}
                 </div>
                 <p className="text-muted-foreground mb-6">"{t.quote}"</p>
@@ -588,6 +592,7 @@ export default function LectureAiLandingPage() {
       </section>
 
       {/* Pricing */}
+      {/* biome-ignore lint/correctness/useUniqueElementIds: anchor navigation target — intentional static id */}
       <section id="pricing" className="py-24 bg-muted/30 border-y border-border/50">
         <div className="container mx-auto px-6">
           <div className="text-center mb-16 max-w-3xl mx-auto">
@@ -721,21 +726,25 @@ export default function LectureAiLandingPage() {
               <h4 className="font-semibold mb-4">Product</h4>
               <ul className="space-y-2 text-sm text-muted-foreground">
                 <li>
+                  {/* biome-ignore lint/a11y/useValidAnchor: demo page placeholder link */}
                   <a href="#" className="hover:text-primary">
                     Features
                   </a>
                 </li>
                 <li>
+                  {/* biome-ignore lint/a11y/useValidAnchor: demo page placeholder link */}
                   <a href="#" className="hover:text-primary">
                     Pricing
                   </a>
                 </li>
                 <li>
+                  {/* biome-ignore lint/a11y/useValidAnchor: demo page placeholder link */}
                   <a href="#" className="hover:text-primary">
                     For Universities
                   </a>
                 </li>
                 <li>
+                  {/* biome-ignore lint/a11y/useValidAnchor: demo page placeholder link */}
                   <a href="#" className="hover:text-primary">
                     Success Stories
                   </a>
@@ -746,21 +755,25 @@ export default function LectureAiLandingPage() {
               <h4 className="font-semibold mb-4">Company</h4>
               <ul className="space-y-2 text-sm text-muted-foreground">
                 <li>
+                  {/* biome-ignore lint/a11y/useValidAnchor: demo page placeholder link */}
                   <a href="#" className="hover:text-primary">
                     About Us
                   </a>
                 </li>
                 <li>
+                  {/* biome-ignore lint/a11y/useValidAnchor: demo page placeholder link */}
                   <a href="#" className="hover:text-primary">
                     Careers
                   </a>
                 </li>
                 <li>
+                  {/* biome-ignore lint/a11y/useValidAnchor: demo page placeholder link */}
                   <a href="#" className="hover:text-primary">
                     Blog
                   </a>
                 </li>
                 <li>
+                  {/* biome-ignore lint/a11y/useValidAnchor: demo page placeholder link */}
                   <a href="#" className="hover:text-primary">
                     Contact
                   </a>
@@ -773,9 +786,11 @@ export default function LectureAiLandingPage() {
               © 2025 LectureAI Inc. All rights reserved.
             </p>
             <div className="flex gap-6 text-sm text-muted-foreground">
+              {/* biome-ignore lint/a11y/useValidAnchor: demo page placeholder link */}
               <a href="#" className="hover:text-foreground">
                 Privacy Policy
               </a>
+              {/* biome-ignore lint/a11y/useValidAnchor: demo page placeholder link */}
               <a href="#" className="hover:text-foreground">
                 Terms of Service
               </a>

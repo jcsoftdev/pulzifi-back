@@ -59,7 +59,9 @@ export function RegisterFeature() {
           <div className="mb-4">
             <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-[var(--pz-accent)]/10 px-3 py-1">
               <span className="size-1.5 rounded-full bg-[var(--pz-accent)]" />
-              <span className="text-xs font-semibold uppercase tracking-widest text-[var(--pz-accent)]">Free 14-day trial</span>
+              <span className="text-xs font-semibold uppercase tracking-widest text-[var(--pz-accent)]">
+                Free 14-day trial
+              </span>
             </div>
             <h1 className="font-heading text-2xl font-bold leading-tight text-[var(--pz-ink)]">
               Create your account
@@ -77,7 +79,6 @@ export function RegisterFeature() {
           />
         </div>
       </main>
-
     </div>
   )
 }

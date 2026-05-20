@@ -1,10 +1,10 @@
 'use client'
 
 import { useGSAP } from '@gsap/react'
+import { cn } from '@workspace/ui/lib/utils'
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { useRef } from 'react'
-import { cn } from '@workspace/ui/lib/utils'
 import { usePreviewMode } from '../../lib/preview-mode'
 
 interface AnimatedSectionProps {
@@ -30,11 +30,25 @@ function prefersReducedMotion(): boolean {
 }
 
 const FROM_VARS: Record<NonNullable<AnimatedSectionProps['animation']>, gsap.TweenVars> = {
-  'fade-up': { y: 36, opacity: 0 },
-  'fade-in': { opacity: 0 },
-  'slide-left': { x: -80, opacity: 0 },
-  'slide-right': { x: 80, opacity: 0 },
-  scale: { scale: 0.92, opacity: 0 },
+  'fade-up': {
+    y: 36,
+    opacity: 0,
+  },
+  'fade-in': {
+    opacity: 0,
+  },
+  'slide-left': {
+    x: -80,
+    opacity: 0,
+  },
+  'slide-right': {
+    x: 80,
+    opacity: 0,
+  },
+  scale: {
+    scale: 0.92,
+    opacity: 0,
+  },
 }
 
 export function AnimatedSection({
@@ -64,7 +78,9 @@ export function AnimatedSection({
         },
       })
     },
-    { scope: ref },
+    {
+      scope: ref,
+    }
   )
 
   if (previewMode) {

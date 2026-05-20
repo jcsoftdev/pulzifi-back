@@ -10,7 +10,9 @@ function subscribeTokenRefresh(cb: (success: boolean) => void) {
 }
 
 function notifyRefreshSubscribers(success: boolean) {
-  refreshSubscribers.forEach((cb) => cb(success))
+  refreshSubscribers.forEach((cb) => {
+    cb(success)
+  })
   refreshSubscribers = []
 }
 

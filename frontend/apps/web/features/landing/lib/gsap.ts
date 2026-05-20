@@ -3,7 +3,7 @@
 import { useGSAP } from '@gsap/react'
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
-import { useRef, type RefObject } from 'react'
+import { type RefObject, useRef } from 'react'
 import { usePreviewMode } from './preview-mode'
 
 let registered = false
@@ -23,9 +23,10 @@ function prefersReducedMotion(): boolean {
  *  idle drift. Parallax uses `y` (px), drift uses `xPercent/yPercent` so the
  *  two transforms compose without conflicting.
  *  Targets: children with `data-pz-blob` attribute. */
-export function useParallaxBlob<T extends HTMLElement = HTMLDivElement>(
-  options?: { speed?: number; drift?: boolean },
-): RefObject<T | null> {
+export function useParallaxBlob<T extends HTMLElement = HTMLDivElement>(options?: {
+  speed?: number
+  drift?: boolean
+}): RefObject<T | null> {
   const ref = useRef<T | null>(null)
   const previewMode = usePreviewMode()
   ensureRegistered()
@@ -40,7 +41,9 @@ export function useParallaxBlob<T extends HTMLElement = HTMLDivElement>(
         const distance = Math.round(60 * speed)
         gsap.fromTo(
           blob,
-          { y: 0 },
+          {
+            y: 0,
+          },
           {
             y: distance,
             ease: 'none',
@@ -50,7 +53,7 @@ export function useParallaxBlob<T extends HTMLElement = HTMLDivElement>(
               end: 'bottom top',
               scrub: true,
             },
-          },
+          }
         )
         if (drift) {
           gsap.to(blob, {
@@ -65,16 +68,21 @@ export function useParallaxBlob<T extends HTMLElement = HTMLDivElement>(
         }
       })
     },
-    { scope: ref },
+    {
+      scope: ref,
+    }
   )
   return ref
 }
 
 /** GSAP-powered stagger reveal for card grids.
  *  Targets children with `data-pz-card` inside the scoped container. */
-export function useCardStagger<T extends HTMLElement = HTMLDivElement>(
-  options?: { y?: number; stagger?: number; start?: string; scale?: boolean },
-): RefObject<T | null> {
+export function useCardStagger<T extends HTMLElement = HTMLDivElement>(options?: {
+  y?: number
+  stagger?: number
+  start?: string
+  scale?: boolean
+}): RefObject<T | null> {
   const ref = useRef<T | null>(null)
   const previewMode = usePreviewMode()
   ensureRegistered()
@@ -97,14 +105,20 @@ export function useCardStagger<T extends HTMLElement = HTMLDivElement>(
         },
       })
     },
-    { scope: ref },
+    {
+      scope: ref,
+    }
   )
   return ref
 }
 
 export function useScrollReveal<T extends HTMLElement = HTMLDivElement>(
   selector = '[data-pz-anim]',
-  options?: { y?: number; stagger?: number; start?: string },
+  options?: {
+    y?: number
+    stagger?: number
+    start?: string
+  }
 ): RefObject<T | null> {
   const ref = useRef<T | null>(null)
   const previewMode = usePreviewMode()
@@ -127,7 +141,9 @@ export function useScrollReveal<T extends HTMLElement = HTMLDivElement>(
         },
       })
     },
-    { scope: ref },
+    {
+      scope: ref,
+    }
   )
   return ref
 }
@@ -139,22 +155,58 @@ export function useHeroTimeline<T extends HTMLElement = HTMLDivElement>(): RefOb
   useGSAP(
     () => {
       if (previewMode || prefersReducedMotion() || !ref.current) return
-      const tl = gsap.timeline({ defaults: { ease: 'power3.out' } })
-      tl.from('[data-pz-hero-eyebrow]', { opacity: 0, y: 12, duration: 0.6 })
+      const tl = gsap.timeline({
+        defaults: {
+          ease: 'power3.out',
+        },
+      })
+      tl.from('[data-pz-hero-eyebrow]', {
+        opacity: 0,
+        y: 12,
+        duration: 0.6,
+      })
         // Title is animated by useHeadlineReveal — owns its own mask reveal.
-        .from('[data-pz-hero-sub]', { opacity: 0, y: 16, duration: 0.7 }, 0.6)
-        .from('[data-pz-hero-cta]', { opacity: 0, y: 12, duration: 0.6 }, 0.85)
-        .from('[data-pz-hero-trust]', { opacity: 0, y: 8, duration: 0.5 }, 1.0)
-        // Card is animated by useClipReveal.
+        .from(
+          '[data-pz-hero-sub]',
+          {
+            opacity: 0,
+            y: 16,
+            duration: 0.7,
+          },
+          0.6
+        )
+        .from(
+          '[data-pz-hero-cta]',
+          {
+            opacity: 0,
+            y: 12,
+            duration: 0.6,
+          },
+          0.85
+        )
+        .from(
+          '[data-pz-hero-trust]',
+          {
+            opacity: 0,
+            y: 8,
+            duration: 0.5,
+          },
+          1.0
+        )
+      // Card is animated by useClipReveal.
     },
-    { scope: ref },
+    {
+      scope: ref,
+    }
   )
   return ref
 }
 
 export function useTabCrossFade<T extends HTMLElement = HTMLDivElement>(
   activeIndex: number,
-  options?: { duration?: number },
+  options?: {
+    duration?: number
+  }
 ): RefObject<T | null> {
   const ref = useRef<T | null>(null)
   const previewMode = usePreviewMode()
@@ -175,15 +227,26 @@ export function useTabCrossFade<T extends HTMLElement = HTMLDivElement>(
           el.style.display = 'block'
           gsap.fromTo(
             el,
-            { opacity: 0 },
-            { opacity: 1, duration: options?.duration ?? 0.25, ease: 'power2.out' },
+            {
+              opacity: 0,
+            },
+            {
+              opacity: 1,
+              duration: options?.duration ?? 0.25,
+              ease: 'power2.out',
+            }
           )
         } else {
           el.style.display = 'none'
         }
       })
     },
-    { scope: ref, dependencies: [activeIndex] },
+    {
+      scope: ref,
+      dependencies: [
+        activeIndex,
+      ],
+    }
   )
   return ref
 }
@@ -234,9 +297,11 @@ function splitWordsInPlace(root: HTMLElement): HTMLElement[] {
  *  After all words land, optionally draws an underline-swoosh stroke marked
  *  with `data-pz-swoosh path`. Cleanup restores the original innerHTML so
  *  Strict Mode / re-renders don't compound mutations. */
-export function useHeadlineReveal<T extends HTMLElement = HTMLHeadingElement>(
-  options?: { stagger?: number; duration?: number; delay?: number },
-): RefObject<T | null> {
+export function useHeadlineReveal<T extends HTMLElement = HTMLHeadingElement>(options?: {
+  stagger?: number
+  duration?: number
+  delay?: number
+}): RefObject<T | null> {
   const ref = useRef<T | null>(null)
   const previewMode = usePreviewMode()
   ensureRegistered()
@@ -247,13 +312,18 @@ export function useHeadlineReveal<T extends HTMLElement = HTMLHeadingElement>(
       const el = ref.current
       const original = el.innerHTML
       const inners = splitWordsInPlace(el)
-      if (!inners.length) return () => { el.innerHTML = original }
+      if (!inners.length)
+        return () => {
+          el.innerHTML = original
+        }
 
       const stagger = options?.stagger ?? 0.05
       const duration = options?.duration ?? 0.9
       const delay = options?.delay ?? 0.1
 
-      gsap.set(inners, { yPercent: 110 })
+      gsap.set(inners, {
+        yPercent: 110,
+      })
       gsap.to(inners, {
         yPercent: 0,
         duration,
@@ -265,7 +335,10 @@ export function useHeadlineReveal<T extends HTMLElement = HTMLHeadingElement>(
       const swoosh = el.querySelector<SVGPathElement>('[data-pz-swoosh] path')
       if (swoosh && typeof swoosh.getTotalLength === 'function') {
         const length = swoosh.getTotalLength()
-        gsap.set(swoosh, { strokeDasharray: length, strokeDashoffset: length })
+        gsap.set(swoosh, {
+          strokeDasharray: length,
+          strokeDashoffset: length,
+        })
         gsap.to(swoosh, {
           strokeDashoffset: 0,
           duration: 0.65,
@@ -278,22 +351,22 @@ export function useHeadlineReveal<T extends HTMLElement = HTMLHeadingElement>(
         el.innerHTML = original
       }
     },
-    { scope: ref },
+    {
+      scope: ref,
+    }
   )
   return ref
 }
 
 /** Clip-path reveal — element uncovers from one edge. Triggered when scrolled
  *  into view. Composes with other transforms (uses clip-path, not transform). */
-export function useClipReveal<T extends HTMLElement = HTMLDivElement>(
-  options?: {
-    delay?: number
-    start?: string
-    duration?: number
-    direction?: 'top' | 'bottom' | 'left' | 'right'
-    triggerOnMount?: boolean
-  },
-): RefObject<T | null> {
+export function useClipReveal<T extends HTMLElement = HTMLDivElement>(options?: {
+  delay?: number
+  start?: string
+  duration?: number
+  direction?: 'top' | 'bottom' | 'left' | 'right'
+  triggerOnMount?: boolean
+}): RefObject<T | null> {
   const ref = useRef<T | null>(null)
   const previewMode = usePreviewMode()
   ensureRegistered()
@@ -302,10 +375,13 @@ export function useClipReveal<T extends HTMLElement = HTMLDivElement>(
       if (previewMode || prefersReducedMotion() || !ref.current) return
       const dir = options?.direction ?? 'bottom'
       const from =
-        dir === 'bottom' ? 'inset(0 0 100% 0)' :
-        dir === 'top'    ? 'inset(100% 0 0 0)' :
-        dir === 'left'   ? 'inset(0 100% 0 0)' :
-                            'inset(0 0 0 100%)'
+        dir === 'bottom'
+          ? 'inset(0 0 100% 0)'
+          : dir === 'top'
+            ? 'inset(100% 0 0 0)'
+            : dir === 'left'
+              ? 'inset(0 100% 0 0)'
+              : 'inset(0 0 0 100%)'
       const tween: gsap.TweenVars = {
         clipPath: 'inset(0 0 0 0)',
         duration: options?.duration ?? 1.1,
@@ -321,11 +397,16 @@ export function useClipReveal<T extends HTMLElement = HTMLDivElement>(
       }
       gsap.fromTo(
         ref.current,
-        { clipPath: from, willChange: 'clip-path' },
-        tween,
+        {
+          clipPath: from,
+          willChange: 'clip-path',
+        },
+        tween
       )
     },
-    { scope: ref },
+    {
+      scope: ref,
+    }
   )
   return ref
 }
@@ -336,7 +417,12 @@ export function useClipReveal<T extends HTMLElement = HTMLDivElement>(
 export function usePriceCountUp<T extends HTMLElement = HTMLElement>(
   from: number,
   to: number,
-  options?: { duration?: number; prefix?: string; suffix?: string; delay?: number },
+  options?: {
+    duration?: number
+    prefix?: string
+    suffix?: string
+    delay?: number
+  }
 ): RefObject<T | null> {
   const ref = useRef<T | null>(null)
   const previewMode = usePreviewMode()
@@ -347,7 +433,9 @@ export function usePriceCountUp<T extends HTMLElement = HTMLElement>(
       const el = ref.current
       const prefix = options?.prefix ?? ''
       const suffix = options?.suffix ?? ''
-      const obj = { val: from }
+      const obj = {
+        val: from,
+      }
       gsap.to(obj, {
         val: to,
         duration: options?.duration ?? 1.2,
@@ -363,16 +451,23 @@ export function usePriceCountUp<T extends HTMLElement = HTMLElement>(
         },
       })
     },
-    { scope: ref, dependencies: [from, to] },
+    {
+      scope: ref,
+      dependencies: [
+        from,
+        to,
+      ],
+    }
   )
   return ref
 }
 
 /** Magnetic hover — element drifts toward pointer within its bounding rect.
  *  Uses gsap.quickTo for 60fps pointer tracking. Resets on pointerleave. */
-export function useMagnetic<T extends HTMLElement = HTMLElement>(
-  options?: { strength?: number; enabled?: boolean },
-): RefObject<T | null> {
+export function useMagnetic<T extends HTMLElement = HTMLElement>(options?: {
+  strength?: number
+  enabled?: boolean
+}): RefObject<T | null> {
   const ref = useRef<T | null>(null)
   const previewMode = usePreviewMode()
   ensureRegistered()
@@ -385,8 +480,14 @@ export function useMagnetic<T extends HTMLElement = HTMLElement>(
 
       const el = ref.current
       const strength = options?.strength ?? 0.35
-      const xTo = gsap.quickTo(el, 'x', { duration: 0.4, ease: 'power3.out' })
-      const yTo = gsap.quickTo(el, 'y', { duration: 0.4, ease: 'power3.out' })
+      const xTo = gsap.quickTo(el, 'x', {
+        duration: 0.4,
+        ease: 'power3.out',
+      })
+      const yTo = gsap.quickTo(el, 'y', {
+        duration: 0.4,
+        ease: 'power3.out',
+      })
 
       const onMove = (e: PointerEvent) => {
         const rect = el.getBoundingClientRect()
@@ -407,7 +508,12 @@ export function useMagnetic<T extends HTMLElement = HTMLElement>(
         el.removeEventListener('pointerleave', onLeave)
       }
     },
-    { scope: ref, dependencies: [options?.enabled] },
+    {
+      scope: ref,
+      dependencies: [
+        options?.enabled,
+      ],
+    }
   )
   return ref
 }
@@ -415,9 +521,11 @@ export function useMagnetic<T extends HTMLElement = HTMLElement>(
 /** 3D tilt on pointer move. Element rotates ±max degrees around X/Y axes
  *  based on pointer position within its bounding rect. Resets on leave.
  *  Skipped on touch devices and when reduced motion is requested. */
-export function useTilt<T extends HTMLElement = HTMLElement>(
-  options?: { max?: number; perspective?: number; enabled?: boolean },
-): RefObject<T | null> {
+export function useTilt<T extends HTMLElement = HTMLElement>(options?: {
+  max?: number
+  perspective?: number
+  enabled?: boolean
+}): RefObject<T | null> {
   const ref = useRef<T | null>(null)
   const previewMode = usePreviewMode()
   ensureRegistered()
@@ -431,10 +539,18 @@ export function useTilt<T extends HTMLElement = HTMLElement>(
       const max = options?.max ?? 6
       const perspective = options?.perspective ?? 900
 
-      gsap.set(el, { transformPerspective: perspective })
+      gsap.set(el, {
+        transformPerspective: perspective,
+      })
 
-      const rxTo = gsap.quickTo(el, 'rotationX', { duration: 0.4, ease: 'power3.out' })
-      const ryTo = gsap.quickTo(el, 'rotationY', { duration: 0.4, ease: 'power3.out' })
+      const rxTo = gsap.quickTo(el, 'rotationX', {
+        duration: 0.4,
+        ease: 'power3.out',
+      })
+      const ryTo = gsap.quickTo(el, 'rotationY', {
+        duration: 0.4,
+        ease: 'power3.out',
+      })
 
       const onMove = (e: PointerEvent) => {
         const rect = el.getBoundingClientRect()
@@ -455,7 +571,12 @@ export function useTilt<T extends HTMLElement = HTMLElement>(
         el.removeEventListener('pointerleave', onLeave)
       }
     },
-    { scope: ref, dependencies: [options?.enabled] },
+    {
+      scope: ref,
+      dependencies: [
+        options?.enabled,
+      ],
+    }
   )
   return ref
 }
@@ -482,27 +603,53 @@ export function useStepCascade<T extends HTMLElement = HTMLElement>(): RefObject
           start: 'top 70%',
           toggleActions: 'play none none none',
         },
-        defaults: { ease: 'power3.out' },
+        defaults: {
+          ease: 'power3.out',
+        },
       })
 
       if (line) {
         tl.fromTo(
           line,
-          { scaleX: 0, transformOrigin: 'left center' },
-          { scaleX: 1, duration: 1.2, ease: 'power2.inOut' },
-          0,
+          {
+            scaleX: 0,
+            transformOrigin: 'left center',
+          },
+          {
+            scaleX: 1,
+            duration: 1.2,
+            ease: 'power2.inOut',
+          },
+          0
         )
       }
-      tl.from(steps, { y: 30, opacity: 0, duration: 0.7, stagger: 0.18 }, 0.1)
+      tl.from(
+        steps,
+        {
+          y: 30,
+          opacity: 0,
+          duration: 0.7,
+          stagger: 0.18,
+        },
+        0.1
+      )
       if (numbers.length) {
         tl.from(
           numbers,
-          { scale: 0.4, opacity: 0, duration: 0.5, stagger: 0.18, ease: 'back.out(2)' },
-          0.2,
+          {
+            scale: 0.4,
+            opacity: 0,
+            duration: 0.5,
+            stagger: 0.18,
+            ease: 'back.out(2)',
+          },
+          0.2
         )
       }
     },
-    { scope: ref },
+    {
+      scope: ref,
+    }
   )
   return ref
 }

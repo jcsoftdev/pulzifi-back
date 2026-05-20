@@ -12,13 +12,7 @@ export function ManageBillingButton() {
 
   return (
     <div className="flex flex-col items-start gap-1">
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        disabled={isLoading}
-        onClick={openPortal}
-      >
+      <Button type="button" variant="outline" size="sm" disabled={isLoading} onClick={openPortal}>
         {isLoading ? 'Redirecting...' : 'Manage Billing'}
       </Button>
       {error && <p className="text-xs text-destructive">{error}</p>}

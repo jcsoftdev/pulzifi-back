@@ -3,12 +3,7 @@
  * Subscription-related entities used in the UI layer
  */
 
-export type BillingStatus =
-  | 'active'
-  | 'past_due'
-  | 'canceled'
-  | 'incomplete'
-  | 'trialing'
+export type BillingStatus = 'active' | 'past_due' | 'canceled' | 'incomplete' | 'trialing'
 
 export type BillingCycle = 'monthly' | 'yearly'
 
@@ -31,7 +26,13 @@ export interface Subscription {
  * Returns 'active' as a safe default for unknown values.
  */
 export function toBillingStatus(raw: string): BillingStatus {
-  const valid: BillingStatus[] = ['active', 'past_due', 'canceled', 'incomplete', 'trialing']
+  const valid: BillingStatus[] = [
+    'active',
+    'past_due',
+    'canceled',
+    'incomplete',
+    'trialing',
+  ]
   return valid.includes(raw as BillingStatus) ? (raw as BillingStatus) : 'active'
 }
 

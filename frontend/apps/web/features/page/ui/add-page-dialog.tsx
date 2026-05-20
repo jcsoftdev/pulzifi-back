@@ -1,5 +1,6 @@
 'use client'
 
+import { PageApi } from '@workspace/services/page-api'
 import { Button } from '@workspace/ui/components/atoms/button'
 import { Checkbox } from '@workspace/ui/components/atoms/checkbox'
 import {
@@ -11,7 +12,6 @@ import {
 } from '@workspace/ui/components/atoms/dialog'
 import { Input } from '@workspace/ui/components/atoms/input'
 import { Label } from '@workspace/ui/components/atoms/label'
-import { TagsInput } from '@workspace/ui/components/atoms/tags-input'
 import { RadioGroup, RadioGroupItem } from '@workspace/ui/components/atoms/radio-group'
 import {
   Select,
@@ -20,33 +20,51 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@workspace/ui/components/atoms/select'
+import { TagsInput } from '@workspace/ui/components/atoms/tags-input'
 import { Textarea } from '@workspace/ui/components/atoms/textarea'
 import {
-  Link2,
-  Sparkles,
-  Loader2,
+  AlertTriangle,
   ArrowLeft,
+  Link2,
+  Loader2,
   Monitor,
   MousePointerClick,
-  AlertTriangle,
   RotateCcw,
+  Sparkles,
 } from 'lucide-react'
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
-import { CHECK_FREQUENCY_OPTIONS } from '../domain/types'
 import type { CreatePageDto, PagePreviewResult, SelectorOffsets } from '../domain/types'
-import { PagePreviewSelector, type ElementSelection } from './page-preview-selector'
-import { PageApi } from '@workspace/services/page-api'
+import { CHECK_FREQUENCY_OPTIONS } from '../domain/types'
+import { type ElementSelection, PagePreviewSelector } from './page-preview-selector'
 
 const INSIGHT_TYPES = [
-  { value: 'marketing', label: 'Marketing Lens' },
-  { value: 'market_analysis', label: 'Market Analysis' },
-  { value: 'business_opportunities', label: 'Business Opportunities' },
-  { value: 'job_recommendation', label: 'Job recommendation' },
+  {
+    value: 'marketing',
+    label: 'Marketing Lens',
+  },
+  {
+    value: 'market_analysis',
+    label: 'Market Analysis',
+  },
+  {
+    value: 'business_opportunities',
+    label: 'Business Opportunities',
+  },
+  {
+    value: 'job_recommendation',
+    label: 'Job recommendation',
+  },
 ] as const
 
 const ALERT_CONDITIONS = [
-  { value: 'any_changes', label: 'Any changes' },
-  { value: 'navigation_changes', label: "Site's main navigation menu changes" },
+  {
+    value: 'any_changes',
+    label: 'Any changes',
+  },
+  {
+    value: 'navigation_changes',
+    label: "Site's main navigation menu changes",
+  },
 ] as const
 
 type WizardStep = 'url' | 'selector' | 'config'
@@ -88,11 +106,15 @@ export function AddPageDialog({
     'marketing',
     'market_analysis',
   ])
-  const [enabledAlertConditions, setEnabledAlertConditions] = useState<string[]>(['any_changes'])
+  const [enabledAlertConditions, setEnabledAlertConditions] = useState<string[]>([
+    'any_changes',
+  ])
   const [customAlertCondition, setCustomAlertCondition] = useState('')
 
   // Selector state
-  const [selectorType, setSelectorType] = useState<'full_page' | 'element' | 'sections'>('full_page')
+  const [selectorType, setSelectorType] = useState<'full_page' | 'element' | 'sections'>(
+    'full_page'
+  )
   const [cssSelector, setCssSelector] = useState('')
   const [xpathSelector, setXpathSelector] = useState('')
   const [selectorOffsets, setSelectorOffsets] = useState<SelectorOffsets>({
@@ -121,30 +143,53 @@ export function AddPageDialog({
       setCheckFrequency('Off')
       setBlockAdsCookies(true)
       setScheduleType('all_time')
-      setEnabledInsightTypes(['marketing', 'market_analysis'])
-      setEnabledAlertConditions(['any_changes'])
+      setEnabledInsightTypes([
+        'marketing',
+        'market_analysis',
+      ])
+      setEnabledAlertConditions([
+        'any_changes',
+      ])
       setCustomAlertCondition('')
       setSelectorType('full_page')
       setCssSelector('')
       setXpathSelector('')
-      setSelectorOffsets({ top: 0, right: 0, bottom: 0, left: 0 })
+      setSelectorOffsets({
+        top: 0,
+        right: 0,
+        bottom: 0,
+        left: 0,
+      })
       setSections([])
       setPreviewLoading(false)
       setPreviewProgress(null)
       setPreviewData(null)
       setPreviewError(null)
     }
-  }, [open, workspaceId])
+  }, [
+    open,
+    workspaceId,
+  ])
 
   const toggleInsightType = (value: string, checked: boolean) => {
     setEnabledInsightTypes((prev) =>
-      checked ? [...prev, value] : prev.filter((t) => t !== value)
+      checked
+        ? [
+            ...prev,
+            value,
+          ]
+        : prev.filter((t) => t !== value)
     )
   }
 
   const toggleAlertCondition = (value: string, checked: boolean) => {
     setEnabledAlertConditions((prev) =>
-      checked ? [...prev, value] : prev.filter((c) => c !== value)
+      checked
+        ? [
+            ...prev,
+            value,
+          ]
+        : prev.filter((c) => c !== value)
     )
   }
 
@@ -163,7 +208,7 @@ export function AddPageDialog({
         url.trim(),
         blockAdsCookies,
         (progress) => setPreviewProgress(progress.message),
-        controller.signal,
+        controller.signal
       )
       setPreviewData(result)
       setStep('selector')
@@ -175,8 +220,12 @@ export function AddPageDialog({
       setPreviewLoading(false)
       setPreviewProgress(null)
     }
-  }, [url, blockAdsCookies])
+  }, [
+    url,
+    blockAdsCookies,
+  ])
 
+  // biome-ignore lint/correctness/noUnusedVariables: reserved for future element selector integration
   const handleElementSelect = useCallback((selection: ElementSelection | null) => {
     if (selection) {
       setSelectorType('element')
@@ -187,7 +236,12 @@ export function AddPageDialog({
       setSelectorType('full_page')
       setCssSelector('')
       setXpathSelector('')
-      setSelectorOffsets({ top: 0, right: 0, bottom: 0, left: 0 })
+      setSelectorOffsets({
+        top: 0,
+        right: 0,
+        bottom: 0,
+        left: 0,
+      })
     }
   }, [])
 
@@ -198,7 +252,12 @@ export function AddPageDialog({
       // Clear legacy single-selector fields
       setCssSelector('')
       setXpathSelector('')
-      setSelectorOffsets({ top: 0, right: 0, bottom: 0, left: 0 })
+      setSelectorOffsets({
+        top: 0,
+        right: 0,
+        bottom: 0,
+        left: 0,
+      })
     } else {
       setSelectorType('full_page')
     }
@@ -223,17 +282,18 @@ export function AddPageDialog({
       cssSelector,
       xpathSelector,
       selectorOffsets,
-      sections: selectorType === 'sections'
-        ? sections.map((s, i) => ({
-          name: s.name || `Section ${i + 1}`,
-          cssSelector: s.cssSelector,
-          xpathSelector: s.xpathSelector,
-          selectorOffsets: s.offsets,
-          rect: s.rect,
-          viewportWidth: previewData?.viewport.width,
-          sortOrder: i,
-        }))
-        : undefined,
+      sections:
+        selectorType === 'sections'
+          ? sections.map((s, i) => ({
+              name: s.name || `Section ${i + 1}`,
+              cssSelector: s.cssSelector,
+              xpathSelector: s.xpathSelector,
+              selectorOffsets: s.offsets,
+              rect: s.rect,
+              viewportWidth: previewData?.viewport.width,
+              sortOrder: i,
+            }))
+          : undefined,
     })
   }
 
@@ -266,12 +326,11 @@ export function AddPageDialog({
           </DialogTitle>
         </DialogHeader>
 
-        <form
-          onSubmit={handleSubmit}
-          className="flex-1 overflow-hidden flex flex-col min-h-0"
-        >
+        <form onSubmit={handleSubmit} className="flex-1 overflow-hidden flex flex-col min-h-0">
           {/* Scrollable body */}
-          <div className={`flex-1 px-6 py-6 min-h-0 ${step === 'selector' ? 'flex flex-col gap-4 overflow-hidden' : 'overflow-y-auto space-y-8'}`}>
+          <div
+            className={`flex-1 px-6 py-6 min-h-0 ${step === 'selector' ? 'flex flex-col gap-4 overflow-hidden' : 'overflow-y-auto space-y-8'}`}
+          >
             {/* ─── STEP 1: URL Entry ─── */}
             {step === 'url' && (
               <>
@@ -367,8 +426,8 @@ export function AddPageDialog({
             {step === 'selector' && previewData && (
               <>
                 <p className="text-sm text-muted-foreground shrink-0">
-                  Click elements to monitor specific sections, or skip to monitor the full page.
-                  You can select multiple sections.
+                  Click elements to monitor specific sections, or skip to monitor the full page. You
+                  can select multiple sections.
                 </p>
 
                 <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
@@ -385,7 +444,9 @@ export function AddPageDialog({
                 {selectorType === 'sections' && sections.length > 0 && (
                   <div className="flex items-center gap-2 text-sm text-blue-600 bg-blue-50 dark:bg-blue-950/30 px-3 py-2 rounded shrink-0">
                     <MousePointerClick className="h-4 w-4 shrink-0" />
-                    <span>Monitoring {sections.length} section{sections.length > 1 ? 's' : ''}</span>
+                    <span>
+                      Monitoring {sections.length} section{sections.length > 1 ? 's' : ''}
+                    </span>
                   </div>
                 )}
 
@@ -458,19 +519,31 @@ export function AddPageDialog({
                     >
                       <div className="flex items-center gap-2">
                         <RadioGroupItem value="work_days" id={`${uid}-sched-work-days`} />
-                        <Label htmlFor={`${uid}-sched-work-days`} className="font-normal cursor-pointer">
+                        <Label
+                          htmlFor={`${uid}-sched-work-days`}
+                          className="font-normal cursor-pointer"
+                        >
                           Work days only
                         </Label>
                       </div>
                       <div className="flex items-center gap-2">
-                        <RadioGroupItem value="work_days_work_hours" id={`${uid}-sched-work-hours`} />
-                        <Label htmlFor={`${uid}-sched-work-hours`} className="font-normal cursor-pointer">
+                        <RadioGroupItem
+                          value="work_days_work_hours"
+                          id={`${uid}-sched-work-hours`}
+                        />
+                        <Label
+                          htmlFor={`${uid}-sched-work-hours`}
+                          className="font-normal cursor-pointer"
+                        >
                           Work days, during work hours
                         </Label>
                       </div>
                       <div className="flex items-center gap-2">
                         <RadioGroupItem value="all_time" id={`${uid}-sched-all-time`} />
-                        <Label htmlFor={`${uid}-sched-all-time`} className="font-normal cursor-pointer">
+                        <Label
+                          htmlFor={`${uid}-sched-all-time`}
+                          className="font-normal cursor-pointer"
+                        >
                           Every day (24/7)
                         </Label>
                       </div>

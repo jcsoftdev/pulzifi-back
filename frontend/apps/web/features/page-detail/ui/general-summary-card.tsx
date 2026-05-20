@@ -24,7 +24,12 @@ interface GeneralSummaryCardProps {
   refillDate?: string
 }
 
-export function GeneralSummaryCard({ page, config, quotaExceeded, refillDate }: Readonly<GeneralSummaryCardProps>) {
+export function GeneralSummaryCard({
+  page,
+  config,
+  quotaExceeded,
+  refillDate,
+}: Readonly<GeneralSummaryCardProps>) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [isEditingTags, setIsEditingTags] = useState(false)

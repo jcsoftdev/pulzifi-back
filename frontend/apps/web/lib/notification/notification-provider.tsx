@@ -1,7 +1,7 @@
-"use client";
+'use client'
 
-import { Toaster } from "@workspace/notix";
+import { Toaster } from '@workspace/notix'
 
 export function NotificationProvider() {
-	return <Toaster position="top-right" />;
+  return <Toaster position="top-right" />
 }

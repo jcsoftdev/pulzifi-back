@@ -51,7 +51,10 @@ function transformReport(backend: ReportBackendDto): Report {
 }
 
 export const ReportApi = {
-  async listReports(pageId?: string): Promise<{ data: Report[]; count: number }> {
+  async listReports(pageId?: string): Promise<{
+    data: Report[]
+    count: number
+  }> {
     const http = await getHttpClient()
     const query = pageId ? `?page_id=${pageId}` : ''
     const response = await http.get<ListReportsBackendResponse>(`/api/v1/reports${query}`)

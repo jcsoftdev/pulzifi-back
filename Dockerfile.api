@@ -46,9 +46,9 @@ COPY --from=builder /app/shared/database/migrations ./shared/database/migrations
 RUN chown -R appuser:appgroup /app
 USER appuser
 
-EXPOSE 9090
+EXPOSE 3000 9000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-    CMD curl -f http://localhost:${HTTP_PORT:-9090}/health || exit 1
+    CMD curl -f http://localhost:${HTTP_PORT:-3000}/health || exit 1
 
 CMD ["./api"]

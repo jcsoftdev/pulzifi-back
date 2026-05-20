@@ -31,5 +31,9 @@ export function useCreateCheckout(): UseCreateCheckoutReturn {
     // Note: do NOT setIsLoading(false) on success — page is navigating away
   }, [])
 
-  return { isLoading, error, createCheckout }
+  return {
+    isLoading,
+    error,
+    createCheckout,
+  }
 }

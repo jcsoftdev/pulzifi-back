@@ -1,6 +1,6 @@
 import { Suspense } from 'react'
-import { UpgradeBanner } from './ui/upgrade-banner'
 import { SettingsIntegrations } from './ui/settings-integrations'
+import { UpgradeBanner } from './ui/upgrade-banner'
 
 interface SettingsFeatureProps {
   userEmail?: string
@@ -30,7 +30,14 @@ export function SettingsFeature({ userEmail: _userEmail }: Readonly<SettingsFeat
           <Suspense
             fallback={
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {[1, 2, 3, 4, 5, 6].map((n) => (
+                {[
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                ].map((n) => (
                   <div key={n} className="h-40 bg-muted/40 rounded-2xl animate-pulse" />
                 ))}
               </div>

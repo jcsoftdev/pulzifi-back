@@ -16,15 +16,25 @@ export function useDashboardStats(): UseDashboardStatsResult {
   const [error, setError] = useState<Error | null>(null)
   const [fetchKey, setFetchKey] = useState(0)
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: fetchKey is an intentional refetch trigger
   useEffect(() => {
     setLoading(true)
     DashboardApi.getStats()
       .then(setStats)
-      .catch((err) => setError(err instanceof Error ? err : new Error('Failed to load dashboard stats')))
+      .catch((err) =>
+        setError(err instanceof Error ? err : new Error('Failed to load dashboard stats'))
+      )
       .finally(() => setLoading(false))
-  }, [fetchKey])
+  }, [
+    fetchKey,
+  ])
 
   const refetch = useCallback(() => setFetchKey((k) => k + 1), [])
 
-  return { stats, loading, error, refetch }
+  return {
+    stats,
+    loading,
+    error,
+    refetch,
+  }
 }

@@ -1,5 +1,5 @@
-import { TeamFeature } from '@/features/team'
 import { AuthApi } from '@workspace/services'
+import { TeamFeature } from '@/features/team'
 
 export default async function TeamPage() {
   let currentUserId: string | undefined

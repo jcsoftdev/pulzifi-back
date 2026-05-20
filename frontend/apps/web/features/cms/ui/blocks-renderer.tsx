@@ -15,9 +15,15 @@ import { ProblemBlock } from '../blocks/problem-block'
 import { RegisterFormBlock } from '../blocks/register-form-block'
 import { RichTextBlock } from '../blocks/rich-text-block'
 
-type Block = { blockType: string; id?: string; [key: string]: unknown }
+type Block = {
+  blockType: string
+  id?: string
+  [key: string]: unknown
+}
 
-type Props = { blocks: Block[] }
+type Props = {
+  blocks: Block[]
+}
 
 function renderBlock(block: Block): React.ReactElement | null {
   switch (block.blockType) {
@@ -48,7 +54,13 @@ function renderBlock(block: Block): React.ReactElement | null {
     case 'register-form':
       return <RegisterFormBlock block={block as never} />
     case 'block-ref': {
-      const ref = (block as { ref?: { block?: Block[] } }).ref
+      const ref = (
+        block as {
+          ref?: {
+            block?: Block[]
+          }
+        }
+      ).ref
       const inner = ref?.block?.[0]
       return inner ? renderBlock(inner) : null
     }
@@ -76,7 +88,7 @@ const MemoBlock = memo(
     } catch {
       return false
     }
-  },
+  }
 )
 
 export function BlocksRenderer({ blocks }: Props) {

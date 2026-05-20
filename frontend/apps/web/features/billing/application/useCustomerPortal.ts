@@ -32,5 +32,9 @@ export function useCustomerPortal(): UseCustomerPortalReturn {
     // Note: do NOT setIsLoading(false) on success — page is navigating away
   }, [])
 
-  return { isLoading, error, openPortal }
+  return {
+    isLoading,
+    error,
+    openPortal,
+  }
 }

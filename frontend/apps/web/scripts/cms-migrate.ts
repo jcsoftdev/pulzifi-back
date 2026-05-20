@@ -6,9 +6,10 @@
  *   bun scripts/cms-migrate.ts --create   — generate migration from schema diff
  *   bun scripts/cms-migrate.ts --fresh    — drop schema and re-run all migrations (DESTROYS DATA)
  */
-import { fileURLToPath } from 'url'
-import path from 'path'
+
+import path from 'node:path'
 import pg from 'pg'
+import { fileURLToPath } from 'node:url'
 import { seedCMSIfEmpty } from '../features/cms/seed'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -24,12 +25,16 @@ const connStr = `postgresql://${process.env.DB_USER}:${process.env.DB_PASSWORD}@
 //   (exists but payload_migrations table is missing = leftover from a failed init)
 const isFreshEarly = process.argv.includes('--fresh')
 try {
-  const client = new pg.Client({ connectionString: connStr })
+  const client = new pg.Client({
+    connectionString: connStr,
+  })
   await client.connect()
 
   // Check for a key data table (not payload_migrations, which is created before the migration
   // transaction starts and may exist even after a failed/partial migration run).
-  const { rows } = await client.query<{ exists: boolean }>(`
+  const { rows } = await client.query<{
+    exists: boolean
+  }>(`
     SELECT EXISTS (
       SELECT 1 FROM information_schema.tables
       WHERE table_schema = 'cms' AND table_name = 'pages'
@@ -47,7 +52,6 @@ try {
   process.exit(1)
 }
 
-
 const { default: rawConfig } = await import('../payload.config')
 const builtConfig = await rawConfig
 
@@ -57,7 +61,9 @@ const isCreate = process.argv.includes('--create')
 if (!isFresh && !isCreate) {
   // Delete the dev-mode marker row so migrate doesn't prompt.
   try {
-    const client = new pg.Client({ connectionString: connStr })
+    const client = new pg.Client({
+      connectionString: connStr,
+    })
     await client.connect()
     await client.query(`DELETE FROM cms.payload_migrations WHERE batch = -1`)
     await client.end()
@@ -67,16 +73,23 @@ if (!isFresh && !isCreate) {
 }
 
 const parsedArgs = {
-  _: [isCreate ? 'migrate:create' : isFresh ? 'migrate:fresh' : 'migrate'],
+  _: [
+    isCreate ? 'migrate:create' : isFresh ? 'migrate:fresh' : 'migrate',
+  ],
   forceAcceptWarning: true,
 }
 
 // Run migrations first — tables must exist before Payload initializes (onInit fires on getPayload)
-await migrate({ config: builtConfig, parsedArgs })
+await migrate({
+  config: builtConfig,
+  parsedArgs,
+})
 
 // Initialize Payload after migrations so onInit sees the complete schema
 const { getPayload } = await import('payload')
-const payload = await getPayload({ config: builtConfig })
+const payload = await getPayload({
+  config: builtConfig,
+})
 
 // Seed default content after migrations
 const result = await seedCMSIfEmpty(payload)

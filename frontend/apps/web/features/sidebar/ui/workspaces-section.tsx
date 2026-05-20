@@ -6,9 +6,9 @@ import { ChevronDown, SquarePlus } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { memo, useCallback, useEffect, useState } from 'react'
-import { notification } from '@/lib/notification'
 import { useWorkspaces } from '@/features/workspace/application/hooks/use-workspaces'
 import { CreateWorkspaceDialog } from '@/features/workspace/ui/create-workspace-dialog'
+import { notification } from '@/lib/notification'
 import { ICON_MAP, isWorkspaceActive, WORKSPACES_ROUTE } from '../domain/routes'
 import type { Workspace } from '../domain/types'
 
@@ -34,7 +34,11 @@ const WorkspaceItem = memo(function WorkspaceItem({
           : 'text-foreground hover:bg-muted'
       )}
     >
-      <Link href={`/workspaces/${workspace.id}`} aria-current={isActive ? 'page' : undefined} className="break-words">
+      <Link
+        href={`/workspaces/${workspace.id}`}
+        aria-current={isActive ? 'page' : undefined}
+        className="break-words"
+      >
         {workspace.name}
       </Link>
     </Button>

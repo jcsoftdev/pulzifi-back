@@ -38,7 +38,9 @@ export function BulkDeletePagesDialog({
         <AlertDialogHeader>
           <div className="flex items-center gap-2 text-destructive">
             <AlertCircle className="h-5 w-5" />
-            <AlertDialogTitle>Delete {count} {count === 1 ? 'Page' : 'Pages'}</AlertDialogTitle>
+            <AlertDialogTitle>
+              Delete {count} {count === 1 ? 'Page' : 'Pages'}
+            </AlertDialogTitle>
           </div>
           <AlertDialogDescription>
             Are you sure you want to delete{' '}

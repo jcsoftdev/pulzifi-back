@@ -6,7 +6,13 @@ type Props = {
     eyebrow?: string | null
     headline?: string | null
     headlineHighlight?: string | null
-    cards?: { metric?: string | null; label?: string | null; description?: string | null }[] | null
+    cards?:
+      | {
+          metric?: string | null
+          label?: string | null
+          description?: string | null
+        }[]
+      | null
   }
 }
 

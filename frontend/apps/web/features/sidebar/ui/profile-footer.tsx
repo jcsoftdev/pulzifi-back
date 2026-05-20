@@ -4,8 +4,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '@workspace/ui/components/at
 import { Button } from '@workspace/ui/components/atoms/button'
 import { LogOut, Settings } from 'lucide-react'
 import { useState } from 'react'
-import type { User } from '../domain/types'
 import { AccountSettingsDialog } from '../../account-settings/ui/account-settings-dialog'
+import type { User } from '../domain/types'
 
 export interface ProfileFooterProps {
   user: User
@@ -40,7 +40,9 @@ export function ProfileFooter({ user }: Readonly<ProfileFooterProps>) {
     }
 
     // Always bounce through the main-domain logout endpoint so its cookies are cleared too.
-    globalThis.window?.location.replace(`${protocol}//${baseHost}/api/auth/logout?redirectTo=/login`)
+    globalThis.window?.location.replace(
+      `${protocol}//${baseHost}/api/auth/logout?redirectTo=/login`
+    )
   }
 
   return (
@@ -83,11 +85,7 @@ export function ProfileFooter({ user }: Readonly<ProfileFooterProps>) {
         </div>
       </div>
 
-      <AccountSettingsDialog
-        open={settingsOpen}
-        onOpenChange={setSettingsOpen}
-        user={user}
-      />
+      <AccountSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} user={user} />
     </>
   )
 }

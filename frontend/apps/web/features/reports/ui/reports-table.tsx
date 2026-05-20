@@ -17,7 +17,11 @@ export function ReportsTable({ reports, loading, workspaceId }: Readonly<Reports
   if (loading) {
     return (
       <div className="grid gap-4">
-        {[1, 2, 3].map((n) => (
+        {[
+          1,
+          2,
+          3,
+        ].map((n) => (
           <Card key={n}>
             <CardContent className="p-4">
               <div className="flex items-center gap-4">

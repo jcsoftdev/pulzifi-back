@@ -11,8 +11,12 @@ type Props = {
 
 export function BlogCard({ title, slug, excerpt, heroImageUrl, publishedAt, category }: Props) {
   return (
-    <Link href={`/blog/${slug}`} className="group block rounded-2xl bg-white p-6 shadow-sm transition hover:shadow-md">
+    <Link
+      href={`/blog/${slug}`}
+      className="group block rounded-2xl bg-white p-6 shadow-sm transition hover:shadow-md"
+    >
       {heroImageUrl && (
+        // biome-ignore lint/performance/noImgElement: external CMS image, dimensions unknown at build time
         <img src={heroImageUrl} alt={title} className="mb-4 h-48 w-full rounded-xl object-cover" />
       )}
       {category && (

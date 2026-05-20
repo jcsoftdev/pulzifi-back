@@ -2,7 +2,10 @@ import { cn } from '@workspace/ui/lib/utils'
 
 export function AuthLabel({ htmlFor, children }: { htmlFor: string; children: React.ReactNode }) {
   return (
-    <label htmlFor={htmlFor} className="text-xs font-semibold uppercase tracking-wide text-[var(--pz-ink)]/50">
+    <label
+      htmlFor={htmlFor}
+      className="text-xs font-semibold uppercase tracking-wide text-[var(--pz-ink)]/50"
+    >
       {children}
     </label>
   )

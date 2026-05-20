@@ -1,7 +1,7 @@
 import axios, { type AxiosError, type AxiosInstance, type AxiosRequestConfig } from 'axios'
 import { env } from './env'
 import { getTenantFromWindow } from './tenant-utils'
-import { refreshAndRetry, getIsRedirectingToLogin } from './token-refresh'
+import { getIsRedirectingToLogin, refreshAndRetry } from './token-refresh'
 import type { HttpResponse, IHttpClient, RequestConfig } from './types'
 
 export class AxiosHttpClient implements IHttpClient {
@@ -41,8 +41,14 @@ export class AxiosHttpClient implements IHttpClient {
     this.client.interceptors.response.use(
       (response) => response,
       async (error: AxiosError) => {
-        const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean }
-        if (error.response?.status === 401 && !originalRequest._retry && !getIsRedirectingToLogin()) {
+        const originalRequest = error.config as AxiosRequestConfig & {
+          _retry?: boolean
+        }
+        if (
+          error.response?.status === 401 &&
+          !originalRequest._retry &&
+          !getIsRedirectingToLogin()
+        ) {
           originalRequest._retry = true
           const refreshed = await refreshAndRetry()
           if (refreshed) {
@@ -66,56 +72,110 @@ export class AxiosHttpClient implements IHttpClient {
     return {
       headers: config?.headers,
       params: config?.params,
-      ...(config?.timeout !== undefined && { timeout: config.timeout }),
+      ...(config?.timeout !== undefined && {
+        timeout: config.timeout,
+      }),
     }
   }
 
-  get<T>(url: string, config: RequestConfig & { withHeaders: true }): Promise<HttpResponse<T>>
+  get<T>(
+    url: string,
+    config: RequestConfig & {
+      withHeaders: true
+    }
+  ): Promise<HttpResponse<T>>
   get<T>(url: string, config?: RequestConfig): Promise<T>
   async get<T>(url: string, config?: RequestConfig): Promise<T | HttpResponse<T>> {
     const response = await this.client.get<T>(url, this.convertConfig(config))
     if (config?.withHeaders) {
-      return { data: response.data, headers: new Headers(response.headers as Record<string, string>), status: response.status }
+      return {
+        data: response.data,
+        headers: new Headers(response.headers as Record<string, string>),
+        status: response.status,
+      }
     }
     return response.data
   }
 
-  post<T>(url: string, data: unknown, config: RequestConfig & { withHeaders: true }): Promise<HttpResponse<T>>
+  post<T>(
+    url: string,
+    data: unknown,
+    config: RequestConfig & {
+      withHeaders: true
+    }
+  ): Promise<HttpResponse<T>>
   post<T>(url: string, data?: unknown, config?: RequestConfig): Promise<T>
   async post<T>(url: string, data?: unknown, config?: RequestConfig): Promise<T | HttpResponse<T>> {
     const response = await this.client.post<T>(url, data, this.convertConfig(config))
     if (config?.withHeaders) {
-      return { data: response.data, headers: new Headers(response.headers as Record<string, string>), status: response.status }
+      return {
+        data: response.data,
+        headers: new Headers(response.headers as Record<string, string>),
+        status: response.status,
+      }
     }
     return response.data
   }
 
-  put<T>(url: string, data: unknown, config: RequestConfig & { withHeaders: true }): Promise<HttpResponse<T>>
+  put<T>(
+    url: string,
+    data: unknown,
+    config: RequestConfig & {
+      withHeaders: true
+    }
+  ): Promise<HttpResponse<T>>
   put<T>(url: string, data?: unknown, config?: RequestConfig): Promise<T>
   async put<T>(url: string, data?: unknown, config?: RequestConfig): Promise<T | HttpResponse<T>> {
     const response = await this.client.put<T>(url, data, this.convertConfig(config))
     if (config?.withHeaders) {
-      return { data: response.data, headers: new Headers(response.headers as Record<string, string>), status: response.status }
+      return {
+        data: response.data,
+        headers: new Headers(response.headers as Record<string, string>),
+        status: response.status,
+      }
     }
     return response.data
   }
 
-  patch<T>(url: string, data: unknown, config: RequestConfig & { withHeaders: true }): Promise<HttpResponse<T>>
+  patch<T>(
+    url: string,
+    data: unknown,
+    config: RequestConfig & {
+      withHeaders: true
+    }
+  ): Promise<HttpResponse<T>>
   patch<T>(url: string, data?: unknown, config?: RequestConfig): Promise<T>
-  async patch<T>(url: string, data?: unknown, config?: RequestConfig): Promise<T | HttpResponse<T>> {
+  async patch<T>(
+    url: string,
+    data?: unknown,
+    config?: RequestConfig
+  ): Promise<T | HttpResponse<T>> {
     const response = await this.client.patch<T>(url, data, this.convertConfig(config))
     if (config?.withHeaders) {
-      return { data: response.data, headers: new Headers(response.headers as Record<string, string>), status: response.status }
+      return {
+        data: response.data,
+        headers: new Headers(response.headers as Record<string, string>),
+        status: response.status,
+      }
     }
     return response.data
   }
 
-  delete<T>(url: string, config: RequestConfig & { withHeaders: true }): Promise<HttpResponse<T>>
+  delete<T>(
+    url: string,
+    config: RequestConfig & {
+      withHeaders: true
+    }
+  ): Promise<HttpResponse<T>>
   delete<T>(url: string, config?: RequestConfig): Promise<T>
   async delete<T>(url: string, config?: RequestConfig): Promise<T | HttpResponse<T>> {
     const response = await this.client.delete<T>(url, this.convertConfig(config))
     if (config?.withHeaders) {
-      return { data: response.data, headers: new Headers(response.headers as Record<string, string>), status: response.status }
+      return {
+        data: response.data,
+        headers: new Headers(response.headers as Record<string, string>),
+        status: response.status,
+      }
     }
     return response.data
   }

@@ -60,7 +60,11 @@ interface DeliveryBackendDto {
   ErrorMessage?: string | null
   DeliveredAt?: string | null
   CreatedAt: string
-  AttemptHistory?: Array<{ at: string; code?: number; error?: string }> | null
+  AttemptHistory?: Array<{
+    at: string
+    code?: number
+    error?: string
+  }> | null
 }
 
 // ---------------------------------------------------------------------------
@@ -214,7 +218,9 @@ function transformDeliveryDetail(dto: DeliveryBackendDto): DeliveryDetail {
 export const IntegrationsApi = {
   async list(): Promise<Integration[]> {
     const http = await getHttpClient()
-    const response = await http.get<{ data: IntegrationBackendDto[] }>('/api/v1/integrations')
+    const response = await http.get<{
+      data: IntegrationBackendDto[]
+    }>('/api/v1/integrations')
     return (response.data ?? []).map(transformIntegration)
   },
 
@@ -230,16 +236,13 @@ export const IntegrationsApi = {
 
   async listTargets(id: string): Promise<Target[]> {
     const http = await getHttpClient()
-    const response = await http.get<{ targets: TargetBackendDto[] }>(
-      `/api/v1/integrations/${id}/targets`
-    )
+    const response = await http.get<{
+      targets: TargetBackendDto[]
+    }>(`/api/v1/integrations/${id}/targets`)
     return (response.targets ?? []).map(transformTarget)
   },
 
-  async connectBYO(
-    provider: string,
-    credentials: Record<string, string>
-  ): Promise<Integration> {
+  async connectBYO(provider: string, credentials: Record<string, string>): Promise<Integration> {
     const http = await getHttpClient()
     const response = await http.post<IntegrationBackendDto>('/api/v1/integrations/connect', {
       provider,
@@ -259,11 +262,15 @@ export const DestinationsApi = {
     const qs = new URLSearchParams({
       scope_type: params.scope_type,
       scope_id: params.scope_id,
-      ...(params.service_type ? { service_type: params.service_type } : {}),
+      ...(params.service_type
+        ? {
+            service_type: params.service_type,
+          }
+        : {}),
     }).toString()
-    const response = await http.get<{ data: DestinationBackendDto[] }>(
-      `/api/v1/destinations?${qs}`
-    )
+    const response = await http.get<{
+      data: DestinationBackendDto[]
+    }>(`/api/v1/destinations?${qs}`)
     return (response.data ?? []).map(transformDestination)
   },
 
@@ -291,16 +298,34 @@ export const DeliveriesApi = {
     status?: string
     limit?: number
     offset?: number
-  }): Promise<{ data: Delivery[] }> {
+  }): Promise<{
+    data: Delivery[]
+  }> {
     const http = await getHttpClient()
     const qs = new URLSearchParams({
       destination_id: params.destination_id,
-      ...(params.status ? { status: params.status } : {}),
-      ...(params.limit !== undefined ? { limit: String(params.limit) } : {}),
-      ...(params.offset !== undefined ? { offset: String(params.offset) } : {}),
+      ...(params.status
+        ? {
+            status: params.status,
+          }
+        : {}),
+      ...(params.limit !== undefined
+        ? {
+            limit: String(params.limit),
+          }
+        : {}),
+      ...(params.offset !== undefined
+        ? {
+            offset: String(params.offset),
+          }
+        : {}),
     }).toString()
-    const response = await http.get<{ data: DeliveryBackendDto[] }>(`/api/v1/deliveries?${qs}`)
-    return { data: (response.data ?? []).map(transformDelivery) }
+    const response = await http.get<{
+      data: DeliveryBackendDto[]
+    }>(`/api/v1/deliveries?${qs}`)
+    return {
+      data: (response.data ?? []).map(transformDelivery),
+    }
   },
 
   async retry(id: string): Promise<void> {
@@ -308,14 +333,19 @@ export const DeliveriesApi = {
     await http.post(`/api/v1/deliveries/${id}/retry`, {})
   },
 
-  async bulkRetry(
-    ids: string[]
-  ): Promise<{ retried: number; skipped: number; failed: number }> {
+  async bulkRetry(ids: string[]): Promise<{
+    retried: number
+    skipped: number
+    failed: number
+  }> {
     const http = await getHttpClient()
-    return http.post<{ retried: number; skipped: number; failed: number }>(
-      '/api/v1/deliveries/bulk-retry',
-      { ids }
-    )
+    return http.post<{
+      retried: number
+      skipped: number
+      failed: number
+    }>('/api/v1/deliveries/bulk-retry', {
+      ids,
+    })
   },
 
   async get(id: string): Promise<DeliveryDetail> {

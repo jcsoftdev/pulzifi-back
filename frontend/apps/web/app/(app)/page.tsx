@@ -26,7 +26,11 @@ export const metadata: Metadata = {
     'web scraping',
     'business intelligence',
   ],
-  authors: [{ name: 'Pulzifi' }],
+  authors: [
+    {
+      name: 'Pulzifi',
+    },
+  ],
   creator: 'Pulzifi',
   openGraph: {
     title: 'Pulzifi — AI-Powered Competitive Intelligence & Website Monitoring',
@@ -48,9 +52,13 @@ export const metadata: Metadata = {
     description:
       'Monitor any website for changes and get AI-powered strategic insights. Know what competitors do before it impacts your business.',
     card: 'summary_large_image',
-    images: ['/images/landing/hero-dashboard.png'],
+    images: [
+      '/images/landing/hero-dashboard.png',
+    ],
   },
-  alternates: { canonical: '/' },
+  alternates: {
+    canonical: '/',
+  },
   robots: {
     index: true,
     follow: true,
@@ -78,16 +86,34 @@ export default async function HomePage() {
     }
   }
 
-  let blocks: any[] = []
-  let navLinks: { label: string; href: string }[] | undefined
+  let blocks: { blockType: string; id?: string; [key: string]: unknown }[] = []
+  let navLinks:
+    | {
+        label: string
+        href: string
+      }[]
+    | undefined
   let navSigninLabel: string | undefined
   let navSigninHref: string | undefined
   let navPrimaryCtaLabel: string | undefined
   let navPrimaryCtaHref: string | undefined
   let navLogoUrl: string | undefined
-  let footerGroups: Record<string, { label: string; href: string }[]> | undefined
+  let footerGroups:
+    | Record<
+        string,
+        {
+          label: string
+          href: string
+        }[]
+      >
+    | undefined
   let footerTagline: string | undefined
-  let footerSocialLinks: { platform: string; href: string }[] | undefined
+  let footerSocialLinks:
+    | {
+        platform: string
+        href: string
+      }[]
+    | undefined
   let footerLogoUrl: string | undefined
   let themeStyle = ''
 
@@ -96,41 +122,73 @@ export default async function HomePage() {
     const [pagesResult, navbar, footer, theme] = await Promise.all([
       payload.find({
         collection: 'pages',
-        where: { slug: { equals: 'home' } },
+        where: {
+          slug: {
+            equals: 'home',
+          },
+        },
         depth: 2,
         limit: 1,
       }),
-      payload.findGlobal({ slug: 'navbar', depth: 1 }),
-      payload.findGlobal({ slug: 'footer', depth: 1 }),
-      payload.findGlobal({ slug: 'theme', depth: 0 }).catch(() => null),
+      payload.findGlobal({
+        slug: 'navbar',
+        depth: 1,
+      }),
+      payload.findGlobal({
+        slug: 'footer',
+        depth: 1,
+      }),
+      payload
+        .findGlobal({
+          slug: 'theme',
+          depth: 0,
+        })
+        .catch(() => null),
     ])
-    blocks = (pagesResult.docs[0]?.blocks as any) ?? []
-    const nav = navbar as any
-    const rawLinks = nav.links as { label: string; href: string }[] | undefined
+    blocks = (pagesResult.docs[0]?.blocks as { blockType: string; id?: string; [key: string]: unknown }[]) ?? []
+    const nav = navbar as unknown as Record<string, unknown>
+    const rawLinks = nav.links as
+      | {
+          label: string
+          href: string
+        }[]
+      | undefined
     navLinks = rawLinks?.length ? rawLinks : undefined
-    navSigninLabel = nav.signinLabel ?? undefined
-    navSigninHref = nav.signinHref ?? undefined
-    navPrimaryCtaLabel = nav.primaryCtaLabel ?? undefined
-    navPrimaryCtaHref = nav.primaryCtaHref ?? undefined
-    if (nav.logo && typeof nav.logo === 'object' && nav.logo.url) {
-      navLogoUrl = nav.logo.url as string
+    navSigninLabel = nav.signinLabel as string | undefined
+    navSigninHref = nav.signinHref as string | undefined
+    navPrimaryCtaLabel = nav.primaryCtaLabel as string | undefined
+    navPrimaryCtaHref = nav.primaryCtaHref as string | undefined
+    const navLogo = nav.logo as { url?: string } | undefined
+    if (navLogo?.url) {
+      navLogoUrl = navLogo.url
     }
-    const foot = footer as any
+    const foot = footer as unknown as Record<string, unknown>
     const rawGroups = foot.groups as
-      | { heading: string; links: { label: string; href: string }[] }[]
+      | {
+          heading: string
+          links: {
+            label: string
+            href: string
+          }[]
+        }[]
       | undefined
     if (rawGroups?.length) {
       footerGroups = Object.fromEntries(
         rawGroups.map((g) => [
           g.heading,
-          g.links?.map((l: { label: string; href: string }) => ({ label: l.label, href: l.href })) ?? [],
-        ]),
+          g.links?.map((l: { label: string; href: string }) => ({
+            label: l.label,
+            href: l.href,
+          })) ?? [],
+        ])
       )
     }
-    footerTagline = foot.tagline ?? undefined
-    footerSocialLinks = foot.socialLinks?.length ? foot.socialLinks : undefined
-    if (foot.logo && typeof foot.logo === 'object' && foot.logo.url) {
-      footerLogoUrl = foot.logo.url as string
+    footerTagline = foot.tagline as string | undefined
+    const rawSocial = foot.socialLinks as { platform: string; href: string }[] | undefined
+    footerSocialLinks = rawSocial?.length ? rawSocial : undefined
+    const footLogo = foot.logo as { url?: string } | undefined
+    if (footLogo?.url) {
+      footerLogoUrl = footLogo.url
     }
     if (theme) {
       themeStyle = buildThemeStyle(theme as unknown as Record<string, string | null | undefined>)
@@ -141,7 +199,10 @@ export default async function HomePage() {
 
   return (
     <div className="min-h-screen bg-[var(--pz-page-bg)]">
-      {themeStyle && <style dangerouslySetInnerHTML={{ __html: themeStyle }} />}
+      {themeStyle && (
+        // biome-ignore lint/security/noDangerouslySetInnerHtml: intentional theme CSS injection — controlled server-side input
+        <style dangerouslySetInnerHTML={{ __html: themeStyle }} />
+      )}
       <SmoothScroll />
       <Navbar
         links={navLinks}
@@ -171,8 +232,20 @@ export default async function HomePage() {
           description:
             'AI-powered competitive intelligence platform that monitors websites for changes and delivers strategic insights.',
           offers: [
-            { '@type': 'Offer', name: 'Starter Plan', price: '20', priceCurrency: 'USD', priceValidUntil: '2027-12-31' },
-            { '@type': 'Offer', name: 'Professional Plan', price: '62', priceCurrency: 'USD', priceValidUntil: '2027-12-31' },
+            {
+              '@type': 'Offer',
+              name: 'Starter Plan',
+              price: '20',
+              priceCurrency: 'USD',
+              priceValidUntil: '2027-12-31',
+            },
+            {
+              '@type': 'Offer',
+              name: 'Professional Plan',
+              price: '62',
+              priceCurrency: 'USD',
+              priceValidUntil: '2027-12-31',
+            },
           ],
           aggregateRating: {
             '@type': 'AggregateRating',

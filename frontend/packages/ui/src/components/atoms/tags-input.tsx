@@ -27,7 +27,10 @@ export function TagsInput({
   const addTag = (raw: string) => {
     const trimmed = raw.trim()
     if (trimmed && !value.includes(trimmed)) {
-      onChange([...value, trimmed])
+      onChange([
+        ...value,
+        trimmed,
+      ])
     }
     setInputValue('')
   }

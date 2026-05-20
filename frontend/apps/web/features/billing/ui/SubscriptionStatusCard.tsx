@@ -1,7 +1,7 @@
 'use client'
 
-import { Badge } from '@workspace/ui/components/atoms/badge'
 import type { SubscriptionDto } from '@workspace/services'
+import { Badge } from '@workspace/ui/components/atoms/badge'
 import { billingStatusLabel, toBillingStatus } from '../domain/subscription'
 import { ManageBillingButton } from './ManageBillingButton'
 
@@ -9,9 +9,7 @@ interface SubscriptionStatusCardProps {
   subscription: SubscriptionDto
 }
 
-function statusVariant(
-  status: string
-): 'default' | 'secondary' | 'destructive' | 'outline' {
+function statusVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
   switch (status) {
     case 'active':
     case 'trialing':
@@ -61,9 +59,7 @@ export function SubscriptionStatusCard({ subscription }: SubscriptionStatusCardP
         )}
 
         <div>
-          <p className="text-muted-foreground text-xs uppercase tracking-wide mb-0.5">
-            Payment
-          </p>
+          <p className="text-muted-foreground text-xs uppercase tracking-wide mb-0.5">Payment</p>
           {subscription.payment_status === 'ok' ? (
             <p className="text-foreground font-medium">Up to date</p>
           ) : (

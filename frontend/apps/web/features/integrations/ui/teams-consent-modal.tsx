@@ -23,7 +23,12 @@ export function TeamsConsentModal({ open, onClose, adminURL }: Readonly<TeamsCon
   }
 
   return (
-    <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) onClose() }}>
+    <Dialog
+      open={open}
+      onOpenChange={(isOpen) => {
+        if (!isOpen) onClose()
+      }}
+    >
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Microsoft Teams admin approval required</DialogTitle>

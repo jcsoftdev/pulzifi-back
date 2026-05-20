@@ -15,8 +15,16 @@ export default async function PreviewFooterPage() {
   try {
     const payload = await getPayloadClient()
     const [footer, theme] = await Promise.all([
-      payload.findGlobal({ slug: 'footer', depth: 1 }),
-      payload.findGlobal({ slug: 'theme', depth: 0 }).catch(() => null),
+      payload.findGlobal({
+        slug: 'footer',
+        depth: 1,
+      }),
+      payload
+        .findGlobal({
+          slug: 'theme',
+          depth: 0,
+        })
+        .catch(() => null),
     ])
     initialFooter = footer as unknown as Record<string, unknown>
     if (theme) initialTheme = theme as unknown as Record<string, string | null | undefined>

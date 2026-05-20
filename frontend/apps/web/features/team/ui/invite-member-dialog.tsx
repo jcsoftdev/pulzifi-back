@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@workspace/ui/components/atoms/select'
-import { useState } from 'react'
+import { useId, useState } from 'react'
 
 interface InviteMemberDialogProps {
   open: boolean
@@ -34,6 +34,8 @@ export function InviteMemberDialog({
   isLoading,
   error,
 }: Readonly<InviteMemberDialogProps>) {
+  const emailId = useId()
+  const roleId = useId()
   const [email, setEmail] = useState('')
   const [role, setRole] = useState('MEMBER')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -71,9 +73,9 @@ export function InviteMemberDialog({
         <form onSubmit={handleSubmit}>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="invite-email">Email address</Label>
+              <Label htmlFor={emailId}>Email address</Label>
               <Input
-                id="invite-email"
+                id={emailId}
                 type="email"
                 placeholder="colleague@example.com"
                 value={email}
@@ -83,9 +85,9 @@ export function InviteMemberDialog({
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="invite-role">Role</Label>
+              <Label htmlFor={roleId}>Role</Label>
               <Select value={role} onValueChange={setRole} disabled={busy}>
-                <SelectTrigger id="invite-role">
+                <SelectTrigger id={roleId}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

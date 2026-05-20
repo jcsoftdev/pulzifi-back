@@ -1,8 +1,8 @@
 'use client'
 
-import Link from 'next/link'
-import { ArrowRight } from 'lucide-react'
 import { cn } from '@workspace/ui/lib/utils'
+import { ArrowRight } from 'lucide-react'
+import Link from 'next/link'
 import { useMagnetic } from '../../lib/gsap'
 
 interface LandingButtonProps {
@@ -24,7 +24,10 @@ export function LandingButton({
   magnetic = false,
   className,
 }: Readonly<LandingButtonProps>) {
-  const magneticRef = useMagnetic<HTMLSpanElement>({ enabled: magnetic, strength: 0.35 })
+  const magneticRef = useMagnetic<HTMLSpanElement>({
+    enabled: magnetic,
+    strength: 0.35,
+  })
 
   const link = (
     <Link
@@ -38,9 +41,8 @@ export function LandingButton({
           'bg-[var(--pz-accent)] text-white hover:opacity-90 shadow-[var(--pz-shadow-accent)] hover:shadow-[var(--pz-shadow-accent-lg)]',
         variant === 'outline' &&
           'border border-[#ebebef] bg-white text-[var(--pz-ink)] hover:bg-gray-50',
-        variant === 'dark' &&
-          'bg-[var(--pz-dark-surface)] text-white hover:opacity-90',
-        className,
+        variant === 'dark' && 'bg-[var(--pz-dark-surface)] text-white hover:opacity-90',
+        className
       )}
     >
       {children}

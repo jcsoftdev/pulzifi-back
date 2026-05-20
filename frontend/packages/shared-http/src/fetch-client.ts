@@ -109,7 +109,9 @@ export class FetchHttpClient implements IHttpClient {
       ...fetchConfig,
       credentials: fetchConfig.credentials ?? 'include',
       headers: finalHeaders,
-      ...(signal && { signal }),
+      ...(signal && {
+        signal,
+      }),
     })
 
     // Server-side cannot refresh tokens (Set-Cookie headers from the refresh
@@ -126,39 +128,93 @@ export class FetchHttpClient implements IHttpClient {
     const data = await this.parseJsonResponse<T>(response, fullUrl)
 
     if (withHeaders) {
-      return { data, headers: response.headers, status: response.status }
+      return {
+        data,
+        headers: response.headers,
+        status: response.status,
+      }
     }
 
     return data
   }
 
-  get<T>(url: string, config: RequestConfig & { withHeaders: true }): Promise<HttpResponse<T>>
+  get<T>(
+    url: string,
+    config: RequestConfig & {
+      withHeaders: true
+    }
+  ): Promise<HttpResponse<T>>
   get<T>(url: string, config?: RequestConfig): Promise<T>
   async get<T>(url: string, config?: RequestConfig): Promise<T | HttpResponse<T>> {
-    return this.request<T>(url, { ...config, method: 'GET' })
+    return this.request<T>(url, {
+      ...config,
+      method: 'GET',
+    })
   }
 
-  post<T>(url: string, data: unknown, config: RequestConfig & { withHeaders: true }): Promise<HttpResponse<T>>
+  post<T>(
+    url: string,
+    data: unknown,
+    config: RequestConfig & {
+      withHeaders: true
+    }
+  ): Promise<HttpResponse<T>>
   post<T>(url: string, data?: unknown, config?: RequestConfig): Promise<T>
   async post<T>(url: string, data?: unknown, config?: RequestConfig): Promise<T | HttpResponse<T>> {
-    return this.request<T>(url, { ...config, method: 'POST', body: JSON.stringify(data) })
+    return this.request<T>(url, {
+      ...config,
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
   }
 
-  put<T>(url: string, data: unknown, config: RequestConfig & { withHeaders: true }): Promise<HttpResponse<T>>
+  put<T>(
+    url: string,
+    data: unknown,
+    config: RequestConfig & {
+      withHeaders: true
+    }
+  ): Promise<HttpResponse<T>>
   put<T>(url: string, data?: unknown, config?: RequestConfig): Promise<T>
   async put<T>(url: string, data?: unknown, config?: RequestConfig): Promise<T | HttpResponse<T>> {
-    return this.request<T>(url, { ...config, method: 'PUT', body: JSON.stringify(data) })
+    return this.request<T>(url, {
+      ...config,
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
   }
 
-  patch<T>(url: string, data: unknown, config: RequestConfig & { withHeaders: true }): Promise<HttpResponse<T>>
+  patch<T>(
+    url: string,
+    data: unknown,
+    config: RequestConfig & {
+      withHeaders: true
+    }
+  ): Promise<HttpResponse<T>>
   patch<T>(url: string, data?: unknown, config?: RequestConfig): Promise<T>
-  async patch<T>(url: string, data?: unknown, config?: RequestConfig): Promise<T | HttpResponse<T>> {
-    return this.request<T>(url, { ...config, method: 'PATCH', body: JSON.stringify(data) })
+  async patch<T>(
+    url: string,
+    data?: unknown,
+    config?: RequestConfig
+  ): Promise<T | HttpResponse<T>> {
+    return this.request<T>(url, {
+      ...config,
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    })
   }
 
-  delete<T>(url: string, config: RequestConfig & { withHeaders: true }): Promise<HttpResponse<T>>
+  delete<T>(
+    url: string,
+    config: RequestConfig & {
+      withHeaders: true
+    }
+  ): Promise<HttpResponse<T>>
   delete<T>(url: string, config?: RequestConfig): Promise<T>
   async delete<T>(url: string, config?: RequestConfig): Promise<T | HttpResponse<T>> {
-    return this.request<T>(url, { ...config, method: 'DELETE' })
+    return this.request<T>(url, {
+      ...config,
+      method: 'DELETE',
+    })
   }
 }

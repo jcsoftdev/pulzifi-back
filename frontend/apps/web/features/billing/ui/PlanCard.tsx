@@ -1,10 +1,10 @@
 'use client'
 
-import { Button } from '@workspace/ui/components/atoms/button'
 import { Badge } from '@workspace/ui/components/atoms/badge'
+import { Button } from '@workspace/ui/components/atoms/button'
 import type { Plan } from '../domain/plan'
-import type { BillingCycle } from '../domain/subscription'
 import { formatPrice } from '../domain/plan'
+import type { BillingCycle } from '../domain/subscription'
 
 interface PlanCardProps {
   plan: Plan

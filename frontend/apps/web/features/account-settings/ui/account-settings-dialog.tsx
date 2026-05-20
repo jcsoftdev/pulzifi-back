@@ -1,5 +1,6 @@
 'use client'
 
+import type { User } from '@workspace/services'
 import { Avatar, AvatarFallback, AvatarImage } from '@workspace/ui/components/atoms/avatar'
 import { Button } from '@workspace/ui/components/atoms/button'
 import {
@@ -13,7 +14,6 @@ import { Input } from '@workspace/ui/components/atoms/input'
 import { Label } from '@workspace/ui/components/atoms/label'
 import { InfoIcon, LockIcon, MailIcon, UserIcon } from 'lucide-react'
 import { useEffect, useId, useState } from 'react'
-import type { User } from '@workspace/services'
 import { notification } from '../../../lib/notification'
 import { useAccountSettings } from '../application/use-account-settings'
 
@@ -47,7 +47,10 @@ export function AccountSettingsDialog({
       setNewPassword('')
       setConfirmPassword('')
     }
-  }, [open, user.name])
+  }, [
+    open,
+    user.name,
+  ])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -59,10 +62,17 @@ export function AccountSettingsDialog({
 
     try {
       if (hasProfileChanges) {
-        await updateProfile({ firstName, lastName })
+        await updateProfile({
+          firstName,
+          lastName,
+        })
       }
       if (hasPasswordChanges) {
-        await changePassword({ currentPassword, newPassword, confirmPassword })
+        await changePassword({
+          currentPassword,
+          newPassword,
+          confirmPassword,
+        })
       }
 
       notification.success({
@@ -120,7 +130,10 @@ export function AccountSettingsDialog({
               {/* First & Last name */}
               <div className="flex gap-4">
                 <div className="flex-1 flex flex-col gap-1.5">
-                  <Label htmlFor={`${uid}-firstName`} className="text-xs font-semibold text-gray-700">
+                  <Label
+                    htmlFor={`${uid}-firstName`}
+                    className="text-xs font-semibold text-gray-700"
+                  >
                     First Name
                   </Label>
                   <div className="relative">
@@ -136,7 +149,10 @@ export function AccountSettingsDialog({
                   </div>
                 </div>
                 <div className="flex-1 flex flex-col gap-1.5">
-                  <Label htmlFor={`${uid}-lastName`} className="text-xs font-semibold text-gray-700">
+                  <Label
+                    htmlFor={`${uid}-lastName`}
+                    className="text-xs font-semibold text-gray-700"
+                  >
                     Last Name
                   </Label>
                   <div className="relative">
@@ -153,9 +169,7 @@ export function AccountSettingsDialog({
                 </div>
               </div>
 
-              {profileError && (
-                <p className="text-xs text-destructive">{profileError}</p>
-              )}
+              {profileError && <p className="text-xs text-destructive">{profileError}</p>}
 
               {/* Email */}
               <div className="flex flex-col gap-1.5">
@@ -184,7 +198,10 @@ export function AccountSettingsDialog({
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <Label htmlFor={`${uid}-currentPassword`} className="text-xs font-semibold text-gray-700">
+                  <Label
+                    htmlFor={`${uid}-currentPassword`}
+                    className="text-xs font-semibold text-gray-700"
+                  >
                     Current Password
                   </Label>
                   <Input
@@ -199,7 +216,10 @@ export function AccountSettingsDialog({
 
                 <div className="flex gap-4">
                   <div className="flex-1 flex flex-col gap-1.5">
-                    <Label htmlFor={`${uid}-newPassword`} className="text-xs font-semibold text-gray-700">
+                    <Label
+                      htmlFor={`${uid}-newPassword`}
+                      className="text-xs font-semibold text-gray-700"
+                    >
                       New Password
                     </Label>
                     <Input
@@ -229,9 +249,7 @@ export function AccountSettingsDialog({
                   </div>
                 </div>
 
-                {passwordError && (
-                  <p className="text-xs text-destructive">{passwordError}</p>
-                )}
+                {passwordError && <p className="text-xs text-destructive">{passwordError}</p>}
 
                 <div className="flex gap-2 items-start bg-blue-50 rounded-md px-3 py-2">
                   <InfoIcon className="h-3 w-3 text-blue-700 mt-0.5 shrink-0" />

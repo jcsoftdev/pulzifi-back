@@ -44,7 +44,11 @@ export function useRegister() {
       setSubmitted(true)
     } catch (err: unknown) {
       const apiError = err as {
-        response?: { data?: { error?: string } }
+        response?: {
+          data?: {
+            error?: string
+          }
+        }
         message?: string
       }
       setError(
@@ -57,5 +61,13 @@ export function useRegister() {
     }
   }
 
-  return { register, isLoading, error, submitted, checkSubdomain, subdomainStatus, subdomainMessage }
+  return {
+    register,
+    isLoading,
+    error,
+    submitted,
+    checkSubdomain,
+    subdomainStatus,
+    subdomainMessage,
+  }
 }

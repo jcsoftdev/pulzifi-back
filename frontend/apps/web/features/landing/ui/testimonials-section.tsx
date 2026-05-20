@@ -6,7 +6,12 @@ import { SectionHeader } from './components/section-header'
 import { TestimonialCard } from './components/testimonial-card'
 
 type TestimonialsSectionProps = {
-  items?: { quote: string; author: string; role?: string; avatar?: string | null }[]
+  items?: {
+    quote: string
+    author: string
+    role?: string
+    avatar?: string | null
+  }[]
 }
 
 export function TestimonialsSection({ items }: Readonly<TestimonialsSectionProps> = {}) {
@@ -48,7 +53,10 @@ export function TestimonialsSection({ items }: Readonly<TestimonialsSectionProps
   }, [])
 
   return (
-    <section className="mx-auto max-w-[1256px] overflow-hidden rounded-3xl bg-white px-6 py-12 md:py-16" aria-label="Testimonials carousel">
+    <section
+      className="mx-auto max-w-[1256px] overflow-hidden rounded-3xl bg-white px-6 py-12 md:py-16"
+      aria-label="Testimonials carousel"
+    >
       <AnimatedSection className="flex flex-col items-center gap-12">
         <SectionHeader
           title={
@@ -65,12 +73,12 @@ export function TestimonialsSection({ items }: Readonly<TestimonialsSectionProps
           <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-[100px] bg-gradient-to-r from-white to-transparent" />
           <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-[100px] bg-gradient-to-l from-white to-transparent" />
 
-          <div
-            ref={scrollRef}
-            className="flex gap-6 overflow-hidden"
-          >
+          <div ref={scrollRef} className="flex gap-6 overflow-hidden">
             {/* Duplicate for infinite scroll effect */}
-            {[...testimonials, ...testimonials].map((testimonial, i) => (
+            {[
+              ...testimonials,
+              ...testimonials,
+            ].map((testimonial, i) => (
               <TestimonialCard
                 key={`${testimonial.author}-${i}`}
                 quote={testimonial.quote}

@@ -1,13 +1,16 @@
 'use client'
 
-import { useState } from 'react'
-import { Plus } from 'lucide-react'
 import { cn } from '@workspace/ui/lib/utils'
+import { Plus } from 'lucide-react'
+import { useState } from 'react'
 import { AnimatedSection } from './components/animated-section'
 import { Eyebrow } from './components/eyebrow'
 import { SectionFrame } from './components/section-frame'
 
-type FaqItem = { question: string; answer: string }
+type FaqItem = {
+  question: string
+  answer: string
+}
 
 type FaqSectionProps = {
   eyebrow?: string
@@ -39,6 +42,7 @@ export function FaqSection({
   }
 
   return (
+    // biome-ignore lint/correctness/useUniqueElementIds: static nav anchor ID
     <SectionFrame id="faq" bg="white">
       <AnimatedSection className="mx-auto max-w-2xl text-center">
         {eyebrow && <Eyebrow className="mb-4">{eyebrow}</Eyebrow>}
@@ -50,7 +54,10 @@ export function FaqSection({
         )}
       </AnimatedSection>
 
-      <AnimatedSection delay={120} className="mx-auto mt-12 max-w-2xl divide-y divide-[var(--pz-card-border)]">
+      <AnimatedSection
+        delay={120}
+        className="mx-auto mt-12 max-w-2xl divide-y divide-[var(--pz-card-border)]"
+      >
         {faqs.map((item, i) => {
           const isOpen = openIndex === i
           const panelId = `faq-${i}-panel`
@@ -73,25 +80,26 @@ export function FaqSection({
                 <Plus
                   className={cn(
                     'size-5 shrink-0 text-[var(--pz-accent)] transition-transform duration-200',
-                    isOpen && 'rotate-45',
+                    isOpen && 'rotate-45'
                   )}
                   aria-hidden
                 />
               </button>
 
-              <div
+              <section
                 id={panelId}
-                role="region"
                 aria-labelledby={triggerId}
                 className="grid transition-[grid-template-rows] duration-300 ease-out"
-                style={{ gridTemplateRows: isOpen ? '1fr' : '0fr' }}
+                style={{
+                  gridTemplateRows: isOpen ? '1fr' : '0fr',
+                }}
               >
                 <div className="overflow-hidden">
                   <p className="pb-5 text-base leading-relaxed text-[var(--pz-ink-2)]">
                     {item.answer}
                   </p>
                 </div>
-              </div>
+              </section>
             </div>
           )
         })}

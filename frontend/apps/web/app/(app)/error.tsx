@@ -18,7 +18,10 @@ export default function ErrorPage({
     // Check if it's an unauthorized error
     if (error.message === 'Unauthorized' || error.name === 'UnauthorizedError') {
       // Try to refresh the session before giving up
-      fetch('/api/auth/refresh', { method: 'POST', credentials: 'include' })
+      fetch('/api/auth/refresh', {
+        method: 'POST',
+        credentials: 'include',
+      })
         .then((res) => {
           if (res.ok) {
             reset()

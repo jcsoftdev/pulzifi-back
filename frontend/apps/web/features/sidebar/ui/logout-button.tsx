@@ -3,8 +3,8 @@
 import { AuthApi } from '@workspace/services'
 import { Button } from '@workspace/ui/components/atoms/button'
 import { LogOut } from 'lucide-react'
-import { env } from '@/lib/env'
 import { useState } from 'react'
+import { env } from '@/lib/env'
 
 export function LogoutButton() {
   const [isLoggingOut, setIsLoggingOut] = useState(false)
@@ -22,13 +22,14 @@ export function LogoutButton() {
     }
 
     const hostname = globalThis.location.hostname
-    const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname.endsWith('.localhost')
+    const isLocalhost =
+      hostname === 'localhost' || hostname === '127.0.0.1' || hostname.endsWith('.localhost')
     const appDomain = env.NEXT_PUBLIC_APP_DOMAIN
     const appBaseUrl = env.NEXT_PUBLIC_APP_BASE_URL
 
     // NEXT_PUBLIC_APP_BASE_URL is the explicit frontend base URL (set in Railway/production).
     // Use it only on localhost so stale build-time values never override a real production URL.
-    const base = (isLocalhost && appBaseUrl) ? new URL(appBaseUrl) : null
+    const base = isLocalhost && appBaseUrl ? new URL(appBaseUrl) : null
 
     // Protocol: prefer NEXT_PUBLIC_APP_BASE_URL when on localhost (e.g. SSH tunnel)
     const protocol = base ? base.protocol : globalThis.location.protocol

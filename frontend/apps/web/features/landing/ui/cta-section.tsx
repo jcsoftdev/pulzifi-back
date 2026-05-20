@@ -23,10 +23,8 @@ export function CtaSection({
   riskNote,
 }: Readonly<CtaSectionProps> = {}) {
   return (
-    <section
-      id="cta"
-      className="bg-[var(--pz-dark-surface)] py-24 text-white lg:py-32"
-    >
+    // biome-ignore lint/correctness/useUniqueElementIds: static nav anchor ID
+    <section id="cta" className="bg-[var(--pz-dark-surface)] py-24 text-white lg:py-32">
       <AnimatedSection animation="fade-up" className="mx-auto max-w-[900px] px-6 text-center">
         {eyebrow && (
           <Eyebrow tone="muted" className="mb-6 text-white/60">
@@ -55,9 +53,7 @@ export function CtaSection({
           </div>
         )}
 
-        {riskNote && (
-          <p className="mt-4 text-sm text-white/60">{riskNote}</p>
-        )}
+        {riskNote && <p className="mt-4 text-sm text-white/60">{riskNote}</p>}
       </AnimatedSection>
     </section>
   )

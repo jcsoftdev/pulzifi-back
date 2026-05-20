@@ -9,7 +9,10 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { LandingButton } from './components/landing-button'
 
-type NavLink = { label: string; href: string }
+type NavLink = {
+  label: string
+  href: string
+}
 type NavbarProps = {
   links?: ReadonlyArray<NavLink>
   signinLabel?: string
@@ -20,11 +23,26 @@ type NavbarProps = {
 }
 
 const DEFAULT_NAV_LINKS: ReadonlyArray<NavLink> = [
-  { label: 'Home', href: '#' },
-  { label: 'Product', href: '#how-it-works' },
-  { label: 'How to use', href: '#industries' },
-  { label: 'Pricing', href: '#pricing' },
-  { label: 'Contact', href: '/contact' },
+  {
+    label: 'Home',
+    href: '#',
+  },
+  {
+    label: 'Product',
+    href: '#how-it-works',
+  },
+  {
+    label: 'How to use',
+    href: '#industries',
+  },
+  {
+    label: 'Pricing',
+    href: '#pricing',
+  },
+  {
+    label: 'Contact',
+    href: '/contact',
+  },
 ]
 
 const NAV_LINK_PATHS: Record<string, string> = {
@@ -76,7 +94,7 @@ function MobileMenu({
       <div
         className={cn(
           'fixed inset-0 z-[90] bg-black/40 transition-opacity duration-300',
-          open ? 'opacity-100' : 'pointer-events-none opacity-0',
+          open ? 'opacity-100' : 'pointer-events-none opacity-0'
         )}
         onClick={onClose}
         aria-hidden="true"
@@ -86,7 +104,7 @@ function MobileMenu({
       <div
         className={cn(
           'fixed left-3 right-3 top-3 z-[100] rounded-[20px] bg-white px-6 py-4 shadow-xl transition-all duration-300 ease-in-out',
-          open ? 'translate-y-0 opacity-100' : '-translate-y-2 pointer-events-none opacity-0',
+          open ? 'translate-y-0 opacity-100' : '-translate-y-2 pointer-events-none opacity-0'
         )}
       >
         {/* Header */}
@@ -145,7 +163,7 @@ function MobileMenu({
         </div>
       </div>
     </div>,
-    document.body,
+    document.body
   )
 }
 
@@ -172,7 +190,9 @@ export function Navbar({
         ticking = false
       })
     }
-    window.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('scroll', onScroll, {
+      passive: true,
+    })
     onScroll()
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
@@ -189,7 +209,7 @@ export function Navbar({
             'mx-auto',
             scrolled
               ? 'max-w-[880px] border border-black/5 bg-white/70 backdrop-blur-xl supports-[not_(backdrop-filter:blur(1px))]:bg-white'
-              : 'max-w-[1200px] border border-transparent bg-transparent',
+              : 'max-w-[1200px] border border-transparent bg-transparent'
           )}
         >
           {/* Logo group */}
@@ -208,7 +228,7 @@ export function Navbar({
           <div
             className={cn(
               'hidden rounded-full px-4 py-1.5 transition-colors duration-[450ms] ease-[cubic-bezier(0.22,1,0.36,1)] md:flex md:items-center md:gap-1',
-              scrolled ? 'bg-transparent' : 'bg-gray-100',
+              scrolled ? 'bg-transparent' : 'bg-gray-100'
             )}
           >
             {links.map((link) => {
@@ -220,7 +240,7 @@ export function Navbar({
                   href={href}
                   className={cn(
                     'rounded-full px-3 py-1.5 text-sm font-medium leading-5 tracking-tight text-[var(--pz-ink)] transition-colors hover:bg-black/5 focus-visible:ring-2 focus-visible:ring-[var(--pz-accent)] focus-visible:ring-offset-1 focus-visible:outline-none',
-                    active && 'text-[var(--pz-accent)]',
+                    active && 'text-[var(--pz-accent)]'
                   )}
                 >
                   {link.label}
@@ -233,7 +253,7 @@ export function Navbar({
           <div
             className={cn(
               'hidden items-center gap-2 rounded-full px-3 py-1 transition-colors duration-[450ms] ease-[cubic-bezier(0.22,1,0.36,1)] md:flex',
-              scrolled ? 'bg-transparent' : 'bg-gray-100',
+              scrolled ? 'bg-transparent' : 'bg-gray-100'
             )}
           >
             {(signinLabel || signinHref) && (
@@ -252,11 +272,7 @@ export function Navbar({
                 Sign in
               </Link>
             )}
-            <LandingButton
-              href={primaryCtaHref ?? '/register'}
-              variant="primary"
-              withArrow
-            >
+            <LandingButton href={primaryCtaHref ?? '/register'} variant="primary" withArrow>
               {primaryCtaLabel ?? 'Sign up'}
             </LandingButton>
           </div>

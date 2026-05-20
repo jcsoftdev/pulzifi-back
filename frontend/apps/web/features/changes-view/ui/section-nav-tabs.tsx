@@ -16,7 +16,7 @@ export function SectionNavTabs({
   sections,
   selectedSectionId,
   onSelect,
-  checks,
+  checks: _checks,
   activeSectionChecks = [],
 }: Readonly<SectionNavTabsProps>) {
   // Count actual content diff items (text blocks that changed) per section.
@@ -35,7 +35,9 @@ export function SectionNavTabs({
         <button
           type="button"
           onClick={() => onSelect('all')}
-          style={{ touchAction: 'manipulation' }}
+          style={{
+            touchAction: 'manipulation',
+          }}
           className={cn(
             'px-3 py-2.5 rounded-md text-sm font-medium transition-colors shrink-0 min-h-[44px]',
             selectedSectionId === 'all'
@@ -45,10 +47,12 @@ export function SectionNavTabs({
         >
           All sections
           {totalDiffCount > 0 && (
-            <span className={cn(
-              'ml-1.5 text-xs font-normal tabular-nums',
-              selectedSectionId === 'all' ? 'text-background/60' : 'text-muted-foreground'
-            )}>
+            <span
+              className={cn(
+                'ml-1.5 text-xs font-normal tabular-nums',
+                selectedSectionId === 'all' ? 'text-background/60' : 'text-muted-foreground'
+              )}
+            >
               {totalDiffCount}
             </span>
           )}
@@ -67,7 +71,16 @@ export function SectionNavTabs({
               key={section.id}
               type="button"
               onClick={() => onSelect(section.id)}
-              style={isActive ? { backgroundColor: color, touchAction: 'manipulation' } : { touchAction: 'manipulation' }}
+              style={
+                isActive
+                  ? {
+                      backgroundColor: color,
+                      touchAction: 'manipulation',
+                    }
+                  : {
+                      touchAction: 'manipulation',
+                    }
+              }
               className={cn(
                 'flex items-center gap-2 px-3 py-2.5 rounded-md text-sm font-medium transition-colors shrink-0 min-h-[44px]',
                 isActive
@@ -77,16 +90,20 @@ export function SectionNavTabs({
             >
               <span
                 className="w-2 h-2 rounded-full shrink-0"
-                style={{ backgroundColor: isActive ? 'rgba(255,255,255,0.75)' : color }}
+                style={{
+                  backgroundColor: isActive ? 'rgba(255,255,255,0.75)' : color,
+                }}
               />
               <span className="max-w-[160px] truncate">
                 {section.name || section.cssSelector.slice(0, 24)}
               </span>
               {sectionChanges > 0 && (
-                <span className={cn(
-                  'text-xs font-normal tabular-nums shrink-0',
-                  isActive ? 'text-white/70' : 'text-muted-foreground'
-                )}>
+                <span
+                  className={cn(
+                    'text-xs font-normal tabular-nums shrink-0',
+                    isActive ? 'text-white/70' : 'text-muted-foreground'
+                  )}
+                >
                   {sectionChanges}
                 </span>
               )}

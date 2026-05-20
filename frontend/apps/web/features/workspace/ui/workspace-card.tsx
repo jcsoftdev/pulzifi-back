@@ -112,8 +112,7 @@ export function WorkspaceCard({
             >
               {workspace.type}
             </Badge>
-            {workspace.tags &&
-              workspace.tags.map((tag) => (
+            {workspace.tags?.map((tag) => (
                 <Badge key={tag} variant="secondary" className="text-xs font-normal">
                   {tag}
                 </Badge>

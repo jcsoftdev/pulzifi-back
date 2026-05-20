@@ -69,14 +69,22 @@ export interface PreviewElement {
   selector: string
   xpath: string
   tag: string
-  rect: { x: number; y: number; w: number; h: number }
+  rect: {
+    x: number
+    y: number
+    w: number
+    h: number
+  }
   text_preview: string
   semantic_role: string
 }
 
 export interface PagePreviewResult {
   screenshot_base64: string
-  viewport: { width: number; height: number }
+  viewport: {
+    width: number
+    height: number
+  }
   page_height: number
   elements: PreviewElement[]
 }
@@ -84,18 +92,54 @@ export interface PagePreviewResult {
 export type PageStatus = 'active' | 'inactive'
 
 export const CHECK_FREQUENCY_OPTIONS = [
-  { value: 'Off', label: 'Off' },
-  { value: '5m', label: 'Every 5 minutes' },
-  { value: '10m', label: 'Every 10 minutes' },
-  { value: '15m', label: 'Every 15 minutes' },
-  { value: '30m', label: 'Every 30 minutes' },
-  { value: '1h', label: 'Every hour' },
-  { value: '2h', label: 'Every 2 hours' },
-  { value: '4h', label: 'Every 4 hours' },
-  { value: '6h', label: 'Every 6 hours' },
-  { value: '12h', label: 'Every 12 hours' },
-  { value: '24h', label: 'Every day' },
-  { value: '168h', label: 'Every week' },
+  {
+    value: 'Off',
+    label: 'Off',
+  },
+  {
+    value: '5m',
+    label: 'Every 5 minutes',
+  },
+  {
+    value: '10m',
+    label: 'Every 10 minutes',
+  },
+  {
+    value: '15m',
+    label: 'Every 15 minutes',
+  },
+  {
+    value: '30m',
+    label: 'Every 30 minutes',
+  },
+  {
+    value: '1h',
+    label: 'Every hour',
+  },
+  {
+    value: '2h',
+    label: 'Every 2 hours',
+  },
+  {
+    value: '4h',
+    label: 'Every 4 hours',
+  },
+  {
+    value: '6h',
+    label: 'Every 6 hours',
+  },
+  {
+    value: '12h',
+    label: 'Every 12 hours',
+  },
+  {
+    value: '24h',
+    label: 'Every day',
+  },
+  {
+    value: '168h',
+    label: 'Every week',
+  },
 ] as const
 
 export type CheckFrequencyValue = (typeof CHECK_FREQUENCY_OPTIONS)[number]['value']

@@ -1,22 +1,17 @@
 'use client'
 
+import { WorkspaceApi } from '@workspace/services'
+import { PageApi } from '@workspace/services/page-api'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { notification } from '@/lib/notification'
 import type { CreatePageDto } from '@/features/page/domain/types'
 import { AddPageDialog } from '@/features/page/ui/add-page-dialog'
 import { useWorkspaces } from '@/features/workspace/application/hooks/use-workspaces'
-import { CreateWorkspaceDialog } from '@/features/workspace/ui/create-workspace-dialog'
 import type { Workspace } from '@/features/workspace/domain/types'
-import { PageApi } from '@workspace/services/page-api'
-import { WorkspaceApi } from '@workspace/services'
+import { CreateWorkspaceDialog } from '@/features/workspace/ui/create-workspace-dialog'
+import { notification } from '@/lib/notification'
 import { useDashboardStats } from './application/use-dashboard-stats'
-import type {
-  DashboardStats,
-  RecentAlert,
-  RecentInsight,
-  WorkspaceChanges,
-} from './domain/types'
+import type { DashboardStats, RecentAlert, RecentInsight, WorkspaceChanges } from './domain/types'
 import { DashboardHeader } from './ui/dashboard-header'
 import { EmptyStateCard } from './ui/empty-state-card'
 
@@ -35,7 +30,10 @@ function formatDate(isoString: string): string {
 
   if (diffDays === 0) return 'Today'
   if (diffDays === 1) return 'Yesterday'
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  })
 }
 
 function extractPath(url: string): string {
@@ -73,7 +71,9 @@ function ChangesChart({ workspaces }: { workspaces: WorkspaceChanges[] }) {
             <div className="flex-1 min-w-0">
               <div
                 className={`${colors[i % colors.length]} rounded h-9 flex items-center px-3`}
-                style={{ width: `${widthPercent}%` }}
+                style={{
+                  width: `${widthPercent}%`,
+                }}
               >
                 <span className="text-white text-sm font-semibold truncate">
                   {ws.workspaceName}
@@ -170,8 +170,11 @@ export function DashboardFeature({
 }: Readonly<DashboardFeatureProps>) {
   const router = useRouter()
   const { stats, loading, refetch } = useDashboardStats()
-  const { isLoading: isCreatingWorkspace, error: createWorkspaceError, createWorkspace } =
-    useWorkspaces()
+  const {
+    isLoading: isCreatingWorkspace,
+    error: createWorkspaceError,
+    createWorkspace,
+  } = useWorkspaces()
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [isAddPageOpen, setIsAddPageOpen] = useState(false)
   const [isAddingPage, setIsAddingPage] = useState(false)
@@ -179,7 +182,9 @@ export function DashboardFeature({
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
 
   useEffect(() => {
-    WorkspaceApi.listWorkspaces().then((res) => setWorkspaces(res.workspaces)).catch(() => {})
+    WorkspaceApi.listWorkspaces()
+      .then((res) => setWorkspaces(res.workspaces))
+      .catch(() => {})
   }, [])
 
   const headerStats: DashboardStats = {
@@ -196,9 +201,7 @@ export function DashboardFeature({
   const isEmpty =
     !loading &&
     (!stats ||
-      (stats.workspacesCount === 0 &&
-        stats.pagesCount === 0 &&
-        stats.recentInsights.length === 0))
+      (stats.workspacesCount === 0 && stats.pagesCount === 0 && stats.recentInsights.length === 0))
 
   const handleCreateWorkspaceSubmit = async (data: {
     name: string
@@ -229,11 +232,17 @@ export function DashboardFeature({
     try {
       const newPage = await PageApi.createPage(data)
       setIsAddPageOpen(false)
-      notification.success({ title: 'Page added', description: `"${newPage.name}" has been added.` })
+      notification.success({
+        title: 'Page added',
+        description: `"${newPage.name}" has been added.`,
+      })
       refetch()
     } catch (err) {
       setAddPageError(err instanceof Error ? err : new Error('Failed to add page'))
-      notification.error({ title: 'Failed to add page', description: err instanceof Error ? err.message : 'Please try again.' })
+      notification.error({
+        title: 'Failed to add page',
+        description: err instanceof Error ? err.message : 'Please try again.',
+      })
     } finally {
       setIsAddingPage(false)
     }
@@ -335,7 +344,12 @@ export function DashboardFeature({
 
               {loading ? (
                 <div className="animate-pulse space-y-2">
-                  {[1, 2, 3, 4].map((n) => (
+                  {[
+                    1,
+                    2,
+                    3,
+                    4,
+                  ].map((n) => (
                     <div key={n} className="h-12 bg-muted rounded" />
                   ))}
                 </div>
@@ -361,7 +375,11 @@ export function DashboardFeature({
               <div className="space-y-4">
                 {loading ? (
                   <div className="animate-pulse space-y-3">
-                    {[1, 2, 3].map((n) => (
+                    {[
+                      1,
+                      2,
+                      3,
+                    ].map((n) => (
                       <div key={n} className="h-24 bg-muted rounded-lg" />
                     ))}
                   </div>

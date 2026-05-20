@@ -1,3 +1,4 @@
+// biome-ignore-all lint/suspicious/noArrayIndexKey: static decorative mock — arrays never reorder
 import { cn } from '@workspace/ui/lib/utils'
 import { Sparkles, TrendingDown, TrendingUp } from 'lucide-react'
 
@@ -33,13 +34,40 @@ const toneStyles: Record<AlertTone, string> = {
   ink: 'border-black/10 bg-[#f9f9fb]',
 }
 
-const SIDEBAR_ITEMS = ['Overview', 'Alerts', 'Monitors', 'AI Insights', 'Reports', 'Settings']
+const SIDEBAR_ITEMS = [
+  'Overview',
+  'Alerts',
+  'Monitors',
+  'AI Insights',
+  'Reports',
+  'Settings',
+]
 
 const DEFAULT_KPIS: KpiItem[] = [
-  { label: 'Alerts (24h)', value: '128', delta: '+24%', deltaDirection: 'up' },
-  { label: 'Mentions', value: '43', delta: '+8%', deltaDirection: 'up' },
-  { label: 'Pages Changed', value: '17', delta: '-3%', deltaDirection: 'down' },
-  { label: 'Price Changes', value: '5', delta: '+2', deltaDirection: 'up' },
+  {
+    label: 'Alerts (24h)',
+    value: '128',
+    delta: '+24%',
+    deltaDirection: 'up',
+  },
+  {
+    label: 'Mentions',
+    value: '43',
+    delta: '+8%',
+    deltaDirection: 'up',
+  },
+  {
+    label: 'Pages Changed',
+    value: '17',
+    delta: '-3%',
+    deltaDirection: 'down',
+  },
+  {
+    label: 'Price Changes',
+    value: '5',
+    delta: '+2',
+    deltaDirection: 'up',
+  },
 ]
 
 function Sidebar() {
@@ -54,7 +82,7 @@ function Sidebar() {
           key={item}
           className={cn(
             'rounded-md px-2 py-1 text-[10px] text-gray-500',
-            item === 'Overview' && 'bg-[var(--pz-accent-tint)] font-medium text-[var(--pz-accent)]',
+            item === 'Overview' && 'bg-[var(--pz-accent-tint)] font-medium text-[var(--pz-accent)]'
           )}
           aria-hidden
         >
@@ -75,7 +103,7 @@ function KpiTile({ label, value, delta, deltaDirection }: KpiItem) {
         <div
           className={cn(
             'mt-0.5 flex items-center gap-0.5 text-[10px] font-medium',
-            isUp ? 'text-emerald-600' : 'text-red-500',
+            isUp ? 'text-emerald-600' : 'text-red-500'
           )}
         >
           {isUp ? (
@@ -95,12 +123,8 @@ function PriceChartDecoration() {
   return (
     <div className="rounded-lg border border-gray-100 bg-white p-2.5">
       <p className="mb-1.5 text-[10px] font-medium text-gray-500">Price Positioning</p>
-      <svg
-        viewBox="0 0 120 40"
-        aria-hidden
-        className="h-8 w-full"
-        preserveAspectRatio="none"
-      >
+      {/* biome-ignore lint/a11y/noSvgWithoutTitle: aria-hidden decorative chart */}
+      <svg viewBox="0 0 120 40" aria-hidden className="h-8 w-full" preserveAspectRatio="none">
         <polyline
           points="0,30 20,25 40,20 60,22 80,15 100,18 120,10"
           fill="none"
@@ -127,10 +151,34 @@ function PriceChartDecoration() {
 // Deterministic pseudo-random sequence — must be identical on server and
 // client so SSR markup matches hydration. Pattern hand-tuned to look organic.
 const HEATMAP_OPACITIES = [
-  0.2, 0.4, 0.1, 0.6, 0.8, 0.4, 0.2,
-  0.4, 0.6, 0.8, 1.0, 0.6, 0.4, 0.2,
-  0.1, 0.2, 0.4, 0.8, 1.0, 0.8, 0.4,
-  0.2, 0.1, 0.2, 0.4, 0.6, 0.4, 0.2,
+  0.2,
+  0.4,
+  0.1,
+  0.6,
+  0.8,
+  0.4,
+  0.2,
+  0.4,
+  0.6,
+  0.8,
+  1.0,
+  0.6,
+  0.4,
+  0.2,
+  0.1,
+  0.2,
+  0.4,
+  0.8,
+  1.0,
+  0.8,
+  0.4,
+  0.2,
+  0.1,
+  0.2,
+  0.4,
+  0.6,
+  0.4,
+  0.2,
 ]
 
 function HeatmapDecoration() {
@@ -142,7 +190,9 @@ function HeatmapDecoration() {
           <div
             key={i}
             className="aspect-square rounded-[2px] bg-[var(--pz-accent)]"
-            style={{ opacity }}
+            style={{
+              opacity,
+            }}
           />
         ))}
       </div>
@@ -201,7 +251,7 @@ export function DashboardMock({
                     key={`${alert.site}-${i}`}
                     className={cn(
                       'flex items-start gap-2 rounded-lg border px-2.5 py-1.5',
-                      toneStyles[alert.tone ?? 'ink'],
+                      toneStyles[alert.tone ?? 'ink']
                     )}
                   >
                     {alert.icon && (

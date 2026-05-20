@@ -15,8 +15,16 @@ export default async function PreviewNavbarPage() {
   try {
     const payload = await getPayloadClient()
     const [navbar, theme] = await Promise.all([
-      payload.findGlobal({ slug: 'navbar', depth: 1 }),
-      payload.findGlobal({ slug: 'theme', depth: 0 }).catch(() => null),
+      payload.findGlobal({
+        slug: 'navbar',
+        depth: 1,
+      }),
+      payload
+        .findGlobal({
+          slug: 'theme',
+          depth: 0,
+        })
+        .catch(() => null),
     ])
     initialNavbar = navbar as unknown as Record<string, unknown>
     if (theme) initialTheme = theme as unknown as Record<string, string | null | undefined>

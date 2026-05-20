@@ -6,7 +6,12 @@ type Props = {
     eyebrow?: string | null
     headline?: string | null
     subheadline?: string | null
-    items?: { question: string; answer: string }[] | null
+    items?:
+      | {
+          question: string
+          answer: string
+        }[]
+      | null
   }
 }
 

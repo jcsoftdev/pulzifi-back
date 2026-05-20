@@ -8,7 +8,7 @@
     "dev:https": "NODE_OPTIONS='' next dev --turbopack -p ${PORT:-3001} --experimental-https --experimental-https-key ./localhost+3-key.pem --experimental-https-cert ./localhost+3.pem",
     "build": "next build",
     "start": "next start",
-        "start:prod": "bunx tsx scripts/cms-migrate.ts && next start -p ${PORT:-8080}",
+    "start:prod": "bunx tsx scripts/cms-migrate.ts && next start -p ${PORT:-8080}",
     "type-check": "tsc --noEmit",
     "type-check:fast": "tsgo --noEmit",
     "test": "bun test features/cms",

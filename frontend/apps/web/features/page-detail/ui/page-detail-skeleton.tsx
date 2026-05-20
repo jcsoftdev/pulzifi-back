@@ -2,17 +2,41 @@ import { Button } from '@workspace/ui/components/atoms/button'
 import { Pencil, Trash2 } from 'lucide-react'
 
 const INSIGHT_TYPES = [
-  { id: 'marketing', label: 'Marketing Lens' },
-  { id: 'market_analysis', label: 'Market Analysis' },
-  { id: 'business_opportunities', label: 'Business Opportunities' },
-  { id: 'job_recommendation', label: 'Job recommendation' },
+  {
+    id: 'marketing',
+    label: 'Marketing Lens',
+  },
+  {
+    id: 'market_analysis',
+    label: 'Market Analysis',
+  },
+  {
+    id: 'business_opportunities',
+    label: 'Business Opportunities',
+  },
+  {
+    id: 'job_recommendation',
+    label: 'Job recommendation',
+  },
 ] as const
 
 const ALERT_CONDITIONS = [
-  { id: 'any_changes', label: 'Any changes' },
-  { id: 'new_article', label: 'A new article is published on the site' },
-  { id: 'new_comment', label: 'New comment added' },
-  { id: 'main_nav_changes', label: "Site's main navigation menu changes" },
+  {
+    id: 'any_changes',
+    label: 'Any changes',
+  },
+  {
+    id: 'new_article',
+    label: 'A new article is published on the site',
+  },
+  {
+    id: 'new_comment',
+    label: 'New comment added',
+  },
+  {
+    id: 'main_nav_changes',
+    label: "Site's main navigation menu changes",
+  },
 ] as const
 
 export function PageDetailSkeleton() {
@@ -27,7 +51,13 @@ export function PageDetailSkeleton() {
                 <div className="flex items-center gap-2">
                   {/* Page name — data */}
                   <div className="h-7 w-48 bg-muted rounded animate-pulse" />
-                  <Button type="button" variant="ghost" size="icon-sm" disabled className="text-muted-foreground">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    disabled
+                    className="text-muted-foreground"
+                  >
                     <Pencil className="h-4 w-4" />
                   </Button>
                 </div>
@@ -36,7 +66,11 @@ export function PageDetailSkeleton() {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <Button variant="outline" disabled className="h-9 px-4 gap-2 bg-transparent border-border text-foreground">
+              <Button
+                variant="outline"
+                disabled
+                className="h-9 px-4 gap-2 bg-transparent border-border text-foreground"
+              >
                 <Trash2 className="h-4 w-4" />
                 Delete
               </Button>
@@ -61,7 +95,11 @@ export function PageDetailSkeleton() {
                   <div className="h-px flex-1 bg-border" />
                 </div>
                 <div className="relative border-l border-border ml-2 space-y-8">
-                  {['a', 'b', 'c'].map((i) => (
+                  {[
+                    'a',
+                    'b',
+                    'c',
+                  ].map((i) => (
                     <div key={i} className="relative pl-6">
                       <div className="absolute -left-1.5 top-1.5 h-3 w-3 rounded-full border-2 border-background bg-green-100" />
                       <div className="flex flex-col gap-1 p-2 -ml-2 rounded-md">
@@ -86,7 +124,9 @@ export function PageDetailSkeleton() {
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="w-4 h-4 rounded-full border border-border bg-muted" />
-                    <span className="text-sm text-muted-foreground">Work days, during work hours</span>
+                    <span className="text-sm text-muted-foreground">
+                      Work days, during work hours
+                    </span>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="w-4 h-4 rounded-full border border-border bg-muted" />
@@ -114,7 +154,13 @@ export function PageDetailSkeleton() {
                 <div className="flex flex-col gap-2">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-muted-foreground">Tag</span>
-                    <Button type="button" variant="ghost" size="icon-sm" disabled className="text-muted-foreground">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      disabled
+                      className="text-muted-foreground"
+                    >
                       <Pencil className="w-4 h-4" />
                     </Button>
                   </div>

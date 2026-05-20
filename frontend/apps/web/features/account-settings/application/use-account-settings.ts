@@ -23,7 +23,10 @@ export function useAccountSettings() {
     setProfileError(null)
     setIsSubmitting(true)
     try {
-      await AuthApi.updateProfile({ firstName: data.firstName, lastName: data.lastName })
+      await AuthApi.updateProfile({
+        firstName: data.firstName,
+        lastName: data.lastName,
+      })
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to update profile'
       setProfileError(message)

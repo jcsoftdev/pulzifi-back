@@ -1,12 +1,12 @@
 export type {
-  Integration,
-  Target,
-  Destination,
-  Delivery,
-  IntegrationStatus,
-  DeliveryStatus,
-  ScopeType,
   CreateDestinationInput,
+  Delivery,
+  DeliveryStatus,
+  Destination,
+  Integration,
+  IntegrationStatus,
+  ScopeType,
+  Target,
   UpdateDestinationInput,
 } from '@workspace/services'
 
@@ -15,7 +15,7 @@ export interface ProviderConfig {
   label: string
   description: string
   enabled: boolean // false = coming soon
-  soon?: boolean   // show "Coming soon" badge
+  soon?: boolean // show "Coming soon" badge
 }
 
 export const BASE_PROVIDERS: Omit<ProviderConfig, 'enabled' | 'soon'>[] = [

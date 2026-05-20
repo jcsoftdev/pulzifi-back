@@ -24,18 +24,35 @@ export function useTeam() {
 
   useEffect(() => {
     fetchMembers()
-  }, [fetchMembers])
+  }, [
+    fetchMembers,
+  ])
 
   const inviteMember = useCallback(async (email: string, role: string) => {
-    const member = await TeamApi.inviteMember({ email, role })
-    setMembers((prev) => [...prev, member as TeamMember])
+    const member = await TeamApi.inviteMember({
+      email,
+      role,
+    })
+    setMembers((prev) => [
+      ...prev,
+      member as TeamMember,
+    ])
     return member
   }, [])
 
   const updateMember = useCallback(async (memberId: string, role: string) => {
-    await TeamApi.updateMember(memberId, { role })
+    await TeamApi.updateMember(memberId, {
+      role,
+    })
     setMembers((prev) =>
-      prev.map((m) => (m.id === memberId ? { ...m, role: role as TeamMember['role'] } : m))
+      prev.map((m) =>
+        m.id === memberId
+          ? {
+              ...m,
+              role: role as TeamMember['role'],
+            }
+          : m
+      )
     )
   }, [])
 

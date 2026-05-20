@@ -1,15 +1,13 @@
 'use client'
-import { notification } from '@/lib/notification'
 import { PageApi } from '@workspace/services/page-api'
 import { Badge } from '@workspace/ui/components/atoms/badge'
 import { Button } from '@workspace/ui/components/atoms/button'
 import { Input } from '@workspace/ui/components/atoms/input'
 import { FileText, Settings, SquarePlus, Trash2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-
 import { useState } from 'react'
-import { getFrequencyLabel } from '@/features/page/domain/types'
 import type { CreatePageDto, EditPageDto, Page } from '@/features/page/domain/types'
+import { getFrequencyLabel } from '@/features/page/domain/types'
 import { AddPageDialog } from '@/features/page/ui/add-page-dialog'
 import { BulkDeletePagesDialog } from '@/features/page/ui/bulk-delete-pages-dialog'
 import { BulkFrequencyChangeDialog } from '@/features/page/ui/bulk-frequency-change-dialog'
@@ -20,7 +18,7 @@ import { useWorkspaces } from '@/features/workspace/application/hooks/use-worksp
 import type { Workspace, WorkspaceType } from '@/features/workspace/domain/types'
 import { DeleteWorkspaceDialog } from '@/features/workspace/ui/delete-workspace-dialog'
 import { EditWorkspaceDialog } from '@/features/workspace/ui/edit-workspace-dialog'
-
+import { notification } from '@/lib/notification'
 
 export interface WorkspaceDetailContentProps {
   workspace: Workspace
@@ -51,7 +49,10 @@ export function WorkspaceDetailContent({
   const [pendingBulkDeleteIds, setPendingBulkDeleteIds] = useState<string[]>([])
 
   const [isBulkFrequencyOpen, setIsBulkFrequencyOpen] = useState(false)
-  const [pendingBulkFrequency, setPendingBulkFrequency] = useState<{ ids: string[]; frequency: string } | null>(null)
+  const [pendingBulkFrequency, setPendingBulkFrequency] = useState<{
+    ids: string[]
+    frequency: string
+  } | null>(null)
 
   const handleAddPage = async (data: CreatePageDto) => {
     setIsLoading(true)
@@ -64,10 +65,16 @@ export function WorkspaceDetailContent({
         ...prev,
       ])
       setIsAddPageOpen(false)
-      notification.success({ title: 'Page added', description: `"${newPage.name}" has been added.` })
+      notification.success({
+        title: 'Page added',
+        description: `"${newPage.name}" has been added.`,
+      })
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to add page'))
-      notification.error({ title: 'Failed to add page', description: err instanceof Error ? err.message : 'Please try again.' })
+      notification.error({
+        title: 'Failed to add page',
+        description: err instanceof Error ? err.message : 'Please try again.',
+      })
     } finally {
       setIsLoading(false)
     }
@@ -113,10 +120,16 @@ export function WorkspaceDetailContent({
       )
       setIsEditPageOpen(false)
       setSelectedPage(null)
-      notification.success({ title: 'Page updated', description: `"${updatedPage.name}" has been updated.` })
+      notification.success({
+        title: 'Page updated',
+        description: `"${updatedPage.name}" has been updated.`,
+      })
     } catch (err) {
       console.error('Failed to update page:', err)
-      notification.error({ title: 'Failed to update page', description: err instanceof Error ? err.message : 'Please try again.' })
+      notification.error({
+        title: 'Failed to update page',
+        description: err instanceof Error ? err.message : 'Please try again.',
+      })
     } finally {
       setIsLoading(false)
     }
@@ -130,10 +143,15 @@ export function WorkspaceDetailContent({
       setPages((prev) => prev.filter((p) => p.id !== selectedPage.id))
       setIsDeletePageOpen(false)
       setSelectedPage(null)
-      notification.success({ title: 'Page deleted' })
+      notification.success({
+        title: 'Page deleted',
+      })
     } catch (err) {
       console.error('Failed to delete page:', err)
-      notification.error({ title: 'Failed to delete page', description: err instanceof Error ? err.message : 'Please try again.' })
+      notification.error({
+        title: 'Failed to delete page',
+        description: err instanceof Error ? err.message : 'Please try again.',
+      })
     } finally {
       setIsLoading(false)
     }
@@ -153,29 +171,43 @@ export function WorkspaceDetailContent({
         setWorkspace(updated)
         setIsEditWorkspaceOpen(false)
         router.refresh()
-        notification.success({ title: 'Workspace updated', description: `"${updated.name}" has been updated.` })
+        notification.success({
+          title: 'Workspace updated',
+          description: `"${updated.name}" has been updated.`,
+        })
       }
     } catch (err) {
       console.error('Failed to update workspace:', err)
-      notification.error({ title: 'Failed to update workspace', description: err instanceof Error ? err.message : 'Please try again.' })
+      notification.error({
+        title: 'Failed to update workspace',
+        description: err instanceof Error ? err.message : 'Please try again.',
+      })
     }
   }
 
   const handleDeleteWorkspace = async () => {
     try {
       await deleteWorkspace(workspace.id)
-      notification.success({ title: 'Workspace deleted' })
+      notification.success({
+        title: 'Workspace deleted',
+      })
       router.push('/workspaces')
     } catch (err) {
       console.error('Failed to delete workspace:', err)
-      notification.error({ title: 'Failed to delete workspace', description: err instanceof Error ? err.message : 'Please try again.' })
+      notification.error({
+        title: 'Failed to delete workspace',
+        description: err instanceof Error ? err.message : 'Please try again.',
+      })
     }
   }
 
   const handleRunNow = async (page: Page) => {
     try {
       await PageApi.triggerCheck(page.id)
-      notification.success({ title: 'Check triggered', description: `Running check for "${page.name}".` })
+      notification.success({
+        title: 'Check triggered',
+        description: `Running check for "${page.name}".`,
+      })
     } catch (err) {
       console.error('Failed to trigger check:', err)
       notification.error({
@@ -209,11 +241,16 @@ export function WorkspaceDetailContent({
       await PageApi.updateMonitoringConfig(pageId, {
         checkFrequency: frequency,
       })
-      notification.success({ title: 'Check frequency updated' })
+      notification.success({
+        title: 'Check frequency updated',
+      })
     } catch (err) {
       setPages(initialPages)
       console.error('Failed to update check frequency:', err)
-      notification.error({ title: 'Failed to update check frequency', description: err instanceof Error ? err.message : 'Please try again.' })
+      notification.error({
+        title: 'Failed to update check frequency',
+        description: err instanceof Error ? err.message : 'Please try again.',
+      })
     }
   }
 
@@ -226,17 +263,25 @@ export function WorkspaceDetailContent({
     try {
       await PageApi.bulkDeletePages(pendingBulkDeleteIds)
       setPages((prev) => prev.filter((p) => !pendingBulkDeleteIds.includes(p.id)))
-      notification.success({ title: `${pendingBulkDeleteIds.length} page${pendingBulkDeleteIds.length > 1 ? 's' : ''} deleted` })
+      notification.success({
+        title: `${pendingBulkDeleteIds.length} page${pendingBulkDeleteIds.length > 1 ? 's' : ''} deleted`,
+      })
     } catch (err) {
       console.error('Failed to bulk delete pages:', err)
-      notification.error({ title: 'Failed to delete pages', description: err instanceof Error ? err.message : 'Please try again.' })
+      notification.error({
+        title: 'Failed to delete pages',
+        description: err instanceof Error ? err.message : 'Please try again.',
+      })
     } finally {
       setPendingBulkDeleteIds([])
     }
   }
 
   const handleBulkFrequencyChange = (pageIds: string[], frequency: string) => {
-    setPendingBulkFrequency({ ids: pageIds, frequency })
+    setPendingBulkFrequency({
+      ids: pageIds,
+      frequency,
+    })
     setIsBulkFrequencyOpen(true)
   }
 
@@ -244,15 +289,27 @@ export function WorkspaceDetailContent({
     if (!pendingBulkFrequency) return
     const { ids, frequency } = pendingBulkFrequency
     setPages((prev) =>
-      prev.map((page) => (ids.includes(page.id) ? { ...page, checkFrequency: frequency } : page))
+      prev.map((page) =>
+        ids.includes(page.id)
+          ? {
+              ...page,
+              checkFrequency: frequency,
+            }
+          : page
+      )
     )
     try {
       await PageApi.bulkUpdateFrequency(ids, frequency)
-      notification.success({ title: 'Check frequency updated for selected pages' })
+      notification.success({
+        title: 'Check frequency updated for selected pages',
+      })
     } catch (err) {
       setPages(initialPages)
       console.error('Failed to bulk update check frequency:', err)
-      notification.error({ title: 'Failed to update check frequency', description: err instanceof Error ? err.message : 'Please try again.' })
+      notification.error({
+        title: 'Failed to update check frequency',
+        description: err instanceof Error ? err.message : 'Please try again.',
+      })
     } finally {
       setPendingBulkFrequency(null)
     }

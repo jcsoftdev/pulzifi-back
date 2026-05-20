@@ -10,7 +10,12 @@ export default async function PreviewThemePage() {
   let initialTheme: Record<string, string | null | undefined> = {}
   try {
     const payload = await getPayloadClient()
-    const theme = await payload.findGlobal({ slug: 'theme', depth: 0 }).catch(() => null)
+    const theme = await payload
+      .findGlobal({
+        slug: 'theme',
+        depth: 0,
+      })
+      .catch(() => null)
     if (theme) initialTheme = theme as unknown as Record<string, string | null | undefined>
   } catch {
     // DB unavailable — render with empty initial state

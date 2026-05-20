@@ -1,10 +1,16 @@
 'use client'
 
-import { Button, Sheet, SheetContent, SheetTitle, SheetTrigger } from '@workspace/ui/components/atoms'
+import { NotixAnchor } from '@workspace/notix'
+import {
+  Button,
+  Sheet,
+  SheetContent,
+  SheetTitle,
+  SheetTrigger,
+} from '@workspace/ui/components/atoms'
 import type { BreadcrumbItem } from '@workspace/ui/components/molecules'
 import { NotificationButton } from '@workspace/ui/components/molecules'
 import { Header } from '@workspace/ui/components/organisms'
-import { NotixAnchor } from '@workspace/notix'
 import { Menu } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useEffect, useState } from 'react'
@@ -63,20 +69,22 @@ export function AppShell({
               checksSlot={checksSlot}
               hasNotifications={hasNotifications}
               notificationCount={notificationCount}
-              notificationSlot={notificationsSlot ?? (
-                <NotixAnchor
-                  as={NotificationButton}
-                  hasNotifications={hasNotifications}
-                  notificationCount={notificationCount}
-                  title={`${notificationCount} Notification${notificationCount === 1 ? '' : 's'}`}
-                  description="You have unread notifications."
-                  state="info"
-                  classNames={{
-                    title: 'text-sm font-semibold text-foreground',
-                    description: 'text-sm text-muted-foreground',
-                  }}
-                />
-              )}
+              notificationSlot={
+                notificationsSlot ?? (
+                  <NotixAnchor
+                    as={NotificationButton}
+                    hasNotifications={hasNotifications}
+                    notificationCount={notificationCount}
+                    title={`${notificationCount} Notification${notificationCount === 1 ? '' : 's'}`}
+                    description="You have unread notifications."
+                    state="info"
+                    classNames={{
+                      title: 'text-sm font-semibold text-foreground',
+                      description: 'text-sm text-muted-foreground',
+                    }}
+                  />
+                )
+              }
               breadcrumbs={breadcrumbs}
             >
               <SheetTrigger asChild>

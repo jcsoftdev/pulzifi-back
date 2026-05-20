@@ -12,7 +12,9 @@ type RegisterFormBlockData = {
   trialBadge?: string
 }
 
-type Props = { block: RegisterFormBlockData }
+type Props = {
+  block: RegisterFormBlockData
+}
 
 export function RegisterFormBlock({ block }: Props) {
   const {

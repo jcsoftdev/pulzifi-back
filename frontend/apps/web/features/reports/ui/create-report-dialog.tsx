@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@workspace/ui/components/atoms/select'
-import { useState } from 'react'
+import { useId, useState } from 'react'
 
 interface CreateReportDialogProps {
   open: boolean
@@ -37,6 +37,9 @@ export function CreateReportDialog({
   isLoading,
   error,
 }: Readonly<CreateReportDialogProps>) {
+  const titleId = useId()
+  const pageSelectId = useId()
+  const dateId = useId()
   const [title, setTitle] = useState('')
   const [pageId, setPageId] = useState('')
   const [reportDate, setReportDate] = useState(() => new Date().toISOString().split('T')[0] ?? '')
@@ -48,7 +51,11 @@ export function CreateReportDialog({
 
     setIsSubmitting(true)
     try {
-      await onSubmit({ pageId, title: title.trim(), reportDate })
+      await onSubmit({
+        pageId,
+        title: title.trim(),
+        reportDate,
+      })
       setTitle('')
       setPageId('')
       setReportDate(new Date().toISOString().split('T')[0] ?? '')
@@ -77,9 +84,9 @@ export function CreateReportDialog({
         <form onSubmit={handleSubmit}>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="report-title">Title</Label>
+              <Label htmlFor={titleId}>Title</Label>
               <Input
-                id="report-title"
+                id={titleId}
                 type="text"
                 placeholder="Monthly report"
                 value={title}
@@ -89,9 +96,9 @@ export function CreateReportDialog({
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="report-page">Page</Label>
+              <Label htmlFor={pageSelectId}>Page</Label>
               <Select value={pageId} onValueChange={setPageId} disabled={busy}>
-                <SelectTrigger id="report-page">
+                <SelectTrigger id={pageSelectId}>
                   <SelectValue placeholder="Select a page" />
                 </SelectTrigger>
                 <SelectContent>
@@ -104,9 +111,9 @@ export function CreateReportDialog({
               </Select>
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="report-date">Report date</Label>
+              <Label htmlFor={dateId}>Report date</Label>
               <Input
-                id="report-date"
+                id={dateId}
                 type="date"
                 value={reportDate}
                 onChange={(e) => setReportDate(e.target.value)}

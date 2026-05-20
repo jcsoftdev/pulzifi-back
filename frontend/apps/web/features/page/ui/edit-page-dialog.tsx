@@ -1,7 +1,7 @@
 'use client'
 
-import { PageApi } from '@workspace/services/page-api'
 import type { MonitoredSection } from '@workspace/services/page-api'
+import { PageApi } from '@workspace/services/page-api'
 import { Button } from '@workspace/ui/components/atoms/button'
 import { Checkbox } from '@workspace/ui/components/atoms/checkbox'
 import {
@@ -25,28 +25,46 @@ import { TagsInput } from '@workspace/ui/components/atoms/tags-input'
 import { Textarea } from '@workspace/ui/components/atoms/textarea'
 import {
   ArrowLeft,
+  Layers,
   Link2,
   Loader2,
   Monitor,
   MousePointerClick,
   Sparkles,
-  Layers,
 } from 'lucide-react'
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
-import { CHECK_FREQUENCY_OPTIONS } from '../domain/types'
 import type { EditPageDto, Page, PagePreviewResult, SelectorOffsets } from '../domain/types'
-import { PagePreviewSelector, type ElementSelection } from './page-preview-selector'
+import { CHECK_FREQUENCY_OPTIONS } from '../domain/types'
+import { type ElementSelection, PagePreviewSelector } from './page-preview-selector'
 
 const INSIGHT_TYPES = [
-  { value: 'marketing', label: 'Marketing Lens' },
-  { value: 'market_analysis', label: 'Market Analysis' },
-  { value: 'business_opportunities', label: 'Business Opportunities' },
-  { value: 'job_recommendation', label: 'Job recommendation' },
+  {
+    value: 'marketing',
+    label: 'Marketing Lens',
+  },
+  {
+    value: 'market_analysis',
+    label: 'Market Analysis',
+  },
+  {
+    value: 'business_opportunities',
+    label: 'Business Opportunities',
+  },
+  {
+    value: 'job_recommendation',
+    label: 'Job recommendation',
+  },
 ] as const
 
 const ALERT_CONDITIONS = [
-  { value: 'any_changes', label: 'Any changes' },
-  { value: 'navigation_changes', label: "Site's main navigation menu changes" },
+  {
+    value: 'any_changes',
+    label: 'Any changes',
+  },
+  {
+    value: 'navigation_changes',
+    label: "Site's main navigation menu changes",
+  },
 ] as const
 
 type EditStep = 'settings' | 'selector'
@@ -80,16 +98,23 @@ export function EditPageDialog({
     'marketing',
     'market_analysis',
   ])
-  const [enabledAlertConditions, setEnabledAlertConditions] = useState<string[]>(['any_changes'])
+  const [enabledAlertConditions, setEnabledAlertConditions] = useState<string[]>([
+    'any_changes',
+  ])
   const [customAlertCondition, setCustomAlertCondition] = useState('')
   const [isLoadingConfig, setIsLoadingConfig] = useState(false)
 
   // Section / selector state
-  const [selectorType, setSelectorType] = useState<'full_page' | 'element' | 'sections'>('full_page')
+  const [selectorType, setSelectorType] = useState<'full_page' | 'element' | 'sections'>(
+    'full_page'
+  )
   const [cssSelector, setCssSelector] = useState('')
   const [xpathSelector, setXpathSelector] = useState('')
   const [selectorOffsets, setSelectorOffsets] = useState<SelectorOffsets>({
-    top: 0, right: 0, bottom: 0, left: 0,
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
   })
   const [existingSections, setExistingSections] = useState<MonitoredSection[]>([])
   const [sections, setSections] = useState<ElementSelection[]>([])
@@ -114,13 +139,23 @@ export function EditPageDialog({
       setCheckFrequency(page.checkFrequency || 'Off')
       setBlockAdsCookies(true)
       setScheduleType('all_time')
-      setEnabledInsightTypes(['marketing', 'market_analysis'])
-      setEnabledAlertConditions(['any_changes'])
+      setEnabledInsightTypes([
+        'marketing',
+        'market_analysis',
+      ])
+      setEnabledAlertConditions([
+        'any_changes',
+      ])
       setCustomAlertCondition('')
       setSelectorType('full_page')
       setCssSelector('')
       setXpathSelector('')
-      setSelectorOffsets({ top: 0, right: 0, bottom: 0, left: 0 })
+      setSelectorOffsets({
+        top: 0,
+        right: 0,
+        bottom: 0,
+        left: 0,
+      })
       setExistingSections([])
       setSections([])
       setSectionsModified(false)
@@ -148,7 +183,12 @@ export function EditPageDialog({
             setCssSelector(config.cssSelector ?? '')
             setXpathSelector(config.xpathSelector ?? '')
             setSelectorOffsets(
-              config.selectorOffsets ?? { top: 0, right: 0, bottom: 0, left: 0 }
+              config.selectorOffsets ?? {
+                top: 0,
+                right: 0,
+                bottom: 0,
+                left: 0,
+              }
             )
           }
           if (sectionsList && sectionsList.length > 0) {
@@ -158,17 +198,30 @@ export function EditPageDialog({
         })
         .finally(() => setIsLoadingConfig(false))
     }
-  }, [open, page])
+  }, [
+    open,
+    page,
+  ])
 
   const toggleInsightType = (value: string, checked: boolean) => {
     setEnabledInsightTypes((prev) =>
-      checked ? [...prev, value] : prev.filter((t) => t !== value)
+      checked
+        ? [
+            ...prev,
+            value,
+          ]
+        : prev.filter((t) => t !== value)
     )
   }
 
   const toggleAlertCondition = (value: string, checked: boolean) => {
     setEnabledAlertConditions((prev) =>
-      checked ? [...prev, value] : prev.filter((c) => c !== value)
+      checked
+        ? [
+            ...prev,
+            value,
+          ]
+        : prev.filter((c) => c !== value)
     )
   }
 
@@ -187,7 +240,7 @@ export function EditPageDialog({
         url.trim(),
         blockAdsCookies,
         (progress) => setPreviewProgress(progress.message),
-        controller.signal,
+        controller.signal
       )
       setPreviewData(result)
       setStep('selector')
@@ -199,7 +252,10 @@ export function EditPageDialog({
       setPreviewLoading(false)
       setPreviewProgress(null)
     }
-  }, [url, blockAdsCookies])
+  }, [
+    url,
+    blockAdsCookies,
+  ])
 
   const handleMultiSelect = useCallback((selections: ElementSelection[]) => {
     setSections(selections)
@@ -208,7 +264,12 @@ export function EditPageDialog({
       setSelectorType('sections')
       setCssSelector('')
       setXpathSelector('')
-      setSelectorOffsets({ top: 0, right: 0, bottom: 0, left: 0 })
+      setSelectorOffsets({
+        top: 0,
+        right: 0,
+        bottom: 0,
+        left: 0,
+      })
     } else {
       setSelectorType('full_page')
     }
@@ -236,17 +297,18 @@ export function EditPageDialog({
 
     // Include sections if they were modified via the selector UI
     if (sectionsModified) {
-      data.sections = selectorType === 'sections'
-        ? sections.map((s, i) => ({
-            name: s.name || `Section ${i + 1}`,
-            cssSelector: s.cssSelector,
-            xpathSelector: s.xpathSelector,
-            selectorOffsets: s.offsets,
-            rect: s.rect,
-            viewportWidth: previewData?.viewport.width,
-            sortOrder: i,
-          }))
-        : [] // Clear sections if user switched away from sections mode
+      data.sections =
+        selectorType === 'sections'
+          ? sections.map((s, i) => ({
+              name: s.name || `Section ${i + 1}`,
+              cssSelector: s.cssSelector,
+              xpathSelector: s.xpathSelector,
+              selectorOffsets: s.offsets,
+              rect: s.rect,
+              viewportWidth: previewData?.viewport.width,
+              sortOrder: i,
+            }))
+          : [] // Clear sections if user switched away from sections mode
     }
 
     await onSubmit(page.id, data)
@@ -288,12 +350,11 @@ export function EditPageDialog({
           </DialogTitle>
         </DialogHeader>
 
-        <form
-          onSubmit={handleSubmit}
-          className="flex-1 overflow-hidden flex flex-col min-h-0"
-        >
+        <form onSubmit={handleSubmit} className="flex-1 overflow-hidden flex flex-col min-h-0">
           {/* Scrollable body */}
-          <div className={`flex-1 px-6 py-6 min-h-0 ${step === 'selector' ? 'flex flex-col gap-4 overflow-hidden' : 'overflow-y-auto space-y-8'}`}>
+          <div
+            className={`flex-1 px-6 py-6 min-h-0 ${step === 'selector' ? 'flex flex-col gap-4 overflow-hidden' : 'overflow-y-auto space-y-8'}`}
+          >
             {/* ─── SETTINGS STEP ─── */}
             {step === 'settings' && (
               <>
@@ -343,33 +404,43 @@ export function EditPageDialog({
                   </div>
 
                   {/* Show existing sections summary */}
-                  {selectorType === 'sections' && existingSections.length > 0 && !sectionsModified && (
-                    <div className="px-4 py-3 border-t border-border space-y-1.5">
-                      {existingSections.map((section, i) => (
-                        <div
-                          key={section.id}
-                          className="flex items-center gap-2 text-xs text-muted-foreground"
-                        >
-                          <span
-                            className="w-4 h-4 rounded-full text-white text-[9px] font-bold flex items-center justify-center shrink-0"
-                            style={{
-                              backgroundColor: [
-                                'rgb(59 130 246)', 'rgb(16 185 129)', 'rgb(245 158 11)',
-                                'rgb(239 68 68)', 'rgb(168 85 247)', 'rgb(236 72 153)',
-                                'rgb(6 182 212)', 'rgb(249 115 22)',
-                              ][i % 8],
-                            }}
+                  {selectorType === 'sections' &&
+                    existingSections.length > 0 &&
+                    !sectionsModified && (
+                      <div className="px-4 py-3 border-t border-border space-y-1.5">
+                        {existingSections.map((section, i) => (
+                          <div
+                            key={section.id}
+                            className="flex items-center gap-2 text-xs text-muted-foreground"
                           >
-                            {i + 1}
-                          </span>
-                          <span className="font-medium text-foreground">{section.name}</span>
-                          <span className="font-mono truncate max-w-[200px]" title={section.cssSelector}>
-                            {section.cssSelector}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                            <span
+                              className="w-4 h-4 rounded-full text-white text-[9px] font-bold flex items-center justify-center shrink-0"
+                              style={{
+                                backgroundColor: [
+                                  'rgb(59 130 246)',
+                                  'rgb(16 185 129)',
+                                  'rgb(245 158 11)',
+                                  'rgb(239 68 68)',
+                                  'rgb(168 85 247)',
+                                  'rgb(236 72 153)',
+                                  'rgb(6 182 212)',
+                                  'rgb(249 115 22)',
+                                ][i % 8],
+                              }}
+                            >
+                              {i + 1}
+                            </span>
+                            <span className="font-medium text-foreground">{section.name}</span>
+                            <span
+                              className="font-mono truncate max-w-[200px]"
+                              title={section.cssSelector}
+                            >
+                              {section.cssSelector}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
 
                   {/* Show modified sections summary */}
                   {sectionsModified && sections.length > 0 && (
@@ -385,14 +456,16 @@ export function EditPageDialog({
                   )}
 
                   {/* Full page mode indicator */}
-                  {selectorType === 'full_page' && !sectionsModified && existingSections.length === 0 && (
-                    <div className="px-4 py-3 border-t border-border">
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Monitor className="h-4 w-4 shrink-0" />
-                        <span>Monitoring full page</span>
+                  {selectorType === 'full_page' &&
+                    !sectionsModified &&
+                    existingSections.length === 0 && (
+                      <div className="px-4 py-3 border-t border-border">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Monitor className="h-4 w-4 shrink-0" />
+                          <span>Monitoring full page</span>
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
 
                   {previewError && (
                     <div className="px-4 py-2 border-t border-border">
@@ -473,19 +546,31 @@ export function EditPageDialog({
                       >
                         <div className="flex items-center gap-2">
                           <RadioGroupItem value="work_days" id={`${uid}-sched-work-days`} />
-                          <Label htmlFor={`${uid}-sched-work-days`} className="font-normal cursor-pointer">
+                          <Label
+                            htmlFor={`${uid}-sched-work-days`}
+                            className="font-normal cursor-pointer"
+                          >
                             Work days only
                           </Label>
                         </div>
                         <div className="flex items-center gap-2">
-                          <RadioGroupItem value="work_days_work_hours" id={`${uid}-sched-work-hours`} />
-                          <Label htmlFor={`${uid}-sched-work-hours`} className="font-normal cursor-pointer">
+                          <RadioGroupItem
+                            value="work_days_work_hours"
+                            id={`${uid}-sched-work-hours`}
+                          />
+                          <Label
+                            htmlFor={`${uid}-sched-work-hours`}
+                            className="font-normal cursor-pointer"
+                          >
                             Work days, during work hours
                           </Label>
                         </div>
                         <div className="flex items-center gap-2">
                           <RadioGroupItem value="all_time" id={`${uid}-sched-all-time`} />
-                          <Label htmlFor={`${uid}-sched-all-time`} className="font-normal cursor-pointer">
+                          <Label
+                            htmlFor={`${uid}-sched-all-time`}
+                            className="font-normal cursor-pointer"
+                          >
                             Every day (24/7)
                           </Label>
                         </div>
@@ -574,8 +659,8 @@ export function EditPageDialog({
             {step === 'selector' && previewData && (
               <>
                 <p className="text-sm text-muted-foreground shrink-0">
-                  Click elements to monitor specific sections, or deselect all to monitor the full page.
-                  You can select multiple sections.
+                  Click elements to monitor specific sections, or deselect all to monitor the full
+                  page. You can select multiple sections.
                 </p>
 
                 <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
@@ -592,7 +677,9 @@ export function EditPageDialog({
                 {selectorType === 'sections' && sections.length > 0 && (
                   <div className="flex items-center gap-2 text-sm text-blue-600 bg-blue-50 dark:bg-blue-950/30 px-3 py-2 rounded shrink-0">
                     <MousePointerClick className="h-4 w-4 shrink-0" />
-                    <span>Monitoring {sections.length} section{sections.length > 1 ? 's' : ''}</span>
+                    <span>
+                      Monitoring {sections.length} section{sections.length > 1 ? 's' : ''}
+                    </span>
                   </div>
                 )}
 

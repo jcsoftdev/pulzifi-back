@@ -1,9 +1,9 @@
 'use client'
 
-import Lenis from 'lenis'
-import { useEffect } from 'react'
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
+import Lenis from 'lenis'
+import { useEffect } from 'react'
 
 export function SmoothScroll() {
   useEffect(() => {

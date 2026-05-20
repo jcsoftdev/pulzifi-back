@@ -36,7 +36,6 @@ export function WaveBars({
     }, intervalMs)
     return () => clearInterval(id)
   }, [
-    count,
     noiseRange,
     intervalMs,
   ])
@@ -45,7 +44,7 @@ export function WaveBars({
     <div className="h-8 flex-1 flex items-center gap-0.5">
       {heights.map((h, i) => (
         <div
-          key={i}
+          key={`wave-${i}-${h}`}
           className={`w-1 rounded-full transition-all duration-500 ${
             i > noiseRange[0] && i < noiseRange[1] ? 'bg-destructive/30' : 'bg-primary/40'
           }`}

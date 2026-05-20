@@ -28,10 +28,8 @@ export type AiIntelligenceSectionProps = {
 
 const pillBase =
   'rounded-full px-4 py-2 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--pz-accent)] focus-visible:ring-offset-2'
-const activeStyle =
-  'bg-[var(--pz-accent)] text-white shadow-[var(--pz-shadow-accent)]'
-const inactiveStyle =
-  'text-[var(--pz-ink-2)] hover:text-[var(--pz-ink)]'
+const activeStyle = 'bg-[var(--pz-accent)] text-white shadow-[var(--pz-shadow-accent)]'
+const inactiveStyle = 'text-[var(--pz-ink-2)] hover:text-[var(--pz-ink)]'
 
 function EmptyTab() {
   return (
@@ -59,7 +57,7 @@ function AiCard({
     <article
       className={cn(
         'rounded-xl border border-[var(--pz-card-border)] bg-white p-6',
-        'transition-shadow duration-200 hover:shadow-[var(--pz-card-shadow-hover)]',
+        'transition-shadow duration-200 hover:shadow-[var(--pz-card-shadow-hover)]'
       )}
     >
       {showImage ? (
@@ -80,9 +78,7 @@ function AiCard({
         </div>
       )}
       <h3 className="font-heading text-lg font-semibold text-[var(--pz-ink)]">{title}</h3>
-      {body && (
-        <p className="mt-2 text-sm leading-relaxed text-[var(--pz-ink-2)]">{body}</p>
-      )}
+      {body && <p className="mt-2 text-sm leading-relaxed text-[var(--pz-ink-2)]">{body}</p>}
     </article>
   )
 }
@@ -99,6 +95,7 @@ export function AiIntelligenceSection({
 
   if (tabs.length === 0) {
     return (
+      // biome-ignore lint/correctness/useUniqueElementIds: static landmark anchor ID
       <SectionFrame bg="alt" id="ai-intelligence">
         <div className="text-center text-sm text-[var(--pz-ink-2)]/60">
           No AI Intelligence tabs configured yet.
@@ -125,13 +122,15 @@ export function AiIntelligenceSection({
   }
 
   return (
+    // biome-ignore lint/correctness/useUniqueElementIds: static landmark anchor ID
     <SectionFrame bg="alt" id="ai-intelligence" className="relative overflow-hidden">
       {/* Teal blob — bottom left */}
       <div className="pointer-events-none absolute inset-0 -z-10" aria-hidden>
         <div
           className="absolute bottom-0 left-0 h-[400px] w-[500px] translate-y-1/4 -translate-x-1/4"
           style={{
-            background: 'radial-gradient(circle, color-mix(in srgb, var(--pz-accent-teal) 18%, transparent) 0%, transparent 65%)',
+            background:
+              'radial-gradient(circle, color-mix(in srgb, var(--pz-accent-teal) 18%, transparent) 0%, transparent 65%)',
             filter: 'blur(100px)',
             opacity: 0.3,
           }}
@@ -143,9 +142,7 @@ export function AiIntelligenceSection({
         {headline && (
           <h2 className="font-heading text-4xl font-bold tracking-tight leading-[1.1] text-[var(--pz-ink)] md:text-5xl">
             {headline}{' '}
-            {headlineHighlight && (
-              <Highlight tone="accent-teal">{headlineHighlight}</Highlight>
-            )}
+            {headlineHighlight && <Highlight tone="accent-teal">{headlineHighlight}</Highlight>}
           </h2>
         )}
         {subheadline && (
@@ -162,7 +159,7 @@ export function AiIntelligenceSection({
         >
           {tabs.map((tab, i) => (
             <button
-              key={i}
+              key={tab.label}
               type="button"
               role="tab"
               aria-selected={i === activeIndex}
@@ -183,7 +180,7 @@ export function AiIntelligenceSection({
       <div ref={panelsRef} className="relative mt-12">
         {tabs.map((tab, i) => (
           <div
-            key={i}
+            key={tab.label}
             data-pz-tab-panel
             role="tabpanel"
             id={`ai-tab-panel-${i}`}
@@ -196,7 +193,7 @@ export function AiIntelligenceSection({
               ) : (
                 tab.items.map((item, j) => (
                   <AiCard
-                    key={j}
+                    key={item.title}
                     title={item.title}
                     body={item.body}
                     image={item.image}

@@ -1,3 +1,4 @@
+// biome-ignore-all lint/style/noNonNullAssertion: assertions guarded by .filter() predicates above
 import { IndustriesSection } from '@/features/landing'
 
 type Props = {

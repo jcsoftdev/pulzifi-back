@@ -9,6 +9,7 @@ export function FeatureCard({ title, description, image }: Readonly<FeatureCardP
     <div className="group relative flex flex-1 flex-col overflow-hidden rounded-3xl bg-white">
       <div className="relative h-[280px] overflow-hidden">
         {/* eslint-disable-next-line @next/next/no-img-element */}
+        {/* biome-ignore lint/performance/noImgElement: image dimensions unknown at build time */}
         <img
           src={image}
           alt={title}

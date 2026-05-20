@@ -19,14 +19,22 @@ export interface TextChangesProps {
 // matching how git's unified diff groups deletions with their replacements.
 // ---------------------------------------------------------------------------
 
-type InlineGroup = { kind: 'inline'; segments: DiffSegment[] }
-type BlockGroup = { kind: 'block'; removed: string | null; added: string | null }
+type InlineGroup = {
+  kind: 'inline'
+  segments: DiffSegment[]
+}
+type BlockGroup = {
+  kind: 'block'
+  removed: string | null
+  added: string | null
+}
 type DisplayGroup = InlineGroup | BlockGroup
 
 function buildGroups(rows: DiffRow[]): DisplayGroup[] {
   const groups: DisplayGroup[] = []
   let i = 0
   while (i < rows.length) {
+    // biome-ignore lint/style/noNonNullAssertion: index guarded by while (i < rows.length)
     const row = rows[i]!
     if (row.kind === 'removed') {
       const next = rows[i + 1]
@@ -38,15 +46,26 @@ function buildGroups(rows: DiffRow[]): DisplayGroup[] {
         })
         i += 2
       } else {
-        groups.push({ kind: 'block', removed: row.segments[0]?.text ?? null, added: null })
+        groups.push({
+          kind: 'block',
+          removed: row.segments[0]?.text ?? null,
+          added: null,
+        })
         i++
       }
     } else if (row.kind === 'added') {
-      groups.push({ kind: 'block', removed: null, added: row.segments[0]?.text ?? null })
+      groups.push({
+        kind: 'block',
+        removed: null,
+        added: row.segments[0]?.text ?? null,
+      })
       i++
     } else {
       // 'inline' — word-level diff within a content-matched paragraph
-      groups.push({ kind: 'inline', segments: row.segments })
+      groups.push({
+        kind: 'inline',
+        segments: row.segments,
+      })
       i++
     }
   }
@@ -57,7 +76,11 @@ function buildGroups(rows: DiffRow[]): DisplayGroup[] {
 // Segment renderer shared between inline and block rows
 // ---------------------------------------------------------------------------
 
-function Segments({ segments }: Readonly<{ segments: DiffSegment[] }>) {
+function Segments({
+  segments,
+}: Readonly<{
+  segments: DiffSegment[]
+}>) {
   return (
     <>
       {segments.map((seg, si) => (
@@ -67,7 +90,7 @@ function Segments({ segments }: Readonly<{ segments: DiffSegment[] }>) {
             si > 0 && 'ml-[0.25em]',
             seg.type === 'removed' && 'line-through text-foreground/40',
             seg.type === 'added' && 'text-emerald-400',
-            seg.type === 'unchanged' && 'text-foreground',
+            seg.type === 'unchanged' && 'text-foreground'
           )}
         >
           {seg.text}
@@ -81,7 +104,11 @@ function Segments({ segments }: Readonly<{ segments: DiffSegment[] }>) {
 // Main component
 // ---------------------------------------------------------------------------
 
-function SectionDiffGroups({ changes }: Readonly<{ changes: DiffRow[] }>) {
+function SectionDiffGroups({
+  changes,
+}: Readonly<{
+  changes: DiffRow[]
+}>) {
   const groups = buildGroups(changes)
   return (
     <div className="space-y-2">
@@ -97,18 +124,13 @@ function SectionDiffGroups({ changes }: Readonly<{ changes: DiffRow[] }>) {
           )
         }
         return (
-          <div
-            key={idx}
-            className="rounded-lg border border-border/40 overflow-hidden text-sm"
-          >
+          <div key={idx} className="rounded-lg border border-border/40 overflow-hidden text-sm">
             {group.removed !== null && (
               <div className="flex gap-3 px-4 py-2.5 border-b border-border/30 bg-muted/10">
                 <span className="select-none shrink-0 text-foreground/25 font-mono text-xs pt-px">
                   −
                 </span>
-                <p className="leading-relaxed line-through text-foreground/40">
-                  {group.removed}
-                </p>
+                <p className="leading-relaxed line-through text-foreground/40">{group.removed}</p>
               </div>
             )}
             {group.added !== null && (
@@ -149,12 +171,16 @@ export function TextChanges({ sections = [] }: Readonly<TextChangesProps>) {
           return (
             <div key={si}>
               {section.sectionName && (
-                <h4 className="text-sm font-medium text-muted-foreground mb-2">{section.sectionName}</h4>
+                <h4 className="text-sm font-medium text-muted-foreground mb-2">
+                  {section.sectionName}
+                </h4>
               )}
               {section.changes.length > 0 ? (
                 <SectionDiffGroups changes={section.changes} />
               ) : (
-                <p className="text-sm text-muted-foreground italic px-4 py-2">Visual change only — no text differences</p>
+                <p className="text-sm text-muted-foreground italic px-4 py-2">
+                  Visual change only — no text differences
+                </p>
               )}
             </div>
           )

@@ -2,13 +2,13 @@
 
 import type { Check, Insight } from '@workspace/services/page-api'
 import { PageApi } from '@workspace/services/page-api'
-import { notification } from '@/lib/notification'
-import { Button } from '@workspace/ui/components/atoms/button'
 import { formatDateTime } from '@workspace/ui'
+import { Button } from '@workspace/ui/components/atoms/button'
 import { Copy, Loader2, Settings, Zap } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useState } from 'react'
+import { notification } from '@/lib/notification'
 
 interface IntelligentInsightsProps {
   insights: Insight[]
@@ -32,7 +32,9 @@ export function IntelligentInsights({
   onInsightsGenerated,
 }: Readonly<IntelligentInsightsProps>) {
   const sortInsights = (list: Insight[]) =>
-    [...list].sort((a, b) => {
+    [
+      ...list,
+    ].sort((a, b) => {
       if (a.insightType === 'overview') return -1
       if (b.insightType === 'overview') return 1
       return 0
@@ -75,7 +77,9 @@ export function IntelligentInsights({
     new Promise((resolve, reject) => {
       const { protocol, host } = globalThis.location
       const url = `${protocol}//${host}/api/v1/insights/sse?check_id=${cid}`
-      const source = new EventSource(url, { withCredentials: true })
+      const source = new EventSource(url, {
+        withCredentials: true,
+      })
 
       source.onmessage = (ev) => {
         source.close()
@@ -106,7 +110,9 @@ export function IntelligentInsights({
       document.execCommand('copy')
       document.body.removeChild(el)
     }
-    notification.success({ title: 'Copied to clipboard' })
+    notification.success({
+      title: 'Copied to clipboard',
+    })
   }
 
   const handleGenerate = async () => {
@@ -121,21 +127,29 @@ export function IntelligentInsights({
       if (results.length > 0) {
         setInsights(sortInsights(results))
         onInsightsGenerated?.(results)
-        notification.success({ title: 'Insights generated', description: `${results.length} insight${results.length > 1 ? 's' : ''} ready.` })
+        notification.success({
+          title: 'Insights generated',
+          description: `${results.length} insight${results.length > 1 ? 's' : ''} ready.`,
+        })
       } else {
         setError('Insights are still being generated. Please refresh the page.')
-        notification.warning({ title: 'Still generating', description: 'Please refresh the page in a moment.' })
+        notification.warning({
+          title: 'Still generating',
+          description: 'Please refresh the page in a moment.',
+        })
       }
     } catch {
       setError('Failed to generate insights. Please try again.')
-      notification.error({ title: 'Failed to generate insights', description: 'Please try again.' })
+      notification.error({
+        title: 'Failed to generate insights',
+        description: 'Please try again.',
+      })
     } finally {
       setGenerating(false)
     }
   }
 
-  const editHref =
-    workspaceId && pageId ? `/workspaces/${workspaceId}/pages/${pageId}` : undefined
+  const editHref = workspaceId && pageId ? `/workspaces/${workspaceId}/pages/${pageId}` : undefined
 
   const renderEmptyState = () => (
     <div className="bg-card border border-border rounded-xl p-16 flex flex-col items-center justify-center text-center gap-4">
@@ -145,8 +159,8 @@ export function IntelligentInsights({
         Do you need Intelligent Insights for this change?
       </h3>
       <p className="text-sm text-muted-foreground max-w-sm">
-        Pulzify detected a meaningful update and turned it into an actionable insight.
-        Click below to see what&apos;s behind the change.
+        Pulzify detected a meaningful update and turned it into an actionable insight. Click below
+        to see what&apos;s behind the change.
       </p>
       {error && <p className="text-sm text-destructive">{error}</p>}
       {pageId && checkId ? (
@@ -155,11 +169,7 @@ export function IntelligentInsights({
           onClick={handleGenerate}
           disabled={generating}
         >
-          {generating ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Zap className="h-4 w-4" />
-          )}
+          {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
           {generating ? 'Generating…' : 'View Intelligent Insights'}
         </Button>
       ) : (
@@ -206,7 +216,6 @@ export function IntelligentInsights({
 
       <div className="lg:col-span-1">
         <div className="flex flex-col gap-6">
-          
           {editHref ? (
             <Button asChild className="w-full gap-2" variant="outline">
               <Link href={editHref}>
@@ -233,7 +242,9 @@ export function IntelligentInsights({
               </div>
             )}
             <p className="text-sm font-medium">
-              {check ? `Changes detected on ${formatDateTime(check.checkedAt)}` : 'No check selected'}
+              {check
+                ? `Changes detected on ${formatDateTime(check.checkedAt)}`
+                : 'No check selected'}
             </p>
             {pageUrl && (
               <Button variant="outline" className="bg-background" asChild>
@@ -242,9 +253,7 @@ export function IntelligentInsights({
                 </a>
               </Button>
             )}
-            {pageUrl && (
-              <p className="text-xs text-muted-foreground break-all">{pageUrl}</p>
-            )}
+            {pageUrl && <p className="text-xs text-muted-foreground break-all">{pageUrl}</p>}
           </div>
         </div>
       </div>

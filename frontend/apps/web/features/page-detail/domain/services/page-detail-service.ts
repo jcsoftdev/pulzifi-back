@@ -29,7 +29,10 @@ export const PageDetailService = {
     return await PageApi.listInsights(pageId)
   },
 
-  async getQuotaStatus(): Promise<{ exceeded: boolean; refillDate: string }> {
+  async getQuotaStatus(): Promise<{
+    exceeded: boolean
+    refillDate: string
+  }> {
     try {
       const data: ChecksData = await UsageApi.getChecksData()
       return {
@@ -37,7 +40,10 @@ export const PageDetailService = {
         refillDate: data.refillDate,
       }
     } catch {
-      return { exceeded: false, refillDate: 'N/A' }
+      return {
+        exceeded: false,
+        refillDate: 'N/A',
+      }
     }
   },
 }

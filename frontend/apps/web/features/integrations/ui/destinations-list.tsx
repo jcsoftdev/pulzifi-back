@@ -1,9 +1,9 @@
 'use client'
 
 import { DestinationsApi } from '@workspace/services'
-import type { Destination } from '../domain/types'
 import { useState } from 'react'
 import { notification } from '@/lib/notification'
+import type { Destination } from '../domain/types'
 import { DestinationForm } from './destination-form'
 
 interface DestinationsListProps {
@@ -39,7 +39,10 @@ function ScopeChip({ destination }: { destination: Destination }) {
 
 function destinationSummary(d: Destination): string {
   if (d.serviceType === 'slack') {
-    const name = ((d.target?.channel_name as string | undefined) ?? (d.target?.channel_id as string | undefined)) ?? '—'
+    const name =
+      (d.target?.channel_name as string | undefined) ??
+      (d.target?.channel_id as string | undefined) ??
+      '—'
     return `#${name}`
   }
   if (d.serviceType === 'email') {
@@ -68,7 +71,9 @@ export function DestinationsList({
     try {
       await DestinationsApi.delete(id)
       onUpdated(destinations.filter((d) => d.id !== id))
-      notification.success({ title: 'Destination removed' })
+      notification.success({
+        title: 'Destination removed',
+      })
     } catch (err) {
       notification.error({
         title: 'Failed to remove destination',
@@ -85,9 +90,7 @@ export function DestinationsList({
   }
 
   if (destinations.length === 0) {
-    return (
-      <p className="text-sm text-muted-foreground">No destinations yet. Add one above.</p>
-    )
+    return <p className="text-sm text-muted-foreground">No destinations yet. Add one above.</p>
   }
 
   return (
@@ -119,9 +122,7 @@ export function DestinationsList({
                   {destinationSummary(d)}
                 </p>
                 <div className="flex items-center gap-2 mt-0.5">
-                  <p className="text-xs text-muted-foreground">
-                    Events: {d.events.join(', ')}
-                  </p>
+                  <p className="text-xs text-muted-foreground">Events: {d.events.join(', ')}</p>
                   <ScopeChip destination={d} />
                 </div>
               </div>

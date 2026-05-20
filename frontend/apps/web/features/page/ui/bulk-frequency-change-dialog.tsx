@@ -43,8 +43,8 @@ export function BulkFrequencyChangeDialog({
             <AlertDialogTitle>Update Check Frequency</AlertDialogTitle>
           </div>
           <AlertDialogDescription>
-            Set check frequency to{' '}
-            <span className="font-medium text-foreground">{frequency}</span> for{' '}
+            Set check frequency to <span className="font-medium text-foreground">{frequency}</span>{' '}
+            for{' '}
             <span className="font-medium text-foreground">
               {count} {count === 1 ? 'page' : 'pages'}
             </span>

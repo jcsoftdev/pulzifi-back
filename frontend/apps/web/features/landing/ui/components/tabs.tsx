@@ -56,7 +56,7 @@ export function Tabs({ items, className, panelClassName }: TabsProps) {
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--pz-accent)] focus-visible:ring-offset-2',
               activeIndex === i
                 ? 'bg-[var(--pz-accent)] text-white'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             )}
           >
             {item.label}

@@ -4,8 +4,13 @@ import { Check, Sparkles } from 'lucide-react'
 import { AnimatedSection } from './components/animated-section'
 import { SectionHeader } from './components/section-header'
 
-type FeaturesBullet = { title: string; description: string }
-type FeaturesAction = { label: string }
+type FeaturesBullet = {
+  title: string
+  description: string
+}
+type FeaturesAction = {
+  label: string
+}
 
 type FeaturesSectionProps = {
   eyebrow?: string
@@ -47,7 +52,9 @@ export function FeaturesSection({
                 {headlineHighlight && (
                   <em
                     className="font-heading not-italic text-[var(--pz-accent)]"
-                    style={{ fontStyle: 'italic' }}
+                    style={{
+                      fontStyle: 'italic',
+                    }}
                   >
                     {headlineHighlight}
                   </em>
@@ -69,7 +76,9 @@ export function FeaturesSection({
                   <h3 className="font-heading text-xl font-medium leading-7 tracking-[-0.6px] text-[var(--pz-ink)]">
                     {b.title}
                   </h3>
-                  <p className="mt-1.5 text-base leading-6 text-[var(--pz-ink-2)]">{b.description}</p>
+                  <p className="mt-1.5 text-base leading-6 text-[var(--pz-ink-2)]">
+                    {b.description}
+                  </p>
                 </div>
               </div>
             ))}
@@ -108,7 +117,9 @@ export function FeaturesSection({
                     AI Analysis
                   </span>
                 </div>
-                <p className="mt-2 text-sm leading-relaxed text-[var(--pz-ink-2)]">{demoAnalysis}</p>
+                <p className="mt-2 text-sm leading-relaxed text-[var(--pz-ink-2)]">
+                  {demoAnalysis}
+                </p>
               </div>
             )}
             {demoActions && demoActions.length > 0 && (

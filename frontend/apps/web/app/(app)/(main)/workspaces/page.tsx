@@ -1,7 +1,7 @@
-import { Suspense } from 'react'
-import { ArrowRight, Search, Settings2, SquarePlus } from 'lucide-react'
 import { Button } from '@workspace/ui/components/atoms/button'
 import { Card } from '@workspace/ui/components/atoms/card'
+import { ArrowRight, Search, Settings2, SquarePlus } from 'lucide-react'
+import { Suspense } from 'react'
 import { WorkspaceFeature } from '@/features/workspace'
 import { getWorkspacesServer } from '@/features/workspace/application/services/server'
 
@@ -31,7 +31,14 @@ function WorkspaceCardSkeleton() {
       <div className="flex justify-between items-center self-stretch gap-1 p-3 py-2 border-t border-black/6">
         <div className="flex items-center gap-1">
           <div className="flex justify-center items-center gap-1 p-1 w-6 h-6">
-            <svg width="13" height="13" viewBox="0 0 13 13" fill="none" className="text-foreground" aria-hidden="true">
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 13 13"
+              fill="none"
+              className="text-foreground"
+              aria-hidden="true"
+            >
               <rect width="5" height="5" rx="1" fill="currentColor" />
               <rect x="7" width="5" height="5" rx="1" fill="currentColor" />
               <rect y="7" width="5" height="5" rx="1" fill="currentColor" />
@@ -55,7 +62,8 @@ function WorkspacesListSkeleton() {
         <div className="flex flex-col gap-2">
           <h1 className="text-3xl md:text-5xl font-semibold text-foreground">All Workspaces</h1>
           <p className="text-sm md:text-base font-normal text-black/65">
-            Your space to see how you&apos;re doing, what you&apos;ve achieved, and what&apos;s next.
+            Your space to see how you&apos;re doing, what you&apos;ve achieved, and what&apos;s
+            next.
           </p>
         </div>
         <Button variant="ghost" disabled className="flex items-center gap-2">
@@ -91,7 +99,11 @@ function WorkspacesListSkeleton() {
       {/* Workspace cards — data-dependent, matches real card structure */}
       <div className="flex items-center self-stretch gap-6 px-4 md:px-8 lg:px-24 py-6">
         <div className="flex flex-wrap gap-6">
-          {['a', 'b', 'c'].map((i) => (
+          {[
+            'a',
+            'b',
+            'c',
+          ].map((i) => (
             <WorkspaceCardSkeleton key={i} />
           ))}
         </div>

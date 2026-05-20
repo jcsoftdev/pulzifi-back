@@ -55,11 +55,12 @@ export function ChecksHistory({
         // Preserve in-progress checks delivered via SSE that aren't in the API response yet
         // (the check record may not be committed to DB when this fetch runs).
         const freshIds = new Set(freshChecks.map((c) => c.id))
-        const sseOnlyInProgress = prev.filter(
-          (c) => isCheckInProgress(c) && !freshIds.has(c.id),
-        )
+        const sseOnlyInProgress = prev.filter((c) => isCheckInProgress(c) && !freshIds.has(c.id))
         return sseOnlyInProgress.length > 0
-          ? [...sseOnlyInProgress, ...freshChecks]
+          ? [
+              ...sseOnlyInProgress,
+              ...freshChecks,
+            ]
           : freshChecks
       })
       setHasFreshData(true)
@@ -67,15 +68,15 @@ export function ChecksHistory({
       console.error('Failed to fetch checks', error)
       setHasFreshData(true)
     }
-  }, [pageId])
+  }, [
+    pageId,
+  ])
 
   // Connect (or reconnect) the EventSource for real-time check updates.
   const connectSSE = useCallback(() => {
     eventSourceRef.current?.close()
 
-    const es = new EventSource(
-      `/api/v1/monitoring/checks/page/${pageId}/stream`,
-    )
+    const es = new EventSource(`/api/v1/monitoring/checks/page/${pageId}/stream`)
     eventSourceRef.current = es
 
     es.addEventListener('check:updated', (event) => {
@@ -86,13 +87,21 @@ export function ChecksHistory({
         const updated = mapBackendCheck(dto)
         setChecks((prev) => {
           const idx = prev.findIndex((c) => c.id === updated.id)
-          const next = idx >= 0
-            ? prev.map((c, i) => (i === idx ? updated : c))
-            : [updated, ...prev]
+          const next =
+            idx >= 0
+              ? prev.map((c, i) => (i === idx ? updated : c))
+              : [
+                  updated,
+                  ...prev,
+                ]
           // Notify siblings after React finishes this render batch.
           const hasActive = next.some(isCheckInProgress)
           queueMicrotask(() => {
-            window.dispatchEvent(new CustomEvent('checks:active', { detail: hasActive }))
+            window.dispatchEvent(
+              new CustomEvent('checks:active', {
+                detail: hasActive,
+              })
+            )
           })
           return next
         })
@@ -126,7 +135,9 @@ export function ChecksHistory({
     }
 
     return es
-  }, [pageId])
+  }, [
+    pageId,
+  ])
 
   // SSE lifecycle
   useEffect(() => {
@@ -135,7 +146,9 @@ export function ChecksHistory({
       eventSourceRef.current?.close()
       eventSourceRef.current = null
     }
-  }, [connectSSE])
+  }, [
+    connectSSE,
+  ])
 
   // Fetch fresh data on mount and when page becomes visible again.
   useEffect(() => {
@@ -154,17 +167,21 @@ export function ChecksHistory({
     }
     document.addEventListener('visibilitychange', onVisible)
     return () => document.removeEventListener('visibilitychange', onVisible)
-  }, [fetchChecks, connectSSE])
+  }, [
+    fetchChecks,
+    connectSSE,
+  ])
 
   // Listen for "checks:refresh" (fired by Run Now) — single fetch as safety net.
   useEffect(() => {
     const handler = () => fetchChecks()
     window.addEventListener('checks:refresh', handler)
     return () => window.removeEventListener('checks:refresh', handler)
-  }, [fetchChecks])
+  }, [
+    fetchChecks,
+  ])
 
-  const isCheckFailed = (check: Check) =>
-    check.status === 'error' || check.status === 'failed'
+  const isCheckFailed = (check: Check) => check.status === 'error' || check.status === 'failed'
 
   return (
     <div
@@ -172,15 +189,14 @@ export function ChecksHistory({
       className="flex flex-col gap-6 bg-card border border-border rounded-xl p-6 h-full"
     >
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-foreground">
-          Checks history
-        </h2>
+        <h2 className="text-xl font-semibold text-foreground">Checks history</h2>
       </div>
 
       <div className="flex flex-col gap-4 max-h-[500px] overflow-y-auto pr-2">
         {quotaExceeded && (
           <div className="rounded-md border border-yellow-500/30 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-700 dark:text-yellow-400">
-            Monthly check quota reached. New checks are paused until {refillDate ?? 'next billing cycle'}.
+            Monthly check quota reached. New checks are paused until{' '}
+            {refillDate ?? 'next billing cycle'}.
           </div>
         )}
 
@@ -201,22 +217,16 @@ export function ChecksHistory({
                 <span className="text-sm font-medium text-muted-foreground">
                   {formatRelativeTime(check.checkedAt)}
                 </span>
-                <span className="text-sm text-foreground">
-                  {formatDateTime(check.checkedAt)}
-                </span>
+                <span className="text-sm text-foreground">{formatDateTime(check.checkedAt)}</span>
 
                 {inProgress ? (
                   <div className="mt-2 inline-flex items-center gap-2 rounded-md border border-primary/20 bg-primary/10 px-3 py-1">
                     <Loader2 className="w-3 h-3 animate-spin text-primary" />
-                    <span className="text-sm text-primary">
-                      Running check...
-                    </span>
+                    <span className="text-sm text-primary">Running check...</span>
                   </div>
                 ) : check.changeDetected ? (
                   <div className="mt-2 inline-flex items-center gap-2 rounded-md border border-destructive/20 bg-destructive/10 px-3 py-1">
-                    <span className="text-sm text-destructive">
-                      Change found - Alert sent
-                    </span>
+                    <span className="text-sm text-destructive">Change found - Alert sent</span>
                     <div className="w-2 h-2 rounded-full bg-destructive" />
                   </div>
                 ) : isCheckFailed(check) ? (
@@ -229,9 +239,7 @@ export function ChecksHistory({
                     <div className="w-2 h-2 rounded-full bg-destructive" />
                   </div>
                 ) : (
-                  <div className="mt-1 text-sm text-muted-foreground">
-                    No change detected
-                  </div>
+                  <div className="mt-1 text-sm text-muted-foreground">No change detected</div>
                 )}
               </>
             )
@@ -252,9 +260,7 @@ export function ChecksHistory({
                 />
 
                 {inProgress ? (
-                  <div className="flex flex-col gap-1 p-2 -ml-2 rounded-md">
-                    {content}
-                  </div>
+                  <div className="flex flex-col gap-1 p-2 -ml-2 rounded-md">{content}</div>
                 ) : (
                   <Link
                     href={`/workspaces/${workspaceId}/pages/${pageId}/changes?checkId=${check.id}`}
@@ -267,9 +273,7 @@ export function ChecksHistory({
             )
           })}
           {checks.length === 0 && (
-            <div className="pl-6 text-sm text-muted-foreground">
-              No checks recorded yet.
-            </div>
+            <div className="pl-6 text-sm text-muted-foreground">No checks recorded yet.</div>
           )}
         </div>
       </div>

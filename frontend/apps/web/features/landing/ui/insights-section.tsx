@@ -3,9 +3,18 @@ import { AnimatedSection } from './components/animated-section'
 import { SectionHeader } from './components/section-header'
 
 const INSIGHT_TYPES = [
-  { label: 'Marketing Lents', tagColor: 'bg-[#ebf0ff]' },
-  { label: 'Brand and Pricing Strategy', tagColor: 'bg-[#ebfff5]' },
-  { label: 'Business Opportunities', tagColor: 'bg-[#fff9f5]' },
+  {
+    label: 'Marketing Lents',
+    tagColor: 'bg-[#ebf0ff]',
+  },
+  {
+    label: 'Brand and Pricing Strategy',
+    tagColor: 'bg-[#ebfff5]',
+  },
+  {
+    label: 'Business Opportunities',
+    tagColor: 'bg-[#fff9f5]',
+  },
 ]
 
 export function InsightsSection() {
@@ -39,7 +48,8 @@ export function InsightsSection() {
               'linear-gradient(rgba(255,255,255,.15) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.15) 1px, transparent 1px)',
             backgroundSize: '40px 40px',
             maskImage: 'radial-gradient(ellipse 50% 60% at 50% 50%, black 0%, transparent 100%)',
-            WebkitMaskImage: 'radial-gradient(ellipse 50% 60% at 50% 50%, black 0%, transparent 100%)',
+            WebkitMaskImage:
+              'radial-gradient(ellipse 50% 60% at 50% 50%, black 0%, transparent 100%)',
           }}
         />
 
@@ -47,14 +57,21 @@ export function InsightsSection() {
         <div className="relative mx-auto w-full max-w-[520px]">
           {/* Floating "Analyze alerts with..." pill */}
           <div className="relative z-10 mb-[-12px] flex justify-center">
-          <div className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 shadow-[0_4px_20px_rgba(0,0,0,0.08)]">
-            <Sparkles className="size-4 text-[#7c3aed]" />
-            <span className="text-sm font-medium text-[#29144c]">Analyze alerts with&hellip;</span>
-          </div>
+            <div className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 shadow-[0_4px_20px_rgba(0,0,0,0.08)]">
+              <Sparkles className="size-4 text-[#7c3aed]" />
+              <span className="text-sm font-medium text-[#29144c]">
+                Analyze alerts with&hellip;
+              </span>
+            </div>
           </div>
 
           {/* Stacked cards - centered, short to large */}
-          <div className="relative" style={{ height: '260px' }}>
+          <div
+            className="relative"
+            style={{
+              height: '260px',
+            }}
+          >
             {INSIGHT_TYPES.map((insight, i) => (
               <div
                 key={insight.label}
@@ -68,7 +85,9 @@ export function InsightsSection() {
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className={`rounded-full px-2 py-0.5 sm:px-3 sm:py-1 ${insight.tagColor}`}>
-                    <span className="text-xs font-medium text-[#29144c] sm:text-sm">{insight.label}</span>
+                    <span className="text-xs font-medium text-[#29144c] sm:text-sm">
+                      {insight.label}
+                    </span>
                   </div>
                   <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-black/5 sm:size-8">
                     <Settings2 className="size-3.5 text-[#444] sm:size-4" />
@@ -81,10 +100,9 @@ export function InsightsSection() {
                     <p className="text-[11px] leading-relaxed text-[#504170] sm:text-[13px]">
                       &hellip;your competitor updated their homepage messaging from
                       &ldquo;Affordable Listings&rdquo; to &ldquo;Luxury Investment
-                      Properties&rdquo; and added new content focused on high-net-worth
-                      clients. This suggests a shift toward the premium segment, potentially
-                      opening space in the mid-market for your brand to strengthen its
-                      positioning&hellip;.
+                      Properties&rdquo; and added new content focused on high-net-worth clients.
+                      This suggests a shift toward the premium segment, potentially opening space in
+                      the mid-market for your brand to strengthen its positioning&hellip;.
                     </p>
                   </div>
                 )}

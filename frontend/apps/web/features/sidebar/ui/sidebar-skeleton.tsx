@@ -35,7 +35,11 @@ export function SidebarSkeleton() {
           <div className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-muted-foreground">
             Workspaces
           </div>
-          {['a', 'b', 'c'].map((i) => (
+          {[
+            'a',
+            'b',
+            'c',
+          ].map((i) => (
             <div key={`workspace-${i}`} className="h-7 bg-muted rounded-md animate-pulse ml-6" />
           ))}
         </div>

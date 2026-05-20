@@ -1,13 +1,19 @@
+import { cn } from '@workspace/ui/lib/utils'
+import type { LucideIcon } from 'lucide-react'
+import { Github, Globe, Linkedin, Twitter, Youtube } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { Github, Globe, Linkedin, Twitter, Youtube } from 'lucide-react'
-import type { LucideIcon } from 'lucide-react'
-import { cn } from '@workspace/ui/lib/utils'
 
-type FooterLink = { label: string; href: string }
+type FooterLink = {
+  label: string
+  href: string
+}
 type FooterLinks = Record<string, ReadonlyArray<FooterLink>>
 type SocialPlatform = 'twitter' | 'linkedin' | 'github' | 'youtube' | 'other'
-type SocialLink = { platform: string; href: string }
+type SocialLink = {
+  platform: string
+  href: string
+}
 
 type FooterSectionProps = {
   links?: FooterLinks
@@ -31,24 +37,54 @@ function resolveSocialIcon(platform: string): LucideIcon {
 }
 
 const LEGAL_LINKS: FooterLink[] = [
-  { label: 'Privacy Policy', href: '#' },
-  { label: 'Terms of Service', href: '#' },
+  {
+    label: 'Privacy Policy',
+    href: '#',
+  },
+  {
+    label: 'Terms of Service',
+    href: '#',
+  },
 ]
 
 const DEFAULT_FOOTER_LINKS: FooterLinks = {
   Features: [
-    { label: 'Product', href: '#how-it-works' },
-    { label: 'Use Cases', href: '#industries' },
-    { label: 'Pricing', href: '#pricing' },
+    {
+      label: 'Product',
+      href: '#how-it-works',
+    },
+    {
+      label: 'Use Cases',
+      href: '#industries',
+    },
+    {
+      label: 'Pricing',
+      href: '#pricing',
+    },
   ],
   Support: [
-    { label: 'Help', href: '#' },
-    { label: 'FAQ', href: '#faq' },
-    { label: 'Contact', href: '/contact' },
+    {
+      label: 'Help',
+      href: '#',
+    },
+    {
+      label: 'FAQ',
+      href: '#faq',
+    },
+    {
+      label: 'Contact',
+      href: '/contact',
+    },
   ],
   Legal: [
-    { label: 'Privacy Policy', href: '#' },
-    { label: 'Terms of Services', href: '#' },
+    {
+      label: 'Privacy Policy',
+      href: '#',
+    },
+    {
+      label: 'Terms of Services',
+      href: '#',
+    },
   ],
 }
 
@@ -64,18 +100,14 @@ export function FooterSection({
   const copyright = copyrightText ?? `© ${year} Pulzifi. All rights reserved.`
 
   return (
-    <footer
-      id="footer"
-      className="bg-white py-16 lg:py-20"
-    >
+    // biome-ignore lint/correctness/useUniqueElementIds: static nav anchor ID
+    <footer id="footer" className="bg-white py-16 lg:py-20">
       <div className="mx-auto max-w-[1200px] px-6 lg:px-8">
         {/* 4-col grid */}
         <div
           className={cn(
             'grid grid-cols-1 gap-8 md:gap-12',
-            groups.length > 0
-              ? 'md:grid-cols-[2fr_1fr_1fr_1fr]'
-              : 'md:grid-cols-1',
+            groups.length > 0 ? 'md:grid-cols-[2fr_1fr_1fr_1fr]' : 'md:grid-cols-1'
           )}
         >
           {/* Col 1 — Brand */}

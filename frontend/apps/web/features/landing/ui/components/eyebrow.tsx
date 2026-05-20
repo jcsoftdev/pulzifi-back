@@ -20,7 +20,7 @@ export function Eyebrow({ children, tone = 'accent', className }: EyebrowProps) 
       className={cn(
         'text-xs font-semibold uppercase tracking-[0.18em]',
         toneClasses[tone],
-        className,
+        className
       )}
     >
       {children}

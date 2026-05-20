@@ -15,47 +15,124 @@ type Props = {
 
 const SWATCH_GROUPS: Array<{
   heading: string
-  swatches: Array<{ key: string; cssVar: string; label: string; defaultValue: string }>
+  swatches: Array<{
+    key: string
+    cssVar: string
+    label: string
+    defaultValue: string
+  }>
 }> = [
   {
     heading: 'Surfaces',
     swatches: [
-      { key: 'pageBg', cssVar: '--pz-page-bg', label: 'Page background', defaultValue: '#f3f3f3' },
-      { key: 'pageBgAlt', cssVar: '--pz-page-bg-alt', label: 'Alt background', defaultValue: '#fafafa' },
-      { key: 'cardBg', cssVar: '--pz-card-bg', label: 'Card background', defaultValue: '#ffffff' },
-      { key: 'darkSurface', cssVar: '--pz-dark-surface', label: 'Dark surface', defaultValue: '#29144c' },
+      {
+        key: 'pageBg',
+        cssVar: '--pz-page-bg',
+        label: 'Page background',
+        defaultValue: '#f3f3f3',
+      },
+      {
+        key: 'pageBgAlt',
+        cssVar: '--pz-page-bg-alt',
+        label: 'Alt background',
+        defaultValue: '#fafafa',
+      },
+      {
+        key: 'cardBg',
+        cssVar: '--pz-card-bg',
+        label: 'Card background',
+        defaultValue: '#ffffff',
+      },
+      {
+        key: 'darkSurface',
+        cssVar: '--pz-dark-surface',
+        label: 'Dark surface',
+        defaultValue: '#29144c',
+      },
     ],
   },
   {
     heading: 'Text',
     swatches: [
-      { key: 'inkPrimary', cssVar: '--pz-ink', label: 'Primary text', defaultValue: '#131313' },
-      { key: 'inkSecondary', cssVar: '--pz-ink-2', label: 'Secondary text', defaultValue: '#444141' },
+      {
+        key: 'inkPrimary',
+        cssVar: '--pz-ink',
+        label: 'Primary text',
+        defaultValue: '#131313',
+      },
+      {
+        key: 'inkSecondary',
+        cssVar: '--pz-ink-2',
+        label: 'Secondary text',
+        defaultValue: '#444141',
+      },
     ],
   },
   {
     heading: 'Accents',
     swatches: [
-      { key: 'accentPrimary', cssVar: '--pz-accent', label: 'Primary accent', defaultValue: '#7c3aed' },
-      { key: 'accentMuted', cssVar: '--pz-accent-muted', label: 'Accent muted', defaultValue: '#a78bfa' },
-      { key: 'accentGold', cssVar: '--pz-accent-gold', label: 'Gold', defaultValue: '#f59e0b' },
-      { key: 'accentTeal', cssVar: '--pz-accent-teal', label: 'Teal', defaultValue: '#14b8a6' },
+      {
+        key: 'accentPrimary',
+        cssVar: '--pz-accent',
+        label: 'Primary accent',
+        defaultValue: '#7c3aed',
+      },
+      {
+        key: 'accentMuted',
+        cssVar: '--pz-accent-muted',
+        label: 'Accent muted',
+        defaultValue: '#a78bfa',
+      },
+      {
+        key: 'accentGold',
+        cssVar: '--pz-accent-gold',
+        label: 'Gold',
+        defaultValue: '#f59e0b',
+      },
+      {
+        key: 'accentTeal',
+        cssVar: '--pz-accent-teal',
+        label: 'Teal',
+        defaultValue: '#14b8a6',
+      },
     ],
   },
   {
     heading: 'Borders',
     swatches: [
-      { key: 'border', cssVar: '--pz-card-border', label: 'Subtle border', defaultValue: 'rgba(0,0,0,0.08)' },
-      { key: 'borderStrong', cssVar: '--pz-border-strong', label: 'Strong border', defaultValue: 'rgba(0,0,0,0.16)' },
+      {
+        key: 'border',
+        cssVar: '--pz-card-border',
+        label: 'Subtle border',
+        defaultValue: 'rgba(0,0,0,0.08)',
+      },
+      {
+        key: 'borderStrong',
+        cssVar: '--pz-border-strong',
+        label: 'Strong border',
+        defaultValue: 'rgba(0,0,0,0.16)',
+      },
     ],
   },
 ]
 
 const DERIVED = [
-  { cssVar: '--pz-accent-tint', label: 'Accent tint (10%)' },
-  { cssVar: '--pz-accent-soft', label: 'Accent soft (5%)' },
-  { cssVar: '--pz-accent-line', label: 'Accent line (18%)' },
-  { cssVar: '--pz-accent-pale', label: 'Accent pale' },
+  {
+    cssVar: '--pz-accent-tint',
+    label: 'Accent tint (10%)',
+  },
+  {
+    cssVar: '--pz-accent-soft',
+    label: 'Accent soft (5%)',
+  },
+  {
+    cssVar: '--pz-accent-line',
+    label: 'Accent line (18%)',
+  },
+  {
+    cssVar: '--pz-accent-pale',
+    label: 'Accent pale',
+  },
 ]
 
 export function ThemePreviewClient({ initialTheme, serverURL }: Props) {
@@ -65,7 +142,12 @@ export function ThemePreviewClient({ initialTheme, serverURL }: Props) {
     depth: 0,
   })
 
-  const themeStyle = useMemo(() => buildThemeStyle(theme), [theme])
+  const themeStyle = useMemo(
+    () => buildThemeStyle(theme),
+    [
+      theme,
+    ]
+  )
 
   return (
     <PreviewModeProvider value={true}>
@@ -77,17 +159,27 @@ export function ThemePreviewClient({ initialTheme, serverURL }: Props) {
           fontFamily: 'system-ui, -apple-system, sans-serif',
         }}
       >
-        {themeStyle && <style dangerouslySetInnerHTML={{ __html: themeStyle }} />}
+        {themeStyle && (
+          // biome-ignore lint/security/noDangerouslySetInnerHtml: intentional theme CSS injection — controlled server-side input
+          <style dangerouslySetInnerHTML={{ __html: themeStyle }} />
+        )}
 
         <header className="mx-auto max-w-[1100px] mb-8">
           <p
             className="text-xs font-semibold uppercase tracking-[0.18em]"
-            style={{ color: 'var(--pz-accent, #7c3aed)' }}
+            style={{
+              color: 'var(--pz-accent, #7c3aed)',
+            }}
           >
             Theme Preview
           </p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight">Design tokens</h1>
-          <p className="mt-2 text-sm" style={{ color: 'var(--pz-ink-2, #444141)' }}>
+          <p
+            className="mt-2 text-sm"
+            style={{
+              color: 'var(--pz-ink-2, #444141)',
+            }}
+          >
             Edit any color on the right — every swatch and component sample below updates live.
           </p>
         </header>
@@ -113,19 +205,25 @@ export function ThemePreviewClient({ initialTheme, serverURL }: Props) {
                     >
                       <div
                         className="h-20 w-full"
-                        style={{ background: `var(${s.cssVar}, ${s.defaultValue})` }}
+                        style={{
+                          background: `var(${s.cssVar}, ${s.defaultValue})`,
+                        }}
                       />
                       <div className="px-3 py-2">
                         <p className="text-sm font-medium">{s.label}</p>
                         <p
                           className="font-mono text-xs"
-                          style={{ color: 'var(--pz-ink-2, #444141)' }}
+                          style={{
+                            color: 'var(--pz-ink-2, #444141)',
+                          }}
                         >
                           {value}
                         </p>
                         <p
                           className="font-mono text-[10px] opacity-50"
-                          style={{ color: 'var(--pz-ink-2, #444141)' }}
+                          style={{
+                            color: 'var(--pz-ink-2, #444141)',
+                          }}
                         >
                           {s.cssVar}
                         </p>
@@ -154,13 +252,17 @@ export function ThemePreviewClient({ initialTheme, serverURL }: Props) {
                 >
                   <div
                     className="h-16 w-full"
-                    style={{ background: `var(${d.cssVar})` }}
+                    style={{
+                      background: `var(${d.cssVar})`,
+                    }}
                   />
                   <div className="px-3 py-2">
                     <p className="text-sm font-medium">{d.label}</p>
                     <p
                       className="font-mono text-[10px] opacity-50"
-                      style={{ color: 'var(--pz-ink-2, #444141)' }}
+                      style={{
+                        color: 'var(--pz-ink-2, #444141)',
+                      }}
                     >
                       {d.cssVar}
                     </p>
@@ -213,7 +315,9 @@ export function ThemePreviewClient({ initialTheme, serverURL }: Props) {
               <button
                 type="button"
                 className="rounded-full px-3 py-2 text-sm font-medium"
-                style={{ color: 'var(--pz-ink-2, #444141)' }}
+                style={{
+                  color: 'var(--pz-ink-2, #444141)',
+                }}
               >
                 Ghost link →
               </button>
@@ -233,7 +337,9 @@ export function ThemePreviewClient({ initialTheme, serverURL }: Props) {
             </p>
             <p
               className="text-xs font-semibold uppercase tracking-[0.18em]"
-              style={{ color: 'var(--pz-accent, #7c3aed)' }}
+              style={{
+                color: 'var(--pz-accent, #7c3aed)',
+              }}
             >
               Eyebrow tag
             </p>
@@ -251,7 +357,9 @@ export function ThemePreviewClient({ initialTheme, serverURL }: Props) {
             </h3>
             <p
               className="mt-2 text-base leading-relaxed"
-              style={{ color: 'var(--pz-ink-2, #444141)' }}
+              style={{
+                color: 'var(--pz-ink-2, #444141)',
+              }}
             >
               Body copy uses the secondary text token for readable contrast.
             </p>
@@ -270,7 +378,9 @@ export function ThemePreviewClient({ initialTheme, serverURL }: Props) {
               <p className="font-semibold">Popular plan</p>
               <span
                 className="rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-white"
-                style={{ background: 'var(--pz-accent, #7c3aed)' }}
+                style={{
+                  background: 'var(--pz-accent, #7c3aed)',
+                }}
               >
                 Pro
               </span>
@@ -278,7 +388,9 @@ export function ThemePreviewClient({ initialTheme, serverURL }: Props) {
             <p className="mt-3 text-3xl font-bold">$62/mo</p>
             <p
               className="mt-1 text-sm"
-              style={{ color: 'var(--pz-ink-2, #444141)' }}
+              style={{
+                color: 'var(--pz-ink-2, #444141)',
+              }}
             >
               Featured plan styling: ring + soft accent shadow.
             </p>
@@ -287,11 +399,15 @@ export function ThemePreviewClient({ initialTheme, serverURL }: Props) {
           {/* Dark surface band */}
           <div
             className="rounded-xl p-8 text-white"
-            style={{ background: 'var(--pz-dark-surface, #29144c)' }}
+            style={{
+              background: 'var(--pz-dark-surface, #29144c)',
+            }}
           >
             <p
               className="text-xs font-semibold uppercase tracking-[0.18em]"
-              style={{ color: 'var(--pz-accent-muted, #a78bfa)' }}
+              style={{
+                color: 'var(--pz-accent-muted, #a78bfa)',
+              }}
             >
               Dark surface
             </p>
@@ -302,7 +418,9 @@ export function ThemePreviewClient({ initialTheme, serverURL }: Props) {
             <button
               type="button"
               className="mt-4 rounded-full px-5 py-2.5 text-sm font-medium text-white"
-              style={{ background: 'var(--pz-accent, #7c3aed)' }}
+              style={{
+                background: 'var(--pz-accent, #7c3aed)',
+              }}
             >
               Primary on dark
             </button>
@@ -320,10 +438,20 @@ export function ThemePreviewClient({ initialTheme, serverURL }: Props) {
               <p className="text-xs font-semibold uppercase tracking-wider opacity-70">
                 Gold accent
               </p>
-              <p className="mt-2 text-2xl font-bold" style={{ color: 'var(--pz-accent-gold, #f59e0b)' }}>
+              <p
+                className="mt-2 text-2xl font-bold"
+                style={{
+                  color: 'var(--pz-accent-gold, #f59e0b)',
+                }}
+              >
                 ★★★★★
               </p>
-              <p className="mt-1 text-xs" style={{ color: 'var(--pz-ink-2, #444141)' }}>
+              <p
+                className="mt-1 text-xs"
+                style={{
+                  color: 'var(--pz-ink-2, #444141)',
+                }}
+              >
                 Used in pricing highlight + star ratings.
               </p>
             </div>
@@ -337,10 +465,20 @@ export function ThemePreviewClient({ initialTheme, serverURL }: Props) {
               <p className="text-xs font-semibold uppercase tracking-wider opacity-70">
                 Teal accent
               </p>
-              <p className="mt-2 text-2xl font-bold" style={{ color: 'var(--pz-accent-teal, #14b8a6)' }}>
+              <p
+                className="mt-2 text-2xl font-bold"
+                style={{
+                  color: 'var(--pz-accent-teal, #14b8a6)',
+                }}
+              >
                 ✦ AI Insight
               </p>
-              <p className="mt-1 text-xs" style={{ color: 'var(--pz-ink-2, #444141)' }}>
+              <p
+                className="mt-1 text-xs"
+                style={{
+                  color: 'var(--pz-ink-2, #444141)',
+                }}
+              >
                 Used in AI insight callout in hero dashboard.
               </p>
             </div>

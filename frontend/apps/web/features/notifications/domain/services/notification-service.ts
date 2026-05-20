@@ -22,7 +22,10 @@ export const NotificationService = {
         return handleServerAuthError(error)
       }
       console.error('Failed to fetch notification count:', error)
-      return { hasNotifications: false, notificationCount: 0 }
+      return {
+        hasNotifications: false,
+        notificationCount: 0,
+      }
     }
   },
 
@@ -40,7 +43,10 @@ export const NotificationService = {
         return handleServerAuthError(error)
       }
       console.error('Failed to fetch notifications:', error)
-      return { notifications: [], total: 0 }
+      return {
+        notifications: [],
+        total: 0,
+      }
     }
   },
 

@@ -1,5 +1,13 @@
 import { Button } from '@workspace/ui/components/atoms/button'
-import { ChevronDown, Clock, FileText, RefreshCcw, Settings, SquarePlus, Trash2 } from 'lucide-react'
+import {
+  ChevronDown,
+  Clock,
+  FileText,
+  RefreshCcw,
+  Settings,
+  SquarePlus,
+  Trash2,
+} from 'lucide-react'
 
 export function WorkspaceDetailSkeleton() {
   return (
@@ -109,7 +117,13 @@ export function WorkspaceDetailSkeleton() {
 
               {/* Skeleton rows */}
               <div className="divide-y divide-border">
-                {['a', 'b', 'c', 'd', 'e'].map((id) => (
+                {[
+                  'a',
+                  'b',
+                  'c',
+                  'd',
+                  'e',
+                ].map((id) => (
                   <div key={id} className="flex items-center">
                     <div className="flex items-center px-2 py-2 w-8">
                       <div className="w-4 h-4 border border-border rounded" />
@@ -149,20 +163,34 @@ export function WorkspaceDetailSkeleton() {
             <div className="flex flex-wrap justify-center items-center gap-4 md:gap-8 w-full md:w-auto">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium text-foreground">Rows per page</span>
-                <div className="px-3 py-2 h-9 text-sm border border-border rounded bg-background">10</div>
+                <div className="px-3 py-2 h-9 text-sm border border-border rounded bg-background">
+                  10
+                </div>
               </div>
               <div className="text-sm font-medium text-foreground">Page 1 of 1</div>
               <div className="flex items-center gap-2">
                 <Button variant="outline" size="icon-sm" disabled className="h-8 w-8">
                   <svg width="17" height="17" viewBox="0 0 17 17" fill="none">
                     <title>Previous page</title>
-                    <path d="M10.625 12.75L6.375 8.5L10.625 4.25" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    <path
+                      d="M10.625 12.75L6.375 8.5L10.625 4.25"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
                   </svg>
                 </Button>
                 <Button variant="outline" size="icon-sm" disabled className="h-8 w-8">
                   <svg width="17" height="17" viewBox="0 0 17 17" fill="none">
                     <title>Next page</title>
-                    <path d="M6.375 4.25L10.625 8.5L6.375 12.75" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    <path
+                      d="M6.375 4.25L10.625 8.5L6.375 12.75"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
                   </svg>
                 </Button>
               </div>

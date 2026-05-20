@@ -1,12 +1,14 @@
 'use client'
 
 import { useField } from '@payloadcms/ui'
-import { HexColorInput, HexColorPicker } from 'react-colorful'
 import type { TextFieldClientProps } from 'payload'
 import { useCallback, useState } from 'react'
+import { HexColorInput, HexColorPicker } from 'react-colorful'
 
 export const ColorField: React.FC<TextFieldClientProps> = ({ field, path }) => {
-  const { value, setValue } = useField<string>({ path: path ?? field.name })
+  const { value, setValue } = useField<string>({
+    path: path ?? field.name,
+  })
   const [open, setOpen] = useState(false)
   const [color, setColor] = useState<string>((value as string) || '#6A35E0')
 
@@ -15,14 +17,24 @@ export const ColorField: React.FC<TextFieldClientProps> = ({ field, path }) => {
       setColor(newColor)
       setValue(newColor)
     },
-    [setValue],
+    [
+      setValue,
+    ]
   )
   const label = field.label || field.name
 
   return (
     <div className="field-type text">
+      {/* biome-ignore lint/a11y/noLabelWithoutControl: Payload CMS field label — not a standard form control */}
       <label className="field-label">{typeof label === 'string' ? label : field.name}</label>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', position: 'relative' }}>
+      <div
+        style={{
+          display: 'flex',
+          gap: 8,
+          alignItems: 'center',
+          position: 'relative',
+        }}
+      >
         <button
           type="button"
           onClick={() => setOpen(!open)}
@@ -52,12 +64,25 @@ export const ColorField: React.FC<TextFieldClientProps> = ({ field, path }) => {
         />
       </div>
       {open && (
-        <div style={{ marginTop: 8, position: 'relative', zIndex: 10 }}>
+        <div
+          style={{
+            marginTop: 8,
+            position: 'relative',
+            zIndex: 10,
+          }}
+        >
           <HexColorPicker color={color} onChange={handleChange} />
         </div>
       )}
       {field.admin?.description && (
-        <p className="field-description" style={{ marginTop: 4, fontSize: 12, opacity: 0.7 }}>
+        <p
+          className="field-description"
+          style={{
+            marginTop: 4,
+            fontSize: 12,
+            opacity: 0.7,
+          }}
+        >
           {typeof field.admin.description === 'string' ? field.admin.description : ''}
         </p>
       )}
