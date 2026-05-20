@@ -19,12 +19,12 @@ import (
 type ContextKey = contextkeys.ContextKey
 
 const (
-	// UserIDKey is re-exported from shared/contextkeys so callers that import this
-	// package continue to work without modification.
+	// The following are re-exported from shared/contextkeys so that callers which
+	// import this package directly continue to compile without modification.
 	UserIDKey    = contextkeys.UserIDKey
-	UserEmailKey ContextKey = "user_email"
-	UserRolesKey ContextKey = "user_roles"
-	UserPermsKey ContextKey = "user_permissions"
+	UserEmailKey = contextkeys.UserEmailKey
+	UserRolesKey = contextkeys.UserRolesKey
+	UserPermsKey = contextkeys.UserPermsKey
 )
 
 type AuthMiddleware struct {

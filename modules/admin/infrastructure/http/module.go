@@ -15,12 +15,13 @@ import (
 	adminerrors "github.com/jcsoftdev/pulzifi-back/modules/admin/domain/errors"
 	"github.com/jcsoftdev/pulzifi-back/modules/admin/domain/repositories"
 	authrepos "github.com/jcsoftdev/pulzifi-back/modules/auth/domain/repositories"
-	authmw "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/middleware"
 	emailservices "github.com/jcsoftdev/pulzifi-back/modules/email/domain/services"
+	"github.com/jcsoftdev/pulzifi-back/shared/contextkeys"
 	"github.com/jcsoftdev/pulzifi-back/modules/email/infrastructure/templates"
 	orgrepos "github.com/jcsoftdev/pulzifi-back/modules/organization/domain/repositories"
 	orgservices "github.com/jcsoftdev/pulzifi-back/modules/organization/domain/services"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
+	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
 	"github.com/jcsoftdev/pulzifi-back/shared/router"
 	"go.uber.org/zap"
 )
@@ -29,7 +30,7 @@ type Module struct {
 	listPendingHandler *listpendingusers.Handler
 	approveHandler     *approveuser.Handler
 	rejectHandler      *rejectuser.Handler
-	authMiddleware     *authmw.AuthMiddleware
+	authMiddleware     middleware.AuthVerifier
 	emailProvider      emailservices.EmailProvider
 	userRepo           authrepos.UserRepository
 	frontendURL        string
@@ -41,7 +42,7 @@ type ModuleDeps struct {
 	UserRepo       authrepos.UserRepository
 	OrgRepo        orgrepos.OrganizationRepository
 	OrgService     *orgservices.OrganizationService
-	AuthMiddleware *authmw.AuthMiddleware
+	AuthMiddleware middleware.AuthVerifier
 	EmailProvider  emailservices.EmailProvider
 	FrontendURL    string
 }
@@ -97,7 +98,7 @@ func (m *Module) handleApproveUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	reviewerIDStr, _ := r.Context().Value(authmw.UserIDKey).(string)
+	reviewerIDStr, _ := r.Context().Value(contextkeys.UserIDKey).(string)
 	reviewerID, err := uuid.Parse(reviewerIDStr)
 	if err != nil {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
@@ -144,7 +145,7 @@ func (m *Module) handleRejectUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	reviewerIDStr, _ := r.Context().Value(authmw.UserIDKey).(string)
+	reviewerIDStr, _ := r.Context().Value(contextkeys.UserIDKey).(string)
 	reviewerID, err := uuid.Parse(reviewerIDStr)
 	if err != nil {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})

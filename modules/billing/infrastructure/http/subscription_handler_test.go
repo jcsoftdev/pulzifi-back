@@ -10,8 +10,8 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	authmw "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/middleware"
 	getsubscription "github.com/jcsoftdev/pulzifi-back/modules/billing/application/get_subscription"
+	"github.com/jcsoftdev/pulzifi-back/shared/contextkeys"
 	"github.com/jcsoftdev/pulzifi-back/modules/billing/infrastructure/persistence/inmem"
 )
 
@@ -63,7 +63,7 @@ func TestHandleGetSubscription_NoSubscriptionReturns200(t *testing.T) {
 // roleContext injects roles into a request context to simulate the output of
 // AuthMiddleware.Authenticate (which sets UserRolesKey from JWT claims).
 func roleContext(req *http.Request, roles []string) *http.Request {
-	ctx := context.WithValue(req.Context(), authmw.UserRolesKey, roles)
+	ctx := context.WithValue(req.Context(), contextkeys.UserRolesKey, roles)
 	return req.WithContext(ctx)
 }
 

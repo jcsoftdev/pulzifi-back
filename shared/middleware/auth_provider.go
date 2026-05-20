@@ -8,6 +8,7 @@ import "net/http"
 type AuthVerifier interface {
 	Authenticate(http.Handler) http.Handler
 	RequirePermission(resource, action string) func(http.Handler) http.Handler
+	RequireRole(role string) func(http.Handler) http.Handler
 }
 
 // authMiddlewareProxy is a concrete struct that wraps an AuthVerifier.
@@ -36,6 +37,16 @@ func (p *authMiddlewareProxy) RequirePermission(resource, action string) func(ht
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			p.inner.RequirePermission(resource, action)(next).ServeHTTP(w, r)
+		})
+	}
+}
+
+// RequireRole wraps the inner verifier's RequireRole with the same
+// deferred-lookup pattern.
+func (p *authMiddlewareProxy) RequireRole(role string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			p.inner.RequireRole(role)(next).ServeHTTP(w, r)
 		})
 	}
 }

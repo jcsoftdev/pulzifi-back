@@ -8,8 +8,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	authmw "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/middleware"
 	"github.com/jcsoftdev/pulzifi-back/modules/report/domain/entities"
+	"github.com/jcsoftdev/pulzifi-back/shared/contextkeys"
 	"github.com/jcsoftdev/pulzifi-back/modules/report/infrastructure/persistence"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
@@ -103,7 +103,7 @@ func (m *Module) handleCreateReport(w http.ResponseWriter, r *http.Request) {
 		reportDate = parsed
 	}
 
-	userIDStr, _ := r.Context().Value(authmw.UserIDKey).(string)
+	userIDStr, _ := r.Context().Value(contextkeys.UserIDKey).(string)
 	createdBy, err := uuid.Parse(userIDStr)
 	if err != nil {
 		w.WriteHeader(http.StatusUnauthorized)

@@ -20,7 +20,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	authmw "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/middleware"
+	"github.com/jcsoftdev/pulzifi-back/shared/contextkeys"
 	createcheckoutsession "github.com/jcsoftdev/pulzifi-back/modules/billing/application/create_checkout_session"
 	createportalsession "github.com/jcsoftdev/pulzifi-back/modules/billing/application/create_portal_session"
 	getsubscription "github.com/jcsoftdev/pulzifi-back/modules/billing/application/get_subscription"
@@ -37,10 +37,6 @@ var _ router.ModuleRegisterer = (*Module)(nil)
 // Deps holds all external dependencies wired by cmd/server/modules.go.
 type Deps struct {
 	DB *sql.DB
-
-	// AuthMiddleware is used to enforce role-based access control on checkout/portal.
-	// When nil (e.g. in tests that don't need role enforcement), RequireRole is skipped.
-	AuthMiddleware *authmw.AuthMiddleware
 
 	// Use case handlers (created in Phase 5, wired in Phase 8).
 	CheckoutHandler     *createcheckoutsession.Handler
@@ -107,12 +103,14 @@ func (m *Module) RegisterHTTPRoutes(r chi.Router) {
 // owner or admin role." In this system, org-level admins are represented by the ADMIN
 // JWT role; SUPER_ADMIN always has elevated access.
 //
-// When deps.AuthMiddleware is nil (unit tests that bypass auth entirely) the
-// middleware is a no-op, which matches the existing test setup pattern.
+// Role checking reads JWT claims from context (set by the global middleware.AuthMiddleware
+// singleton). When auth middleware is not applied (e.g. unit tests that bypass auth),
+// the roles slice will be empty and the middleware returns 403 — callers must inject
+// roles into context manually.
 func (m *Module) requireAdminOrSuperAdmin() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			roles, _ := r.Context().Value(authmw.UserRolesKey).([]string)
+			roles, _ := r.Context().Value(contextkeys.UserRolesKey).([]string)
 			for _, role := range roles {
 				if role == "ADMIN" || role == "SUPER_ADMIN" {
 					next.ServeHTTP(w, r)
@@ -178,7 +176,7 @@ func (m *Module) handleCheckout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = ctx.Value(authmw.UserIDKey) // userID available for future audit logging
+	_ = ctx.Value(contextkeys.UserIDKey) // userID available for future audit logging
 	orgID, orgEmail, orgName, err := m.resolveOrgContext(ctx, middleware.GetSubdomainFromContext(ctx))
 	if err != nil {
 		logger.Error("billing: failed to resolve org context", zap.Error(err))

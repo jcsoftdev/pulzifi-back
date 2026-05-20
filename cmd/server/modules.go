@@ -271,7 +271,6 @@ func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus 
 
 		billingMod := billing.NewModule(billing.Deps{
 			DB:                       db,
-			AuthMiddleware:           authMiddleware,
 			CheckoutHandler:          checkoutHandler,
 			PortalHandler:            portalHandler,
 			SubscriptionHandler:      subscriptionHandler,

@@ -13,7 +13,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	domerrors "github.com/jcsoftdev/pulzifi-back/modules/integration/domain/errors"
-	authmw "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/middleware"
 	bulkretrydeliveries "github.com/jcsoftdev/pulzifi-back/modules/integration/application/bulk_retry_deliveries"
 	connectbyo "github.com/jcsoftdev/pulzifi-back/modules/integration/application/connect_byo"
 	createdestination "github.com/jcsoftdev/pulzifi-back/modules/integration/application/create_destination"
@@ -32,6 +31,7 @@ import (
 	"github.com/jcsoftdev/pulzifi-back/modules/integration/domain/services"
 	intoauth "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/oauth"
 	"github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/persistence"
+	"github.com/jcsoftdev/pulzifi-back/shared/contextkeys"
 	"github.com/jcsoftdev/pulzifi-back/shared/featureflags"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
@@ -292,7 +292,7 @@ func (m *Module) handleStartOAuth(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	userIDStr, _ := r.Context().Value(authmw.UserIDKey).(string)
+	userIDStr, _ := r.Context().Value(contextkeys.UserIDKey).(string)
 	userID, _ := uuid.Parse(userIDStr)
 
 	redirectURI := strings.TrimRight(m.deps.OAuthRedirectBase, "/") +
@@ -573,7 +573,7 @@ func (m *Module) handleConnectBYO(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userIDStr, ok := ctx.Value(authmw.UserIDKey).(string)
+	userIDStr, ok := ctx.Value(contextkeys.UserIDKey).(string)
 	if !ok {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
 		return

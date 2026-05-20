@@ -8,8 +8,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	authmw "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/middleware"
 	emailservices "github.com/jcsoftdev/pulzifi-back/modules/email/domain/services"
+	"github.com/jcsoftdev/pulzifi-back/shared/contextkeys"
 	"github.com/jcsoftdev/pulzifi-back/modules/email/infrastructure/templates"
 	invitemember "github.com/jcsoftdev/pulzifi-back/modules/team/application/invite_member"
 	listmembers "github.com/jcsoftdev/pulzifi-back/modules/team/application/list_members"
@@ -73,7 +73,7 @@ func (m *Module) handleListMembers(w http.ResponseWriter, r *http.Request) {
 func (m *Module) handleInviteMember(w http.ResponseWriter, r *http.Request) {
 	subdomain := middleware.GetSubdomainFromContext(r.Context())
 
-	inviterIDStr, ok := r.Context().Value(authmw.UserIDKey).(string)
+	inviterIDStr, ok := r.Context().Value(contextkeys.UserIDKey).(string)
 	if !ok {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
 		return
@@ -111,7 +111,7 @@ func (m *Module) handleInviteMember(w http.ResponseWriter, r *http.Request) {
 
 	// Send invitation email (fire-and-forget)
 	go func() {
-		inviterEmail, _ := r.Context().Value(authmw.UserEmailKey).(string)
+		inviterEmail, _ := r.Context().Value(contextkeys.UserEmailKey).(string)
 		if inviterEmail == "" {
 			inviterEmail = "A team member"
 		}
@@ -169,7 +169,7 @@ func (m *Module) handleRemoveMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	requesterIDStr, ok := r.Context().Value(authmw.UserIDKey).(string)
+	requesterIDStr, ok := r.Context().Value(contextkeys.UserIDKey).(string)
 	if !ok {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
 		return
@@ -240,7 +240,7 @@ func (m *Module) handleResendInvite(w http.ResponseWriter, r *http.Request) {
 
 	// Send invitation email (fire-and-forget)
 	go func() {
-		inviterEmail, _ := r.Context().Value(authmw.UserEmailKey).(string)
+		inviterEmail, _ := r.Context().Value(contextkeys.UserEmailKey).(string)
 		if inviterEmail == "" {
 			inviterEmail = "A team member"
 		}

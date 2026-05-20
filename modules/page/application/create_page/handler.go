@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	authmw "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/middleware"
 	"github.com/jcsoftdev/pulzifi-back/modules/page/domain/entities"
+	"github.com/jcsoftdev/pulzifi-back/shared/contextkeys"
 	"github.com/jcsoftdev/pulzifi-back/modules/page/domain/repositories"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"go.uber.org/zap"
@@ -88,7 +88,7 @@ func (h *CreatePageHandler) HandleHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get user ID from context (set by auth middleware)
-	userIDStr, ok := r.Context().Value(authmw.UserIDKey).(string)
+	userIDStr, ok := r.Context().Value(contextkeys.UserIDKey).(string)
 	if !ok {
 		logger.Error("User ID not found in context")
 		http.Error(w, "unauthorized", http.StatusUnauthorized)

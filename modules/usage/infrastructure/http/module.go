@@ -11,7 +11,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	authmw "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/middleware"
+	"github.com/jcsoftdev/pulzifi-back/shared/contextkeys"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
 	"github.com/jcsoftdev/pulzifi-back/shared/router"
@@ -57,7 +57,7 @@ func (m *Module) RegisterHTTPRoutes(router chi.Router) {
 }
 
 func isSuperAdmin(r *http.Request) bool {
-	roles, ok := r.Context().Value(authmw.UserRolesKey).([]string)
+	roles, ok := r.Context().Value(contextkeys.UserRolesKey).([]string)
 	if !ok {
 		return false
 	}
@@ -384,7 +384,7 @@ func (m *Module) handleAssignOrganizationPlan(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	userID, _ := r.Context().Value(authmw.UserIDKey).(string)
+	userID, _ := r.Context().Value(contextkeys.UserIDKey).(string)
 
 	tx, err := m.db.BeginTx(r.Context(), nil)
 	if err != nil {

@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	authmw "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/middleware"
 	"github.com/jcsoftdev/pulzifi-back/modules/workspace/domain/entities"
+	"github.com/jcsoftdev/pulzifi-back/shared/contextkeys"
 	"github.com/jcsoftdev/pulzifi-back/modules/workspace/domain/repositories"
 	"github.com/jcsoftdev/pulzifi-back/modules/workspace/domain/value_objects"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
@@ -82,7 +82,7 @@ func (h *CreateWorkspaceHandler) HandleHTTP(w http.ResponseWriter, r *http.Reque
 	}
 
 	// Get user ID from context (set by auth middleware)
-	userIDStr, ok := r.Context().Value(authmw.UserIDKey).(string)
+	userIDStr, ok := r.Context().Value(contextkeys.UserIDKey).(string)
 	if !ok {
 		logger.Error("User ID not found in context")
 		http.Error(w, "unauthorized", http.StatusUnauthorized)

@@ -9,8 +9,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	authmw "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/middleware"
 	"github.com/jcsoftdev/pulzifi-back/modules/workspace/domain/value_objects"
+	"github.com/jcsoftdev/pulzifi-back/shared/contextkeys"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	sharedmw "github.com/jcsoftdev/pulzifi-back/shared/middleware"
 	"go.uber.org/zap"
@@ -89,7 +89,7 @@ func (m *WorkspaceAuthorizationMiddleware) extractRequestParams(w http.ResponseW
 		return uuid.Nil, uuid.Nil, "", err
 	}
 
-	userIDStr, ok := r.Context().Value(authmw.UserIDKey).(string)
+	userIDStr, ok := r.Context().Value(contextkeys.UserIDKey).(string)
 	if !ok {
 		m.unauthorized(w, errUserNotAuthenticated)
 		return uuid.Nil, uuid.Nil, "", errors.New("user not authenticated")

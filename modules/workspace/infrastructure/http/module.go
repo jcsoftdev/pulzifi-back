@@ -8,8 +8,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	authmw "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/middleware"
 	add_workspace_member "github.com/jcsoftdev/pulzifi-back/modules/workspace/application/add_workspace_member"
+	"github.com/jcsoftdev/pulzifi-back/shared/contextkeys"
 	createworkspace "github.com/jcsoftdev/pulzifi-back/modules/workspace/application/create_workspace"
 	delete_workspace "github.com/jcsoftdev/pulzifi-back/modules/workspace/application/delete_workspace"
 	getworkspace "github.com/jcsoftdev/pulzifi-back/modules/workspace/application/get_workspace"
@@ -361,7 +361,7 @@ func (m *Module) handleDeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 	// Get tenant and user ID from context
 	tenant := middleware.GetTenantFromContext(r.Context())
 
-	userIDStr, ok := r.Context().Value(authmw.UserIDKey).(string)
+	userIDStr, ok := r.Context().Value(contextkeys.UserIDKey).(string)
 	if !ok {
 		logger.Error("User ID not found in context")
 		w.Header().Set(contentTypeHeader, applicationJSON)
@@ -449,7 +449,7 @@ func (m *Module) handleAddWorkspaceMember(w http.ResponseWriter, r *http.Request
 	}
 
 	// Get inviter ID from context
-	inviterIDStr, ok := r.Context().Value(authmw.UserIDKey).(string)
+	inviterIDStr, ok := r.Context().Value(contextkeys.UserIDKey).(string)
 	if !ok {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
@@ -522,7 +522,7 @@ func (m *Module) handleListWorkspaceMembers(w http.ResponseWriter, r *http.Reque
 	}
 
 	// Get requester ID from context
-	requesterIDStr, ok := r.Context().Value(authmw.UserIDKey).(string)
+	requesterIDStr, ok := r.Context().Value(contextkeys.UserIDKey).(string)
 	if !ok {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
@@ -593,7 +593,7 @@ func (m *Module) handleRemoveWorkspaceMember(w http.ResponseWriter, r *http.Requ
 	}
 
 	// Get requester ID from context
-	requesterIDStr, ok := r.Context().Value(authmw.UserIDKey).(string)
+	requesterIDStr, ok := r.Context().Value(contextkeys.UserIDKey).(string)
 	if !ok {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
@@ -673,7 +673,7 @@ func (m *Module) handleUpdateMemberRole(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Get requester ID from context
-	requesterIDStr, ok := r.Context().Value(authmw.UserIDKey).(string)
+	requesterIDStr, ok := r.Context().Value(contextkeys.UserIDKey).(string)
 	if !ok {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return

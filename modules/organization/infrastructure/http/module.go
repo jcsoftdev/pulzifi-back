@@ -8,8 +8,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	authmw "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/middleware"
 	"github.com/jcsoftdev/pulzifi-back/modules/organization/application/get_current_organization"
+	"github.com/jcsoftdev/pulzifi-back/shared/contextkeys"
 	orgentities "github.com/jcsoftdev/pulzifi-back/modules/organization/domain/entities"
 	"github.com/jcsoftdev/pulzifi-back/modules/organization/domain/repositories"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
@@ -90,7 +90,7 @@ func (m *Module) handleCreateOrganization(w http.ResponseWriter, r *http.Request
 func (m *Module) handleListOrganizations(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", contentTypeJSON)
 
-	userIDStr, ok := r.Context().Value(authmw.UserIDKey).(string)
+	userIDStr, ok := r.Context().Value(contextkeys.UserIDKey).(string)
 	if !ok || userIDStr == "" {
 		w.WriteHeader(http.StatusUnauthorized)
 		json.NewEncoder(w).Encode(map[string]string{"error": "unauthorized"})
