@@ -1,0 +1,10 @@
+diff --git a/LexicalDecoratorBlockNode.prod.mjs b/LexicalDecoratorBlockNode.prod.mjs
+index d2b2b30782038ec3990b7fe29da0f6895ecef967..1d1d1b9fa9117059259420aba5b0588f6d6ea1de 100644
+--- a/LexicalDecoratorBlockNode.prod.mjs
++++ b/LexicalDecoratorBlockNode.prod.mjs
+@@ -6,4 +6,4 @@
+  *
+  */
+ 
+-import{DecoratorNode as t}from"lexical";class r extends t{__format;constructor(t,r){super(r),this.__format=t||""}exportJSON(){return{...super.exportJSON(),format:this.__format||""}}updateFromJSON(t){return super.updateFromJSON(t).setFormat(t.format||"")}canIndent(){return!1}createDOM(){return document.createElement("div")}updateDOM(){return!1}setFormat(t){const r=this.getWritable();return r.__format=t,r}isInline(){return!1}}function e(t){return t instanceof r}export{e as $isDecoratorBlockNode,r as DecoratorBlockNode};
++import{DecoratorNode as t}from"lexical";class r extends t{__format;constructor(n,s){super(s),this.__format=n||""}exportJSON(){return{...super.exportJSON(),format:this.__format||""}}updateFromJSON(n){return super.updateFromJSON(n).setFormat(n.format||"")}canIndent(){return!1}createDOM(){return document.createElement("div")}updateDOM(){return!1}setFormat(n){const s=this.getWritable();return s.__format=n,s}isInline(){return!1}}function e(n){return n instanceof r}export{e as $isDecoratorBlockNode,r as DecoratorBlockNode};
