@@ -61,6 +61,7 @@ import (
 	"github.com/jcsoftdev/pulzifi-back/shared/noncestore"
 	"github.com/jcsoftdev/pulzifi-back/shared/pubsub"
 	"github.com/jcsoftdev/pulzifi-back/shared/router"
+	adminwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/admin"
 	intwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/integration"
 	"go.uber.org/zap"
 )
@@ -217,14 +218,13 @@ func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus 
 	}{
 		{"Auth", authModule},
 		{"Admin", admin.NewModule(admin.ModuleDeps{
-			DB:             db,
-			RegReqRepo:     regReqRepo,
-			UserRepo:       userRepo,
-			OrgRepo:        orgRepo,
-			OrgService:     orgService,
-			AuthMiddleware: authMiddleware,
-			EmailProvider:  emailProvider,
-			FrontendURL:    cfg.FrontendURL,
+			RegReqRepo:           regReqRepo,
+			UserReader:           adminwiring.NewPendingUserAdapter(userRepo),
+			ApprovalProvisioner:  adminwiring.NewApprovalProvisioner(db, orgService),
+			RejectionProvisioner: adminwiring.NewRejectionProvisioner(db),
+			Notifier:             adminwiring.NewNotifierAdapter(emailProvider),
+			AuthMiddleware:       authMiddleware,
+			FrontendURL:          cfg.FrontendURL,
 		})},
 		{"Email", email.NewModule(emailProvider)},
 		{"Organization", organization.NewModule(orgRepo)},

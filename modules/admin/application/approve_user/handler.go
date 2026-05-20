@@ -2,46 +2,30 @@ package approveuser
 
 import (
 	"context"
-	"database/sql"
-	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/jcsoftdev/pulzifi-back/modules/admin/domain/entities"
 	adminerrors "github.com/jcsoftdev/pulzifi-back/modules/admin/domain/errors"
 	"github.com/jcsoftdev/pulzifi-back/modules/admin/domain/repositories"
-	authentities "github.com/jcsoftdev/pulzifi-back/modules/auth/domain/entities"
-	authrepos "github.com/jcsoftdev/pulzifi-back/modules/auth/domain/repositories"
-	orgentities "github.com/jcsoftdev/pulzifi-back/modules/organization/domain/entities"
-	orgrepos "github.com/jcsoftdev/pulzifi-back/modules/organization/domain/repositories"
-	orgservices "github.com/jcsoftdev/pulzifi-back/modules/organization/domain/services"
-	sharedDB "github.com/jcsoftdev/pulzifi-back/shared/database"
+	adminservices "github.com/jcsoftdev/pulzifi-back/modules/admin/domain/services"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"go.uber.org/zap"
 )
 
 // Handler handles user approval
 type Handler struct {
-	db         *sql.DB
-	regReqRepo repositories.RegistrationRequestRepository
-	userRepo   authrepos.UserRepository
-	orgRepo    orgrepos.OrganizationRepository
-	orgService *orgservices.OrganizationService
+	regReqRepo  repositories.RegistrationRequestRepository
+	provisioner adminservices.ApprovalProvisioner
 }
 
 // NewHandler creates a new handler instance
 func NewHandler(
-	db *sql.DB,
 	regReqRepo repositories.RegistrationRequestRepository,
-	userRepo authrepos.UserRepository,
-	orgRepo orgrepos.OrganizationRepository,
-	orgService *orgservices.OrganizationService,
+	provisioner adminservices.ApprovalProvisioner,
 ) *Handler {
 	return &Handler{
-		db:         db,
-		regReqRepo: regReqRepo,
-		userRepo:   userRepo,
-		orgRepo:    orgRepo,
-		orgService: orgService,
+		regReqRepo:  regReqRepo,
+		provisioner: provisioner,
 	}
 }
 
@@ -61,136 +45,13 @@ func (h *Handler) Handle(ctx context.Context, requestID uuid.UUID, reviewerID uu
 		return adminerrors.ErrAlreadyReviewed
 	}
 
-	// Execute everything in a transaction
-	tx, err := h.db.BeginTx(ctx, nil)
-	if err != nil {
-		logger.Error("Failed to begin transaction", zap.Error(err))
-		return err
-	}
-	defer tx.Rollback()
-
-	// 1. Update user status to approved
-	_, err = tx.ExecContext(ctx,
-		`UPDATE public.users SET status = $1, updated_at = NOW() WHERE id = $2`,
-		authentities.UserStatusApproved, regReq.UserID,
-	)
-	if err != nil {
-		logger.Error("Failed to update user status", zap.Error(err))
-		return err
-	}
-
-	// 2. Update registration request status to approved
-	_, err = tx.ExecContext(ctx,
-		`UPDATE public.registration_requests SET status = $1, reviewed_by = $2, reviewed_at = NOW(), updated_at = NOW() WHERE id = $3`,
-		entities.RegistrationStatusApproved, reviewerID, requestID,
-	)
-	if err != nil {
-		logger.Error("Failed to update registration request status", zap.Error(err))
-		return err
-	}
-
-	// 3. Create organization — or reuse if already approved for this subdomain
-	schemaName := h.orgService.GenerateSchemaName(regReq.OrganizationSubdomain)
-	var orgID uuid.UUID
-	orgAlreadyExisted := false
-
-	err = tx.QueryRowContext(ctx,
-		`SELECT id, schema_name FROM public.organizations WHERE subdomain = $1`,
-		regReq.OrganizationSubdomain,
-	).Scan(&orgID, &schemaName)
-
-	if err == sql.ErrNoRows {
-		// Org doesn't exist yet — create it
-		org := orgentities.NewOrganization(regReq.OrganizationName, regReq.OrganizationSubdomain, schemaName, regReq.UserID)
-		orgID = org.ID
-		_, err = tx.ExecContext(ctx,
-			`INSERT INTO public.organizations (id, name, subdomain, schema_name, owner_user_id, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-			org.ID, org.Name, org.Subdomain, org.SchemaName, org.OwnerUserID, org.CreatedAt, org.UpdatedAt,
-		)
-		if err != nil {
-			logger.Error("Failed to create organization", zap.Error(err))
-			return fmt.Errorf("failed to create organization: %w", err)
-		}
-	} else if err != nil {
-		logger.Error("Failed to check for existing organization", zap.Error(err))
-		return fmt.Errorf("failed to check organization: %w", err)
-	} else {
-		orgAlreadyExisted = true
-		logger.Info("Organization already exists, adding user as member",
-			zap.String("subdomain", regReq.OrganizationSubdomain),
-			zap.String("user_id", regReq.UserID.String()),
-		)
-	}
-
-	// 4. Insert organization member (owner if new org, MEMBER if joining an existing one)
-	memberRole := "owner"
-	if orgAlreadyExisted {
-		memberRole = "MEMBER"
-	}
-	_, err = tx.ExecContext(ctx,
-		`INSERT INTO public.organization_members (id, organization_id, user_id, role, joined_at)
-		 VALUES ($1, $2, $3, $4, NOW())
-		 ON CONFLICT (organization_id, user_id) DO NOTHING`,
-		uuid.New(), orgID, regReq.UserID, memberRole,
-	)
-	if err != nil {
-		logger.Error("Failed to create organization member", zap.Error(err))
-		return fmt.Errorf("failed to create organization member: %w", err)
-	}
-
-	// 5. Assign ADMIN role to user
-	var adminRoleID uuid.UUID
-	err = tx.QueryRowContext(ctx, `SELECT id FROM public.roles WHERE name = 'ADMIN' LIMIT 1`).Scan(&adminRoleID)
-	if err != nil {
-		logger.Error("Failed to find ADMIN role", zap.Error(err))
-		return fmt.Errorf("failed to find ADMIN role: %w", err)
-	}
-
-	_, err = tx.ExecContext(ctx,
-		`INSERT INTO public.user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-		regReq.UserID, adminRoleID,
-	)
-	if err != nil {
-		logger.Error("Failed to assign ADMIN role", zap.Error(err))
-		return fmt.Errorf("failed to assign role: %w", err)
-	}
-
-	// 6. Assign default (starter) plan to the organization (only if newly created)
-	_, err = tx.ExecContext(ctx,
-		`INSERT INTO public.organization_plans (id, organization_id, plan_id, status, started_at, created_at, updated_at)
-		 SELECT gen_random_uuid(), $1, id, 'active', NOW(), NOW(), NOW()
-		 FROM public.plans WHERE name = 'starter' LIMIT 1
-		 ON CONFLICT DO NOTHING`,
-		orgID,
-	)
-	if err != nil {
-		logger.Error("Failed to assign default plan", zap.Error(err))
-		return fmt.Errorf("failed to assign default plan: %w", err)
-	}
-
-	if err := tx.Commit(); err != nil {
-		logger.Error("Failed to commit approval transaction", zap.Error(err))
-		return err
-	}
-
-	// Provision tenant schema (DDL — must run outside the transaction)
-	// Skip if the org already existed — schema was already provisioned during the first approval
-	if !orgAlreadyExisted {
-		if err := sharedDB.ProvisionTenantSchema(h.db, schemaName); err != nil {
-			logger.Error("Failed to provision tenant schema after approval — manual migration may be needed",
-				zap.Error(err),
-				zap.String("schema", schemaName),
-			)
-		}
-	}
-
-	logger.Info("User approved successfully",
-		zap.String("user_id", regReq.UserID.String()),
-		zap.String("org_subdomain", regReq.OrganizationSubdomain),
-		zap.String("schema_name", schemaName),
-	)
-
-	return nil
+	return h.provisioner.Provision(ctx, adminservices.ApprovalInput{
+		UserID:                regReq.UserID,
+		OrganizationName:      regReq.OrganizationName,
+		OrganizationSubdomain: regReq.OrganizationSubdomain,
+		ReviewerID:            reviewerID,
+		RequestID:             requestID,
+	})
 }
 
 // GetRegistrationRequest retrieves a registration request by ID.

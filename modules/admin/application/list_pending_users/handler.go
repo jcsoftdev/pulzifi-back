@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/jcsoftdev/pulzifi-back/modules/admin/domain/repositories"
-	authrepos "github.com/jcsoftdev/pulzifi-back/modules/auth/domain/repositories"
+	adminservices "github.com/jcsoftdev/pulzifi-back/modules/admin/domain/services"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"go.uber.org/zap"
 )
@@ -12,14 +12,14 @@ import (
 // Handler handles listing pending user registrations
 type Handler struct {
 	regReqRepo repositories.RegistrationRequestRepository
-	userRepo   authrepos.UserRepository
+	userReader adminservices.PendingUserReader
 }
 
 // NewHandler creates a new handler instance
-func NewHandler(regReqRepo repositories.RegistrationRequestRepository, userRepo authrepos.UserRepository) *Handler {
+func NewHandler(regReqRepo repositories.RegistrationRequestRepository, userReader adminservices.PendingUserReader) *Handler {
 	return &Handler{
 		regReqRepo: regReqRepo,
-		userRepo:   userRepo,
+		userReader: userReader,
 	}
 }
 
@@ -33,7 +33,7 @@ func (h *Handler) Handle(ctx context.Context, limit, offset int) (*Response, err
 
 	var pendingUsers []PendingUserResponse
 	for _, req := range requests {
-		user, err := h.userRepo.GetByID(ctx, req.UserID)
+		user, err := h.userReader.GetByID(ctx, req.UserID)
 		if err != nil {
 			logger.Error("Failed to get user for pending request", zap.Error(err), zap.String("user_id", req.UserID.String()))
 			continue

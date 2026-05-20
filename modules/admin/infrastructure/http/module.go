@@ -1,7 +1,6 @@
 package http
 
 import (
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -14,12 +13,8 @@ import (
 	rejectuser "github.com/jcsoftdev/pulzifi-back/modules/admin/application/reject_user"
 	adminerrors "github.com/jcsoftdev/pulzifi-back/modules/admin/domain/errors"
 	"github.com/jcsoftdev/pulzifi-back/modules/admin/domain/repositories"
-	authrepos "github.com/jcsoftdev/pulzifi-back/modules/auth/domain/repositories"
-	emailservices "github.com/jcsoftdev/pulzifi-back/modules/email/domain/services"
+	adminservices "github.com/jcsoftdev/pulzifi-back/modules/admin/domain/services"
 	"github.com/jcsoftdev/pulzifi-back/shared/contextkeys"
-	"github.com/jcsoftdev/pulzifi-back/modules/email/infrastructure/templates"
-	orgrepos "github.com/jcsoftdev/pulzifi-back/modules/organization/domain/repositories"
-	orgservices "github.com/jcsoftdev/pulzifi-back/modules/organization/domain/services"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
 	"github.com/jcsoftdev/pulzifi-back/shared/router"
@@ -31,30 +26,29 @@ type Module struct {
 	approveHandler     *approveuser.Handler
 	rejectHandler      *rejectuser.Handler
 	authMiddleware     middleware.AuthVerifier
-	emailProvider      emailservices.EmailProvider
-	userRepo           authrepos.UserRepository
+	notifier           adminservices.RegistrationNotifier
+	userReader         adminservices.PendingUserReader
 	frontendURL        string
 }
 
 type ModuleDeps struct {
-	DB             *sql.DB
-	RegReqRepo     repositories.RegistrationRequestRepository
-	UserRepo       authrepos.UserRepository
-	OrgRepo        orgrepos.OrganizationRepository
-	OrgService     *orgservices.OrganizationService
-	AuthMiddleware middleware.AuthVerifier
-	EmailProvider  emailservices.EmailProvider
-	FrontendURL    string
+	RegReqRepo          repositories.RegistrationRequestRepository
+	UserReader          adminservices.PendingUserReader
+	ApprovalProvisioner adminservices.ApprovalProvisioner
+	RejectionProvisioner adminservices.RejectionProvisioner
+	Notifier            adminservices.RegistrationNotifier
+	AuthMiddleware      middleware.AuthVerifier
+	FrontendURL         string
 }
 
 func NewModule(deps ModuleDeps) router.ModuleRegisterer {
 	return &Module{
-		listPendingHandler: listpendingusers.NewHandler(deps.RegReqRepo, deps.UserRepo),
-		approveHandler:     approveuser.NewHandler(deps.DB, deps.RegReqRepo, deps.UserRepo, deps.OrgRepo, deps.OrgService),
-		rejectHandler:      rejectuser.NewHandler(deps.DB, deps.RegReqRepo, deps.UserRepo),
+		listPendingHandler: listpendingusers.NewHandler(deps.RegReqRepo, deps.UserReader),
+		approveHandler:     approveuser.NewHandler(deps.RegReqRepo, deps.ApprovalProvisioner),
+		rejectHandler:      rejectuser.NewHandler(deps.RegReqRepo, deps.RejectionProvisioner),
 		authMiddleware:     deps.AuthMiddleware,
-		emailProvider:      deps.EmailProvider,
-		userRepo:           deps.UserRepo,
+		notifier:           deps.Notifier,
+		userReader:         deps.UserReader,
 		frontendURL:        deps.FrontendURL,
 	}
 }
@@ -123,14 +117,12 @@ func (m *Module) handleApproveUser(w http.ResponseWriter, r *http.Request) {
 			logger.Error("Failed to get reg request for email", zap.Error(err))
 			return
 		}
-		user, err := m.userRepo.GetByID(r.Context(), regReq.UserID)
+		user, err := m.userReader.GetByID(r.Context(), regReq.UserID)
 		if err != nil || user == nil {
 			logger.Error("Failed to get user for approval email", zap.Error(err))
 			return
 		}
-		loginURL := m.frontendURL
-		subject, html := templates.ApprovalNotification(user.FirstName, regReq.OrganizationSubdomain, loginURL)
-		if err := m.emailProvider.Send(r.Context(), user.Email, subject, html); err != nil {
+		if err := m.notifier.SendApproval(r.Context(), user.Email, user.FirstName, regReq.OrganizationSubdomain, m.frontendURL); err != nil {
 			logger.Error("Failed to send approval email", zap.Error(err))
 		}
 	}()
@@ -170,13 +162,12 @@ func (m *Module) handleRejectUser(w http.ResponseWriter, r *http.Request) {
 			logger.Error("Failed to get reg request for rejection email", zap.Error(err))
 			return
 		}
-		user, err := m.userRepo.GetByID(r.Context(), regReq.UserID)
+		user, err := m.userReader.GetByID(r.Context(), regReq.UserID)
 		if err != nil || user == nil {
 			logger.Error("Failed to get user for rejection email", zap.Error(err))
 			return
 		}
-		subject, html := templates.RejectionNotification(user.FirstName)
-		if err := m.emailProvider.Send(r.Context(), user.Email, subject, html); err != nil {
+		if err := m.notifier.SendRejection(r.Context(), user.Email, user.FirstName); err != nil {
 			logger.Error("Failed to send rejection email", zap.Error(err))
 		}
 	}()
