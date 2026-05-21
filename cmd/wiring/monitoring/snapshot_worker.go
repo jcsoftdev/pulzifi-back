@@ -52,7 +52,7 @@ func NewSnapshotWorker(deps SnapshotWorkerDeps) (*snapshotapp.SnapshotWorker, er
 		}
 	}
 
-	extractorHTTPClient := snapshotextractor.NewHTTPClient(cfg.ExtractorURL)
+	extractorHTTPClient := snapshotextractor.NewHTTPClientWithKey(cfg.ExtractorURL, cfg.ExtractorAPIKey)
 
 	// Build snapshot port adapters via the snapshotwiring package.
 	extractorClient := snapshotwiring.NewExtractorClient(extractorHTTPClient)

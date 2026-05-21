@@ -80,13 +80,21 @@ type PreviewViewport struct {
 
 type HTTPClient struct {
 	baseURL         string
+	apiKey          string
 	httpClient      *http.Client
 	streamingClient *http.Client
 }
 
 func NewHTTPClient(baseURL string) *HTTPClient {
+	return NewHTTPClientWithKey(baseURL, "")
+}
+
+// NewHTTPClientWithKey creates an HTTPClient that sets X-API-Key on every
+// request. Use this in production where EXTRACTOR_API_KEY is configured.
+func NewHTTPClientWithKey(baseURL, apiKey string) *HTTPClient {
 	return &HTTPClient{
 		baseURL: baseURL,
+		apiKey:  apiKey,
 		httpClient: &http.Client{
 			Timeout: 120 * time.Second,
 		},
@@ -96,6 +104,13 @@ func NewHTTPClient(baseURL string) *HTTPClient {
 		streamingClient: &http.Client{
 			Timeout: 0,
 		},
+	}
+}
+
+// setAuthHeader attaches the X-API-Key header when an API key is configured.
+func (c *HTTPClient) setAuthHeader(req *http.Request) {
+	if c.apiKey != "" {
+		req.Header.Set("X-API-Key", c.apiKey)
 	}
 }
 
@@ -136,6 +151,7 @@ func (c *HTTPClient) Extract(ctx context.Context, url string, opts ExtractOption
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	c.setAuthHeader(req)
 
 	var lastErr error
 	for attempt := 0; attempt < 3; attempt++ {
@@ -151,6 +167,7 @@ func (c *HTTPClient) Extract(ctx context.Context, url string, opts ExtractOption
 				return nil, err
 			}
 			req.Header.Set("Content-Type", "application/json")
+			c.setAuthHeader(req)
 		}
 
 		var resp *http.Response
@@ -199,6 +216,7 @@ func (c *HTTPClient) Preview(ctx context.Context, url string, blockAdsCookies bo
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	c.setAuthHeader(req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -242,6 +260,7 @@ func (c *HTTPClient) PreviewStream(ctx context.Context, url string, blockAdsCook
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	c.setAuthHeader(req)
 
 	resp, err := c.streamingClient.Do(req)
 	if err != nil {

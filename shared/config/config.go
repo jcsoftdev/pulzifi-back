@@ -64,7 +64,8 @@ type Config struct {
 	CloudinaryFolder      string
 
 	// Extractor
-	ExtractorURL string
+	ExtractorURL    string
+	ExtractorAPIKey string // EXTRACTOR_API_KEY — must match scraper's SCRAPER_API_KEY
 
 	// AI / OpenRouter
 	OpenRouterAPIKey     string
@@ -176,6 +177,7 @@ func Load() *Config {
 		CloudinaryAPISecret:   getEnv("CLOUDINARY_API_SECRET", ""),
 		CloudinaryFolder:      getEnv("CLOUDINARY_FOLDER", ""),
 		ExtractorURL:          mustGetEnv("EXTRACTOR_URL"),
+		ExtractorAPIKey:       getEnv("EXTRACTOR_API_KEY", ""),
 		OpenRouterAPIKey:       getEnv("OPENROUTER_API_KEY", ""),
 		OpenRouterModel:        getEnv("OPENROUTER_MODEL", "mistralai/mistral-7b-instruct:free"),
 		OpenRouterVisionModel:  getEnv("OPENROUTER_VISION_MODEL", ""),
