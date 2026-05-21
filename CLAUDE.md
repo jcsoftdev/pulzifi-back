@@ -36,6 +36,16 @@ go test -v -run TestName ./path/...  # Run a single test
 go test -race ./...                  # Run with race detector
 ```
 
+### Quality Gate
+```bash
+golangci-lint run ./...                                         # Run all linters locally (matches CI)
+COVERAGE_FLOOR=15 ./tools/scripts/coverage-gate.sh c.out       # Check coverage floor locally
+```
+
+Coverage ratchet plan (edit `COVERAGE_FLOOR` in `.github/workflows/ci.yml`): **15 → 20 → 30 → 50 → 70**
+
+Lint is warn-only (`continue-on-error: true`) in v1. Flip to `false` after triage + cleanup.
+
 ### Frontend (from `frontend/` directory)
 ```bash
 bun dev            # Start Next.js dev server on :3001

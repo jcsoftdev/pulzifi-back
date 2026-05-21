@@ -1,0 +1,105 @@
+name: CI / Quality Gate
+# Ratchet plan (single-line edit at COVERAGE_FLOOR):
+#   15 -> 20 -> 30 -> 50 -> 70
+# Lift after each completed coverage push.
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: ['**']
+
+permissions:
+  contents: read
+
+env:
+  COVERAGE_FLOOR: "15"
+
+jobs:
+  vet:
+    name: Go vet
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: go vet ./...
+
+  lint:
+    name: golangci-lint
+    runs-on: ubuntu-latest
+    continue-on-error: true  # v1 warn-only; flip to false after lint cleanup (see tasks)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          args: --timeout=5m
+
+  arch:
+    name: Hexagonal architecture
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - run: bash tools/scripts/check-architecture.sh
+
+  test:
+    name: Tests + coverage gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: go test -race -coverprofile
+        run: go test -race -coverprofile=coverage.out ./...
+      - name: Coverage gate
+        env:
+          COVERAGE_FLOOR: ${{ env.COVERAGE_FLOOR }}
+        run: bash tools/scripts/coverage-gate.sh coverage.out
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-out
+          path: coverage.out
+          retention-days: 14
+
+  frontend:
+    name: Frontend lint + types
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Cache bun deps
+        uses: actions/cache@v4
+        with:
+          path: frontend/node_modules
+          key: ${{ runner.os }}-bun-${{ hashFiles('frontend/bun.lockb') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+      - name: Cache turbo
+        uses: actions/cache@v4
+        with:
+          path: frontend/.turbo
+          key: ${{ runner.os }}-turbo-${{ hashFiles('frontend/**/*.{ts,tsx,json}') }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-
+      - run: bun install --frozen-lockfile
+      - run: bun run lint
+      - run: bun run type-check
