@@ -4,23 +4,36 @@ import { ExtractPageHandler } from "../../application/extract-page/handler";
 import { PreviewPageHandler } from "../../application/preview-page/handler";
 import { HealthCheckHandler } from "../../application/health-check/handler";
 import { ScraperError } from "../../domain/errors/scraper-errors";
+import { validateUrl, UrlValidationError } from "../../domain/security/url-validator";
+import { bodyLimitMiddleware } from "./middleware/body-limit";
+import { apiKeyAuthMiddleware } from "./middleware/api-key-auth";
 import type { ExtractPageRequest } from "../../application/extract-page/request";
 import type { PreviewPageRequest } from "../../application/preview-page/request";
 import { log, logError, createRequestId, createTimer } from "../logger";
+
+/** Maximum body size for /extract and /preview — 16 KB is plenty for URL + options. */
+const MAX_BODY_BYTES = 16 * 1024;
 
 export function createApp(
   extractHandler: ExtractPageHandler,
   previewHandler: PreviewPageHandler,
   healthHandler: HealthCheckHandler,
+  scraperApiKey?: string,
 ): Hono {
   const app = new Hono();
 
-  // Health check
+  // Health check — no auth required
   app.get("/health", (c) => {
     const result = healthHandler.handle();
     const status = result.status === "ok" ? 200 : 503;
     return c.json(result, status);
   });
+
+  // Apply body size limit and API key auth to all POST endpoints
+  app.use("/extract", bodyLimitMiddleware(MAX_BODY_BYTES));
+  app.use("/extract", apiKeyAuthMiddleware(scraperApiKey));
+  app.use("/preview", bodyLimitMiddleware(MAX_BODY_BYTES));
+  app.use("/preview", apiKeyAuthMiddleware(scraperApiKey));
 
   // Extract endpoint
   app.post("/extract", async (c) => {
@@ -31,6 +44,17 @@ export function createApp(
     if (!body.url) {
       log("http", "extract request missing url", { reqId });
       return c.json({ error: "url is required" }, 400);
+    }
+
+    // SSRF protection
+    try {
+      await validateUrl(body.url);
+    } catch (err) {
+      if (err instanceof UrlValidationError) {
+        log("http", "extract request blocked: forbidden URL", { reqId, url: body.url });
+        return c.json({ error: "forbidden URL" }, 400);
+      }
+      throw err;
     }
 
     const sectionsCount = body.sections?.length ?? 0;
@@ -75,6 +99,17 @@ export function createApp(
     if (!body.url) {
       log("http", "preview request missing url", { reqId });
       return c.json({ error: "url is required" }, 400);
+    }
+
+    // SSRF protection
+    try {
+      await validateUrl(body.url);
+    } catch (err) {
+      if (err instanceof UrlValidationError) {
+        log("http", "preview request blocked: forbidden URL", { reqId, url: body.url });
+        return c.json({ error: "forbidden URL" }, 400);
+      }
+      throw err;
     }
 
     const accept = c.req.header("Accept") || "";

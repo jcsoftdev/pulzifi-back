@@ -7,6 +7,7 @@ import { PreviewPageHandler } from "./src/application/preview-page/handler";
 import { HealthCheckHandler } from "./src/application/health-check/handler";
 
 const PORT = parseInt(process.env.PORT || "3000", 10);
+const SCRAPER_API_KEY = process.env.SCRAPER_API_KEY || "";
 
 async function main() {
   console.log("[scraper] Starting...");
@@ -21,8 +22,8 @@ async function main() {
   const previewHandler = new PreviewPageHandler(browserService);
   const healthHandler = new HealthCheckHandler(browserService);
 
-  // Create HTTP app
-  const app = createApp(extractHandler, previewHandler, healthHandler);
+  // Create HTTP app — pass API key for service-to-service auth
+  const app = createApp(extractHandler, previewHandler, healthHandler, SCRAPER_API_KEY);
 
   // Start server
   const server = serve({

@@ -253,7 +253,7 @@ func registerAllModulesInternal(
 		{"Email", email.NewModule(emailProvider)},
 		{"Organization", organization.NewModule(orgRepo)},
 		{"Workspace", workspace.NewModuleWithDB(db)},
-		{"Page", page.NewModuleWithExtractor(db, pagewiring.NewExtractorPreviewStreamerAdapter(snapshotextractor.NewHTTPClient(cfg.ExtractorURL)))},
+		{"Page", page.NewModuleWithExtractor(db, pagewiring.NewExtractorPreviewStreamerAdapter(snapshotextractor.NewHTTPClientWithKey(cfg.ExtractorURL, cfg.ExtractorAPIKey)))},
 		{"Alert", func() router.ModuleRegisterer {
 			m := alert.NewModuleWithDB(db)
 			if am, ok := m.(*alert.Module); ok {
