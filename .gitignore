@@ -24,6 +24,12 @@ migrate
 *.so
 .exe
 
+# Frontend build artifacts
+**/.next/
+**/.turbo/
+**/out/
+frontend/apps/web/.env.local
+
 # Go
 go.mod.lock
 
@@ -99,3 +105,11 @@ modules/*/docs/
 
 # Local Go build output (entry-point binaries at repo root)
 /server
+/pulzifi-monolith
+/pulzifi-worker
+
+# Air hot-reload build cache
+tmp/
+volume/tmp/
+build-errors.log
+build-errors-worker.log
