@@ -13,6 +13,7 @@ import (
 	giftmonth "github.com/jcsoftdev/pulzifi-back/modules/usage/application/gift_month"
 	listorgs "github.com/jcsoftdev/pulzifi-back/modules/usage/application/list_organizations_with_plans"
 	listplans "github.com/jcsoftdev/pulzifi-back/modules/usage/application/list_plans"
+	trialstatus "github.com/jcsoftdev/pulzifi-back/modules/usage/application/trial_status"
 	"github.com/jcsoftdev/pulzifi-back/shared/contextkeys"
 	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
 	"github.com/jcsoftdev/pulzifi-back/shared/router"
@@ -20,13 +21,14 @@ import (
 
 // ModuleDeps carries all dependencies for the Usage module.
 type ModuleDeps struct {
-	DB                *sql.DB
-	GetMetricsHandler *getmetrics.Handler
-	GetQuotasHandler  *getquotas.Handler
-	ListPlansHandler  *listplans.Handler
-	ListOrgsHandler   *listorgs.Handler
-	AssignPlanHandler *assignplan.Handler
-	GiftMonthHandler  *giftmonth.Handler
+	DB                 *sql.DB
+	GetMetricsHandler  *getmetrics.Handler
+	GetQuotasHandler   *getquotas.Handler
+	ListPlansHandler   *listplans.Handler
+	ListOrgsHandler    *listorgs.Handler
+	AssignPlanHandler  *assignplan.Handler
+	GiftMonthHandler   *giftmonth.Handler
+	TrialStatusHandler *trialstatus.Handler
 }
 
 // Module implements the router.ModuleRegisterer interface for the Usage module.
@@ -46,6 +48,13 @@ func NewModuleWithDB(db *sql.DB) router.ModuleRegisterer {
 	return &Module{deps: ModuleDeps{DB: db}}
 }
 
+// NewModuleWithTrial creates a Usage module with the trial-status handler
+// wired in. The other use cases stay nil-defaulted (handlers fall back to
+// the existing mock responses) so this constructor is safe to drop in.
+func NewModuleWithTrial(db *sql.DB, trialStatusHandler *trialstatus.Handler) router.ModuleRegisterer {
+	return &Module{deps: ModuleDeps{DB: db, TrialStatusHandler: trialStatusHandler}}
+}
+
 // ModuleName returns the name of the module.
 func (m *Module) ModuleName() string {
 	return "Usage"
@@ -58,6 +67,7 @@ func (m *Module) RegisterHTTPRoutes(r chi.Router) {
 		r.Use(middleware.OrgMiddleware.RequireOrganizationMembership)
 		r.Get("/metrics", m.handleGetMetrics)
 		r.Get("/quotas", m.handleGetQuotas)
+		r.Get("/trial-status", m.handleTrialStatus)
 	})
 
 	r.Route("/usage/admin", func(r chi.Router) {
@@ -199,6 +209,31 @@ func (m *Module) handleAssignOrganizationPlan(w http.ResponseWriter, r *http.Req
 		"plan_code":              resp.PlanCode,
 		"checks_allowed_monthly": resp.ChecksAllowedMonthly,
 	})
+}
+
+func (m *Module) handleTrialStatus(w http.ResponseWriter, r *http.Request) {
+	if m.deps.TrialStatusHandler == nil {
+		// Backwards-compat path: trial isn't wired in yet, surface a benign default.
+		writeJSON(w, http.StatusOK, map[string]interface{}{
+			"is_trial":       false,
+			"is_expired":     false,
+			"needs_upgrade":  false,
+			"converted":      false,
+			"days_remaining": 0,
+		})
+		return
+	}
+	subdomain := middleware.GetSubdomainFromContext(r.Context())
+	if subdomain == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "tenant required"})
+		return
+	}
+	resp, err := m.deps.TrialStatusHandler.Handle(r.Context(), &trialstatus.Request{Subdomain: subdomain})
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to load trial status"})
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func (m *Module) handleGiftMonth(w http.ResponseWriter, r *http.Request) {

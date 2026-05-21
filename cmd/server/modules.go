@@ -54,6 +54,8 @@ import (
 	snapshotextractor "github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/extractor"
 	team "github.com/jcsoftdev/pulzifi-back/modules/team/infrastructure/http"
 	usage "github.com/jcsoftdev/pulzifi-back/modules/usage/infrastructure/http"
+	trialstatus "github.com/jcsoftdev/pulzifi-back/modules/usage/application/trial_status"
+	usagepersistence "github.com/jcsoftdev/pulzifi-back/modules/usage/infrastructure/persistence"
 	workspace "github.com/jcsoftdev/pulzifi-back/modules/workspace/infrastructure/http"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/bff"
 	"github.com/jcsoftdev/pulzifi-back/shared/config"
@@ -285,7 +287,10 @@ func registerAllModulesInternal(
 			func(tenant string) insightservices.PageConfigReader { return insightwiring.NewPageConfigReaderAdapter(db, tenant) },
 		)},
 		{"Report", report.NewModuleWithDB(db)},
-		{"Usage", usage.NewModuleWithDB(db)},
+		{"Usage", func() router.ModuleRegisterer {
+			trialReader := usagepersistence.NewTrialPlanPostgresReader(db)
+			return usage.NewModuleWithTrial(db, trialstatus.NewHandler(trialReader))
+		}()},
 		{"Dashboard", dashboard.NewModuleWithDB(db)},
 		{"Team", team.NewModuleWithDB(
 			db,

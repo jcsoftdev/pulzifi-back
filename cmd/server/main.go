@@ -220,6 +220,12 @@ func main() {
 	// Add logging middleware AFTER tenant middleware to capture tenant in logs
 	v1Router.Use(middlewarex.LoggingMiddleware)
 
+	// Trial guard: when the active org plan is the trial plan and trial_ends_at
+	// has elapsed without a converted_at, all writes (except /billing/checkout)
+	// receive HTTP 402 Payment Required. Reads always pass.
+	trialGuard := middlewarex.NewTrialGuard(middlewarex.NewPostgresTrialPlanReader(db))
+	v1Router.Use(trialGuard.Handler)
+
 	// Setup Swagger UI on v1 router (bypassed by isPublicPath)
 	swagger.SetupSwaggerForChi(v1Router)
 
