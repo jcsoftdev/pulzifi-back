@@ -288,18 +288,25 @@ See `shared/config/config.go` and `.env.example` for all 43+ variables. Critical
 
 ### Architecture Improvements & Scaling Strategy
 
-#### Cross-Module Dependency Violations
+#### Cross-Module Adapter Pattern
 
-Several modules import directly from other modules' infrastructure layers, violating the hexagonal boundary:
-- `monitoring` imports from `insight`, `snapshot`, `email` infrastructure
-- `insight` imports from `monitoring` infrastructure (persistence repos)
-- `admin` imports from `auth`, `email`, `organization` infrastructure
-- `auth` imports from `admin`, `email`, `organization` infrastructure
-- `team` imports from `auth`, `email` infrastructure
+No file under `modules/*` may import another module's package. Cross-module dependencies belong in `cmd/wiring/{module}/` adapters, injected at startup.
 
-The `integration` module is the most recent example of the **correct approach**: cross-module adapters live in `cmd/wiring/integration/` and are injected at startup, so the module itself only depends on its own interfaces.
+All 9 wiring packages are in place:
 
-**Recommended fix for others:** Define shared interfaces in `shared/` or use a `cmd/wiring/{module}/` adapter package. Wire implementations via dependency injection in `cmd/server/modules.go`.
+| Package | Purpose |
+|---------|---------|
+| `cmd/wiring/admin` | Approval/rejection provisioning, pending-user and notifier adapters |
+| `cmd/wiring/auth` | Organization directory, registration writer, and notifier adapters |
+| `cmd/wiring/billing` | Plan assigner — resolves org from Stripe customer ID and upserts `organization_plans` |
+| `cmd/wiring/insight` | Monitoring adapter — feeds monitoring data to the insight generator |
+| `cmd/wiring/integration` | Email, org-context lookup, org-guard, plan lookup, quota tracker, and tenant repo factory adapters |
+| `cmd/wiring/monitoring` | Snapshot worker adapter — bridges monitoring scheduler to snapshot execution |
+| `cmd/wiring/page` | Extractor adapter — wraps the Playwright scraper HTTP client for page checks |
+| `cmd/wiring/snapshot` | Alert creator, check repo, extractor client, insight dispatcher, monitoring reader, emailer, and vision analyzer adapters |
+| `cmd/wiring/team` | Auth and email adapters for team invitation flows |
+
+`check-architecture.sh` enforces this boundary; run `make check-arch` to verify.
 
 #### Modules Needing Refactoring
 

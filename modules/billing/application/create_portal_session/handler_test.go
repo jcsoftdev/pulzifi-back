@@ -3,13 +3,58 @@ package createportalsession
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/jcsoftdev/pulzifi-back/modules/billing/domain/entities"
 	billingmocks "github.com/jcsoftdev/pulzifi-back/modules/billing/domain/services/mocks"
-	"github.com/jcsoftdev/pulzifi-back/modules/billing/infrastructure/persistence/inmem"
 )
+
+// fakeCustomerRepo is a local in-memory CustomerRepository for this test file.
+// It avoids importing modules/billing/infrastructure/persistence/inmem from the
+// application layer (which violates the application→infrastructure boundary).
+type fakeCustomerRepo struct {
+	mu         sync.RWMutex
+	byOrg      map[uuid.UUID]*entities.Customer
+	byStripeID map[string]*entities.Customer
+}
+
+func newFakeCustomerRepo() *fakeCustomerRepo {
+	return &fakeCustomerRepo{
+		byOrg:      make(map[uuid.UUID]*entities.Customer),
+		byStripeID: make(map[string]*entities.Customer),
+	}
+}
+
+func (r *fakeCustomerRepo) FindByOrgID(_ context.Context, orgID uuid.UUID) (*entities.Customer, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	if c, ok := r.byOrg[orgID]; ok {
+		cp := *c
+		return &cp, nil
+	}
+	return nil, nil
+}
+
+func (r *fakeCustomerRepo) FindByStripeCustomerID(_ context.Context, customerID string) (*entities.Customer, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	if c, ok := r.byStripeID[customerID]; ok {
+		cp := *c
+		return &cp, nil
+	}
+	return nil, nil
+}
+
+func (r *fakeCustomerRepo) Save(_ context.Context, customer *entities.Customer) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	cp := *customer
+	r.byOrg[customer.OrgID] = &cp
+	r.byStripeID[customer.StripeCustomerID] = &cp
+	return nil
+}
 
 func TestCreatePortalSessionHandler_Handle(t *testing.T) {
 	const (
@@ -21,7 +66,7 @@ func TestCreatePortalSessionHandler_Handle(t *testing.T) {
 	orgID := uuid.New()
 
 	t.Run("returns portal URL when org has a stripe customer", func(t *testing.T) {
-		customerRepo := inmem.NewCustomerRepo()
+		customerRepo := newFakeCustomerRepo()
 		_ = customerRepo.Save(context.Background(), &entities.Customer{
 			OrgID:            orgID,
 			StripeCustomerID: customerID,
@@ -49,7 +94,7 @@ func TestCreatePortalSessionHandler_Handle(t *testing.T) {
 	})
 
 	t.Run("returns ErrNoStripeCustomer when org has no customer record", func(t *testing.T) {
-		customerRepo := inmem.NewCustomerRepo() // empty — org not registered
+		customerRepo := newFakeCustomerRepo() // empty — org not registered
 		gw := &billingmocks.MockStripeGateway{}
 		h := NewHandler(gw, customerRepo)
 
@@ -67,7 +112,7 @@ func TestCreatePortalSessionHandler_Handle(t *testing.T) {
 	})
 
 	t.Run("propagates gateway error from CreatePortalSession", func(t *testing.T) {
-		customerRepo := inmem.NewCustomerRepo()
+		customerRepo := newFakeCustomerRepo()
 		_ = customerRepo.Save(context.Background(), &entities.Customer{
 			OrgID:            orgID,
 			StripeCustomerID: customerID,
