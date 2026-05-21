@@ -37,7 +37,7 @@ type PageConfigReaderFactory func(tenant string) insightservices.PageConfigReade
 type Module struct {
 	db                    *sql.DB
 	insightHandler        *generateinsights.GenerateInsightsHandler
-	broker                *pubsub.InsightBroker
+	broker                pubsub.InsightBroker
 	checkReaderFactory    CheckReaderFactory
 	pageConfigFactory     PageConfigReaderFactory
 }
@@ -48,14 +48,14 @@ func NewModule() router.ModuleRegisterer {
 }
 
 // NewModuleWithDB creates a new instance with database connection and pub/sub broker.
-func NewModuleWithDB(db *sql.DB, broker *pubsub.InsightBroker) router.ModuleRegisterer {
+func NewModuleWithDB(db *sql.DB, broker pubsub.InsightBroker) router.ModuleRegisterer {
 	return &Module{db: db, broker: broker}
 }
 
 // NewModuleWithDeps creates an instance with cross-module reader factories injected.
 func NewModuleWithDeps(
 	db *sql.DB,
-	broker *pubsub.InsightBroker,
+	broker pubsub.InsightBroker,
 	checkReaderFactory CheckReaderFactory,
 	pageConfigFactory PageConfigReaderFactory,
 ) router.ModuleRegisterer {

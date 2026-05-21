@@ -77,7 +77,15 @@ func createEmailProvider(cfg *config.Config) emailservices.EmailProvider {
 	return emailproviders.NewResendProvider(cfg.ResendAPIKey, cfg.EmailFromAddress, cfg.EmailFromName)
 }
 
-func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus *eventbus.EventBus, enableWorkers bool) (*bff.Handler, *integration.Module) {
+func registerAllModulesInternal(
+	registry *router.Registry,
+	db *sql.DB,
+	eventBus *eventbus.EventBus,
+	enableWorkers bool,
+	nonceStore noncestore.NonceStore,
+	checkBroker pubsub.CheckBroker,
+	insightBroker pubsub.InsightBroker,
+) (*bff.Handler, *integration.Module) {
 	cfg := config.Load()
 
 	userRepo := authpersistence.NewUserPostgresRepository(db)
@@ -263,12 +271,13 @@ func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus 
 					DB:               db,
 					EventBus:         eventBus,
 					SnapshotExecutor: snapshotWorker,
+					CheckBroker:      checkBroker,
 				})
 			}()},
 		{"Integration", integrationMod},
 		{"Insight", insight.NewModuleWithDeps(
 			db,
-			pubsub.NewInsightBroker(),
+			insightBroker,
 			func(tenant string) insightservices.CheckReader { return insightwiring.NewCheckReaderAdapter(db, tenant) },
 			func(tenant string) insightservices.PageConfigReader { return insightwiring.NewPageConfigReaderAdapter(db, tenant) },
 		)},
@@ -356,7 +365,7 @@ func registerAllModulesInternal(registry *router.Registry, db *sql.DB, eventBus 
 		LogoutHandler:  authMod.LogoutHandler(),
 		RefreshHandler: authMod.RefreshHandler(),
 		TokenService:   authMod.TokenService(),
-		NonceStore:     noncestore.New(),
+		NonceStore:     nonceStore,
 		CookieDomain:   authMod.CookieDomain(),
 		CookieSecure:   authMod.CookieSecure(),
 		Logger:         logger.Logger,

@@ -116,3 +116,4 @@ tmp/
 volume/tmp/
 build-errors.log
 build-errors-worker.log
+.claude/worktrees/

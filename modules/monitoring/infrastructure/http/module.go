@@ -41,6 +41,7 @@ type Deps struct {
 	DB               *sql.DB
 	EventBus         *eventbus.EventBus
 	SnapshotExecutor monitoringservices.SnapshotExecutor
+	CheckBroker      pubsub.CheckBroker // optional; defaults to MemoryCheckBroker if nil
 }
 
 // Module implements the router.ModuleRegisterer interface for the Monitoring module
@@ -49,7 +50,7 @@ type Module struct {
 	eventBus    *eventbus.EventBus
 	scheduler   *scheduler.Scheduler
 	workerPool  *workers.WorkerPool
-	checkBroker *pubsub.CheckBroker
+	checkBroker pubsub.CheckBroker
 }
 
 // NewModule creates a new instance of the Monitoring module
@@ -65,8 +66,12 @@ func NewModuleWithDeps(deps Deps) *Module {
 		eventBus: deps.EventBus,
 	}
 
-	// Initialize the check broker for SSE push notifications.
-	m.checkBroker = pubsub.NewCheckBroker()
+	// Use injected CheckBroker if provided; otherwise fall back to in-memory.
+	if deps.CheckBroker != nil {
+		m.checkBroker = deps.CheckBroker
+	} else {
+		m.checkBroker = pubsub.NewCheckBroker()
+	}
 
 	// Wire OnCheckDone so successful/error completions are pushed to SSE subscribers.
 	if deps.SnapshotExecutor != nil {

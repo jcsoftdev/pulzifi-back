@@ -326,21 +326,6 @@ definitions:
       type:
         type: string
     type: object
-  handlers.GetOrganizationResponseDTO:
-    properties:
-      created_at:
-        example: "2025-11-11T12:58:42Z"
-        type: string
-      id:
-        example: 550e8400-e29b-41d4-a716-446655440000
-        type: string
-      name:
-        example: Acme Corp
-        type: string
-      subdomain:
-        example: acme
-        type: string
-    type: object
   list_workspace_members.ListWorkspaceMembersResponse:
     properties:
       members:
@@ -848,96 +833,6 @@ paths:
       summary: Mark Alert as Read
       tags:
       - alerts
-  /api/organizations:
-    post:
-      consumes:
-      - application/json
-      description: Create a new organization with the provided name and subdomain
-      parameters:
-      - description: Create Organization Request
-        in: body
-        name: request
-        required: true
-        schema:
-          additionalProperties:
-            type: string
-          type: object
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            additionalProperties: true
-            type: object
-        "400":
-          description: Bad Request
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "401":
-          description: Unauthorized
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "409":
-          description: Conflict
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      security:
-      - BearerAuth: []
-      summary: Create Organization
-      tags:
-      - organizations
-  /api/organizations/{id}:
-    get:
-      consumes:
-      - application/json
-      description: Retrieve organization details by ID
-      parameters:
-      - description: Organization ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/handlers.GetOrganizationResponseDTO'
-        "400":
-          description: Bad Request
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "404":
-          description: Not Found
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: Get Organization
-      tags:
-      - organizations
   /auth/login:
     post:
       consumes:
