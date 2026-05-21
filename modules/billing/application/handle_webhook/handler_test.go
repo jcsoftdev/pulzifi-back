@@ -290,6 +290,26 @@ func TestHandleWebhookHandler_Handle(t *testing.T) {
 			subRepo:      inmem.NewSubscriptionRepo(),
 			wantErr:      ErrInvalidSignature,
 		},
+		// MUST: unknown event types MUST be silently no-op'd without error (per spec).
+		// Stripe sends many event types; the handler must not return errors for ones
+		// it doesn't recognise — that would trigger retries from Stripe.
+		{
+			name:    "unknown event type — silent no-op, returns nil",
+			rawBody: []byte(`{}`),
+			sig:     "valid-sig",
+			gw: &billingmocks.MockStripeGateway{
+				ConstructEventResult: makeEvent("evt_tax", "customer.tax_id.created", []byte(`{}`)),
+			},
+			customerRepo: repoWithCustomer(),
+			webhookRepo:  inmem.NewWebhookEventRepo(),
+			subRepo:      inmem.NewSubscriptionRepo(),
+			assertFn: func(t *testing.T, pa *billingmocks.MockPlanAssigner, _ *inmem.WebhookEventRepo) {
+				// Unknown event type must never trigger PlanAssigner.
+				if pa.AssignCalls != 0 {
+					t.Errorf("unknown event type: expected 0 Assign calls, got %d", pa.AssignCalls)
+				}
+			},
+		},
 	}
 
 	for _, tt := range tests {
