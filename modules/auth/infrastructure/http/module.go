@@ -13,12 +13,17 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	changepassword "github.com/jcsoftdev/pulzifi-back/modules/auth/application/change_password"
 	checksubdomain "github.com/jcsoftdev/pulzifi-back/modules/auth/application/check_subdomain"
-	"github.com/jcsoftdev/pulzifi-back/modules/auth/application/get_current_user"
+	deletecurrentuser "github.com/jcsoftdev/pulzifi-back/modules/auth/application/delete_current_user"
+	forgotpassword "github.com/jcsoftdev/pulzifi-back/modules/auth/application/forgot_password"
+	getcurrentuser "github.com/jcsoftdev/pulzifi-back/modules/auth/application/get_current_user"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/application/login"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/application/logout"
 	refreshapp "github.com/jcsoftdev/pulzifi-back/modules/auth/application/refresh_token"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/application/register"
+	resetpassword "github.com/jcsoftdev/pulzifi-back/modules/auth/application/reset_password"
+	updatecurrentuser "github.com/jcsoftdev/pulzifi-back/modules/auth/application/update_current_user"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/entities"
 	autherrors "github.com/jcsoftdev/pulzifi-back/modules/auth/domain/errors"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/repositories"
@@ -26,6 +31,7 @@ import (
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/cookies"
 	authmw "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/middleware"
 	oauthproviders "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/oauth"
+	authpersistence "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/persistence"
 	"github.com/jcsoftdev/pulzifi-back/shared/config"
 	"github.com/jcsoftdev/pulzifi-back/shared/eventbus"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
@@ -34,24 +40,28 @@ import (
 )
 
 type Module struct {
-	registerHandler       *register.Handler
-	checkSubdomainHandler *checksubdomain.Handler
-	loginHandler          *login.Handler
-	logoutHandler         *logout.Handler
-	refreshHandler        *refreshapp.Handler
-	getCurrentUserHandler *get_current_user.Handler
-	authMiddleware        *authmw.AuthMiddleware
-	tokenService          services.TokenService
-	authService           services.AuthService
-	userRepo              repositories.UserRepository
-	notifier              services.RegistrationNotifier
-	oauthProviders        map[string]oauthproviders.Provider
-	refreshTokenRepo      repositories.RefreshTokenRepository
-	eventBus              *eventbus.EventBus
-	cookieDomain          string
-	cookieSecure          bool
-	frontendURL           string
-	db                    *sql.DB
+	registerHandler          *register.Handler
+	checkSubdomainHandler    *checksubdomain.Handler
+	loginHandler             *login.Handler
+	logoutHandler            *logout.Handler
+	refreshHandler           *refreshapp.Handler
+	getCurrentUserHandler    *getcurrentuser.Handler
+	forgotPasswordHandler    *forgotpassword.Handler
+	resetPasswordHandler     *resetpassword.Handler
+	updateCurrentUserHandler *updatecurrentuser.Handler
+	changePasswordHandler    *changepassword.Handler
+	deleteCurrentUserHandler *deletecurrentuser.Handler
+	authMiddleware           *authmw.AuthMiddleware
+	tokenService             services.TokenService
+	userRepo                 repositories.UserRepository
+	authService              services.AuthService
+	notifier                 services.RegistrationNotifier
+	oauthProviders           map[string]oauthproviders.Provider
+	refreshTokenRepo         repositories.RefreshTokenRepository
+	cookieDomain             string
+	cookieSecure             bool
+	frontendURL              string
+	db                       *sql.DB
 }
 
 type ModuleDeps struct {
@@ -88,25 +98,36 @@ func NewModule(deps ModuleDeps) router.ModuleRegisterer {
 		)
 	}
 
+	getCurrentUserHandler := getcurrentuser.NewHandler(deps.UserRepo, deps.OrgContextLookup)
+
+	var passwordResetRepo repositories.PasswordResetRepository
+	if deps.DB != nil {
+		passwordResetRepo = authpersistence.NewPasswordResetPostgresRepository(deps.DB)
+	}
+
 	return &Module{
-		registerHandler:       register.NewHandler(deps.UserRepo, deps.RegReqWriter, deps.OrgDirectory),
-		checkSubdomainHandler: checksubdomain.NewHandler(deps.RegReqWriter, deps.OrgDirectory),
-		loginHandler:          login.NewHandler(deps.AuthService, deps.UserRepo, deps.RefreshTokenRepo, deps.TokenService),
-		logoutHandler:         logout.NewHandler(deps.RefreshTokenRepo),
-		refreshHandler:        refreshapp.NewHandler(deps.RefreshTokenRepo, deps.UserRepo, deps.TokenService),
-		getCurrentUserHandler: get_current_user.NewHandler(deps.UserRepo, deps.OrgContextLookup),
-		authMiddleware:        authmw.NewAuthMiddleware(deps.TokenService),
-		tokenService:          deps.TokenService,
-		authService:           deps.AuthService,
-		userRepo:              deps.UserRepo,
-		notifier:              deps.Notifier,
-		eventBus:              deps.EventBus,
-		oauthProviders:        oauthProviderMap,
-		refreshTokenRepo:      deps.RefreshTokenRepo,
-		cookieDomain:          deps.CookieDomain,
-		cookieSecure:          deps.CookieSecure,
-		frontendURL:           deps.FrontendURL,
-		db:                    deps.DB,
+		registerHandler:          register.NewHandler(deps.UserRepo, deps.RegReqWriter, deps.OrgDirectory),
+		checkSubdomainHandler:    checksubdomain.NewHandler(deps.RegReqWriter, deps.OrgDirectory),
+		loginHandler:             login.NewHandler(deps.AuthService, deps.UserRepo, deps.RefreshTokenRepo, deps.TokenService),
+		logoutHandler:            logout.NewHandler(deps.RefreshTokenRepo),
+		refreshHandler:           refreshapp.NewHandler(deps.RefreshTokenRepo, deps.UserRepo, deps.TokenService),
+		getCurrentUserHandler:    getCurrentUserHandler,
+		forgotPasswordHandler:    forgotpassword.NewHandler(deps.UserRepo, passwordResetRepo, deps.Notifier),
+		resetPasswordHandler:     resetpassword.NewHandler(passwordResetRepo, deps.AuthService),
+		updateCurrentUserHandler: updatecurrentuser.NewHandler(deps.UserRepo, getCurrentUserHandler),
+		changePasswordHandler:    changepassword.NewHandler(deps.UserRepo, deps.AuthService),
+		deleteCurrentUserHandler: deletecurrentuser.NewHandler(deps.UserRepo, deps.EventBus),
+		authMiddleware:           authmw.NewAuthMiddleware(deps.TokenService),
+		tokenService:             deps.TokenService,
+		userRepo:                 deps.UserRepo,
+		authService:              deps.AuthService,
+		notifier:                 deps.Notifier,
+		oauthProviders:           oauthProviderMap,
+		refreshTokenRepo:         deps.RefreshTokenRepo,
+		cookieDomain:             deps.CookieDomain,
+		cookieSecure:             deps.CookieSecure,
+		frontendURL:              deps.FrontendURL,
+		db:                       deps.DB,
 	}
 }
 
@@ -351,171 +372,68 @@ func (m *Module) handleDeleteCurrentUser(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if err := m.userRepo.Delete(r.Context(), userID); err != nil {
+	if err := m.deleteCurrentUserHandler.Handle(r.Context(), &deletecurrentuser.Request{UserID: userID}); err != nil {
 		logger.Error("Failed to delete user", zap.Error(err))
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to delete account"})
 		return
 	}
 
-	// Publish user.deleted event to trigger cascade cleanup (org memberships, etc.)
-	if m.eventBus != nil {
-		payload, _ := json.Marshal(map[string]string{"user_id": userID.String()})
-		if err := m.eventBus.Publish("user.deleted", userID.String(), payload); err != nil {
-			logger.Error("Failed to publish user.deleted event", zap.Error(err))
-		}
-	}
-
-	// Clear auth cookies
 	cookies.ClearAuthCookies(w, r, m.cookieDomain, m.cookieSecure)
-
 	writeJSON(w, http.StatusOK, map[string]string{"message": "account deleted successfully"})
 }
 
 func (m *Module) handleForgotPassword(w http.ResponseWriter, r *http.Request) {
-	var req struct {
+	var body struct {
 		Email string `json:"email"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Email == "" {
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Email == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "email is required"})
 		return
 	}
 
-	// Always return 200 to prevent email enumeration
-	defer func() {
-		writeJSON(w, http.StatusOK, map[string]string{"message": "if an account exists with that email, a password reset link has been sent"})
-	}()
-
-	if m.db == nil {
-		return
-	}
-
-	user, err := m.userRepo.GetByEmail(r.Context(), req.Email)
-	if err != nil || user == nil {
-		return
-	}
-
-	// Generate secure token
-	tokenBytes := make([]byte, 32)
-	if _, err := rand.Read(tokenBytes); err != nil {
-		logger.Error("Failed to generate reset token", zap.Error(err))
-		return
-	}
-	token := hex.EncodeToString(tokenBytes)
-	expiresAt := time.Now().Add(1 * time.Hour)
-
-	// Store token in password_resets table
-	_, err = m.db.ExecContext(r.Context(),
-		`INSERT INTO public.password_resets (id, user_id, token, expires_at, created_at) VALUES ($1, $2, $3, $4, NOW())`,
-		uuid.New(), user.ID, token, expiresAt,
-	)
-	if err != nil {
-		logger.Error("Failed to store password reset token", zap.Error(err))
-		return
-	}
-
-	// Send password reset email
-	resetURL := fmt.Sprintf("%s/reset-password?token=%s", m.frontendURL, token)
-	go func() {
-		if err := m.notifier.SendPasswordReset(context.Background(), user.Email, user.FirstName, resetURL); err != nil {
-			logger.Error("Failed to send password reset email", zap.Error(err))
-		}
-	}()
+	resp, _ := m.forgotPasswordHandler.Handle(r.Context(), &forgotpassword.Request{
+		Email:       body.Email,
+		FrontendURL: m.frontendURL,
+	})
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func (m *Module) handleResetPassword(w http.ResponseWriter, r *http.Request) {
-	var req struct {
+	var body struct {
 		Token       string `json:"token"`
 		NewPassword string `json:"new_password"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 		return
 	}
-	if req.Token == "" || req.NewPassword == "" {
+	if body.Token == "" || body.NewPassword == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "token and new_password are required"})
 		return
 	}
-	if len(req.NewPassword) < 8 {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "password must be at least 8 characters"})
-		return
-	}
 
-	if m.db == nil {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "service unavailable"})
-		return
-	}
-
-	// Find and validate token
-	var userID uuid.UUID
-	var expiresAt time.Time
-	var used bool
-	err := m.db.QueryRowContext(r.Context(),
-		`SELECT user_id, expires_at, used FROM public.password_resets WHERE token = $1`,
-		req.Token,
-	).Scan(&userID, &expiresAt, &used)
+	resp, err := m.resetPasswordHandler.Handle(r.Context(), &resetpassword.Request{
+		Token:       body.Token,
+		NewPassword: body.NewPassword,
+	})
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid or expired token"})
-		return
-	}
-	if used || time.Now().After(expiresAt) {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid or expired token"})
-		return
-	}
-
-	// Hash new password
-	hashedPassword, err := m.authService.HashPassword(req.NewPassword)
-	if err != nil {
-		logger.Error("Failed to hash password", zap.Error(err))
+		if err.Error() == "password must be at least 8 characters" {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		if err.Error() == "service unavailable" {
+			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": err.Error()})
+			return
+		}
+		if err.Error() == "invalid or expired token" {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		logger.Error("Failed to reset password", zap.Error(err))
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to reset password"})
 		return
 	}
-
-	// Update password and invalidate token in a transaction
-	tx, err := m.db.BeginTx(r.Context(), nil)
-	if err != nil {
-		logger.Error("Failed to begin transaction", zap.Error(err))
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to reset password"})
-		return
-	}
-	defer tx.Rollback()
-
-	_, err = tx.ExecContext(r.Context(),
-		`UPDATE public.users SET password_hash = $1, updated_at = NOW() WHERE id = $2`,
-		hashedPassword, userID,
-	)
-	if err != nil {
-		logger.Error("Failed to update password", zap.Error(err))
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to reset password"})
-		return
-	}
-
-	_, err = tx.ExecContext(r.Context(),
-		`UPDATE public.password_resets SET used = true WHERE token = $1`,
-		req.Token,
-	)
-	if err != nil {
-		logger.Error("Failed to invalidate token", zap.Error(err))
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to reset password"})
-		return
-	}
-
-	// Activate any pending organization memberships — the user has accepted their invitation
-	_, err = tx.ExecContext(r.Context(),
-		`UPDATE public.organization_members SET invitation_status = 'active' WHERE user_id = $1 AND invitation_status = 'pending'`,
-		userID,
-	)
-	if err != nil {
-		logger.Error("Failed to activate pending organization memberships", zap.Error(err))
-		// Non-fatal: proceed with password reset even if this update fails
-	}
-
-	if err := tx.Commit(); err != nil {
-		logger.Error("Failed to commit password reset", zap.Error(err))
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to reset password"})
-		return
-	}
-
-	writeJSON(w, http.StatusOK, map[string]string{"message": "password reset successfully"})
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func (m *Module) handleOAuthRedirect(w http.ResponseWriter, r *http.Request) {
@@ -702,36 +620,32 @@ func (m *Module) handleUpdateCurrentUser(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	var req struct {
+	var body struct {
 		FirstName string `json:"first_name"`
 		LastName  string `json:"last_name"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 		return
 	}
 
-	user, err := m.userRepo.GetByID(r.Context(), userID)
-	if err != nil || user == nil {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "user not found"})
-		return
-	}
+	roles, _ := r.Context().Value(authmw.UserRolesKey).([]string)
 
-	if req.FirstName != "" {
-		user.FirstName = req.FirstName
-	}
-	if req.LastName != "" {
-		user.LastName = req.LastName
-	}
-
-	if err := m.userRepo.Update(r.Context(), user); err != nil {
+	response, err := m.updateCurrentUserHandler.Handle(r.Context(), &updatecurrentuser.Request{
+		UserID:    userID,
+		FirstName: body.FirstName,
+		LastName:  body.LastName,
+		Roles:     roles,
+	})
+	if err != nil {
+		if err.Error() == "user not found" {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+			return
+		}
 		logger.Error("Failed to update user profile", zap.Error(err))
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to update profile"})
 		return
 	}
-
-	roles, _ := r.Context().Value(authmw.UserRolesKey).([]string)
-	response, _ := m.getCurrentUserHandler.Handle(r.Context(), userID, roles)
 	writeJSON(w, http.StatusOK, response)
 }
 
@@ -748,46 +662,38 @@ func (m *Module) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req struct {
+	var body struct {
 		CurrentPassword string `json:"current_password"`
 		NewPassword     string `json:"new_password"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 		return
 	}
 
-	if len(req.NewPassword) < 8 {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "password must be at least 8 characters"})
-		return
-	}
-
-	user, err := m.userRepo.GetByID(r.Context(), userID)
-	if err != nil || user == nil {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "user not found"})
-		return
-	}
-
-	if err := m.authService.ValidateCredentials(r.Context(), user, req.CurrentPassword); err != nil {
-		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "current password is incorrect"})
-		return
-	}
-
-	hashedPassword, err := m.authService.HashPassword(req.NewPassword)
+	resp, err := m.changePasswordHandler.Handle(r.Context(), &changepassword.Request{
+		UserID:          userID,
+		CurrentPassword: body.CurrentPassword,
+		NewPassword:     body.NewPassword,
+	})
 	if err != nil {
-		logger.Error("Failed to hash new password", zap.Error(err))
+		if err.Error() == "password must be at least 8 characters" {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		if err.Error() == "user not found" {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+			return
+		}
+		if err.Error() == "current password is incorrect" {
+			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": err.Error()})
+			return
+		}
+		logger.Error("Failed to change password", zap.Error(err))
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to update password"})
 		return
 	}
-
-	user.PasswordHash = hashedPassword
-	if err := m.userRepo.Update(r.Context(), user); err != nil {
-		logger.Error("Failed to update user password", zap.Error(err))
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to update password"})
-		return
-	}
-
-	writeJSON(w, http.StatusOK, map[string]string{"message": "password updated successfully"})
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func writeJSON(w http.ResponseWriter, status int, v interface{}) {
