@@ -24,7 +24,7 @@ type Handler struct {
 	logoutHandler  *logout.Handler
 	refreshHandler *refreshapp.Handler
 	tokenService   services.TokenService
-	nonceStore     *noncestore.Store
+	nonceStore     noncestore.NonceStore
 	cookieDomain   string
 	cookieSecure   bool
 	logger         *zap.Logger
@@ -35,7 +35,7 @@ type HandlerDeps struct {
 	LogoutHandler  *logout.Handler
 	RefreshHandler *refreshapp.Handler
 	TokenService   services.TokenService
-	NonceStore     *noncestore.Store
+	NonceStore     noncestore.NonceStore
 	CookieDomain   string
 	CookieSecure   bool
 	Logger         *zap.Logger

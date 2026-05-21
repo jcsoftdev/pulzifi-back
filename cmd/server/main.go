@@ -27,6 +27,8 @@ import (
 	"github.com/jcsoftdev/pulzifi-back/shared/eventbus"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	middlewarex "github.com/jcsoftdev/pulzifi-back/shared/middleware"
+	"github.com/jcsoftdev/pulzifi-back/shared/noncestore"
+	"github.com/jcsoftdev/pulzifi-back/shared/pubsub"
 	"github.com/jcsoftdev/pulzifi-back/shared/router"
 	"github.com/jcsoftdev/pulzifi-back/shared/static"
 	"github.com/jcsoftdev/pulzifi-back/shared/swagger"
@@ -169,10 +171,30 @@ func main() {
 			strconv.FormatInt(time.Now().Unix(), 10) + `}`))
 	})
 
+	// Build backend-agnostic nonce store and pub/sub brokers.
+	// If Redis is available, use Redis-backed implementations for multi-instance support.
+	// Otherwise fall back to in-memory (single-instance only).
+	var (
+		nonceStoreImpl  noncestore.NonceStore
+		checkBrokerImpl pubsub.CheckBroker
+		insightBrokerImpl pubsub.InsightBroker
+	)
+	if rdb := cache.GetRedisClient(); rdb != nil {
+		logger.Info("Using Redis-backed nonce store / brokers")
+		nonceStoreImpl = noncestore.NewRedisStore(rdb)
+		checkBrokerImpl = pubsub.NewRedisCheckBroker(ctx, rdb)
+		insightBrokerImpl = pubsub.NewRedisInsightBroker(ctx, rdb)
+	} else {
+		logger.Warn("WARN: Using in-memory nonce store / brokers — single-instance mode only")
+		nonceStoreImpl = noncestore.New()
+		checkBrokerImpl = pubsub.NewCheckBroker()
+		insightBrokerImpl = pubsub.NewInsightBroker()
+	}
+
 	// Create module registry and register all modules
 	logger.Info("Registering module routes...")
 	registry := router.NewRegistry(logger.Logger)
-	bffHandler, integrationMod := registerAllModulesInternal(registry, db, eventBus, enableWorkers)
+	bffHandler, integrationMod := registerAllModulesInternal(registry, db, eventBus, enableWorkers, nonceStoreImpl, checkBrokerImpl, insightBrokerImpl)
 
 	// Mount BFF auth routes BEFORE /api/v1 (these handle cookies/nonces)
 	logger.Info("Registering BFF auth handler at /api/auth")
