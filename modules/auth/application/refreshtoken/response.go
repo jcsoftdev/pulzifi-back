@@ -1,4 +1,4 @@
-package refresh_token
+package refreshtoken
 
 type Response struct {
 	AccessToken  string `json:"access_token"`

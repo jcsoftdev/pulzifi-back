@@ -9,7 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/application/login"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/application/logout"
-	refreshapp "github.com/jcsoftdev/pulzifi-back/modules/auth/application/refresh_token"
+	refreshapp "github.com/jcsoftdev/pulzifi-back/modules/auth/application/refreshtoken"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/services"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/cookies"
 	"github.com/jcsoftdev/pulzifi-back/shared/noncestore"

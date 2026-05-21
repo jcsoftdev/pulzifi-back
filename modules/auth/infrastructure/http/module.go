@@ -20,7 +20,7 @@ import (
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/application/getcurrentuser"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/application/login"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/application/logout"
-	refreshapp "github.com/jcsoftdev/pulzifi-back/modules/auth/application/refresh_token"
+	refreshapp "github.com/jcsoftdev/pulzifi-back/modules/auth/application/refreshtoken"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/application/register"
 	resetpassword "github.com/jcsoftdev/pulzifi-back/modules/auth/application/reset_password"
 	updatecurrentuser "github.com/jcsoftdev/pulzifi-back/modules/auth/application/update_current_user"
