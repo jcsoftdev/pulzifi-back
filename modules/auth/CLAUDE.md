@@ -11,45 +11,65 @@ User authentication, JWT token management, and OAuth providers.
 
 ## Use Cases (application/ directories)
 
-- `register` — user registration (creates pending registration request)
-- `check_subdomain` — validate subdomain availability
-- `login` — authenticate with email/password
-- `refresh_token` — refresh JWT tokens
-- `get_current_user` — fetch authenticated user
+11 use case directories exist:
+
+| Directory | Package | Description |
+|-----------|---------|-------------|
+| `check_subdomain/` | `checksubdomain` | Validate subdomain availability |
+| `getcurrentuser/` | `getcurrentuser` | Fetch authenticated user profile |
+| `login/` | `login` | Authenticate with email/password |
+| `logout/` | `logout` | Revoke refresh token |
+| `refreshtoken/` | `refreshtoken` | Refresh JWT tokens (token rotation) |
+| `register/` | `register` | User registration (creates pending request) |
+| `update_current_user/` | `updatecurrentuser` | Response struct for profile update |
+| `forgot_password/` | _(inline)_ | Not extracted yet |
+| `reset_password/` | _(inline)_ | Not extracted yet |
+| `change_password/` | _(inline)_ | Not extracted yet |
+| `delete_current_user/` | _(inline)_ | Not extracted yet |
+
+**Note on package naming:** Directory names use underscores but package names use concatenated lowercase (e.g., `getcurrentuser`, `refreshtoken`, `updatecurrentuser`). This follows the project convention: `directory create_check` → `package createcheck`.
 
 ## HTTP Routes (`/auth/*`)
 
-- POST `/auth/register`
-- POST `/auth/check-subdomain`
-- POST `/auth/login`
-- POST `/auth/logout`
-- POST `/auth/refresh`
-- POST `/auth/forgot-password` (inline handler, no use case dir)
-- POST `/auth/reset-password` (inline handler, no use case dir)
-- GET `/auth/oauth/{provider}` — redirect to OAuth provider
-- GET `/auth/oauth/{provider}/callback` — OAuth callback
-- GET `/auth/me` (authenticated) — get current user
-- PUT `/auth/me` (authenticated, inline) — update profile
-- PUT `/auth/me/password` (authenticated, inline) — change password
-- DELETE `/auth/me` (authenticated, inline) — delete account
+| Method | Path | Handler |
+|--------|------|---------|
+| POST | `/auth/register` | `register.Handler` |
+| POST | `/auth/check-subdomain` | `checksubdomain.Handler` |
+| POST | `/auth/login` | `login.Handler` |
+| POST | `/auth/logout` | `logout.Handler` |
+| POST | `/auth/refresh` | `refreshtoken.Handler` |
+| POST | `/auth/forgot-password` | inline in `module.go` |
+| POST | `/auth/reset-password` | inline in `module.go` |
+| GET | `/auth/oauth/{provider}` | inline OAuth redirect |
+| GET | `/auth/oauth/{provider}/callback` | inline OAuth callback |
+| GET | `/auth/me` | `getcurrentuser.Handler` |
+| PUT | `/auth/me` | inline + `updatecurrentuser.Response` |
+| PUT | `/auth/me/password` | inline in `module.go` |
+| DELETE | `/auth/me` | inline in `module.go` |
+
+OAuth handlers (`handleOAuthRedirect`, `handleOAuthCallback`) stay inline in `infrastructure/http/module.go` (~430 LOC).
 
 ## Domain Services
 
 - `AuthService` — password hashing/validation (bcrypt)
 - `TokenService` — JWT generation and validation
-- `OrgContextLookup` — interface for combining org identity + plan code + feature flags in a single query (for `/auth/me`); implemented in `cmd/wiring/integration/`
+- `OrgContextLookup` — interface for combining org identity + plan code + feature flags (for `/auth/me`); implemented in `cmd/wiring/integration/`
 
 ## Infrastructure
 
-- PostgreSQL: `users`, `refresh_tokens`, `sessions`, `roles`, `permissions` tables (public schema)
+- PostgreSQL: `users`, `refresh_tokens`, `sessions`, `roles`, `permissions`, `password_resets` tables (public schema)
 - OAuth: Google and GitHub providers (conditional on env vars)
 - Cookie management with domain/secure flags
-- Email: password reset and notification emails
+- Email: password reset and notification emails via `services.RegistrationNotifier`
+- BFF handler: `infrastructure/bff/handler.go` — cross-subdomain cookie/nonce management
 - Event publishing: `user.deleted` event on account deletion
 
-## Notes
+## Domain Tests
 
-- `forgot_password`, `reset_password`, `update_current_user`, `change_password`, `delete_current_user` routes exist but are implemented inline in module.go (no dedicated use case directories)
+Tests in `domain/services/` use local fakes (no infrastructure imports):
+- `stub_repos_test.go` — in-memory stubs for UserRepository, PermissionRepository, RoleRepository
+- `auth_service_test.go` — AuthService interface tests with stubAuthService
+- `token_service_test.go` — TokenService interface tests with stubTokenService
 
 ## Cross-Module Dependencies (violations)
 
@@ -63,7 +83,7 @@ User authentication, JWT token management, and OAuth providers.
 
 ## Architecture Improvements
 
-- **Inline handlers should be extracted.** `forgot_password`, `reset_password`, `update_current_user`, `change_password`, `delete_current_user` should each become a use case directory with handler, request, and response files.
-- **module.go is 804 lines** — too large. Splitting into use cases will improve maintainability.
+- **Remaining inline handlers should be extracted.** `forgot_password`, `reset_password`, `change_password`, `delete_current_user` should each become a use case directory with handler, request, and response files.
+- **`update_current_user/`** has a `response.go` but no `handler.go` yet — the handler is still inline in `module.go`.
 - **JWT tokens are stateless** but refresh tokens are in PostgreSQL. For horizontal scaling, consider Redis-backed refresh token storage for faster lookups.
 - **Password reset tokens** should have explicit expiry tracking (currently relies on JWT expiry).

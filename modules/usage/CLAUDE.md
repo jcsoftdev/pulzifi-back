@@ -2,13 +2,18 @@
 
 Billing and usage quota management.
 
-## Use Cases (application/ directories)
+## Current Structure
 
-- `track_usage` — directory exists but is empty (placeholder for future usage tracking implementation)
+```
+modules/usage/
+└── infrastructure/
+    └── http/
+        └── module.go   # All handlers inline (~230 LOC thin orchestration)
+```
+
+No `domain/` or `application/` layers exist yet. All logic lives in `infrastructure/http/module.go`.
 
 ## HTTP Routes (`/usage/*`, tenant-aware)
-
-All handlers are implemented inline in module.go (no use case directories):
 
 - GET `/usage/metrics` — get usage metrics (checks, pages, workspaces, alerts)
 - GET `/usage/quotas` — get current billing period quotas
@@ -25,15 +30,14 @@ All handlers are implemented inline in module.go (no use case directories):
 
 ## Notes
 
-- All HTTP handlers are inline in `infrastructure/http/` (no domain/ or application/ layers)
-- No separate domain or application directories — everything lives in `infrastructure/http/`
+- All HTTP handlers are inline in `infrastructure/http/module.go` (~230 LOC)
+- SUPER_ADMIN role check is done inline via `isSuperAdmin()` helper (not via middleware)
 - Tracks `checks_used` vs `checks_allowed` per billing period
 - Supports `storage_period_days` per plan
-- SUPER_ADMIN role check is done inline via `isSuperAdmin()` helper (not via middleware)
 
 ## Watch Out
 
-- Module root still contains legacy `main.go`, `docs/`, `tmp/` from the pre-monolith era — can be removed
+- Module root still contains legacy `main.go` from the pre-monolith era — can be removed
 - No hexagonal structure: domain and application layers were never created
 
 ## Architecture Improvements
