@@ -123,6 +123,11 @@ type Config struct {
 	StripeCheckoutSuccessURL string
 	StripeCheckoutCancelURL  string
 	BillingEnabled           bool // BILLING_ENABLED — gates /billing/* routes
+
+	// Trial (self-serve onboarding)
+	TrialDays           int    // TRIAL_DAYS — number of days the no-card trial lasts
+	TrialChecksPerMonth int    // TRIAL_CHECKS_PER_MONTH — monthly checks allowed during trial
+	TrialExpiryCron     string // TRIAL_EXPIRY_CRON — cron expression for the daily trial-expirer job
 }
 
 func Load() *Config {
@@ -221,6 +226,10 @@ func Load() *Config {
 		StripeCheckoutSuccessURL: getEnv("STRIPE_CHECKOUT_SUCCESS_URL", ""),
 		StripeCheckoutCancelURL:  getEnv("STRIPE_CHECKOUT_CANCEL_URL", ""),
 		BillingEnabled:           getEnvBool("BILLING_ENABLED", false),
+
+		TrialDays:           getEnvInt("TRIAL_DAYS", 14),
+		TrialChecksPerMonth: getEnvInt("TRIAL_CHECKS_PER_MONTH", 500),
+		TrialExpiryCron:     getEnv("TRIAL_EXPIRY_CRON", "0 0 * * *"),
 	}
 }
 

@@ -7,9 +7,10 @@ import (
 )
 
 const (
-	UserStatusPending  = "pending"
-	UserStatusApproved = "approved"
-	UserStatusRejected = "rejected"
+	UserStatusPending      = "pending"
+	UserStatusApproved     = "approved"
+	UserStatusRejected     = "rejected"
+	UserStatusTrialExpired = "trial_expired"
 )
 
 // User represents a user in the system
