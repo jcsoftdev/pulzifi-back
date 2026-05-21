@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	updatecurrentuser "github.com/jcsoftdev/pulzifi-back/modules/auth/application/update_current_user"
-	getcurrentuser "github.com/jcsoftdev/pulzifi-back/modules/auth/application/get_current_user"
+	"github.com/jcsoftdev/pulzifi-back/modules/auth/application/getcurrentuser"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/entities"
 	repomocks "github.com/jcsoftdev/pulzifi-back/modules/auth/domain/repositories/mocks"
 )

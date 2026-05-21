@@ -1,4 +1,4 @@
-package get_current_user
+package getcurrentuser
 
 import (
 	"context"

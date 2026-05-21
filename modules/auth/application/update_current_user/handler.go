@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	getcurrentuser "github.com/jcsoftdev/pulzifi-back/modules/auth/application/get_current_user"
+	"github.com/jcsoftdev/pulzifi-back/modules/auth/application/getcurrentuser"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/repositories"
 )
 

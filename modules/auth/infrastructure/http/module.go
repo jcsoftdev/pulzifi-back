@@ -17,7 +17,7 @@ import (
 	checksubdomain "github.com/jcsoftdev/pulzifi-back/modules/auth/application/check_subdomain"
 	deletecurrentuser "github.com/jcsoftdev/pulzifi-back/modules/auth/application/delete_current_user"
 	forgotpassword "github.com/jcsoftdev/pulzifi-back/modules/auth/application/forgot_password"
-	getcurrentuser "github.com/jcsoftdev/pulzifi-back/modules/auth/application/get_current_user"
+	"github.com/jcsoftdev/pulzifi-back/modules/auth/application/getcurrentuser"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/application/login"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/application/logout"
 	refreshapp "github.com/jcsoftdev/pulzifi-back/modules/auth/application/refresh_token"
@@ -58,6 +58,7 @@ type Module struct {
 	notifier                 services.RegistrationNotifier
 	oauthProviders           map[string]oauthproviders.Provider
 	refreshTokenRepo         repositories.RefreshTokenRepository
+	eventBus                 *eventbus.EventBus
 	cookieDomain             string
 	cookieSecure             bool
 	frontendURL              string
@@ -124,6 +125,7 @@ func NewModule(deps ModuleDeps) router.ModuleRegisterer {
 		notifier:                 deps.Notifier,
 		oauthProviders:           oauthProviderMap,
 		refreshTokenRepo:         deps.RefreshTokenRepo,
+		eventBus:                 deps.EventBus,
 		cookieDomain:             deps.CookieDomain,
 		cookieSecure:             deps.CookieSecure,
 		frontendURL:              deps.FrontendURL,
