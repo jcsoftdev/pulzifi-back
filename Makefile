@@ -2,7 +2,7 @@
 # Makefile for Pulzifi Backend
 # ============================================================
 
-.PHONY: help dev dev-web down logs build swagger clean migrate cms-migrate test test-integration test-billing-integration test-db-reset
+.PHONY: help dev dev-web down logs build swagger clean migrate cms-migrate test test-integration test-billing-integration test-db-reset check-arch
 
 .DEFAULT_GOAL := help
 
@@ -105,6 +105,17 @@ migrate: check-env ## Run database migrations from .env (use: make migrate cmd=u
 	go run ./cmd/migrate \
 		-db "postgres://$${DB_USER}:$${DB_PASSWORD}@$${DB_HOST}:$${DB_PORT}/$${DB_NAME}?sslmode=disable" \
 		-cmd $(or $(cmd),up)
+
+# ============================================================
+# ARCHITECTURE
+# ============================================================
+
+# Set ARCH_WARN_ONLY=1 to emit violations as warnings (non-zero exit still emitted by script).
+# After the one-week rollout window, flip this to 0 to enforce strict mode.
+ARCH_WARN_ONLY ?= 1
+
+check-arch: ## Check hexagonal architecture rules (includes test files); warn-only during rollout
+	@ARCH_WARN_ONLY=$(ARCH_WARN_ONLY) ./tools/scripts/check-architecture.sh --include-tests
 
 # ============================================================
 # TESTS
