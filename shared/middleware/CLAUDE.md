@@ -10,7 +10,6 @@ HTTP middleware for tenant extraction, auth, rate limiting, and request logging.
 - `rate_limiter.go` — Token bucket rate limiter per IP
 - `logging.go` — Request logging middleware
 - `response_logger.go` — Response logging middleware
-- `health.go` — Health check handler (legacy Gin, likely unused)
 - `tenant_test.go` — 10 test functions with 50+ subtests
 - `rate_limiter_test.go` — 7 test functions
 
@@ -63,19 +62,12 @@ HTTP middleware for tenant extraction, auth, rate limiting, and request logging.
 
 Both wrap `http.ResponseWriter` with `Unwrap()` for SSE/Flusher compatibility.
 
-## Health Check (`health.go`)
-
-- `HealthCheck() gin.HandlerFunc` — Legacy Gin handler, returns `{"status": "ok"}`. Likely unused in current Chi-based architecture.
-
 ## Tests
 
 - `tenant_test.go` — SQL injection prevention, public path classification, context extraction, subdomain extraction, schema validation
 - `rate_limiter_test.go` — Limit enforcement, per-IP isolation, window reset, IP extraction
 
 ## Architecture Improvements
-
-### Remove or Port `health.go`
-`health.go` uses Gin (`gin.HandlerFunc`) but the entire application uses Chi. This file is likely unused since the monolith's health endpoint is registered directly in `cmd/server/main.go` as a Chi handler. Should be removed or ported to `func(w http.ResponseWriter, r *http.Request)`.
 
 ### Redis-Backed Rate Limiter
 The current rate limiter uses `sync.Map` which is **node-local**. In a multi-instance deployment, each instance maintains its own token buckets, so a client can effectively multiply its rate limit by the number of instances. Replace with:

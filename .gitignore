@@ -108,6 +108,9 @@ modules/*/docs/
 /pulzifi-monolith
 /pulzifi-worker
 
+# compiled module binaries
+modules/*/organization
+
 # Air hot-reload build cache
 tmp/
 volume/tmp/
