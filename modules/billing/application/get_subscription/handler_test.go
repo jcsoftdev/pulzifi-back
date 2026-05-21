@@ -134,4 +134,44 @@ func TestGetSubscriptionHandler_Handle(t *testing.T) {
 			t.Errorf("expected ErrSubscriptionNotFound for bad UUID, got %v", err)
 		}
 	})
+
+	// MUST: repo DB error is propagated to the caller with context.
+	t.Run("propagates repository error when DB is unavailable", func(t *testing.T) {
+		dbErr := errors.New("db connection lost")
+		repo := &errorSubscriptionRepo{findErr: dbErr}
+		h := NewHandler(repo)
+
+		_, err := h.Handle(context.Background(), orgID.String())
+
+		if err == nil {
+			t.Fatal("expected error from failing repo, got nil")
+		}
+		// The handler must NOT swallow the raw repo error; it should be in the chain.
+		if !errors.Is(err, dbErr) {
+			t.Errorf("expected error chain to contain %v, got %v", dbErr, err)
+		}
+	})
+}
+
+// ── errorSubscriptionRepo is a hand-rolled stub that always returns an error ──
+// It satisfies repositories.SubscriptionRepository.
+
+type errorSubscriptionRepo struct {
+	findErr error
+}
+
+func (r *errorSubscriptionRepo) FindByOrgID(ctx context.Context, orgID uuid.UUID) (*entities.Subscription, error) {
+	return nil, r.findErr
+}
+
+func (r *errorSubscriptionRepo) FindByStripeSubscriptionID(ctx context.Context, subID string) (*entities.Subscription, error) {
+	return nil, r.findErr
+}
+
+func (r *errorSubscriptionRepo) Save(ctx context.Context, sub *entities.Subscription) error {
+	return r.findErr
+}
+
+func (r *errorSubscriptionRepo) Update(ctx context.Context, sub *entities.Subscription) error {
+	return r.findErr
 }
