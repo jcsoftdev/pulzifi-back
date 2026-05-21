@@ -15,19 +15,19 @@ User authentication, JWT token management, and OAuth providers.
 
 | Directory | Package | Description |
 |-----------|---------|-------------|
+| `change_password/` | `changepassword` | Change password for authenticated user |
 | `check_subdomain/` | `checksubdomain` | Validate subdomain availability |
+| `delete_current_user/` | `deletecurrentuser` | Delete authenticated user account |
+| `forgot_password/` | `forgotpassword` | Send password reset email |
 | `getcurrentuser/` | `getcurrentuser` | Fetch authenticated user profile |
 | `login/` | `login` | Authenticate with email/password |
 | `logout/` | `logout` | Revoke refresh token |
 | `refreshtoken/` | `refreshtoken` | Refresh JWT tokens (token rotation) |
 | `register/` | `register` | User registration (creates pending request) |
-| `update_current_user/` | `updatecurrentuser` | Response struct for profile update |
-| `forgot_password/` | _(inline)_ | Not extracted yet |
-| `reset_password/` | _(inline)_ | Not extracted yet |
-| `change_password/` | _(inline)_ | Not extracted yet |
-| `delete_current_user/` | _(inline)_ | Not extracted yet |
+| `reset_password/` | `resetpassword` | Apply password reset using token |
+| `update_current_user/` | `updatecurrentuser` | Update profile for authenticated user |
 
-**Note on package naming:** Directory names use underscores but package names use concatenated lowercase (e.g., `getcurrentuser`, `refreshtoken`, `updatecurrentuser`). This follows the project convention: `directory create_check` → `package createcheck`.
+**Note on package naming:** Directory names may use underscores but package names use concatenated lowercase (e.g., `getcurrentuser`, `refreshtoken`, `changepassword`). This follows the project convention: `directory create_check` → `package createcheck`.
 
 ## HTTP Routes (`/auth/*`)
 
@@ -38,14 +38,14 @@ User authentication, JWT token management, and OAuth providers.
 | POST | `/auth/login` | `login.Handler` |
 | POST | `/auth/logout` | `logout.Handler` |
 | POST | `/auth/refresh` | `refreshtoken.Handler` |
-| POST | `/auth/forgot-password` | inline in `module.go` |
-| POST | `/auth/reset-password` | inline in `module.go` |
+| POST | `/auth/forgot-password` | `forgotpassword.Handler` |
+| POST | `/auth/reset-password` | `resetpassword.Handler` |
 | GET | `/auth/oauth/{provider}` | inline OAuth redirect |
 | GET | `/auth/oauth/{provider}/callback` | inline OAuth callback |
 | GET | `/auth/me` | `getcurrentuser.Handler` |
-| PUT | `/auth/me` | inline + `updatecurrentuser.Response` |
-| PUT | `/auth/me/password` | inline in `module.go` |
-| DELETE | `/auth/me` | inline in `module.go` |
+| PUT | `/auth/me` | `updatecurrentuser.Handler` |
+| PUT | `/auth/me/password` | `changepassword.Handler` |
+| DELETE | `/auth/me` | `deletecurrentuser.Handler` |
 
 OAuth handlers (`handleOAuthRedirect`, `handleOAuthCallback`) stay inline in `infrastructure/http/module.go` (~430 LOC).
 
@@ -83,7 +83,6 @@ Tests in `domain/services/` use local fakes (no infrastructure imports):
 
 ## Architecture Improvements
 
-- **Remaining inline handlers should be extracted.** `forgot_password`, `reset_password`, `change_password`, `delete_current_user` should each become a use case directory with handler, request, and response files.
-- **`update_current_user/`** has a `response.go` but no `handler.go` yet — the handler is still inline in `module.go`.
 - **JWT tokens are stateless** but refresh tokens are in PostgreSQL. For horizontal scaling, consider Redis-backed refresh token storage for faster lookups.
 - **Password reset tokens** should have explicit expiry tracking (currently relies on JWT expiry).
+- **OAuth handlers** (`handleOAuthRedirect`, `handleOAuthCallback`) intentionally stay inline — they are infrastructure-level cookie + redirect orchestration, not use cases.
