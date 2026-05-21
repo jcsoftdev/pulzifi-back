@@ -315,6 +315,7 @@ func registerAllModulesInternal(
 		checkoutHandler := createcheckoutsession.NewHandler(stripeGateway, customerRepo)
 		portalHandler := createportalsession.NewHandler(stripeGateway, customerRepo)
 		subscriptionHandler := getsubscription.NewHandler(subscriptionRepo)
+		trialConverter := billingwiring.NewTrialConverter(db)
 		webhookHandler := handlewebhook.NewHandler(
 			stripeGateway,
 			cfg.StripeWebhookSecret,
@@ -322,7 +323,7 @@ func registerAllModulesInternal(
 			customerRepo,
 			webhookRepo,
 			subscriptionRepo,
-		)
+		).WithTrialConverter(trialConverter)
 
 		billingMod := billing.NewModule(billing.Deps{
 			DB:                       db,

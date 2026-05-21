@@ -71,6 +71,64 @@ func RegistrationSubmitted(firstName, orgName string) (subject, html string) {
 	return
 }
 
+// WelcomeTrial is the day-0 onboarding email for users who started a self-serve trial.
+func WelcomeTrial(firstName, orgName, dashboardURL string, trialDays int) (subject, html string) {
+	subject = "Welcome to Pulzifi — your trial starts now"
+	html = wrap(subject, fmt.Sprintf(`
+<h2>Welcome aboard, %s!</h2>
+<p>Your <strong>%d-day Pulzifi trial</strong> for <strong>%s</strong> is live. Full access, no card required.</p>
+<p>Tip: connect your first page and we'll start monitoring instantly.</p>
+<p><a href="%s" style="display:inline-block;background:#4F46E5;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;">Open your dashboard</a></p>
+`, firstName, trialDays, orgName, dashboardURL))
+	return
+}
+
+// TrialDay7 is the mid-trial check-in (7 days in).
+func TrialDay7(firstName, dashboardURL string) (subject, html string) {
+	subject = "1 week into your Pulzifi trial — how's it going?"
+	html = wrap(subject, fmt.Sprintf(`
+<h2>Hi %s,</h2>
+<p>You're a week into your Pulzifi trial. Loving it? Hit a wall? We'd love to hear.</p>
+<p>Need help getting more from monitoring? Reply to this email — a human will answer.</p>
+<p><a href="%s" style="display:inline-block;background:#4F46E5;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;">Open your dashboard</a></p>
+`, firstName, dashboardURL))
+	return
+}
+
+// TrialDay12 is the pre-expiry reminder (2 days left).
+func TrialDay12(firstName, upgradeURL string) (subject, html string) {
+	subject = "Your Pulzifi trial ends in 2 days — add a card to keep going"
+	html = wrap(subject, fmt.Sprintf(`
+<h2>Hi %s,</h2>
+<p>Your trial ends in <strong>2 days</strong>. Add a payment method now and we'll keep everything running with no interruption.</p>
+<p><a href="%s" style="display:inline-block;background:#4F46E5;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;">Upgrade now</a></p>
+<p>Questions about pricing? Reply to this email — we'll help you choose.</p>
+`, firstName, upgradeURL))
+	return
+}
+
+// TrialExpired notifies the user that their trial just ended and writes are blocked.
+func TrialExpired(firstName, upgradeURL string) (subject, html string) {
+	subject = "Your Pulzifi trial has ended"
+	html = wrap(subject, fmt.Sprintf(`
+<h2>Hi %s,</h2>
+<p>Your free trial has ended. Your data is safe and you can still view dashboards — but new pages, checks, and integrations are paused until you upgrade.</p>
+<p><a href="%s" style="display:inline-block;background:#4F46E5;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;">Upgrade to keep monitoring</a></p>
+`, firstName, upgradeURL))
+	return
+}
+
+// TrialConverted thanks the user immediately after a successful trial-to-paid conversion.
+func TrialConverted(firstName, planName, dashboardURL string) (subject, html string) {
+	subject = "You're in! Welcome to Pulzifi " + planName
+	html = wrap(subject, fmt.Sprintf(`
+<h2>Hi %s,</h2>
+<p>Thanks for upgrading to <strong>Pulzifi %s</strong>. Your subscription is active and full access is restored.</p>
+<p><a href="%s" style="display:inline-block;background:#4F46E5;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;">Back to your dashboard</a></p>
+`, firstName, planName, dashboardURL))
+	return
+}
+
 // PasswordReset generates the password reset email.
 func PasswordReset(firstName, resetURL string) (subject, html string) {
 	subject = "Reset your Pulzifi password"

@@ -19,12 +19,13 @@ var ErrInvalidSignature = errors.New("billing: invalid or missing Stripe webhook
 
 // Handler orchestrates Stripe webhook processing.
 type Handler struct {
-	gateway       services.StripeGateway
-	webhookSecret string
-	planAssigner  services.PlanAssigner
-	customerRepo  repositories.CustomerRepository
-	webhookRepo   repositories.WebhookEventRepository
-	subRepo       repositories.SubscriptionRepository
+	gateway        services.StripeGateway
+	webhookSecret  string
+	planAssigner   services.PlanAssigner
+	trialConverter services.TrialConverter // optional; nil → trial conversion is skipped
+	customerRepo   repositories.CustomerRepository
+	webhookRepo    repositories.WebhookEventRepository
+	subRepo        repositories.SubscriptionRepository
 }
 
 // NewHandler returns a Handler with its dependencies injected.
@@ -44,6 +45,14 @@ func NewHandler(
 		webhookRepo:   webhookRepo,
 		subRepo:       subRepo,
 	}
+}
+
+// WithTrialConverter wires the optional TrialConverter and returns the handler
+// for chaining. When non-nil, the converter is invoked after a successful
+// PlanAssigner.Assign on checkout.session.completed.
+func (h *Handler) WithTrialConverter(tc services.TrialConverter) *Handler {
+	h.trialConverter = tc
+	return h
 }
 
 // Handle processes a raw Stripe webhook payload.
@@ -172,7 +181,7 @@ func (h *Handler) handleCheckoutCompleted(ctx context.Context, event services.St
 	}
 
 	periodEnd := time.Unix(sub.CurrentPeriodEnd, 0)
-	return h.planAssigner.Assign(ctx, services.AssignInput{
+	if err := h.planAssigner.Assign(ctx, services.AssignInput{
 		OrgID:                orgID,
 		StripeSubscriptionID: sub.ID,
 		StripePriceID:        sub.PriceID,
@@ -180,7 +189,34 @@ func (h *Handler) handleCheckoutCompleted(ctx context.Context, event services.St
 		BillingStatus:        entities.BillingActive,
 		CurrentPeriodEnd:     periodEnd,
 		PaymentStatus:        "ok",
-	})
+	}); err != nil {
+		return err
+	}
+
+	// Trial conversion (best-effort). When the org has just paid for the
+	// first time we re-resolve the orgID (it can be uuid.Nil on the very
+	// first delivery before customer mapping existed) and mark the trial
+	// plan rows as converted.
+	if h.trialConverter != nil {
+		convertOrgID := orgID
+		if convertOrgID == uuid.Nil {
+			if c, _ := h.customerRepo.FindByStripeCustomerID(ctx, payload.Customer); c != nil {
+				convertOrgID = c.OrgID
+			}
+		}
+		if convertOrgID != uuid.Nil {
+			if err := h.trialConverter.Convert(ctx, convertOrgID); err != nil {
+				// Log only — conversion bookkeeping should not fail the
+				// webhook (Stripe would retry indefinitely otherwise).
+				logger.Warn("trial converter failed on checkout.session.completed",
+					zap.String("event_id", event.ID),
+					zap.String("org_id", convertOrgID.String()),
+					zap.Error(err),
+				)
+			}
+		}
+	}
+	return nil
 }
 
 func (h *Handler) handleInvoicePaid(ctx context.Context, event services.StripeEvent) error {

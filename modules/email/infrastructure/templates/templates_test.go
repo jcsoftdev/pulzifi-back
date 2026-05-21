@@ -104,3 +104,59 @@ func TestWrapNilSafe(t *testing.T) {
 		t.Error("wrap should return valid HTML structure")
 	}
 }
+
+func TestWelcomeTrial(t *testing.T) {
+	subject, html := WelcomeTrial("Alice", "Acme Co", "https://acme.pulzifi.com", 14)
+	if !strings.Contains(subject, "trial") {
+		t.Errorf("subject missing 'trial': %q", subject)
+	}
+	for _, want := range []string{"Alice", "Acme Co", "https://acme.pulzifi.com", "14-day"} {
+		if !strings.Contains(html, want) {
+			t.Errorf("HTML missing %q", want)
+		}
+	}
+}
+
+func TestTrialDay7(t *testing.T) {
+	subject, html := TrialDay7("Alice", "https://acme.pulzifi.com")
+	if !strings.Contains(subject, "week") {
+		t.Errorf("subject missing 'week': %q", subject)
+	}
+	if !strings.Contains(html, "Alice") {
+		t.Errorf("HTML missing first name")
+	}
+}
+
+func TestTrialDay12(t *testing.T) {
+	subject, html := TrialDay12("Alice", "https://acme.pulzifi.com/billing")
+	if !strings.Contains(subject, "2 days") {
+		t.Errorf("subject missing '2 days': %q", subject)
+	}
+	if !strings.Contains(html, "https://acme.pulzifi.com/billing") {
+		t.Errorf("HTML missing upgrade URL")
+	}
+}
+
+func TestTrialExpired(t *testing.T) {
+	subject, html := TrialExpired("Alice", "https://acme.pulzifi.com/billing")
+	if !strings.Contains(strings.ToLower(subject), "ended") {
+		t.Errorf("subject missing 'ended': %q", subject)
+	}
+	for _, want := range []string{"Alice", "https://acme.pulzifi.com/billing"} {
+		if !strings.Contains(html, want) {
+			t.Errorf("HTML missing %q", want)
+		}
+	}
+}
+
+func TestTrialConverted(t *testing.T) {
+	subject, html := TrialConverted("Alice", "Pro", "https://acme.pulzifi.com")
+	if !strings.Contains(subject, "Pro") {
+		t.Errorf("subject missing plan name: %q", subject)
+	}
+	for _, want := range []string{"Alice", "Pulzifi Pro", "https://acme.pulzifi.com"} {
+		if !strings.Contains(html, want) {
+			t.Errorf("HTML missing %q", want)
+		}
+	}
+}

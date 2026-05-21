@@ -243,28 +243,30 @@ func TestHandleWebhookHandler_Handle(t *testing.T) {
 	}
 
 	tests := []struct {
-		name         string
-		rawBody      []byte
-		sig          string
-		gw           *billingmocks.MockStripeGateway
-		customerRepo *fakeCustomerRepo
-		webhookRepo  *fakeWebhookEventRepo
-		subRepo      *fakeSubscriptionRepo
-		assignErr    error // error MockPlanAssigner.Assign should return
-		wantErr      error
-		assertFn     func(t *testing.T, pa *billingmocks.MockPlanAssigner, whr *fakeWebhookEventRepo)
+		name            string
+		rawBody         []byte
+		sig             string
+		gw              *billingmocks.MockStripeGateway
+		customerRepo    *fakeCustomerRepo
+		webhookRepo     *fakeWebhookEventRepo
+		subRepo         *fakeSubscriptionRepo
+		assignErr       error // error MockPlanAssigner.Assign should return
+		wantErr         error
+		expectConverted bool // true → TrialConverter.Convert MUST be called
+		assertFn        func(t *testing.T, pa *billingmocks.MockPlanAssigner, whr *fakeWebhookEventRepo)
 	}{
 		{
-			name:    "checkout.session.completed — first delivery assigns plan",
+			name:    "checkout.session.completed — first delivery assigns plan and converts trial",
 			rawBody: []byte(`{}`),
 			sig:     "valid-sig",
 			gw: &billingmocks.MockStripeGateway{
 				ConstructEventResult:       makeEvent("evt_001", "checkout.session.completed", checkoutData(customerID, subID)),
 				RetrieveSubscriptionResult: makeSubResult(customerID, subID, priceID, "active", periodEnd),
 			},
-			customerRepo: newFakeCustomerRepo(), // no existing customer — will be created
-			webhookRepo:  newFakeWebhookEventRepo(),
-			subRepo:      newFakeSubscriptionRepo(),
+			customerRepo:    repoWithCustomer(),
+			webhookRepo:     newFakeWebhookEventRepo(),
+			subRepo:         newFakeSubscriptionRepo(),
+			expectConverted: true,
 			assertFn: func(t *testing.T, pa *billingmocks.MockPlanAssigner, _ *fakeWebhookEventRepo) {
 				if pa.AssignCalls != 1 {
 					t.Errorf("expected 1 Assign call, got %d", pa.AssignCalls)
@@ -272,7 +274,7 @@ func TestHandleWebhookHandler_Handle(t *testing.T) {
 			},
 		},
 		{
-			name:    "checkout.session.completed — duplicate event is no-op",
+			name:    "checkout.session.completed — duplicate event is no-op (no converter call)",
 			rawBody: []byte(`{}`),
 			sig:     "valid-sig",
 			gw: &billingmocks.MockStripeGateway{
@@ -430,7 +432,8 @@ func TestHandleWebhookHandler_Handle(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			pa := &billingmocks.MockPlanAssigner{AssignErr: tt.assignErr}
-			h := NewHandler(tt.gw, secret, pa, tt.customerRepo, tt.webhookRepo, tt.subRepo)
+			tc := &billingmocks.MockTrialConverter{}
+			h := NewHandler(tt.gw, secret, pa, tt.customerRepo, tt.webhookRepo, tt.subRepo).WithTrialConverter(tc)
 
 			err := h.Handle(context.Background(), tt.rawBody, tt.sig)
 
@@ -442,6 +445,18 @@ func TestHandleWebhookHandler_Handle(t *testing.T) {
 			}
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
+			}
+			if tt.expectConverted {
+				if tc.ConvertCalls != 1 {
+					t.Errorf("expected 1 TrialConverter.Convert call, got %d", tc.ConvertCalls)
+				}
+				if tc.LastOrgID == uuid.Nil {
+					t.Errorf("expected non-Nil orgID passed to TrialConverter, got Nil")
+				}
+			} else {
+				if tc.ConvertCalls != 0 {
+					t.Errorf("expected 0 TrialConverter.Convert calls, got %d", tc.ConvertCalls)
+				}
 			}
 			if tt.assertFn != nil {
 				tt.assertFn(t, pa, tt.webhookRepo)

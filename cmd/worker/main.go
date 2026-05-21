@@ -6,7 +6,9 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
+	workerjobs "github.com/jcsoftdev/pulzifi-back/cmd/worker/jobs"
 	intpersistence "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/persistence"
 	intproviders "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers"
 	discordprovider "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers/discord"
@@ -136,6 +138,16 @@ func main() {
 	go func() {
 		if err := delWorker.Run(ctx); err != nil && err != context.Canceled {
 			logger.Logger.Fatal("delivery worker stopped", zap.Error(err))
+		}
+	}()
+
+	// ---------------------------------------------------------------------------
+	// Trial expirer cron job
+	// ---------------------------------------------------------------------------
+	trialExpirer := workerjobs.NewTrialExpirer(db, emailProvider, cfg.FrontendURL, time.Hour)
+	go func() {
+		if err := trialExpirer.Run(ctx); err != nil && err != context.Canceled {
+			logger.Warn("trial expirer stopped", zap.Error(err))
 		}
 	}()
 
