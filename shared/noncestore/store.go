@@ -15,23 +15,33 @@ type NonceEntry struct {
 	CreatedAt    time.Time
 }
 
-// Store is a short-lived in-memory store for cross-subdomain cookie exchange.
+// NonceStore is the backend-agnostic interface for nonce storage.
+// Implementations: MemoryStore (in-process, single-instance) and RedisStore (multi-instance).
+type NonceStore interface {
+	Save(nonce string, entry NonceEntry)
+	Consume(nonce string) *NonceEntry
+	Peek(nonce string) *NonceEntry
+}
+
+// MemoryStore is a short-lived in-memory store for cross-subdomain cookie exchange.
 // After login, tokens are stored under a nonce; the tenant callback consumes
 // the nonce and sets HttpOnly cookies on the tenant origin.
-type Store struct {
+//
+// Use this as the fallback when Redis is unavailable (single-instance only).
+type MemoryStore struct {
 	mu      sync.Mutex
 	entries map[string]NonceEntry
 }
 
-// New creates a new nonce store.
-func New() *Store {
-	return &Store{
+// New creates a new in-memory nonce store. It implements NonceStore.
+func New() *MemoryStore {
+	return &MemoryStore{
 		entries: make(map[string]NonceEntry),
 	}
 }
 
 // Save stores a nonce entry and lazily prunes expired entries.
-func (s *Store) Save(nonce string, entry NonceEntry) {
+func (s *MemoryStore) Save(nonce string, entry NonceEntry) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -48,7 +58,7 @@ func (s *Store) Save(nonce string, entry NonceEntry) {
 
 // Consume retrieves and deletes a nonce entry (one-time use).
 // Returns nil if the nonce does not exist or has expired.
-func (s *Store) Consume(nonce string) *NonceEntry {
+func (s *MemoryStore) Consume(nonce string) *NonceEntry {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -67,7 +77,7 @@ func (s *Store) Consume(nonce string) *NonceEntry {
 
 // Peek reads a nonce entry without consuming it.
 // Returns nil if the nonce does not exist or has expired.
-func (s *Store) Peek(nonce string) *NonceEntry {
+func (s *MemoryStore) Peek(nonce string) *NonceEntry {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

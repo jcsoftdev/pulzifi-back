@@ -6,10 +6,17 @@ import (
 )
 
 // checkCacheTTL is how long a published payload is kept for late subscribers.
-// Set to 5 minutes to survive SSE reconnections (auth refresh + new EventSource).
-const checkCacheTTL = 5 * time.Minute
+// Set to 2 minutes to survive SSE reconnections (auth refresh + new EventSource).
+const checkCacheTTL = 2 * time.Minute
 
-// CheckBroker is a lightweight pub/sub broker that routes check-status
+// CheckBroker is the backend-agnostic interface for check-status pub/sub.
+// Implementations: MemoryCheckBroker (in-process) and RedisCheckBroker (multi-instance).
+type CheckBroker interface {
+	Subscribe(pageID string) (<-chan []byte, func())
+	Publish(pageID string, payload []byte)
+}
+
+// MemoryCheckBroker is a lightweight pub/sub broker that routes check-status
 // notifications to SSE subscribers, keyed by page ID.
 //
 // It keeps a short-lived replay cache so that if the frontend's EventSource
@@ -18,14 +25,15 @@ const checkCacheTTL = 5 * time.Minute
 // registered as listeners (even on cache hit) because the SSE handler is
 // long-lived and needs both the cached "pending" event AND future
 // "success"/"error" events.
-type CheckBroker struct {
+type MemoryCheckBroker struct {
 	mu        sync.Mutex
 	listeners map[string][]chan []byte // keyed by pageID
 	cache     map[string]cachedPayload
 }
 
-func NewCheckBroker() *CheckBroker {
-	b := &CheckBroker{
+// NewCheckBroker creates a new in-memory CheckBroker. It implements CheckBroker.
+func NewCheckBroker() *MemoryCheckBroker {
+	b := &MemoryCheckBroker{
 		listeners: make(map[string][]chan []byte),
 		cache:     make(map[string]cachedPayload),
 	}
@@ -34,7 +42,7 @@ func NewCheckBroker() *CheckBroker {
 }
 
 // evictLoop periodically removes expired entries from the replay cache.
-func (b *CheckBroker) evictLoop() {
+func (b *MemoryCheckBroker) evictLoop() {
 	ticker := time.NewTicker(checkCacheTTL)
 	defer ticker.Stop()
 	for range ticker.C {
@@ -55,7 +63,7 @@ func (b *CheckBroker) evictLoop() {
 // If a payload was recently published for this pageID, it is written into
 // the channel immediately. The subscriber is always registered as a listener
 // so it also receives future events (e.g. "pending" → "success" sequence).
-func (b *CheckBroker) Subscribe(pageID string) (<-chan []byte, func()) {
+func (b *MemoryCheckBroker) Subscribe(pageID string) (<-chan []byte, func()) {
 	ch := make(chan []byte, 2)
 	b.mu.Lock()
 
@@ -88,7 +96,7 @@ func (b *CheckBroker) Subscribe(pageID string) (<-chan []byte, func()) {
 
 // Publish sends payload to every subscriber waiting on pageID and stores it
 // in the replay cache for late subscribers.
-func (b *CheckBroker) Publish(pageID string, payload []byte) {
+func (b *MemoryCheckBroker) Publish(pageID string, payload []byte) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 

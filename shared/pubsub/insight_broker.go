@@ -5,8 +5,8 @@ import (
 	"time"
 )
 
-// cacheTTL is how long a published payload is kept for late subscribers.
-const cacheTTL = 5 * time.Minute
+// insightCacheTTL is how long a published payload is kept for late subscribers.
+const insightCacheTTL = 5 * time.Minute
 
 // cachedPayload holds a payload and its expiry time.
 type cachedPayload struct {
@@ -14,20 +14,28 @@ type cachedPayload struct {
 	exp  time.Time
 }
 
-// InsightBroker is a lightweight pub/sub broker that routes insight-ready
+// InsightBroker is the backend-agnostic interface for insight-completion pub/sub.
+// Implementations: MemoryInsightBroker (in-process) and RedisInsightBroker (multi-instance).
+type InsightBroker interface {
+	Subscribe(checkID string) (<-chan []byte, func())
+	Publish(checkID string, payload []byte)
+}
+
+// MemoryInsightBroker is a lightweight pub/sub broker that routes insight-ready
 // notifications to SSE subscribers, keyed by check ID.
 //
 // It also keeps a short-lived replay cache: if a subscriber connects after
 // the publish event (common when generation is fast), the cached payload is
 // delivered immediately so the client never stalls until timeout.
-type InsightBroker struct {
+type MemoryInsightBroker struct {
 	mu        sync.Mutex
 	listeners map[string][]chan []byte
 	cache     map[string]cachedPayload
 }
 
-func NewInsightBroker() *InsightBroker {
-	b := &InsightBroker{
+// NewInsightBroker creates a new in-memory InsightBroker. It implements InsightBroker.
+func NewInsightBroker() *MemoryInsightBroker {
+	b := &MemoryInsightBroker{
 		listeners: make(map[string][]chan []byte),
 		cache:     make(map[string]cachedPayload),
 	}
@@ -36,8 +44,8 @@ func NewInsightBroker() *InsightBroker {
 }
 
 // evictLoop periodically removes expired entries from the replay cache.
-func (b *InsightBroker) evictLoop() {
-	ticker := time.NewTicker(cacheTTL)
+func (b *MemoryInsightBroker) evictLoop() {
+	ticker := time.NewTicker(insightCacheTTL)
 	defer ticker.Stop()
 	for range ticker.C {
 		now := time.Now()
@@ -54,9 +62,10 @@ func (b *InsightBroker) evictLoop() {
 // Subscribe registers a listener for the given checkID. It returns a receive
 // channel and an unsubscribe function that must be deferred by the caller.
 //
-// If a payload was published for this checkID within cacheTTL, it is written
+// If a payload was published for this checkID within insightCacheTTL, it is written
 // into the channel immediately so the caller does not wait for a future publish.
-func (b *InsightBroker) Subscribe(checkID string) (<-chan []byte, func()) {
+// On cache hit, no listener is registered (one-shot semantics).
+func (b *MemoryInsightBroker) Subscribe(checkID string) (<-chan []byte, func()) {
 	ch := make(chan []byte, 1)
 	b.mu.Lock()
 
@@ -88,12 +97,12 @@ func (b *InsightBroker) Subscribe(checkID string) (<-chan []byte, func()) {
 
 // Publish sends payload to every subscriber waiting on checkID and stores it
 // in the replay cache for late subscribers.
-func (b *InsightBroker) Publish(checkID string, payload []byte) {
+func (b *MemoryInsightBroker) Publish(checkID string, payload []byte) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
 	// Cache for late subscribers.
-	b.cache[checkID] = cachedPayload{data: payload, exp: time.Now().Add(cacheTTL)}
+	b.cache[checkID] = cachedPayload{data: payload, exp: time.Now().Add(insightCacheTTL)}
 
 	for _, ch := range b.listeners[checkID] {
 		select {
