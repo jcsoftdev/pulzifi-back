@@ -18,7 +18,8 @@ help: ## Show this help message
 	@echo "============================================================"
 	@echo ""
 	@echo "$(GREEN)DEVELOPMENT:$(NC)"
-	@echo "  $(YELLOW)make dev$(NC)      - Start local dev environment (postgres + extractor + hot reload)"
+	@echo "  $(YELLOW)make dev$(NC)           - Start local dev environment, run migrations, attach logs"
+	@echo "  $(YELLOW)make dev-with-prod$(NC) - Start dev with production DB (no local postgres)"
 	@echo "  $(YELLOW)make dev-web$(NC)  - Start Next.js (Go proxies unmatched routes)"
 	@echo "  $(YELLOW)make down$(NC)     - Stop local dev environment"
 	@echo "  $(YELLOW)make logs$(NC)     - View logs (use: make logs service=monolith)"
@@ -51,7 +52,23 @@ check-env:
 dev: check-env ## Start local dev (postgres + scraper + API + worker with hot reload)
 	@./tools/scripts/assign-dev-ports.sh $(ENV_FILE) docker
 	@echo "$(GREEN)Starting local dev environment...$(NC)"
-	@docker-compose up --remove-orphans
+	@docker-compose up -d --remove-orphans
+	@echo "$(GREEN)Waiting for postgres...$(NC)"
+	@until docker-compose exec -T postgres pg_isready > /dev/null 2>&1; do sleep 1; done
+	@echo "$(GREEN)Running migrations...$(NC)"
+	@export $(shell grep -v '^#' $(ENV_FILE) | xargs) && \
+		go run ./cmd/migrate \
+			-db "postgres://$${DB_USER}:$${DB_PASSWORD}@localhost:$${DB_PORT}/$${DB_NAME}?sslmode=disable" \
+			-cmd up
+	@echo "$(GREEN)Ready. Attaching to logs (Ctrl+C detaches — containers keep running)...$(NC)"
+	@docker-compose logs -f
+
+dev-with-prod: check-env ## Start dev environment using production DB (no local postgres)
+	@./tools/scripts/assign-dev-ports.sh $(ENV_FILE) docker
+	@echo "$(GREEN)Starting dev environment with production DB...$(NC)"
+	@docker-compose -f docker-compose.yml -f docker-compose.prod-db.yml up -d --remove-orphans redis localstack scraper monolith worker
+	@echo "$(GREEN)Ready. Attaching to logs (Ctrl+C detaches — containers keep running)...$(NC)"
+	@docker-compose -f docker-compose.yml -f docker-compose.prod-db.yml logs -f
 
 dev-web: check-env ## Start Next.js on configured DEV_WEB_PORT (Go proxies unmatched routes)
 	@./tools/scripts/assign-dev-ports.sh $(ENV_FILE) web
@@ -59,6 +76,13 @@ dev-web: check-env ## Start Next.js on configured DEV_WEB_PORT (Go proxies unmat
 		echo "$(GREEN)Starting Next.js on :$${DEV_WEB_PORT}...$(NC)"; \
 		echo "$(YELLOW)Access the app at http://<tenant>.localhost:$${HTTP_PORT} (Go serves as entry point)$(NC)"; \
 		cd frontend/apps/web && PORT=$${DEV_WEB_PORT} bun dev
+
+dev-web-with-prod: check-env ## Start Next.js + CMS connected to production DB
+	@./tools/scripts/assign-dev-ports.sh $(ENV_FILE) web
+	@set -a; . $(PWD)/$(ENV_FILE); set +a; \
+		echo "$(GREEN)Starting Next.js on :$${DEV_WEB_PORT} (prod DB)...$(NC)"; \
+		echo "$(YELLOW)Access the app at http://<tenant>.localhost:$${HTTP_PORT}$(NC)"; \
+		cd frontend/apps/web && DB_PORT=5432 PORT=$${DEV_WEB_PORT} bun dev
 
 down: ## Stop local dev environment
 	@docker-compose down -v

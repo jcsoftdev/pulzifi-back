@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto'
 import { postgresAdapter } from '@payloadcms/db-postgres'
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
 import { s3Storage } from '@payloadcms/storage-s3'
@@ -5,7 +6,22 @@ import { buildConfig } from 'payload'
 import { ALL_BLOCKS } from './features/cms/blocks/schemas'
 import { seedCMSIfEmpty } from './features/cms/seed'
 
+function newHexId(): string {
+  return randomBytes(16).toString('hex')
+}
 
+function regenerateIds(items: unknown[]): unknown[] {
+  return items.map((item) => {
+    if (typeof item !== 'object' || item === null) return item
+    const obj: Record<string, unknown> = { ...(item as Record<string, unknown>), id: newHexId() }
+    for (const key of Object.keys(obj)) {
+      if (Array.isArray(obj[key])) {
+        obj[key] = regenerateIds(obj[key] as unknown[])
+      }
+    }
+    return obj
+  })
+}
 
 function requireEnv(name: string): string {
   const value = process.env[name]
@@ -92,9 +108,11 @@ export default buildConfig({
         read: () => true,
       },
       hooks: {
-        beforeValidate: [
+        beforeChange: [
           ({ operation, data }) => {
-            if (operation === 'update' && data) delete data.id
+            if (operation === 'update' && Array.isArray(data?.block)) {
+              data.block = regenerateIds(data.block) as typeof data.block
+            }
             return data
           },
         ],
