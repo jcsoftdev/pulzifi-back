@@ -72,6 +72,8 @@ type ModuleDeps struct {
 	PermRepo         repositories.PermissionRepository
 	RegReqWriter     services.RegistrationRequestWriter
 	OrgDirectory     services.OrganizationDirectory
+	TrialProvisioner services.TrialProvisioner
+	TrialDays        int
 	AuthService      services.AuthService
 	TokenService     services.TokenService
 	CookieDomain     string
@@ -107,7 +109,7 @@ func NewModule(deps ModuleDeps) router.ModuleRegisterer {
 	}
 
 	return &Module{
-		registerHandler:          register.NewHandler(deps.UserRepo, deps.RegReqWriter, deps.OrgDirectory),
+		registerHandler:          register.NewHandler(deps.UserRepo, deps.TrialProvisioner, deps.OrgDirectory, deps.TrialDays),
 		checkSubdomainHandler:    checksubdomain.NewHandler(deps.RegReqWriter, deps.OrgDirectory),
 		loginHandler:             login.NewHandler(deps.AuthService, deps.UserRepo, deps.RefreshTokenRepo, deps.TokenService),
 		logoutHandler:            logout.NewHandler(deps.RefreshTokenRepo),

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/entities"
 	autherrors "github.com/jcsoftdev/pulzifi-back/modules/auth/domain/errors"
 	authmocks "github.com/jcsoftdev/pulzifi-back/modules/auth/domain/repositories/mocks"
 	servicemocks "github.com/jcsoftdev/pulzifi-back/modules/auth/domain/services/mocks"
@@ -16,7 +17,7 @@ type orgValidationError struct{ msg string }
 
 func (e *orgValidationError) Error() string { return "invalid organization data: " + e.msg }
 
-func newOrgNameErr(msg string) error  { return &orgValidationError{msg: msg} }
+func newOrgNameErr(msg string) error   { return &orgValidationError{msg: msg} }
 func newSubdomainErr(msg string) error { return &orgValidationError{msg: msg} }
 
 func TestHandler_Handle(t *testing.T) {
@@ -30,18 +31,17 @@ func TestHandler_Handle(t *testing.T) {
 	}
 
 	tests := []struct {
-		name          string
-		req           *Request
-		setupMocks    func(userRepo *authmocks.MockUserRepository, regReqWriter *servicemocks.MockRegistrationRequestWriter, orgDir *servicemocks.MockOrganizationDirectory)
-		wantErr       bool
-		wantErrCode   string
+		name        string
+		req         *Request
+		setupMocks  func(userRepo *authmocks.MockUserRepository, prov *servicemocks.MockTrialProvisioner, orgDir *servicemocks.MockOrganizationDirectory)
+		wantErr     bool
+		wantErrCode string
 	}{
 		{
-			name: "successful registration",
+			name: "successful self-serve trial registration",
 			req:  validReq,
-			setupMocks: func(userRepo *authmocks.MockUserRepository, regReqWriter *servicemocks.MockRegistrationRequestWriter, orgDir *servicemocks.MockOrganizationDirectory) {
+			setupMocks: func(userRepo *authmocks.MockUserRepository, _ *servicemocks.MockTrialProvisioner, orgDir *servicemocks.MockOrganizationDirectory) {
 				orgDir.CountBySubdomainResult = 0
-				regReqWriter.ExistsPendingBySubdomainResult = false
 				userRepo.ExistsByEmailResult = false
 			},
 			wantErr: false,
@@ -49,9 +49,8 @@ func TestHandler_Handle(t *testing.T) {
 		{
 			name: "duplicate email returns USER_ALREADY_EXISTS",
 			req:  validReq,
-			setupMocks: func(userRepo *authmocks.MockUserRepository, regReqWriter *servicemocks.MockRegistrationRequestWriter, orgDir *servicemocks.MockOrganizationDirectory) {
+			setupMocks: func(userRepo *authmocks.MockUserRepository, _ *servicemocks.MockTrialProvisioner, orgDir *servicemocks.MockOrganizationDirectory) {
 				orgDir.CountBySubdomainResult = 0
-				regReqWriter.ExistsPendingBySubdomainResult = false
 				userRepo.ExistsByEmailResult = true
 			},
 			wantErr:     true,
@@ -60,21 +59,11 @@ func TestHandler_Handle(t *testing.T) {
 		{
 			name: "subdomain already taken by approved org",
 			req:  validReq,
-			setupMocks: func(userRepo *authmocks.MockUserRepository, regReqWriter *servicemocks.MockRegistrationRequestWriter, orgDir *servicemocks.MockOrganizationDirectory) {
+			setupMocks: func(_ *authmocks.MockUserRepository, _ *servicemocks.MockTrialProvisioner, orgDir *servicemocks.MockOrganizationDirectory) {
 				orgDir.CountBySubdomainResult = 1
 			},
 			wantErr:     true,
 			wantErrCode: "SUBDOMAIN_TAKEN",
-		},
-		{
-			name: "subdomain pending approval",
-			req:  validReq,
-			setupMocks: func(userRepo *authmocks.MockUserRepository, regReqWriter *servicemocks.MockRegistrationRequestWriter, orgDir *servicemocks.MockOrganizationDirectory) {
-				orgDir.CountBySubdomainResult = 0
-				regReqWriter.ExistsPendingBySubdomainResult = true
-			},
-			wantErr:     true,
-			wantErrCode: "SUBDOMAIN_PENDING",
 		},
 		{
 			name: "invalid organization name (empty)",
@@ -86,8 +75,7 @@ func TestHandler_Handle(t *testing.T) {
 				OrganizationName:      "",
 				OrganizationSubdomain: "bobcorp",
 			},
-			setupMocks: func(userRepo *authmocks.MockUserRepository, regReqWriter *servicemocks.MockRegistrationRequestWriter, orgDir *servicemocks.MockOrganizationDirectory) {
-				// Simulate real validation: empty org name fails
+			setupMocks: func(_ *authmocks.MockUserRepository, _ *servicemocks.MockTrialProvisioner, orgDir *servicemocks.MockOrganizationDirectory) {
 				orgDir.ValidateOrganizationNameErr = newOrgNameErr("name cannot be empty")
 			},
 			wantErr:     true,
@@ -103,8 +91,7 @@ func TestHandler_Handle(t *testing.T) {
 				OrganizationName:      "Bob Corp",
 				OrganizationSubdomain: "ab",
 			},
-			setupMocks: func(userRepo *authmocks.MockUserRepository, regReqWriter *servicemocks.MockRegistrationRequestWriter, orgDir *servicemocks.MockOrganizationDirectory) {
-				// Simulate real validation: subdomain "ab" is too short
+			setupMocks: func(_ *authmocks.MockUserRepository, _ *servicemocks.MockTrialProvisioner, orgDir *servicemocks.MockOrganizationDirectory) {
 				orgDir.ValidateSubdomainErr = newSubdomainErr("subdomain must be at least 3 characters")
 			},
 			wantErr:     true,
@@ -113,22 +100,20 @@ func TestHandler_Handle(t *testing.T) {
 		{
 			name: "user repo Create fails propagates error",
 			req:  validReq,
-			setupMocks: func(userRepo *authmocks.MockUserRepository, regReqWriter *servicemocks.MockRegistrationRequestWriter, orgDir *servicemocks.MockOrganizationDirectory) {
+			setupMocks: func(userRepo *authmocks.MockUserRepository, _ *servicemocks.MockTrialProvisioner, orgDir *servicemocks.MockOrganizationDirectory) {
 				orgDir.CountBySubdomainResult = 0
-				regReqWriter.ExistsPendingBySubdomainResult = false
 				userRepo.ExistsByEmailResult = false
 				userRepo.CreateErr = errors.New("db connection lost")
 			},
 			wantErr: true,
 		},
 		{
-			name: "registration request Create fails propagates error",
+			name: "trial provisioner fails propagates error",
 			req:  validReq,
-			setupMocks: func(userRepo *authmocks.MockUserRepository, regReqWriter *servicemocks.MockRegistrationRequestWriter, orgDir *servicemocks.MockOrganizationDirectory) {
+			setupMocks: func(userRepo *authmocks.MockUserRepository, prov *servicemocks.MockTrialProvisioner, orgDir *servicemocks.MockOrganizationDirectory) {
 				orgDir.CountBySubdomainResult = 0
-				regReqWriter.ExistsPendingBySubdomainResult = false
 				userRepo.ExistsByEmailResult = false
-				regReqWriter.CreateErr = errors.New("db connection lost")
+				prov.ProvisionErr = errors.New("schema provisioning failed")
 			},
 			wantErr: true,
 		},
@@ -137,14 +122,14 @@ func TestHandler_Handle(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			userRepo := &authmocks.MockUserRepository{}
-			regReqWriter := &servicemocks.MockRegistrationRequestWriter{}
+			prov := &servicemocks.MockTrialProvisioner{}
 			orgDir := &servicemocks.MockOrganizationDirectory{}
 
 			if tt.setupMocks != nil {
-				tt.setupMocks(userRepo, regReqWriter, orgDir)
+				tt.setupMocks(userRepo, prov, orgDir)
 			}
 
-			handler := NewHandler(userRepo, regReqWriter, orgDir)
+			handler := NewHandler(userRepo, prov, orgDir, 14)
 			resp, err := handler.Handle(context.Background(), tt.req)
 
 			if tt.wantErr {
@@ -158,7 +143,6 @@ func TestHandler_Handle(t *testing.T) {
 							t.Errorf("expected error code %q, got %q", tt.wantErrCode, userErr.Code)
 						}
 					}
-					// Some errors are not UserError (e.g. db errors); that's fine
 				}
 				return
 			}
@@ -172,23 +156,26 @@ func TestHandler_Handle(t *testing.T) {
 			if resp.Email != tt.req.Email {
 				t.Errorf("expected email %q, got %q", tt.req.Email, resp.Email)
 			}
-			if resp.FirstName != tt.req.FirstName {
-				t.Errorf("expected first name %q, got %q", tt.req.FirstName, resp.FirstName)
+			if resp.Status != entities.UserStatusApproved {
+				t.Errorf("expected status %q, got %q", entities.UserStatusApproved, resp.Status)
 			}
-			if resp.LastName != tt.req.LastName {
-				t.Errorf("expected last name %q, got %q", tt.req.LastName, resp.LastName)
+			if resp.OrganizationSubdomain != tt.req.OrganizationSubdomain {
+				t.Errorf("expected org_subdomain %q, got %q", tt.req.OrganizationSubdomain, resp.OrganizationSubdomain)
 			}
-			if resp.Status != "pending" {
-				t.Errorf("expected status %q, got %q", "pending", resp.Status)
-			}
-			if resp.Message == "" {
-				t.Error("expected non-empty message")
+			if resp.TrialEndsAt.IsZero() {
+				t.Error("expected non-zero trial_ends_at on response")
 			}
 			if userRepo.CreateCalls != 1 {
 				t.Errorf("expected 1 Create call on user repo, got %d", userRepo.CreateCalls)
 			}
-			if regReqWriter.CreateCalls != 1 {
-				t.Errorf("expected 1 Create call on registration request writer, got %d", regReqWriter.CreateCalls)
+			if prov.ProvisionCalls != 1 {
+				t.Errorf("expected 1 Provision call on trial provisioner, got %d", prov.ProvisionCalls)
+			}
+			if prov.LastInput.OrganizationSubdomain != tt.req.OrganizationSubdomain {
+				t.Errorf("provisioner got subdomain %q, want %q", prov.LastInput.OrganizationSubdomain, tt.req.OrganizationSubdomain)
+			}
+			if prov.LastInput.TrialDays != 14 {
+				t.Errorf("provisioner got trial_days %d, want 14", prov.LastInput.TrialDays)
 			}
 		})
 	}

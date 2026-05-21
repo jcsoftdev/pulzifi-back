@@ -13,27 +13,34 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// Handler handles user registration
+// Handler orchestrates self-serve registration on a 14-day no-card trial.
+//
+// The previous admin-approval gate is gone: the new user is created with
+// status="approved" and the TrialProvisioner atomically creates the org,
+// membership, ADMIN role, trial plan row, and provisions the tenant schema.
 type Handler struct {
-	userRepo     repositories.UserRepository
-	regReqWriter authservices.RegistrationRequestWriter
-	orgDirectory authservices.OrganizationDirectory
+	userRepo         repositories.UserRepository
+	trialProvisioner authservices.TrialProvisioner
+	orgDirectory     authservices.OrganizationDirectory
+	trialDays        int
 }
 
-// NewHandler creates a new handler instance
+// NewHandler creates a new handler instance.
 func NewHandler(
 	userRepo repositories.UserRepository,
-	regReqWriter authservices.RegistrationRequestWriter,
+	trialProvisioner authservices.TrialProvisioner,
 	orgDirectory authservices.OrganizationDirectory,
+	trialDays int,
 ) *Handler {
 	return &Handler{
-		userRepo:     userRepo,
-		regReqWriter: regReqWriter,
-		orgDirectory: orgDirectory,
+		userRepo:         userRepo,
+		trialProvisioner: trialProvisioner,
+		orgDirectory:     orgDirectory,
+		trialDays:        trialDays,
 	}
 }
 
-// Handle executes the register use case
+// Handle executes the self-serve register use case.
 func (h *Handler) Handle(ctx context.Context, req *Request) (*Response, error) {
 	// Validate organization name
 	if err := h.orgDirectory.ValidateOrganizationName(req.OrganizationName); err != nil {
@@ -46,7 +53,7 @@ func (h *Handler) Handle(ctx context.Context, req *Request) (*Response, error) {
 		return nil, errors.NewUserError("INVALID_SUBDOMAIN", err.Error())
 	}
 
-	// Check subdomain uniqueness against existing (approved) organizations
+	// Check subdomain uniqueness against existing organizations
 	count, err := h.orgDirectory.CountBySubdomain(ctx, subdomain)
 	if err != nil {
 		logger.Error("Failed to check subdomain uniqueness", zap.Error(err))
@@ -56,23 +63,12 @@ func (h *Handler) Handle(ctx context.Context, req *Request) (*Response, error) {
 		return nil, errors.NewUserError("SUBDOMAIN_TAKEN", "subdomain is already in use")
 	}
 
-	// Check subdomain uniqueness against pending registration requests
-	pendingExists, err := h.regReqWriter.ExistsPendingBySubdomain(ctx, subdomain)
-	if err != nil {
-		logger.Error("Failed to check pending subdomain", zap.Error(err))
-		return nil, err
-	}
-	if pendingExists {
-		return nil, errors.NewUserError("SUBDOMAIN_PENDING", "subdomain is already pending registration approval")
-	}
-
 	// Check if user already exists
 	exists, err := h.userRepo.ExistsByEmail(ctx, req.Email)
 	if err != nil {
 		logger.Error("Failed to check if user exists", zap.Error(err))
 		return nil, err
 	}
-
 	if exists {
 		logger.Warn("User already exists", zap.String("email", req.Email))
 		return nil, errors.NewUserError("USER_ALREADY_EXISTS", "user already exists with this email")
@@ -85,8 +81,9 @@ func (h *Handler) Handle(ctx context.Context, req *Request) (*Response, error) {
 		return nil, err
 	}
 
-	// Create user entity (status: pending)
+	// Create user entity — self-serve onboarding goes straight to approved.
 	user := entities.NewUser(req.Email, string(hashedPassword), req.FirstName, req.LastName)
+	user.Status = entities.UserStatusApproved
 
 	// Persist user
 	if err := h.userRepo.Create(ctx, user); err != nil {
@@ -94,25 +91,34 @@ func (h *Handler) Handle(ctx context.Context, req *Request) (*Response, error) {
 		return nil, err
 	}
 
-	// Create registration request using auth's own type
-	regReq := authservices.NewPendingRegistration(user.ID, req.OrganizationName, subdomain)
-	if err := h.regReqWriter.Create(ctx, regReq); err != nil {
-		logger.Error("Failed to create registration request", zap.Error(err))
+	// Atomically provision org + trial plan + tenant schema.
+	out, err := h.trialProvisioner.Provision(ctx, authservices.TrialProvisionInput{
+		UserID:                user.ID,
+		OrganizationName:      req.OrganizationName,
+		OrganizationSubdomain: subdomain,
+		TrialDays:             h.trialDays,
+	})
+	if err != nil {
+		logger.Error("Failed to provision trial organization", zap.Error(err))
 		return nil, err
 	}
 
-	logger.Info("User registration submitted",
+	logger.Info("User self-serve trial registered",
 		zap.String("email", user.Email),
 		zap.String("id", user.ID.String()),
-		zap.String("org_subdomain", subdomain),
+		zap.String("org_subdomain", out.OrganizationSubdomain),
+		zap.Time("trial_ends_at", out.TrialEndsAt),
 	)
 
 	return &Response{
-		UserID:    user.ID,
-		Email:     user.Email,
-		FirstName: user.FirstName,
-		LastName:  user.LastName,
-		Status:    user.Status,
-		Message:   "Registration submitted, awaiting approval",
+		UserID:                user.ID,
+		Email:                 user.Email,
+		FirstName:             user.FirstName,
+		LastName:              user.LastName,
+		Status:                user.Status,
+		Message:               "Trial started",
+		OrganizationID:        out.OrganizationID,
+		OrganizationSubdomain: out.OrganizationSubdomain,
+		TrialEndsAt:           out.TrialEndsAt,
 	}, nil
 }

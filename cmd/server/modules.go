@@ -112,6 +112,7 @@ func registerAllModulesInternal(
 	authRegReqWriter := authwiring.NewRegistrationWriterAdapter(regReqRepo)
 	authOrgDirectory := authwiring.NewOrganizationDirectoryAdapter(orgRepo, orgService)
 	authNotifier := authwiring.NewNotifierAdapter(emailProvider)
+	authTrialProvisioner := authwiring.NewTrialProvisioner(db, orgService)
 
 	// Create auth module and set global middleware
 	authModule := auth.NewModule(auth.ModuleDeps{
@@ -121,6 +122,8 @@ func registerAllModulesInternal(
 		PermRepo:         permRepo,
 		RegReqWriter:     authRegReqWriter,
 		OrgDirectory:     authOrgDirectory,
+		TrialProvisioner: authTrialProvisioner,
+		TrialDays:        cfg.TrialDays,
 		AuthService:      authService,
 		TokenService:     jwtService,
 		CookieDomain:     cfg.CookieDomain,
