@@ -314,7 +314,4 @@ The `integration` module is the most recent example of the **correct approach**:
 
 #### Legacy Cleanup
 
-- 11 modules still have legacy standalone artifacts (`main.go`, `.air.toml`, `docs/`, `tmp/`) from the pre-monolith era. These should be removed.
-- `organization` module has a stale compiled binary and legacy Gin `router.go` — remove.
-- `shared/middleware/health.go` uses Gin (not Chi) — likely unused, should be removed or ported.
 - Empty placeholder directories (`integration/setup_webhook/`, `snapshot/kafka/`, `report/create_report/`, `usage/track_usage/`, `usage/entities/`, `usage/repositories/`) should either be implemented or removed.
