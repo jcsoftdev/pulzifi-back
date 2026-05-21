@@ -3,6 +3,8 @@ export const dynamic = 'force-dynamic'
 import { Suspense } from 'react'
 import { AppShell } from '@/components/app-shell'
 import { AuthGuard } from '@/components/auth-guard'
+import { TrialBanner } from '@/features/billing/ui/TrialBanner'
+import { UpgradeModal } from '@/features/billing/ui/UpgradeModal'
 import { NotificationsLoader } from '@/features/notifications/ui/notifications-loader'
 import { SidebarFeature } from '@/features/sidebar'
 import { SidebarSkeleton } from '@/features/sidebar/ui/sidebar-skeleton'
@@ -38,7 +40,9 @@ export default function MainLayout({
           </Suspense>
         }
       >
+        <TrialBanner />
         {children}
+        <UpgradeModal />
       </AppShell>
     </AuthGuard>
   )

@@ -42,7 +42,7 @@ export type { AdminOrganizationPlan, AdminPlan, PendingUser } from './super-admi
 export { SuperAdminApi } from './super-admin-api'
 export type { InviteMemberDto, TeamMember, UpdateMemberDto } from './team-api'
 export { TeamApi } from './team-api'
-export type { ChecksData, UsageStats } from './usage-api'
+export type { ChecksData, TrialStatusDto, UsageStats } from './usage-api'
 export { UsageApi } from './usage-api'
 export type { CreateWorkspaceDto, ListWorkspacesResponse, Workspace } from './workspace-api'
 export { WorkspaceApi } from './workspace-api'

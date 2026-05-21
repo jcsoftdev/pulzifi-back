@@ -22,6 +22,15 @@ interface UsageQuotasResponse {
   }
 }
 
+export interface TrialStatusDto {
+  is_trial: boolean
+  is_expired: boolean
+  needs_upgrade: boolean
+  converted: boolean
+  days_remaining: number
+  trial_ends_at?: string
+}
+
 export interface UsageStats {
   workplaces: {
     current: number
@@ -80,5 +89,14 @@ export const UsageApi = {
     await http.post('/api/usage/increment', {
       type,
     })
+  },
+
+  /**
+   * Fetches the current trial status for the authenticated tenant.
+   * Used by the trial banner + upgrade modal on the (main) layout.
+   */
+  async getTrialStatus(): Promise<TrialStatusDto> {
+    const http = await getHttpClient()
+    return http.get<TrialStatusDto>('/api/v1/usage/trial-status')
   },
 }
