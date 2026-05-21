@@ -3,9 +3,14 @@ package cache
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 )
+
+// ErrCacheDisabled is returned by cache functions when Redis is not initialized.
+// Callers should treat this as a cache miss — not as a hard failure.
+var ErrCacheDisabled = errors.New("cache: Redis is not initialized")
 
 const (
 	// Grace period for refresh token reuse (2 seconds to handle concurrent requests)
@@ -20,10 +25,12 @@ type RefreshTokenCache struct {
 	Tenant       string `json:"tenant,omitempty"`
 }
 
-// GetRefreshTokenCache retrieves cached refresh token response
+// GetRefreshTokenCache retrieves cached refresh token response.
+// Returns (nil, ErrCacheDisabled) when Redis is not initialized so callers can
+// distinguish a genuine cache miss (err != nil) from a cached hit (nil error).
 func GetRefreshTokenCache(ctx context.Context, oldRefreshToken string) (*RefreshTokenCache, error) {
 	if redisClient == nil {
-		return nil, nil // Redis disabled, cache miss
+		return nil, ErrCacheDisabled
 	}
 
 	key := fmt.Sprintf("refresh_token_cache:%s", oldRefreshToken)
