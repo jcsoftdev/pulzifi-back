@@ -8,8 +8,16 @@ import (
 	autherrors "github.com/jcsoftdev/pulzifi-back/modules/auth/domain/errors"
 	authmocks "github.com/jcsoftdev/pulzifi-back/modules/auth/domain/repositories/mocks"
 	servicemocks "github.com/jcsoftdev/pulzifi-back/modules/auth/domain/services/mocks"
-	orgservices "github.com/jcsoftdev/pulzifi-back/modules/organization/domain/services"
 )
+
+// orgValidationError is a local fake for organization validation errors.
+// It avoids a cross-module import of organization/domain/services.
+type orgValidationError struct{ msg string }
+
+func (e *orgValidationError) Error() string { return "invalid organization data: " + e.msg }
+
+func newOrgNameErr(msg string) error  { return &orgValidationError{msg: msg} }
+func newSubdomainErr(msg string) error { return &orgValidationError{msg: msg} }
 
 func TestHandler_Handle(t *testing.T) {
 	validReq := &Request{
@@ -19,12 +27,6 @@ func TestHandler_Handle(t *testing.T) {
 		LastName:              "Smith",
 		OrganizationName:      "Acme Corp",
 		OrganizationSubdomain: "acme-corp",
-	}
-
-	// realOrgService delegates validation to the real OrganizationService so that
-	// INVALID_ORG_NAME / INVALID_SUBDOMAIN cases exercise the real rules.
-	newRealOrgDirectory := func() *servicemocks.MockOrganizationDirectory {
-		return &servicemocks.MockOrganizationDirectory{}
 	}
 
 	tests := []struct {
@@ -86,8 +88,7 @@ func TestHandler_Handle(t *testing.T) {
 			},
 			setupMocks: func(userRepo *authmocks.MockUserRepository, regReqWriter *servicemocks.MockRegistrationRequestWriter, orgDir *servicemocks.MockOrganizationDirectory) {
 				// Simulate real validation: empty org name fails
-				svc := orgservices.NewOrganizationService()
-				orgDir.ValidateOrganizationNameErr = svc.ValidateOrganizationName("")
+				orgDir.ValidateOrganizationNameErr = newOrgNameErr("name cannot be empty")
 			},
 			wantErr:     true,
 			wantErrCode: "INVALID_ORG_NAME",
@@ -104,8 +105,7 @@ func TestHandler_Handle(t *testing.T) {
 			},
 			setupMocks: func(userRepo *authmocks.MockUserRepository, regReqWriter *servicemocks.MockRegistrationRequestWriter, orgDir *servicemocks.MockOrganizationDirectory) {
 				// Simulate real validation: subdomain "ab" is too short
-				svc := orgservices.NewOrganizationService()
-				orgDir.ValidateSubdomainErr = svc.ValidateSubdomain("ab")
+				orgDir.ValidateSubdomainErr = newSubdomainErr("subdomain must be at least 3 characters")
 			},
 			wantErr:     true,
 			wantErrCode: "INVALID_SUBDOMAIN",
@@ -138,7 +138,7 @@ func TestHandler_Handle(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			userRepo := &authmocks.MockUserRepository{}
 			regReqWriter := &servicemocks.MockRegistrationRequestWriter{}
-			orgDir := newRealOrgDirectory()
+			orgDir := &servicemocks.MockOrganizationDirectory{}
 
 			if tt.setupMocks != nil {
 				tt.setupMocks(userRepo, regReqWriter, orgDir)

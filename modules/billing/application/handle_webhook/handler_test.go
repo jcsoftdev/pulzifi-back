@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -11,8 +12,142 @@ import (
 	"github.com/jcsoftdev/pulzifi-back/modules/billing/domain/entities"
 	"github.com/jcsoftdev/pulzifi-back/modules/billing/domain/services"
 	billingmocks "github.com/jcsoftdev/pulzifi-back/modules/billing/domain/services/mocks"
-	"github.com/jcsoftdev/pulzifi-back/modules/billing/infrastructure/persistence/inmem"
 )
+
+// ── local fakes ───────────────────────────────────────────────────────────────
+// These avoid importing modules/billing/infrastructure/persistence/inmem from
+// the application layer (application→infrastructure boundary violation).
+
+type fakeCustomerRepo struct {
+	mu         sync.RWMutex
+	byOrg      map[uuid.UUID]*entities.Customer
+	byStripeID map[string]*entities.Customer
+}
+
+func newFakeCustomerRepo() *fakeCustomerRepo {
+	return &fakeCustomerRepo{
+		byOrg:      make(map[uuid.UUID]*entities.Customer),
+		byStripeID: make(map[string]*entities.Customer),
+	}
+}
+
+func (r *fakeCustomerRepo) FindByOrgID(_ context.Context, orgID uuid.UUID) (*entities.Customer, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	if c, ok := r.byOrg[orgID]; ok {
+		cp := *c
+		return &cp, nil
+	}
+	return nil, nil
+}
+
+func (r *fakeCustomerRepo) FindByStripeCustomerID(_ context.Context, customerID string) (*entities.Customer, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	if c, ok := r.byStripeID[customerID]; ok {
+		cp := *c
+		return &cp, nil
+	}
+	return nil, nil
+}
+
+func (r *fakeCustomerRepo) Save(_ context.Context, customer *entities.Customer) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	cp := *customer
+	r.byOrg[customer.OrgID] = &cp
+	r.byStripeID[customer.StripeCustomerID] = &cp
+	return nil
+}
+
+type fakeWebhookEventRepo struct {
+	mu     sync.Mutex
+	events map[string]*entities.WebhookEvent
+}
+
+func newFakeWebhookEventRepo() *fakeWebhookEventRepo {
+	return &fakeWebhookEventRepo{events: make(map[string]*entities.WebhookEvent)}
+}
+
+func (r *fakeWebhookEventRepo) Save(_ context.Context, event *entities.WebhookEvent) (bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, exists := r.events[event.EventID]; exists {
+		return false, nil
+	}
+	cp := *event
+	r.events[event.EventID] = &cp
+	return true, nil
+}
+
+func (r *fakeWebhookEventRepo) MarkProcessed(_ context.Context, eventID string, status entities.WebhookEventStatus) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if ev, ok := r.events[eventID]; ok {
+		now := time.Now()
+		ev.ProcessedAt = &now
+		ev.Status = status
+	}
+	return nil
+}
+
+type fakeSubscriptionRepo struct {
+	mu    sync.RWMutex
+	byID  map[uuid.UUID]*entities.Subscription
+	bySub map[string]*entities.Subscription
+}
+
+func newFakeSubscriptionRepo() *fakeSubscriptionRepo {
+	return &fakeSubscriptionRepo{
+		byID:  make(map[uuid.UUID]*entities.Subscription),
+		bySub: make(map[string]*entities.Subscription),
+	}
+}
+
+func (r *fakeSubscriptionRepo) FindByOrgID(_ context.Context, orgID uuid.UUID) (*entities.Subscription, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	if sub, ok := r.byID[orgID]; ok {
+		cp := *sub
+		return &cp, nil
+	}
+	return nil, nil
+}
+
+func (r *fakeSubscriptionRepo) FindByStripeSubscriptionID(_ context.Context, subID string) (*entities.Subscription, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	if sub, ok := r.bySub[subID]; ok {
+		cp := *sub
+		return &cp, nil
+	}
+	return nil, nil
+}
+
+func (r *fakeSubscriptionRepo) Save(_ context.Context, sub *entities.Subscription) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	cp := *sub
+	r.byID[sub.OrgID] = &cp
+	if sub.StripeSubscriptionID != "" {
+		r.bySub[sub.StripeSubscriptionID] = &cp
+	}
+	return nil
+}
+
+func (r *fakeSubscriptionRepo) Update(_ context.Context, sub *entities.Subscription) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if old, ok := r.byID[sub.OrgID]; ok && old.StripeSubscriptionID != sub.StripeSubscriptionID {
+		delete(r.bySub, old.StripeSubscriptionID)
+	}
+	cp := *sub
+	r.byID[sub.OrgID] = &cp
+	if sub.StripeSubscriptionID != "" {
+		r.bySub[sub.StripeSubscriptionID] = &cp
+	}
+	return nil
+}
 
 // Ensure domain sentinel is importable from the application layer.
 var _ = services.ErrPlanNotFound
@@ -87,8 +222,8 @@ func TestHandleWebhookHandler_Handle(t *testing.T) {
 	periodEnd := time.Now().Add(30 * 24 * time.Hour).Unix()
 
 	// Pre-seeded customer repo with org <-> customer mapping
-	repoWithCustomer := func() *inmem.CustomerRepo {
-		r := inmem.NewCustomerRepo()
+	repoWithCustomer := func() *fakeCustomerRepo {
+		r := newFakeCustomerRepo()
 		_ = r.Save(context.Background(), &entities.Customer{
 			OrgID:            orgID,
 			StripeCustomerID: customerID,
@@ -97,8 +232,8 @@ func TestHandleWebhookHandler_Handle(t *testing.T) {
 	}
 
 	// Pre-seeded webhook repo with already-processed event_id
-	repoWithEvent := func(eventID string) *inmem.WebhookEventRepo {
-		r := inmem.NewWebhookEventRepo()
+	repoWithEvent := func(eventID string) *fakeWebhookEventRepo {
+		r := newFakeWebhookEventRepo()
 		_, _ = r.Save(context.Background(), &entities.WebhookEvent{
 			EventID:   eventID,
 			EventType: "any",
@@ -112,12 +247,12 @@ func TestHandleWebhookHandler_Handle(t *testing.T) {
 		rawBody      []byte
 		sig          string
 		gw           *billingmocks.MockStripeGateway
-		customerRepo *inmem.CustomerRepo
-		webhookRepo  *inmem.WebhookEventRepo
-		subRepo      *inmem.SubscriptionRepo
+		customerRepo *fakeCustomerRepo
+		webhookRepo  *fakeWebhookEventRepo
+		subRepo      *fakeSubscriptionRepo
 		assignErr    error // error MockPlanAssigner.Assign should return
 		wantErr      error
-		assertFn     func(t *testing.T, pa *billingmocks.MockPlanAssigner, whr *inmem.WebhookEventRepo)
+		assertFn     func(t *testing.T, pa *billingmocks.MockPlanAssigner, whr *fakeWebhookEventRepo)
 	}{
 		{
 			name:    "checkout.session.completed — first delivery assigns plan",
@@ -127,10 +262,10 @@ func TestHandleWebhookHandler_Handle(t *testing.T) {
 				ConstructEventResult:       makeEvent("evt_001", "checkout.session.completed", checkoutData(customerID, subID)),
 				RetrieveSubscriptionResult: makeSubResult(customerID, subID, priceID, "active", periodEnd),
 			},
-			customerRepo: inmem.NewCustomerRepo(), // no existing customer — will be created
-			webhookRepo:  inmem.NewWebhookEventRepo(),
-			subRepo:      inmem.NewSubscriptionRepo(),
-			assertFn: func(t *testing.T, pa *billingmocks.MockPlanAssigner, _ *inmem.WebhookEventRepo) {
+			customerRepo: newFakeCustomerRepo(), // no existing customer — will be created
+			webhookRepo:  newFakeWebhookEventRepo(),
+			subRepo:      newFakeSubscriptionRepo(),
+			assertFn: func(t *testing.T, pa *billingmocks.MockPlanAssigner, _ *fakeWebhookEventRepo) {
 				if pa.AssignCalls != 1 {
 					t.Errorf("expected 1 Assign call, got %d", pa.AssignCalls)
 				}
@@ -145,8 +280,8 @@ func TestHandleWebhookHandler_Handle(t *testing.T) {
 			},
 			customerRepo: repoWithCustomer(),
 			webhookRepo:  repoWithEvent("evt_001"), // already processed
-			subRepo:      inmem.NewSubscriptionRepo(),
-			assertFn: func(t *testing.T, pa *billingmocks.MockPlanAssigner, _ *inmem.WebhookEventRepo) {
+			subRepo:      newFakeSubscriptionRepo(),
+			assertFn: func(t *testing.T, pa *billingmocks.MockPlanAssigner, _ *fakeWebhookEventRepo) {
 				if pa.AssignCalls != 0 {
 					t.Errorf("duplicate event: expected 0 Assign calls, got %d", pa.AssignCalls)
 				}
@@ -161,9 +296,9 @@ func TestHandleWebhookHandler_Handle(t *testing.T) {
 				RetrieveSubscriptionResult: makeSubResult(customerID, subID, priceID, "active", periodEnd),
 			},
 			customerRepo: repoWithCustomer(),
-			webhookRepo:  inmem.NewWebhookEventRepo(),
-			subRepo:      inmem.NewSubscriptionRepo(),
-			assertFn: func(t *testing.T, pa *billingmocks.MockPlanAssigner, _ *inmem.WebhookEventRepo) {
+			webhookRepo:  newFakeWebhookEventRepo(),
+			subRepo:      newFakeSubscriptionRepo(),
+			assertFn: func(t *testing.T, pa *billingmocks.MockPlanAssigner, _ *fakeWebhookEventRepo) {
 				if pa.AssignCalls != 1 {
 					t.Errorf("invoice.paid: expected 1 Assign call, got %d", pa.AssignCalls)
 				}
@@ -178,8 +313,8 @@ func TestHandleWebhookHandler_Handle(t *testing.T) {
 			},
 			customerRepo: repoWithCustomer(),
 			webhookRepo:  repoWithEvent("evt_002"),
-			subRepo:      inmem.NewSubscriptionRepo(),
-			assertFn: func(t *testing.T, pa *billingmocks.MockPlanAssigner, _ *inmem.WebhookEventRepo) {
+			subRepo:      newFakeSubscriptionRepo(),
+			assertFn: func(t *testing.T, pa *billingmocks.MockPlanAssigner, _ *fakeWebhookEventRepo) {
 				if pa.AssignCalls != 0 {
 					t.Errorf("dup invoice.paid: expected 0 Assign calls, got %d", pa.AssignCalls)
 				}
@@ -194,9 +329,9 @@ func TestHandleWebhookHandler_Handle(t *testing.T) {
 					subData(customerID, subID, priceID, "active", periodEnd)),
 			},
 			customerRepo: repoWithCustomer(),
-			webhookRepo:  inmem.NewWebhookEventRepo(),
-			subRepo:      inmem.NewSubscriptionRepo(),
-			assertFn: func(t *testing.T, pa *billingmocks.MockPlanAssigner, _ *inmem.WebhookEventRepo) {
+			webhookRepo:  newFakeWebhookEventRepo(),
+			subRepo:      newFakeSubscriptionRepo(),
+			assertFn: func(t *testing.T, pa *billingmocks.MockPlanAssigner, _ *fakeWebhookEventRepo) {
 				if pa.AssignCalls != 1 {
 					t.Errorf("subscription.updated: expected 1 Assign call, got %d", pa.AssignCalls)
 				}
@@ -214,9 +349,9 @@ func TestHandleWebhookHandler_Handle(t *testing.T) {
 					subData(customerID, subID, priceID, "canceled", periodEnd)),
 			},
 			customerRepo: repoWithCustomer(),
-			webhookRepo:  inmem.NewWebhookEventRepo(),
-			subRepo:      inmem.NewSubscriptionRepo(),
-			assertFn: func(t *testing.T, pa *billingmocks.MockPlanAssigner, _ *inmem.WebhookEventRepo) {
+			webhookRepo:  newFakeWebhookEventRepo(),
+			subRepo:      newFakeSubscriptionRepo(),
+			assertFn: func(t *testing.T, pa *billingmocks.MockPlanAssigner, _ *fakeWebhookEventRepo) {
 				if pa.AssignCalls != 1 {
 					t.Errorf("subscription.deleted: expected 1 Assign call, got %d", pa.AssignCalls)
 				}
@@ -237,9 +372,9 @@ func TestHandleWebhookHandler_Handle(t *testing.T) {
 				RetrieveSubscriptionResult: makeSubResult(customerID, subID, priceID, "past_due", periodEnd),
 			},
 			customerRepo: repoWithCustomer(),
-			webhookRepo:  inmem.NewWebhookEventRepo(),
-			subRepo:      inmem.NewSubscriptionRepo(),
-			assertFn: func(t *testing.T, pa *billingmocks.MockPlanAssigner, _ *inmem.WebhookEventRepo) {
+			webhookRepo:  newFakeWebhookEventRepo(),
+			subRepo:      newFakeSubscriptionRepo(),
+			assertFn: func(t *testing.T, pa *billingmocks.MockPlanAssigner, _ *fakeWebhookEventRepo) {
 				if pa.AssignCalls != 1 {
 					t.Errorf("payment_failed: expected 1 Assign call, got %d", pa.AssignCalls)
 				}
@@ -257,12 +392,12 @@ func TestHandleWebhookHandler_Handle(t *testing.T) {
 					subData(customerID, subID, "price_unknown_xyz", "active", periodEnd)),
 			},
 			customerRepo: repoWithCustomer(),
-			webhookRepo:  inmem.NewWebhookEventRepo(),
-			subRepo:      inmem.NewSubscriptionRepo(),
+			webhookRepo:  newFakeWebhookEventRepo(),
+			subRepo:      newFakeSubscriptionRepo(),
 			// PlanAssigner returns ErrPlanNotFound for unknown price_id.
 			// Handler must treat this as no-op (nil return) per FR5.
 			assignErr: services.ErrPlanNotFound,
-			assertFn: func(t *testing.T, pa *billingmocks.MockPlanAssigner, _ *inmem.WebhookEventRepo) {
+			assertFn: func(t *testing.T, pa *billingmocks.MockPlanAssigner, _ *fakeWebhookEventRepo) {
 				if pa.AssignCalls != 1 {
 					t.Errorf("unknown price_id: expected 1 Assign attempt, got %d", pa.AssignCalls)
 				}
@@ -275,9 +410,9 @@ func TestHandleWebhookHandler_Handle(t *testing.T) {
 			gw: &billingmocks.MockStripeGateway{
 				ConstructEventErr: errors.New("stripe: invalid signature"),
 			},
-			customerRepo: inmem.NewCustomerRepo(),
-			webhookRepo:  inmem.NewWebhookEventRepo(),
-			subRepo:      inmem.NewSubscriptionRepo(),
+			customerRepo: newFakeCustomerRepo(),
+			webhookRepo:  newFakeWebhookEventRepo(),
+			subRepo:      newFakeSubscriptionRepo(),
 			wantErr:      ErrInvalidSignature,
 		},
 		{
@@ -285,9 +420,9 @@ func TestHandleWebhookHandler_Handle(t *testing.T) {
 			rawBody: []byte(`{}`),
 			sig:     "", // empty = missing
 			gw:      &billingmocks.MockStripeGateway{},
-			customerRepo: inmem.NewCustomerRepo(),
-			webhookRepo:  inmem.NewWebhookEventRepo(),
-			subRepo:      inmem.NewSubscriptionRepo(),
+			customerRepo: newFakeCustomerRepo(),
+			webhookRepo:  newFakeWebhookEventRepo(),
+			subRepo:      newFakeSubscriptionRepo(),
 			wantErr:      ErrInvalidSignature,
 		},
 	}
