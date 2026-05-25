@@ -37,12 +37,19 @@ type MockStripeGateway struct {
 	RetrieveSubscriptionErr    error
 	RetrieveSubscriptionFn     func(ctx context.Context, subID string) (services.StripeSubscription, error)
 
+	// RetrieveCustomerBalance
+	RetrieveCustomerBalanceCents    int64
+	RetrieveCustomerBalanceCurrency string
+	RetrieveCustomerBalanceErr      error
+	RetrieveCustomerBalanceFn       func(ctx context.Context, customerID string) (int64, string, error)
+
 	// Call counters
-	EnsureCustomerCalls        int
-	CreateCheckoutSessionCalls int
-	CreatePortalSessionCalls   int
-	ConstructEventCalls        int
-	RetrieveSubscriptionCalls  int
+	EnsureCustomerCalls            int
+	CreateCheckoutSessionCalls     int
+	CreatePortalSessionCalls       int
+	ConstructEventCalls            int
+	RetrieveSubscriptionCalls      int
+	RetrieveCustomerBalanceCalls   int
 }
 
 func (m *MockStripeGateway) EnsureCustomer(ctx context.Context, orgID, email, name string) (string, error) {
@@ -83,4 +90,12 @@ func (m *MockStripeGateway) RetrieveSubscription(ctx context.Context, subID stri
 		return m.RetrieveSubscriptionFn(ctx, subID)
 	}
 	return m.RetrieveSubscriptionResult, m.RetrieveSubscriptionErr
+}
+
+func (m *MockStripeGateway) RetrieveCustomerBalance(ctx context.Context, customerID string) (int64, string, error) {
+	m.RetrieveCustomerBalanceCalls++
+	if m.RetrieveCustomerBalanceFn != nil {
+		return m.RetrieveCustomerBalanceFn(ctx, customerID)
+	}
+	return m.RetrieveCustomerBalanceCents, m.RetrieveCustomerBalanceCurrency, m.RetrieveCustomerBalanceErr
 }

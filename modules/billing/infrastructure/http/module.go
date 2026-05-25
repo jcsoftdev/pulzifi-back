@@ -16,6 +16,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 
@@ -25,6 +26,7 @@ import (
 	createportalsession "github.com/jcsoftdev/pulzifi-back/modules/billing/application/create_portal_session"
 	getsubscription "github.com/jcsoftdev/pulzifi-back/modules/billing/application/get_subscription"
 	handlewebhook "github.com/jcsoftdev/pulzifi-back/modules/billing/application/handle_webhook"
+	billingservices "github.com/jcsoftdev/pulzifi-back/modules/billing/domain/services"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
 	"github.com/jcsoftdev/pulzifi-back/shared/router"
@@ -34,20 +36,35 @@ import (
 // Compile-time interface check.
 var _ router.ModuleRegisterer = (*Module)(nil)
 
+// billingSettingsPath is the canonical frontend route for the billing tab.
+// Stripe checkout/portal return URLs are built dynamically from r.Host + this
+// path so they respect the tenant subdomain the request came from.
+const billingSettingsPath = "/settings/billing"
+
+// buildTenantBillingURL constructs a fully qualified URL pointing to the
+// billing tab on the SAME subdomain the request came from. Falls back to the
+// raw r.Host when X-Forwarded-Host is absent. Query is appended as-is (must
+// already start with "?" if non-empty).
+func buildTenantBillingURL(r *http.Request, query string) string {
+	scheme := "http"
+	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
+		scheme = "https"
+	}
+	host := r.Header.Get("X-Forwarded-Host")
+	if host == "" {
+		host = r.Host
+	}
+	return fmt.Sprintf("%s://%s%s%s", scheme, host, billingSettingsPath, query)
+}
+
 // Deps holds all external dependencies wired by cmd/server/modules.go.
 type Deps struct {
 	DB *sql.DB
 
-	// Use case handlers (created in Phase 5, wired in Phase 8).
 	CheckoutHandler     *createcheckoutsession.Handler
 	PortalHandler       *createportalsession.Handler
 	SubscriptionHandler *getsubscription.Handler
 	WebhookHandler      *handlewebhook.Handler
-
-	// Config values needed by HTTP handlers.
-	StripeCheckoutSuccessURL string
-	StripeCheckoutCancelURL  string
-	StripePortalReturnURL    string
 }
 
 // Module is the Billing HTTP module.
@@ -149,6 +166,13 @@ func (m *Module) handleWebhook(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid webhook signature"})
 			return
 		}
+		if errors.Is(err, billingservices.ErrOrphanCustomer) {
+			// Unknown Stripe customer — acknowledge so Stripe stops retrying.
+			// This happens for events tied to customers that were never linked
+			// to a local org (e.g. duplicate signups, test events).
+			writeJSON(w, http.StatusOK, map[string]string{"status": "ignored_orphan_customer"})
+			return
+		}
 		logger.Error("billing: webhook handler error", zap.Error(err))
 		// Return 500 so Stripe retries — only for non-signature errors.
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "webhook processing failed"})
@@ -159,17 +183,14 @@ func (m *Module) handleWebhook(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleCheckout handles POST /billing/checkout.
-// Expects JSON body: {"plan_id": "...", "billing_cycle": "monthly|yearly",
-// "stripe_price_id_monthly": "...", "stripe_price_id_yearly": "..."}.
-// The HTTP layer resolves org context and passes config URLs into the use case.
+// Expects JSON body: {"plan_id": "<plan code>", "billing_cycle": "monthly|yearly"}.
+// Stripe price IDs are resolved server-side from public.plans by the use case.
 func (m *Module) handleCheckout(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	var body struct {
-		PlanID               string `json:"plan_id"`
-		BillingCycle         string `json:"billing_cycle"`
-		StripePriceIDMonthly string `json:"stripe_price_id_monthly"`
-		StripePriceIDYearly  string `json:"stripe_price_id_yearly"`
+		PlanID       string `json:"plan_id"`
+		BillingCycle string `json:"billing_cycle"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
@@ -185,22 +206,24 @@ func (m *Module) handleCheckout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	req := createcheckoutsession.Request{
-		OrgID:                orgID,
-		OrgEmail:             orgEmail,
-		OrgName:              orgName,
-		PlanID:               body.PlanID,
-		BillingCycle:         body.BillingCycle,
-		StripePriceIDMonthly: body.StripePriceIDMonthly,
-		StripePriceIDYearly:  body.StripePriceIDYearly,
-		SuccessURL:           m.deps.StripeCheckoutSuccessURL,
-		CancelURL:            m.deps.StripeCheckoutCancelURL,
+		OrgID:        orgID,
+		OrgEmail:     orgEmail,
+		OrgName:      orgName,
+		PlanID:       body.PlanID,
+		BillingCycle: body.BillingCycle,
+		SuccessURL:   buildTenantBillingURL(r, "?success=true&session_id={CHECKOUT_SESSION_ID}"),
+		CancelURL:    buildTenantBillingURL(r, "?canceled=true"),
 	}
 
 	resp, err := m.deps.CheckoutHandler.Handle(ctx, req)
 	if err != nil {
-		if errors.Is(err, createcheckoutsession.ErrInvalidBillingCycle) ||
-			errors.Is(err, createcheckoutsession.ErrMissingPriceID) {
+		switch {
+		case errors.Is(err, createcheckoutsession.ErrInvalidBillingCycle),
+			errors.Is(err, createcheckoutsession.ErrMissingPriceID):
 			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": err.Error()})
+			return
+		case errors.Is(err, createcheckoutsession.ErrPlanNotFound):
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
 			return
 		}
 		logger.Error("billing: checkout handler error", zap.Error(err))
@@ -224,7 +247,7 @@ func (m *Module) handlePortal(w http.ResponseWriter, r *http.Request) {
 
 	req := createportalsession.Request{
 		OrgID:     orgID,
-		ReturnURL: m.deps.StripePortalReturnURL,
+		ReturnURL: buildTenantBillingURL(r, ""),
 	}
 
 	resp, err := m.deps.PortalHandler.Handle(ctx, req)

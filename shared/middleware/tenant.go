@@ -110,7 +110,9 @@ func isPublicPath(path string) bool {
 		"/auth/oauth",
 		"/auth/providers",
 		"/auth/csrf",
+		"/auth/onboarding",
 		"/admin",
+		"/billing/webhook",
 	}
 
 	for _, prefix := range publicPaths {

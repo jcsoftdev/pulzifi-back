@@ -35,6 +35,8 @@ func (r *SubscriptionPostgresRepository) findByQuery(ctx context.Context, query 
 		sub              entities.Subscription
 		stripeSubID      sql.NullString
 		stripeCustID     sql.NullString
+		planCode         sql.NullString
+		planName         sql.NullString
 		billingStatus    sql.NullString
 		currentPeriodEnd sql.NullTime
 		paymentStatus    sql.NullString
@@ -45,6 +47,8 @@ func (r *SubscriptionPostgresRepository) findByQuery(ctx context.Context, query 
 		&stripeSubID,
 		&stripeCustID,
 		&sub.PlanID,
+		&planCode,
+		&planName,
 		&billingStatus,
 		&currentPeriodEnd,
 		&paymentStatus,
@@ -59,6 +63,8 @@ func (r *SubscriptionPostgresRepository) findByQuery(ctx context.Context, query 
 
 	sub.StripeSubscriptionID = stripeSubID.String
 	sub.StripeCustomerID = stripeCustID.String
+	sub.PlanCode = planCode.String
+	sub.PlanName = planName.String
 	sub.BillingStatus = entities.BillingStatus(billingStatus.String)
 	sub.PaymentStatus = paymentStatus.String
 	if currentPeriodEnd.Valid {
@@ -69,7 +75,7 @@ func (r *SubscriptionPostgresRepository) findByQuery(ctx context.Context, query 
 	return &sub, nil
 }
 
-// FindByOrgID returns the subscription for the given organisation, or nil if none exists.
+// FindByOrgID returns the active subscription for the given organisation, or nil if none exists.
 func (r *SubscriptionPostgresRepository) FindByOrgID(ctx context.Context, orgID uuid.UUID) (*entities.Subscription, error) {
 	const query = `
 		SELECT
@@ -77,13 +83,19 @@ func (r *SubscriptionPostgresRepository) FindByOrgID(ctx context.Context, orgID 
 			op.stripe_subscription_id,
 			o.stripe_customer_id,
 			op.plan_id,
+			p.code,
+			p.name,
 			op.billing_status,
 			op.current_period_end,
 			op.payment_status,
 			op.updated_at
 		FROM public.organization_plans op
 		JOIN public.organizations o ON o.id = op.organization_id
+		JOIN public.plans          p ON p.id = op.plan_id
 		WHERE op.organization_id = $1
+		  AND op.status     = 'active'
+		  AND op.deleted_at IS NULL
+		ORDER BY op.started_at DESC
 		LIMIT 1
 	`
 	return r.findByQuery(ctx, query, orgID)
@@ -97,12 +109,15 @@ func (r *SubscriptionPostgresRepository) FindByStripeSubscriptionID(ctx context.
 			op.stripe_subscription_id,
 			o.stripe_customer_id,
 			op.plan_id,
+			p.code,
+			p.name,
 			op.billing_status,
 			op.current_period_end,
 			op.payment_status,
 			op.updated_at
 		FROM public.organization_plans op
 		JOIN public.organizations o ON o.id = op.organization_id
+		JOIN public.plans          p ON p.id = op.plan_id
 		WHERE op.stripe_subscription_id = $1
 		LIMIT 1
 	`

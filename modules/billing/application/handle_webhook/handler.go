@@ -133,6 +133,10 @@ type checkoutSessionPayload struct {
 }
 
 // subscriptionPayload is the subset we read from subscription events.
+//
+// Stripe API ≥ 2024-12 moved `current_period_end` from the subscription
+// top-level into each subscription item (items.data[].current_period_end).
+// We read both and prefer the item-level value when present.
 type subscriptionPayload struct {
 	ID               string `json:"id"`
 	Customer         string `json:"customer"`
@@ -140,11 +144,24 @@ type subscriptionPayload struct {
 	CurrentPeriodEnd int64  `json:"current_period_end"`
 	Items            struct {
 		Data []struct {
-			Price struct {
+			CurrentPeriodEnd int64 `json:"current_period_end"`
+			Price            struct {
 				ID string `json:"id"`
 			} `json:"price"`
 		} `json:"data"`
 	} `json:"items"`
+}
+
+// resolveCurrentPeriodEnd returns the item-level current_period_end when the
+// top-level value is missing (Stripe API ≥ 2024-12 behavior).
+func (p subscriptionPayload) resolveCurrentPeriodEnd() int64 {
+	if p.CurrentPeriodEnd > 0 {
+		return p.CurrentPeriodEnd
+	}
+	if len(p.Items.Data) > 0 {
+		return p.Items.Data[0].CurrentPeriodEnd
+	}
+	return 0
 }
 
 // invoicePayload is the subset we read from invoice events.
@@ -264,7 +281,7 @@ func (h *Handler) handleSubscriptionUpdated(ctx context.Context, event services.
 	}
 
 	status, _ := entities.BillingStatusFromString(payload.Status)
-	periodEnd := time.Unix(payload.CurrentPeriodEnd, 0)
+	periodEnd := time.Unix(payload.resolveCurrentPeriodEnd(), 0)
 
 	err = h.planAssigner.Assign(ctx, services.AssignInput{
 		OrgID:                orgID,
@@ -305,7 +322,7 @@ func (h *Handler) handleSubscriptionDeleted(ctx context.Context, event services.
 		StripePriceID:        "", // signals: downgrade to starter
 		StripeCustomerID:     payload.Customer,
 		BillingStatus:        entities.BillingCanceled,
-		CurrentPeriodEnd:     time.Unix(payload.CurrentPeriodEnd, 0),
+		CurrentPeriodEnd:     time.Unix(payload.resolveCurrentPeriodEnd(), 0),
 		PaymentStatus:        "ok",
 	})
 }

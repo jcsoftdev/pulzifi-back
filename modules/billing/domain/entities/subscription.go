@@ -12,6 +12,8 @@ type Subscription struct {
 	StripeSubscriptionID string
 	StripeCustomerID     string
 	PlanID               uuid.UUID
+	PlanCode             string // public.plans.code — frontend-facing identifier ("starter"|"pro"|...)
+	PlanName             string // public.plans.name — display label
 	BillingStatus        BillingStatus
 	CurrentPeriodEnd     *time.Time
 	PaymentStatus        string

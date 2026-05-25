@@ -438,9 +438,9 @@ func TestHandleWebhookHandler_Handle(t *testing.T) {
 				ConstructEventResult: makeEvent("evt_tax", "customer.tax_id.created", []byte(`{}`)),
 			},
 			customerRepo: repoWithCustomer(),
-			webhookRepo:  inmem.NewWebhookEventRepo(),
-			subRepo:      inmem.NewSubscriptionRepo(),
-			assertFn: func(t *testing.T, pa *billingmocks.MockPlanAssigner, _ *inmem.WebhookEventRepo) {
+			webhookRepo:  newFakeWebhookEventRepo(),
+			subRepo:      newFakeSubscriptionRepo(),
+			assertFn: func(t *testing.T, pa *billingmocks.MockPlanAssigner, _ *fakeWebhookEventRepo) {
 				// Unknown event type must never trigger PlanAssigner.
 				if pa.AssignCalls != 0 {
 					t.Errorf("unknown event type: expected 0 Assign calls, got %d", pa.AssignCalls)

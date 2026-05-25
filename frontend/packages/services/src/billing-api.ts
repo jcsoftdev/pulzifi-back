@@ -13,12 +13,19 @@ export interface SubscriptionDto {
   stripe_subscription_id: string
   stripe_customer_id: string
   plan_id: string
+  /** Stable code from public.plans.code — use this for plan equality checks, not plan_id */
+  plan_code: string
+  /** Human-readable plan name from public.plans.name */
+  plan_name: string
   /** null when the org has no active Stripe subscription (FR7) */
   billing_status: BillingStatusDto | null
   current_period_end: string | null
   /** null when the org has no active Stripe subscription (FR7) */
   payment_status: PaymentStatusDto | null
   updated_at: string
+  /** Account credit available — auto-applied to upcoming invoices. 0 when none. */
+  credit_balance_cents?: number
+  credit_balance_currency?: string
 }
 
 export type BillingStatusDto = 'active' | 'past_due' | 'canceled' | 'incomplete' | 'trialing'

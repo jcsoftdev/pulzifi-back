@@ -311,10 +311,11 @@ func registerAllModulesInternal(
 		subscriptionRepo := billingpostgres.NewSubscriptionPostgresRepository(db)
 		webhookRepo := billingpostgres.NewWebhookEventPostgresRepository(db)
 		customerRepo := billingpostgres.NewCustomerPostgresRepository(db)
+		planRepo := billingpostgres.NewPlanPostgresRepository(db)
 
-		checkoutHandler := createcheckoutsession.NewHandler(stripeGateway, customerRepo)
+		checkoutHandler := createcheckoutsession.NewHandler(stripeGateway, customerRepo, planRepo)
 		portalHandler := createportalsession.NewHandler(stripeGateway, customerRepo)
-		subscriptionHandler := getsubscription.NewHandler(subscriptionRepo)
+		subscriptionHandler := getsubscription.NewHandler(subscriptionRepo).WithStripeGateway(stripeGateway)
 		trialConverter := billingwiring.NewTrialConverter(db)
 		webhookHandler := handlewebhook.NewHandler(
 			stripeGateway,
@@ -326,14 +327,11 @@ func registerAllModulesInternal(
 		).WithTrialConverter(trialConverter)
 
 		billingMod := billing.NewModule(billing.Deps{
-			DB:                       db,
-			CheckoutHandler:          checkoutHandler,
-			PortalHandler:            portalHandler,
-			SubscriptionHandler:      subscriptionHandler,
-			WebhookHandler:           webhookHandler,
-			StripeCheckoutSuccessURL: cfg.StripeCheckoutSuccessURL,
-			StripeCheckoutCancelURL:  cfg.StripeCheckoutCancelURL,
-			StripePortalReturnURL:    cfg.StripePortalReturnURL,
+			DB:                  db,
+			CheckoutHandler:     checkoutHandler,
+			PortalHandler:       portalHandler,
+			SubscriptionHandler: subscriptionHandler,
+			WebhookHandler:      webhookHandler,
 		})
 
 		moduleInstances = append(moduleInstances, struct {

@@ -108,7 +108,9 @@ func (g *Gateway) CreatePortalSession(_ context.Context, customerID, returnURL s
 // ConstructEvent validates the Stripe-Signature header and parses the raw webhook payload.
 // Returns ErrInvalidSignature (via the caller) on any validation failure.
 func (g *Gateway) ConstructEvent(payload []byte, signature, secret string) (billingservices.StripeEvent, error) {
-	event, err := webhook.ConstructEvent(payload, signature, secret)
+	event, err := webhook.ConstructEventWithOptions(payload, signature, secret, webhook.ConstructEventOptions{
+		IgnoreAPIVersionMismatch: true,
+	})
 	if err != nil {
 		return billingservices.StripeEvent{}, err
 	}
@@ -149,4 +151,13 @@ func (g *Gateway) RetrieveSubscription(_ context.Context, subID string) (billing
 		CustomerID:       customerID,
 		PriceID:          priceID,
 	}, nil
+}
+
+// RetrieveCustomerBalance returns the customer's account balance and currency.
+func (g *Gateway) RetrieveCustomerBalance(_ context.Context, customerID string) (int64, string, error) {
+	c, err := customer.Get(customerID, nil)
+	if err != nil {
+		return 0, "", fmt.Errorf("billing: stripe retrieve customer: %w", err)
+	}
+	return c.Balance, string(c.Currency), nil
 }

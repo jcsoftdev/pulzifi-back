@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jcsoftdev/pulzifi-back/modules/billing/domain/entities"
+	"github.com/jcsoftdev/pulzifi-back/modules/billing/domain/repositories"
 	billingmocks "github.com/jcsoftdev/pulzifi-back/modules/billing/domain/services/mocks"
 )
 
@@ -56,6 +57,30 @@ func (r *fakeCustomerRepo) Save(_ context.Context, customer *entities.Customer) 
 	return nil
 }
 
+// fakePlanRepo returns canned price IDs keyed by (code, cycle).
+type fakePlanRepo struct {
+	monthly map[string]string
+	yearly  map[string]string
+	err     error
+}
+
+func (r *fakePlanRepo) FindStripePriceID(_ context.Context, code, cycle string) (string, error) {
+	if r.err != nil {
+		return "", r.err
+	}
+	switch cycle {
+	case "monthly":
+		if v, ok := r.monthly[code]; ok {
+			return v, nil
+		}
+	case "yearly":
+		if v, ok := r.yearly[code]; ok {
+			return v, nil
+		}
+	}
+	return "", repositories.ErrPlanNotFound
+}
+
 func TestCreateCheckoutSessionHandler_Handle(t *testing.T) {
 	const (
 		priceMonthly = "price_monthly_123"
@@ -64,9 +89,13 @@ func TestCreateCheckoutSessionHandler_Handle(t *testing.T) {
 		checkoutURL  = "https://checkout.stripe.com/pay/cs_test"
 	)
 
-	newHandler := func(gateway *billingmocks.MockStripeGateway) *Handler {
-		customerRepo := newFakeCustomerRepo()
-		return NewHandler(gateway, customerRepo)
+	newHandler := func(gateway *billingmocks.MockStripeGateway, plan repositories.PlanRepository) *Handler {
+		return NewHandler(gateway, newFakeCustomerRepo(), plan)
+	}
+
+	plansPro := &fakePlanRepo{
+		monthly: map[string]string{"pro": priceMonthly},
+		yearly:  map[string]string{"pro": priceYearly},
 	}
 
 	t.Run("returns checkout URL for monthly billing cycle", func(t *testing.T) {
@@ -74,16 +103,14 @@ func TestCreateCheckoutSessionHandler_Handle(t *testing.T) {
 			EnsureCustomerResult:        customerID,
 			CreateCheckoutSessionResult: checkoutURL,
 		}
-		h := newHandler(gw)
+		h := newHandler(gw, plansPro)
 
 		resp, err := h.Handle(context.Background(), Request{
 			OrgID:        "org-uuid-001",
 			OrgEmail:     "admin@acme.com",
 			OrgName:      "Acme",
-			PlanID:       "plan-pro",
+			PlanID:       "pro",
 			BillingCycle: "monthly",
-			StripePriceIDMonthly: priceMonthly,
-			StripePriceIDYearly:  priceYearly,
 		})
 
 		if err != nil {
@@ -105,16 +132,14 @@ func TestCreateCheckoutSessionHandler_Handle(t *testing.T) {
 			EnsureCustomerResult:        customerID,
 			CreateCheckoutSessionResult: checkoutURL,
 		}
-		h := newHandler(gw)
+		h := newHandler(gw, plansPro)
 
 		resp, err := h.Handle(context.Background(), Request{
 			OrgID:        "org-uuid-001",
 			OrgEmail:     "admin@acme.com",
 			OrgName:      "Acme",
-			PlanID:       "plan-pro",
+			PlanID:       "pro",
 			BillingCycle: "yearly",
-			StripePriceIDMonthly: priceMonthly,
-			StripePriceIDYearly:  priceYearly,
 		})
 
 		if err != nil {
@@ -127,16 +152,14 @@ func TestCreateCheckoutSessionHandler_Handle(t *testing.T) {
 
 	t.Run("returns ErrInvalidBillingCycle for unknown billing cycle", func(t *testing.T) {
 		gw := &billingmocks.MockStripeGateway{}
-		h := newHandler(gw)
+		h := newHandler(gw, plansPro)
 
 		_, err := h.Handle(context.Background(), Request{
 			OrgID:        "org-uuid-001",
 			OrgEmail:     "admin@acme.com",
 			OrgName:      "Acme",
-			PlanID:       "plan-pro",
+			PlanID:       "pro",
 			BillingCycle: "quarterly",
-			StripePriceIDMonthly: priceMonthly,
-			StripePriceIDYearly:  priceYearly,
 		})
 
 		if !errors.Is(err, ErrInvalidBillingCycle) {
@@ -149,20 +172,39 @@ func TestCreateCheckoutSessionHandler_Handle(t *testing.T) {
 
 	t.Run("returns ErrMissingPriceID when plan has no stripe price configured", func(t *testing.T) {
 		gw := &billingmocks.MockStripeGateway{}
-		h := newHandler(gw)
+		plans := &fakePlanRepo{
+			monthly: map[string]string{"starter": ""},
+			yearly:  map[string]string{"starter": ""},
+		}
+		h := newHandler(gw, plans)
 
 		_, err := h.Handle(context.Background(), Request{
 			OrgID:        "org-uuid-001",
 			OrgEmail:     "admin@acme.com",
 			OrgName:      "Acme",
-			PlanID:       "plan-starter",
+			PlanID:       "starter",
 			BillingCycle: "monthly",
-			StripePriceIDMonthly: "", // no price configured
-			StripePriceIDYearly:  "",
 		})
 
 		if !errors.Is(err, ErrMissingPriceID) {
 			t.Errorf("expected ErrMissingPriceID, got %v", err)
+		}
+	})
+
+	t.Run("returns ErrPlanNotFound when plan code does not exist", func(t *testing.T) {
+		gw := &billingmocks.MockStripeGateway{}
+		h := newHandler(gw, plansPro)
+
+		_, err := h.Handle(context.Background(), Request{
+			OrgID:        "org-uuid-001",
+			OrgEmail:     "admin@acme.com",
+			OrgName:      "Acme",
+			PlanID:       "ghost",
+			BillingCycle: "monthly",
+		})
+
+		if !errors.Is(err, ErrPlanNotFound) {
+			t.Errorf("expected ErrPlanNotFound, got %v", err)
 		}
 	})
 
@@ -171,16 +213,14 @@ func TestCreateCheckoutSessionHandler_Handle(t *testing.T) {
 		gw := &billingmocks.MockStripeGateway{
 			EnsureCustomerErr: gatewayErr,
 		}
-		h := newHandler(gw)
+		h := newHandler(gw, plansPro)
 
 		_, err := h.Handle(context.Background(), Request{
 			OrgID:        "org-uuid-001",
 			OrgEmail:     "admin@acme.com",
 			OrgName:      "Acme",
-			PlanID:       "plan-pro",
+			PlanID:       "pro",
 			BillingCycle: "monthly",
-			StripePriceIDMonthly: priceMonthly,
-			StripePriceIDYearly:  priceYearly,
 		})
 
 		if !errors.Is(err, gatewayErr) {

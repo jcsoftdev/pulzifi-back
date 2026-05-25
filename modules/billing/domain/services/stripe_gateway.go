@@ -45,4 +45,9 @@ type StripeGateway interface {
 
 	// RetrieveSubscription fetches current subscription state from Stripe.
 	RetrieveSubscription(ctx context.Context, subID string) (StripeSubscription, error)
+
+	// RetrieveCustomerBalance returns the customer's account balance in cents.
+	// Negative values represent credit available to the customer (auto-applied
+	// to upcoming invoices). Positive values represent pending amounts owed.
+	RetrieveCustomerBalance(ctx context.Context, customerID string) (cents int64, currency string, err error)
 }

@@ -15,6 +15,12 @@ import (
 // Stripe retry storms when an unknown price_id arrives.
 var ErrPlanNotFound = errors.New("billing: no plan found for stripe price ID")
 
+// ErrOrphanCustomer is returned by PlanAssigner.Assign when the input carries
+// no OrgID and no organization row matches the supplied StripeCustomerID.
+// Callers must acknowledge the event (HTTP 200) instead of bubbling a 500 —
+// Stripe will otherwise retry the orphan event indefinitely.
+var ErrOrphanCustomer = errors.New("billing: no organization found for stripe customer ID")
+
 // AssignInput carries the data needed to assign (or update) a plan for an org.
 type AssignInput struct {
 	OrgID                uuid.UUID

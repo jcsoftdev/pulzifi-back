@@ -6,6 +6,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jcsoftdev/pulzifi-back/modules/billing/domain/repositories"
+	"github.com/jcsoftdev/pulzifi-back/modules/billing/domain/services"
+	"github.com/jcsoftdev/pulzifi-back/shared/logger"
+	"go.uber.org/zap"
 )
 
 // ErrSubscriptionNotFound is returned when the org has no subscription record.
@@ -14,11 +17,19 @@ var ErrSubscriptionNotFound = errors.New("billing: subscription not found for or
 // Handler retrieves the current subscription state for an organisation.
 type Handler struct {
 	subRepo repositories.SubscriptionRepository
+	gateway services.StripeGateway // optional; nil → credit balance is not populated
 }
 
 // NewHandler returns a Handler with its dependencies injected.
 func NewHandler(subRepo repositories.SubscriptionRepository) *Handler {
 	return &Handler{subRepo: subRepo}
+}
+
+// WithStripeGateway enables live credit-balance lookups when a customer
+// ID is present on the loaded subscription. Returns the handler for chaining.
+func (h *Handler) WithStripeGateway(g services.StripeGateway) *Handler {
+	h.gateway = g
+	return h
 }
 
 // Handle runs the get_subscription use case.
@@ -40,12 +51,38 @@ func (h *Handler) Handle(ctx context.Context, orgIDStr string) (*Response, error
 		return nil, ErrSubscriptionNotFound
 	}
 
-	return &Response{
+	resp := &Response{
 		OrgID:                sub.OrgID.String(),
 		PlanID:               sub.PlanID.String(),
+		PlanCode:             sub.PlanCode,
+		PlanName:             sub.PlanName,
 		BillingStatus:        string(sub.BillingStatus),
 		PaymentStatus:        sub.PaymentStatus,
+		StripeCustomerID:     sub.StripeCustomerID,
 		StripeSubscriptionID: sub.StripeSubscriptionID,
 		CurrentPeriodEnd:     sub.CurrentPeriodEnd,
-	}, nil
+	}
+
+	// Fetch live credit balance from Stripe when possible. Stripe stores
+	// balance as a SIGNED integer: negative = credit available to the
+	// customer (auto-applied to upcoming invoices). Surface the absolute
+	// value so the UI can show "$X credit available — applied to next
+	// invoice" instead of the user thinking they lost their money on a
+	// duplicate purchase.
+	if h.gateway != nil && sub.StripeCustomerID != "" {
+		balance, currency, err := h.gateway.RetrieveCustomerBalance(ctx, sub.StripeCustomerID)
+		if err != nil {
+			// Non-fatal: subscription endpoint must not 500 because Stripe
+			// hiccupped. Log + return without credit fields populated.
+			logger.Warn("billing: failed to fetch customer balance",
+				zap.String("customer_id", sub.StripeCustomerID),
+				zap.Error(err),
+			)
+		} else if balance < 0 {
+			resp.CreditBalanceCents = -balance
+			resp.CreditBalanceCurrency = currency
+		}
+	}
+
+	return resp, nil
 }

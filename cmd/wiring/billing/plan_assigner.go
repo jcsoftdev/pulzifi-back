@@ -16,9 +16,10 @@ import (
 	"github.com/jcsoftdev/pulzifi-back/modules/billing/domain/services"
 )
 
-// ErrOrphanCustomer is returned when OrgID is uuid.Nil and no organization
-// row exists with the given stripe_customer_id.
-var ErrOrphanCustomer = errors.New("billing: no organization found for stripe customer ID")
+// ErrOrphanCustomer is the wiring-side alias of services.ErrOrphanCustomer.
+// Both values compare equal under errors.Is so the HTTP layer can ack 200
+// without importing the wiring package directly.
+var ErrOrphanCustomer = services.ErrOrphanCustomer
 
 // ErrPlanNotFound re-exports the domain sentinel so callers that import this
 // package for wiring can still use errors.Is checks.  The canonical definition

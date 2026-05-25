@@ -3,16 +3,18 @@
 import { Button } from '@workspace/ui/components/atoms/button'
 import { useState } from 'react'
 import { useCreateCheckout } from '../application/useCreateCheckout'
+import { useCustomerPortal } from '../application/useCustomerPortal'
 import { useSubscription } from '../application/useSubscription'
 import type { Plan } from '../domain/plan'
 import type { BillingCycle } from '../domain/subscription'
-import { PlanCard } from './PlanCard'
+import { PlanCard, type PlanRelation } from './PlanCard'
 import { SubscriptionStatusCard } from './SubscriptionStatusCard'
 
 /**
  * Static plan catalog.
- * In a production system these would be fetched from the API via a dedicated /plans endpoint.
- * For now they mirror what would be seeded into the plans table.
+ * Order matters — index drives upgrade/downgrade detection (`PLANS[i].code` vs
+ * `subscription.plan_code`). When fetching plans from an API later, preserve
+ * tier order: starter → pro → enterprise.
  */
 const PLANS: Plan[] = [
   {
@@ -22,12 +24,7 @@ const PLANS: Plan[] = [
     description: 'For small teams getting started with monitoring.',
     priceMonthly: 0,
     priceYearly: 0,
-    features: [
-      '3 workspaces',
-      '10 pages',
-      '500 checks/month',
-      '7-day history',
-    ],
+    features: ['3 workspaces', '10 pages', '500 checks/month', '7-day history'],
   },
   {
     id: 'pro',
@@ -51,8 +48,8 @@ const PLANS: Plan[] = [
     name: 'Enterprise',
     code: 'enterprise',
     description: 'Custom limits, SLA, and dedicated support.',
-    priceMonthly: 9900,
-    priceYearly: 99000,
+    priceMonthly: 0,
+    priceYearly: 0,
     features: [
       'Everything in Pro',
       'Custom page limits',
@@ -63,16 +60,55 @@ const PLANS: Plan[] = [
   },
 ]
 
+const SALES_EMAIL = 'sales@pulzifi.com'
+
+function relationFor(
+  planCode: string,
+  currentTierIndex: number,
+  thisTierIndex: number
+): PlanRelation {
+  if (currentTierIndex === -1) return 'new'
+  if (thisTierIndex === currentTierIndex) return 'current'
+  if (thisTierIndex > currentTierIndex) return 'upgrade'
+  return 'downgrade'
+}
+
 /**
  * Main billing tab — shows current subscription + plan selector with monthly/yearly toggle.
  * Handles the BillingEnabled=false case by catching 404s in useSubscription (returns null).
+ *
+ * CTA routing:
+ *   - No active sub → checkout (new Stripe session)
+ *   - Active sub, different plan → Stripe Customer Portal (in-place upgrade/downgrade w/ proration)
+ *   - Enterprise → mailto sales (no Stripe flow)
  */
 export function BillingTab() {
   const { subscription, isLoading: subLoading, error: subError } = useSubscription()
   const { isLoading: checkoutLoading, error: checkoutError, createCheckout } = useCreateCheckout()
+  const { isLoading: portalLoading, error: portalError, openPortal } = useCustomerPortal()
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly')
 
-  const handleChoosePlan = (planId: string, cycle: BillingCycle) => {
+  const currentTierIndex = subscription?.plan_code
+    ? PLANS.findIndex((p) => p.code === subscription.plan_code)
+    : -1
+
+  const actionLoading = checkoutLoading || portalLoading
+  const actionError = checkoutError || portalError
+
+  const handleChoosePlan = (planId: string, cycle: BillingCycle, relation: PlanRelation) => {
+    const plan = PLANS.find((p) => p.id === planId)
+    if (plan?.code === 'enterprise') {
+      window.location.href = `mailto:${SALES_EMAIL}?subject=Enterprise plan inquiry`
+      return
+    }
+    // Portal works whenever the org has a Stripe customer — even if our DB
+    // has not yet recorded the subscription_id (e.g. webhook lag/replay).
+    // First-time paid pick (no customer yet) must go through Checkout.
+    const hasStripeCustomer = Boolean(subscription?.stripe_customer_id)
+    if (hasStripeCustomer && (relation === 'upgrade' || relation === 'downgrade')) {
+      openPortal()
+      return
+    }
     createCheckout(planId, cycle)
   }
 
@@ -97,7 +133,7 @@ export function BillingTab() {
         </div>
       ) : subscription ? (
         <div className="mb-8">
-          <SubscriptionStatusCard subscription={subscription} />
+          <SubscriptionStatusCard subscription={subscription} plans={PLANS} />
         </div>
       ) : (
         <div className="rounded-2xl border border-border bg-muted/30 p-6 mb-8">
@@ -107,10 +143,10 @@ export function BillingTab() {
         </div>
       )}
 
-      {/* Checkout error */}
-      {checkoutError && (
+      {/* Action error (checkout or portal) */}
+      {actionError && (
         <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/5 p-4">
-          <p className="text-sm text-destructive">{checkoutError}</p>
+          <p className="text-sm text-destructive">{actionError}</p>
         </div>
       )}
 
@@ -142,13 +178,14 @@ export function BillingTab() {
 
       {/* Plan grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {PLANS.map((plan) => (
+        {PLANS.map((plan, idx) => (
           <PlanCard
             key={plan.id}
             plan={plan}
             billingCycle={billingCycle}
-            isCurrentPlan={subscription?.plan_id === plan.id}
-            isLoading={checkoutLoading}
+            relation={relationFor(plan.code, currentTierIndex, idx)}
+            isEnterprise={plan.code === 'enterprise'}
+            isLoading={actionLoading}
             onChoose={handleChoosePlan}
           />
         ))}
