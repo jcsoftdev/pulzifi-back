@@ -12,6 +12,15 @@ import { SubscriptionStatusCard } from './SubscriptionStatusCard'
 
 /**
  * Static plan catalog.
+ *
+ * Stripe (test mode) is the source of truth for prices: the values below MUST
+ * match the `unit_amount` of the prices keyed by `starter_monthly`,
+ * `starter_yearly`, `pro_monthly`, `pro_yearly` in the connected Stripe
+ * account. If they drift, the checkout page will show a different price than
+ * this card. TODO(plan-catalog-api): replace this hardcode with a
+ * `GET /api/v1/billing/plans` endpoint that reads `public.plans` so we have a
+ * single source of truth.
+ *
  * Order matters — index drives upgrade/downgrade detection (`PLANS[i].code` vs
  * `subscription.plan_code`). When fetching plans from an API later, preserve
  * tier order: starter → pro → enterprise.
@@ -22,8 +31,8 @@ const PLANS: Plan[] = [
     name: 'Starter',
     code: 'starter',
     description: 'For small teams getting started with monitoring.',
-    priceMonthly: 0,
-    priceYearly: 0,
+    priceMonthly: 2700,
+    priceYearly: 27000,
     features: ['3 workspaces', '10 pages', '500 checks/month', '7-day history'],
   },
   {
@@ -31,8 +40,8 @@ const PLANS: Plan[] = [
     name: 'Pro',
     code: 'pro',
     description: 'Everything you need to monitor at scale.',
-    priceMonthly: 2900,
-    priceYearly: 29000,
+    priceMonthly: 6200,
+    priceYearly: 62000,
     features: [
       'Unlimited workspaces',
       '100 pages',
