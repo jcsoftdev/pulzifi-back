@@ -228,7 +228,7 @@ func validState(t *testing.T, signer services.StateSignerPort, provider string, 
 		UserID:      userID,
 		ReturnPath:  "/settings/integrations",
 		RedirectURI: "https://app.example.com/oauth/callback",
-		ReturnHost:  "http://acme.pulzifi.local:3000",
+		ReturnHost:  "http://acme.pulzifi.lvh.me:3000",
 	})
 	if err != nil {
 		t.Fatalf("Sign: %v", err)
@@ -279,8 +279,8 @@ func TestHandleCallback_NewIntegration_HappyPath(t *testing.T) {
 	if resp.Provider != "slack" {
 		t.Errorf("Provider = %q, want slack", resp.Provider)
 	}
-	if resp.ReturnHost != "http://acme.pulzifi.local:3000" {
-		t.Errorf("ReturnHost = %q, want http://acme.pulzifi.local:3000", resp.ReturnHost)
+	if resp.ReturnHost != "http://acme.pulzifi.lvh.me:3000" {
+		t.Errorf("ReturnHost = %q, want http://acme.pulzifi.lvh.me:3000", resp.ReturnHost)
 	}
 
 	// Exactly one integration written via Create.

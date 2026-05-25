@@ -26,7 +26,7 @@ func fullClaims() StateClaims {
 		ReturnPath:  "/dashboard",
 		RedirectURI: "https://acme.app.com/callback",
 		Nonce:       "explicit-nonce",
-		ReturnHost:  "http://acme.pulzifi.local:3000",
+		ReturnHost:  "http://acme.pulzifi.lvh.me:3000",
 	}
 }
 

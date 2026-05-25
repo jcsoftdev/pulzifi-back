@@ -159,7 +159,7 @@ func TestStartOAuth_HappyPath(t *testing.T) {
 		UserID:      uuid.New(),
 		ReturnPath:  "/settings/integrations",
 		RedirectURI: "https://app.example.com/oauth/callback",
-		ReturnHost:  "http://acme.pulzifi.local:3000",
+		ReturnHost:  "http://acme.pulzifi.lvh.me:3000",
 	})
 	if err != nil {
 		t.Fatalf("Handle: %v", err)
@@ -180,8 +180,8 @@ func TestStartOAuth_HappyPath(t *testing.T) {
 	if claims.Tenant != "acme" || claims.Provider != "slack" {
 		t.Errorf("claims mismatch: %+v", claims)
 	}
-	if claims.ReturnHost != "http://acme.pulzifi.local:3000" {
-		t.Errorf("ReturnHost in claims = %q, want http://acme.pulzifi.local:3000", claims.ReturnHost)
+	if claims.ReturnHost != "http://acme.pulzifi.lvh.me:3000" {
+		t.Errorf("ReturnHost in claims = %q, want http://acme.pulzifi.lvh.me:3000", claims.ReturnHost)
 	}
 }
 
