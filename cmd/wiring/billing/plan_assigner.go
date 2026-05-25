@@ -157,9 +157,62 @@ func (a *PlanAssigner) Assign(ctx context.Context, in services.AssignInput) erro
 		return fmt.Errorf("billing plan assigner: insert plan: %w", err)
 	}
 
+	// 5. Sync tenant usage_tracking.checks_allowed for the active billing
+	//    period so the in-app quota chip reflects the new plan immediately.
+	//    Failure here must NOT roll back the public.organization_plans write —
+	//    the user has paid and the next quota query will reconcile on its
+	//    own (get_quotas auto-recreates a period from the active plan when
+	//    none is found).
+	if syncErr := a.syncTenantChecksAllowed(ctx, tx, orgID, planID); syncErr != nil {
+		// Best-effort — log to stderr via fmt to avoid pulling logger
+		// dependency into wiring. The transaction still commits below.
+		fmt.Printf("billing plan assigner: sync tenant checks_allowed (org=%s): %v\n", orgID, syncErr)
+	}
+
 	err = tx.Commit()
 	if err != nil {
 		return fmt.Errorf("billing plan assigner: commit: %w", err)
+	}
+	return nil
+}
+
+// syncTenantChecksAllowed updates the tenant schema's usage_tracking row for
+// the current billing period so the quota chip reflects the freshly-assigned
+// plan's checks_allowed_monthly. Schema name is read from the same
+// transaction; the UPDATE uses a quoted identifier safe against injection by
+// virtue of the schema_name validation done at organisation creation time.
+func (a *PlanAssigner) syncTenantChecksAllowed(ctx context.Context, tx Tx, orgID, planID uuid.UUID) error {
+	var schema string
+	row := tx.QueryRowContext(ctx, `SELECT schema_name FROM public.organizations WHERE id = $1`, orgID)
+	if err := row.Scan(&schema); err != nil {
+		return fmt.Errorf("lookup schema_name: %w", err)
+	}
+	if schema == "" {
+		return errors.New("empty schema_name")
+	}
+
+	var checksAllowed int
+	row = tx.QueryRowContext(ctx, `SELECT checks_allowed_monthly FROM public.plans WHERE id = $1`, planID)
+	if err := row.Scan(&checksAllowed); err != nil {
+		return fmt.Errorf("lookup plan checks_allowed_monthly: %w", err)
+	}
+
+	// Validate schema is a safe identifier before interpolation.
+	for _, c := range schema {
+		if !(c == '_' || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')) {
+			return fmt.Errorf("unsafe schema_name %q", schema)
+		}
+	}
+
+	q := fmt.Sprintf(`
+		UPDATE %q.usage_tracking
+		SET    checks_allowed = $1,
+		       updated_at     = NOW()
+		WHERE  period_start <= CURRENT_DATE
+		  AND  period_end   >= CURRENT_DATE
+	`, schema)
+	if _, err := tx.ExecContext(ctx, q, checksAllowed); err != nil {
+		return fmt.Errorf("update usage_tracking: %w", err)
 	}
 	return nil
 }
