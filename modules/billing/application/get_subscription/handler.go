@@ -56,6 +56,7 @@ func (h *Handler) Handle(ctx context.Context, orgIDStr string) (*Response, error
 		PlanID:               sub.PlanID.String(),
 		PlanCode:             sub.PlanCode,
 		PlanName:             sub.PlanName,
+		BillingCycle:         sub.BillingCycle,
 		BillingStatus:        string(sub.BillingStatus),
 		PaymentStatus:        sub.PaymentStatus,
 		StripeCustomerID:     sub.StripeCustomerID,

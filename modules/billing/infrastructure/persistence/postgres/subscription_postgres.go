@@ -37,6 +37,7 @@ func (r *SubscriptionPostgresRepository) findByQuery(ctx context.Context, query 
 		stripeCustID     sql.NullString
 		planCode         sql.NullString
 		planName         sql.NullString
+		billingCycle     sql.NullString
 		billingStatus    sql.NullString
 		currentPeriodEnd sql.NullTime
 		paymentStatus    sql.NullString
@@ -49,6 +50,7 @@ func (r *SubscriptionPostgresRepository) findByQuery(ctx context.Context, query 
 		&sub.PlanID,
 		&planCode,
 		&planName,
+		&billingCycle,
 		&billingStatus,
 		&currentPeriodEnd,
 		&paymentStatus,
@@ -65,6 +67,7 @@ func (r *SubscriptionPostgresRepository) findByQuery(ctx context.Context, query 
 	sub.StripeCustomerID = stripeCustID.String
 	sub.PlanCode = planCode.String
 	sub.PlanName = planName.String
+	sub.BillingCycle = billingCycle.String
 	sub.BillingStatus = entities.BillingStatus(billingStatus.String)
 	sub.PaymentStatus = paymentStatus.String
 	if currentPeriodEnd.Valid {
@@ -85,6 +88,11 @@ func (r *SubscriptionPostgresRepository) FindByOrgID(ctx context.Context, orgID 
 			op.plan_id,
 			p.code,
 			p.name,
+			CASE
+				WHEN op.stripe_price_id = p.stripe_price_id_yearly  THEN 'yearly'
+				WHEN op.stripe_price_id = p.stripe_price_id_monthly THEN 'monthly'
+				ELSE ''
+			END AS billing_cycle,
 			op.billing_status,
 			op.current_period_end,
 			op.payment_status,
@@ -111,6 +119,11 @@ func (r *SubscriptionPostgresRepository) FindByStripeSubscriptionID(ctx context.
 			op.plan_id,
 			p.code,
 			p.name,
+			CASE
+				WHEN op.stripe_price_id = p.stripe_price_id_yearly  THEN 'yearly'
+				WHEN op.stripe_price_id = p.stripe_price_id_monthly THEN 'monthly'
+				ELSE ''
+			END AS billing_cycle,
 			op.billing_status,
 			op.current_period_end,
 			op.payment_status,

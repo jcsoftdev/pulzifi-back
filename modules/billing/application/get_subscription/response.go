@@ -8,6 +8,7 @@ type Response struct {
 	PlanID               string     `json:"plan_id"`
 	PlanCode             string     `json:"plan_code"`              // public.plans.code — stable frontend key
 	PlanName             string     `json:"plan_name"`              // public.plans.name — display label
+	BillingCycle         string     `json:"billing_cycle"`          // "monthly" | "yearly" | "" — derived from active stripe_price_id
 	BillingStatus        string     `json:"billing_status"`         // Stripe billing status; empty if no Stripe sub
 	PaymentStatus        string     `json:"payment_status"`         // "ok" | "past_due" | "grace_period"
 	StripeCustomerID     string     `json:"stripe_customer_id"`     // empty if org never went through Checkout

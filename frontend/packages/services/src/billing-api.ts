@@ -17,6 +17,8 @@ export interface SubscriptionDto {
   plan_code: string
   /** Human-readable plan name from public.plans.name */
   plan_name: string
+  /** "monthly" | "yearly" | "" — empty when no Stripe subscription exists */
+  billing_cycle?: 'monthly' | 'yearly' | ''
   /** null when the org has no active Stripe subscription (FR7) */
   billing_status: BillingStatusDto | null
   current_period_end: string | null

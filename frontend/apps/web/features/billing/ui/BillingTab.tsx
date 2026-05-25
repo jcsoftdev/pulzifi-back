@@ -65,10 +65,18 @@ const SALES_EMAIL = 'sales@pulzifi.com'
 function relationFor(
   planCode: string,
   currentTierIndex: number,
-  thisTierIndex: number
+  thisTierIndex: number,
+  currentCycle: BillingCycle | '' | undefined,
+  selectedCycle: BillingCycle
 ): PlanRelation {
   if (currentTierIndex === -1) return 'new'
-  if (thisTierIndex === currentTierIndex) return 'current'
+  if (thisTierIndex === currentTierIndex) {
+    // Same tier — if the selected billing cycle differs from the active one,
+    // the user is actually changing cycles. Treat that as an upgrade so the
+    // CTA routes to the Customer Portal (where Stripe handles the swap).
+    if (currentCycle && currentCycle !== selectedCycle) return 'upgrade'
+    return 'current'
+  }
   if (thisTierIndex > currentTierIndex) return 'upgrade'
   return 'downgrade'
 }
@@ -183,7 +191,13 @@ export function BillingTab() {
             key={plan.id}
             plan={plan}
             billingCycle={billingCycle}
-            relation={relationFor(plan.code, currentTierIndex, idx)}
+            relation={relationFor(
+              plan.code,
+              currentTierIndex,
+              idx,
+              subscription?.billing_cycle as BillingCycle | '' | undefined,
+              billingCycle
+            )}
             isEnterprise={plan.code === 'enterprise'}
             isLoading={actionLoading}
             onChoose={handleChoosePlan}
