@@ -73,13 +73,15 @@ web_port="${PORTS[DEV_WEB_PORT]}"
 localstack_port="${PORTS[LOCALSTACK_PORT]}"
 
 upsert_env "NEXTJS_URL" "http://localhost:${web_port}"
-upsert_env "FRONTEND_URL" "http://pulzifi.local:${api_port}"
-upsert_env "NEXT_PUBLIC_SERVER_URL" "http://localhost:${api_port}"
-upsert_env "OAUTH_REDIRECT_BASE_URL" "http://localhost:${api_port}"
-upsert_env "INTEGRATION_OAUTH_REDIRECT_BASE" "http://localhost:${api_port}"
+upsert_env "FRONTEND_URL" "http://pulzifi.lvh.me:${api_port}"
+upsert_env "NEXT_PUBLIC_SERVER_URL" "http://pulzifi.lvh.me:${api_port}"
+upsert_env "SERVER_API_URL" "http://localhost:${api_port}"
+upsert_env "OAUTH_REDIRECT_BASE_URL" "http://pulzifi.lvh.me:${api_port}"
+upsert_env "INTEGRATION_OAUTH_REDIRECT_BASE" "http://pulzifi.lvh.me:${api_port}"
 upsert_env "MINIO_PUBLIC_URL" "http://localhost:${localstack_port}"
-upsert_env "CORS_ALLOWED_ORIGINS" "http://localhost:${api_port},http://*.localhost:${api_port},http://localhost:${web_port},http://pulzifi.local:${api_port},http://*.pulzifi.local:${api_port}"
-upsert_env "PAYLOAD_CSRF_ORIGINS" "http://localhost:${api_port},http://localhost:${web_port}"
+upsert_env "COOKIE_DOMAIN" ".lvh.me"
+upsert_env "CORS_ALLOWED_ORIGINS" "http://localhost:${api_port},http://*.localhost:${api_port},http://localhost:${web_port},http://pulzifi.lvh.me:${api_port},http://*.pulzifi.lvh.me:${api_port},http://lvh.me:${api_port}"
+upsert_env "PAYLOAD_CSRF_ORIGINS" "http://localhost:${api_port},http://localhost:${web_port},http://pulzifi.lvh.me:${api_port}"
 
 if [ "$MODE" = "docker" ]; then
   cat <<EOF

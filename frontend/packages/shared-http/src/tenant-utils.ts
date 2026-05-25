@@ -41,7 +41,7 @@ export function extractTenantFromHostname(hostname: string): string | null {
   }
 
   // If not localhost and only two labels, treat it as base domain (non-tenant)
-  // Example: pulzifi.local -> null
+  // Example: pulzifi.com -> null, lvh.me -> null
   if (parts.length === 2 && parts[1] !== 'localhost') {
     return null
   }

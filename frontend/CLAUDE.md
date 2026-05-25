@@ -65,10 +65,10 @@ account-settings, auth, changes-view, dashboard, landing, navigation, notificati
 
 ## Multi-Tenant Support
 
-- Subdomains used for tenant routing (e.g., `tenant1.app.local:3001`)
+- Subdomains used for tenant routing (e.g., `tenant1.lvh.me:3002`)
 - `@workspace/shared-http` extracts tenant from subdomain for API requests
-- `next.config.mjs` allows dev origins: `*.localhost`, `*.app.local`, `*.pulzifi.local`, `*.pulzifi.com`
-- `setup-local-domains.sh` configures local domain names for development
+- `next.config.mjs` allows dev origins: `*.localhost`, `*.lvh.me`, `*.pulzifi.com`
+- `lvh.me` is a public DNS wildcard that resolves all subdomains to `127.0.0.1` — no `/etc/hosts` editing required
 
 ## Coding Conventions
 
