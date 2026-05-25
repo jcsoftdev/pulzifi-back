@@ -54,7 +54,7 @@ export interface User {
   role: string
   status?: string
   avatar?: string
-  tenant?: string
+  tenant?: string | null
   organization?: UserOrganization
   createdAt: string
   updatedAt?: string
@@ -80,7 +80,7 @@ function transformUser(backend: UserBackendDto): User {
     role: backend.role,
     status: backend.status,
     avatar: backend.avatar,
-    tenant: backend.tenant ?? undefined,
+    tenant: backend.tenant === undefined ? undefined : (backend.tenant ?? null),
     organization: backend.organization
       ? {
           id: backend.organization.id,
@@ -149,6 +149,17 @@ export const AuthApi = {
     }>('/api/v1/auth/check-subdomain', {
       subdomain,
     })
+  },
+
+  async submitOnboarding(body: {
+    org_name: string
+    subdomain: string
+  }): Promise<{ subdomain: string; trial_ends_at: string }> {
+    const http = await getHttpClient()
+    return http.post<{ subdomain: string; trial_ends_at: string }>(
+      '/api/v1/auth/onboarding',
+      body
+    )
   },
 
   async register(data: {

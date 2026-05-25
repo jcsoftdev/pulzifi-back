@@ -233,7 +233,7 @@ func main() {
 	httpRouter.Mount("/api/v1", v1Router)
 
 	// Reverse proxy: unmatched routes → Next.js for page rendering
-	static.Setup(httpRouter, cfg.NextJSURL, cfg.StaticDir, logger.Logger)
+	static.Setup(httpRouter, cfg.NextJSURL, cfg.StaticDir, db, logger.Logger)
 
 	// Start HTTP server
 	wg.Add(1)

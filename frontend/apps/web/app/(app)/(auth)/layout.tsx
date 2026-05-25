@@ -60,6 +60,9 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
       const user = await AuthApi.getCurrentUser()
       if (user.tenant) {
         redirect(buildTenantRedirectUrl(host, protocol, user.tenant))
+      } else if (user.status === 'approved' && user.tenant == null) {
+        // Authenticated but no org yet — send to onboarding
+        redirect('/onboarding')
       }
     } catch (error: unknown) {
       if (isRedirectError(error)) throw error

@@ -9,6 +9,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -20,6 +22,7 @@ import (
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/application/getcurrentuser"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/application/login"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/application/logout"
+	provisionorganization "github.com/jcsoftdev/pulzifi-back/modules/auth/application/provision_organization"
 	refreshapp "github.com/jcsoftdev/pulzifi-back/modules/auth/application/refreshtoken"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/application/register"
 	resetpassword "github.com/jcsoftdev/pulzifi-back/modules/auth/application/reset_password"
@@ -51,11 +54,13 @@ type Module struct {
 	updateCurrentUserHandler *updatecurrentuser.Handler
 	changePasswordHandler    *changepassword.Handler
 	deleteCurrentUserHandler *deletecurrentuser.Handler
+	provisionOrgHandler      *provisionorganization.Handler
 	authMiddleware           *authmw.AuthMiddleware
 	tokenService             services.TokenService
 	userRepo                 repositories.UserRepository
 	authService              services.AuthService
 	notifier                 services.RegistrationNotifier
+	membershipChecker        services.OrganizationMembershipChecker
 	oauthProviders           map[string]oauthproviders.Provider
 	refreshTokenRepo         repositories.RefreshTokenRepository
 	eventBus                 *eventbus.EventBus
@@ -66,23 +71,24 @@ type Module struct {
 }
 
 type ModuleDeps struct {
-	UserRepo         repositories.UserRepository
-	RefreshTokenRepo repositories.RefreshTokenRepository
-	RoleRepo         repositories.RoleRepository
-	PermRepo         repositories.PermissionRepository
-	RegReqWriter     services.RegistrationRequestWriter
-	OrgDirectory     services.OrganizationDirectory
-	TrialProvisioner services.TrialProvisioner
-	TrialDays        int
-	AuthService      services.AuthService
-	TokenService     services.TokenService
-	CookieDomain     string
-	CookieSecure     bool
-	FrontendURL      string
-	Notifier         services.RegistrationNotifier
-	EventBus         *eventbus.EventBus
-	DB               *sql.DB
-	OrgContextLookup services.OrgContextLookup // optional; nil → org omitted from /me
+	UserRepo          repositories.UserRepository
+	RefreshTokenRepo  repositories.RefreshTokenRepository
+	RoleRepo          repositories.RoleRepository
+	PermRepo          repositories.PermissionRepository
+	RegReqWriter      services.RegistrationRequestWriter
+	OrgDirectory      services.OrganizationDirectory
+	TrialProvisioner  services.TrialProvisioner
+	MembershipChecker services.OrganizationMembershipChecker // optional; nil → onboarding handler not wired
+	TrialDays         int
+	AuthService       services.AuthService
+	TokenService      services.TokenService
+	CookieDomain      string
+	CookieSecure      bool
+	FrontendURL       string
+	Notifier          services.RegistrationNotifier
+	EventBus          *eventbus.EventBus
+	DB                *sql.DB
+	OrgContextLookup  services.OrgContextLookup // optional; nil → org omitted from /me
 }
 
 func NewModule(deps ModuleDeps) router.ModuleRegisterer {
@@ -108,6 +114,11 @@ func NewModule(deps ModuleDeps) router.ModuleRegisterer {
 		passwordResetRepo = authpersistence.NewPasswordResetPostgresRepository(deps.DB)
 	}
 
+	var provisionOrgHandler *provisionorganization.Handler
+	if deps.TrialProvisioner != nil && deps.MembershipChecker != nil {
+		provisionOrgHandler = provisionorganization.NewHandler(deps.TrialProvisioner, deps.MembershipChecker)
+	}
+
 	return &Module{
 		registerHandler:          register.NewHandler(deps.UserRepo, deps.TrialProvisioner, deps.OrgDirectory, deps.TrialDays),
 		checkSubdomainHandler:    checksubdomain.NewHandler(deps.RegReqWriter, deps.OrgDirectory),
@@ -120,11 +131,13 @@ func NewModule(deps ModuleDeps) router.ModuleRegisterer {
 		updateCurrentUserHandler: updatecurrentuser.NewHandler(deps.UserRepo, getCurrentUserHandler),
 		changePasswordHandler:    changepassword.NewHandler(deps.UserRepo, deps.AuthService),
 		deleteCurrentUserHandler: deletecurrentuser.NewHandler(deps.UserRepo, deps.EventBus),
+		provisionOrgHandler:      provisionOrgHandler,
 		authMiddleware:           authmw.NewAuthMiddleware(deps.TokenService),
 		tokenService:             deps.TokenService,
 		userRepo:                 deps.UserRepo,
 		authService:              deps.AuthService,
 		notifier:                 deps.Notifier,
+		membershipChecker:        deps.MembershipChecker,
 		oauthProviders:           oauthProviderMap,
 		refreshTokenRepo:         deps.RefreshTokenRepo,
 		eventBus:                 deps.EventBus,
@@ -170,6 +183,7 @@ func (m *Module) RegisterHTTPRoutes(r chi.Router) {
 			r.Put("/me", m.handleUpdateCurrentUser)
 			r.Put("/me/password", m.handleChangePassword)
 			r.Delete("/me", m.handleDeleteCurrentUser)
+			r.Post("/onboarding", m.handleOnboarding)
 		})
 	})
 }
@@ -456,8 +470,11 @@ func (m *Module) handleOAuthRedirect(w http.ResponseWriter, r *http.Request) {
 	}
 	state := hex.EncodeToString(stateBytes)
 
-	// Store state in a short-lived cookie
-	http.SetCookie(w, &http.Cookie{
+	// Store state in a short-lived cookie. Scope to m.cookieDomain so the
+	// cookie is readable on the callback host even when the OAuth flow
+	// starts on the root domain and Google redirects to a different
+	// subdomain (e.g. start on lvh.me, callback on pulzifi.lvh.me).
+	stateCookie := &http.Cookie{
 		Name:     "oauth_state",
 		Value:    state,
 		Path:     "/",
@@ -465,7 +482,11 @@ func (m *Module) handleOAuthRedirect(w http.ResponseWriter, r *http.Request) {
 		HttpOnly: true,
 		Secure:   m.cookieSecure,
 		SameSite: http.SameSiteLaxMode,
-	})
+	}
+	if m.cookieDomain != "" {
+		stateCookie.Domain = m.cookieDomain
+	}
+	http.SetCookie(w, stateCookie)
 
 	http.Redirect(w, r, provider.AuthCodeURL(state), http.StatusTemporaryRedirect)
 }
@@ -485,14 +506,18 @@ func (m *Module) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Clear state cookie
-	http.SetCookie(w, &http.Cookie{
+	// Clear state cookie (must match the Domain it was set with)
+	clearCookie := &http.Cookie{
 		Name:     "oauth_state",
 		Value:    "",
 		Path:     "/",
 		MaxAge:   -1,
 		HttpOnly: true,
-	})
+	}
+	if m.cookieDomain != "" {
+		clearCookie.Domain = m.cookieDomain
+	}
+	http.SetCookie(w, clearCookie)
 
 	code := r.URL.Query().Get("code")
 	if code == "" {
@@ -603,12 +628,101 @@ func (m *Module) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	refreshExpires := time.Now().Add(m.tokenService.GetRefreshTokenExpiration())
 	cookies.SetRefreshTokenCookie(w, r, refreshTokenStr, refreshExpires, m.cookieDomain, m.cookieSecure)
 
-	// Redirect to frontend
+	// Redirect based on membership: new users go to /onboarding, returning
+	// users go straight to their tenant subdomain.
+	hasMembership, membershipErr := m.membershipChecker.HasAnyMembership(r.Context(), userID)
+	if membershipErr != nil {
+		// Non-fatal: log and fall back to the plain frontend URL so auth still
+		// succeeds even if the membership check is temporarily unavailable.
+		logger.Warn("OAuth callback: membership check failed, falling back to frontendURL",
+			zap.String("user_id", userID.String()),
+			zap.Error(membershipErr),
+		)
+		redirectURL := m.frontendURL
+		if redirectURL == "" {
+			redirectURL = "/"
+		}
+		http.Redirect(w, r, redirectURL, http.StatusTemporaryRedirect)
+		return
+	}
+
+	if !hasMembership {
+		// Brand-new OAuth user with no org — send to onboarding page.
+		onboardingURL := m.frontendURL + "/onboarding"
+		http.Redirect(w, r, onboardingURL, http.StatusTemporaryRedirect)
+		return
+	}
+
+	// Existing user: look up their first org subdomain and redirect to it.
+	subdomain, orgErr := m.userRepo.GetUserFirstOrganization(r.Context(), userID)
+	if orgErr != nil || subdomain == nil {
+		// Graceful fallback: org lookup failed or returned nil unexpectedly.
+		if orgErr != nil {
+			logger.Warn("OAuth callback: org lookup failed, falling back to frontendURL",
+				zap.String("user_id", userID.String()),
+				zap.Error(orgErr),
+			)
+		}
+		redirectURL := m.frontendURL
+		if redirectURL == "" {
+			redirectURL = "/"
+		}
+		http.Redirect(w, r, redirectURL, http.StatusTemporaryRedirect)
+		return
+	}
+
+	// Build a tenant-subdomain URL: {scheme}://{subdomain}.{cookieDomainBase}:{port}/
+	if tenantURL, ok := buildTenantRedirectURL(m.frontendURL, m.cookieDomain, *subdomain); ok {
+		http.Redirect(w, r, tenantURL, http.StatusTemporaryRedirect)
+		return
+	}
+
+	// cookieDomain is empty (localhost / IP case) — can't construct a subdomain
+	// URL, so fall back to the plain frontend URL and let the frontend layout
+	// handle the tenant redirect.
 	redirectURL := m.frontendURL
 	if redirectURL == "" {
 		redirectURL = "/"
 	}
 	http.Redirect(w, r, redirectURL, http.StatusTemporaryRedirect)
+}
+
+// buildTenantRedirectURL constructs a tenant subdomain URL from the frontend
+// base URL, the cookie domain, and the org subdomain.
+//
+// Example:
+//
+//	frontendURL  = "http://lvh.me:3001"
+//	cookieDomain = ".lvh.me"
+//	subdomain    = "acme"
+//	→ "http://acme.lvh.me:3001/"
+//
+// Returns ("", false) when the cookie domain is empty (localhost/IP case where
+// subdomain routing is unavailable) or when frontendURL cannot be parsed.
+func buildTenantRedirectURL(frontendURL, cookieDomain, subdomain string) (string, bool) {
+	if cookieDomain == "" {
+		return "", false
+	}
+
+	parsed, err := url.Parse(frontendURL)
+	if err != nil || parsed.Scheme == "" {
+		return "", false
+	}
+
+	// Strip the leading dot from the cookie domain (e.g. ".lvh.me" → "lvh.me").
+	baseDomain := strings.TrimPrefix(cookieDomain, ".")
+	if baseDomain == "" {
+		return "", false
+	}
+
+	host := subdomain + "." + baseDomain
+	// Preserve the port if the original frontendURL had one.
+	if port := parsed.Port(); port != "" {
+		host = host + ":" + port
+	}
+
+	tenantURL := parsed.Scheme + "://" + host + "/"
+	return tenantURL, true
 }
 
 func (m *Module) handleUpdateCurrentUser(w http.ResponseWriter, r *http.Request) {
@@ -697,6 +811,59 @@ func (m *Module) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to update password"})
 		return
 	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (m *Module) handleOnboarding(w http.ResponseWriter, r *http.Request) {
+	if m.provisionOrgHandler == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "onboarding not configured"})
+		return
+	}
+
+	userIDStr, ok := r.Context().Value(authmw.UserIDKey).(string)
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid user id"})
+		return
+	}
+
+	var body struct {
+		OrgName   string `json:"org_name"`
+		Subdomain string `json:"subdomain"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+
+	req := provisionorganization.Request{
+		UserID:    userID,
+		OrgName:   body.OrgName,
+		Subdomain: body.Subdomain,
+	}
+
+	if err := req.Validate(); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	resp, err := m.provisionOrgHandler.Handle(r.Context(), req)
+	if err != nil {
+		var userErr autherrors.UserError
+		if errors.As(err, &userErr) && userErr.Code == autherrors.ErrAlreadyProvisioned.Code {
+			writeJSON(w, http.StatusConflict, map[string]string{"error": "already_provisioned"})
+			return
+		}
+		logger.Error("Failed to provision organization", zap.Error(err))
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to provision organization"})
+		return
+	}
+
 	writeJSON(w, http.StatusOK, resp)
 }
 

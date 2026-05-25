@@ -115,26 +115,28 @@ func registerAllModulesInternal(
 	authOrgDirectory := authwiring.NewOrganizationDirectoryAdapter(orgRepo, orgService)
 	authNotifier := authwiring.NewNotifierAdapter(emailProvider)
 	authTrialProvisioner := authwiring.NewTrialProvisioner(db, orgService)
+	authMembershipChecker := authwiring.NewMembershipChecker(db)
 
 	// Create auth module and set global middleware
 	authModule := auth.NewModule(auth.ModuleDeps{
-		UserRepo:         userRepo,
-		RefreshTokenRepo: refreshTokenRepo,
-		RoleRepo:         roleRepo,
-		PermRepo:         permRepo,
-		RegReqWriter:     authRegReqWriter,
-		OrgDirectory:     authOrgDirectory,
-		TrialProvisioner: authTrialProvisioner,
-		TrialDays:        cfg.TrialDays,
-		AuthService:      authService,
-		TokenService:     jwtService,
-		CookieDomain:     cfg.CookieDomain,
-		CookieSecure:     cookieSecure,
-		FrontendURL:      cfg.FrontendURL,
-		Notifier:         authNotifier,
-		EventBus:         eventBus,
-		DB:               db,
-		OrgContextLookup: orgContextLookup,
+		UserRepo:          userRepo,
+		RefreshTokenRepo:  refreshTokenRepo,
+		RoleRepo:          roleRepo,
+		PermRepo:          permRepo,
+		RegReqWriter:      authRegReqWriter,
+		OrgDirectory:      authOrgDirectory,
+		TrialProvisioner:  authTrialProvisioner,
+		MembershipChecker: authMembershipChecker,
+		TrialDays:         cfg.TrialDays,
+		AuthService:       authService,
+		TokenService:      jwtService,
+		CookieDomain:      cfg.CookieDomain,
+		CookieSecure:      cookieSecure,
+		FrontendURL:       cfg.FrontendURL,
+		Notifier:          authNotifier,
+		EventBus:          eventBus,
+		DB:                db,
+		OrgContextLookup:  orgContextLookup,
 	})
 	authMod := authModule.(*auth.Module)
 	authMiddleware := authMod.AuthMiddleware()
