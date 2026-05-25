@@ -93,6 +93,12 @@ tmp
 "SKILL (9).md"
 .claude/scheduled_tasks.lock
 
+# Local AI tooling state (per-machine skill mirrors, planning artifacts)
+.agents/
+.kiro/
+.claude/skills/
+skills-lock.json
+
 /client_*
 .worktrees/
 modules/*/docs/
