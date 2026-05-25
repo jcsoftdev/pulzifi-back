@@ -157,16 +157,16 @@ func (a *PlanAssigner) Assign(ctx context.Context, in services.AssignInput) erro
 		return fmt.Errorf("billing plan assigner: insert plan: %w", err)
 	}
 
-	// 5. Sync tenant usage_tracking.checks_allowed for the active billing
-	//    period so the in-app quota chip reflects the new plan immediately.
-	//    Failure here must NOT roll back the public.organization_plans write —
-	//    the user has paid and the next quota query will reconcile on its
-	//    own (get_quotas auto-recreates a period from the active plan when
-	//    none is found).
-	if syncErr := a.syncTenantChecksAllowed(ctx, tx, orgID, planID); syncErr != nil {
+	// 5. Sync tenant usage_tracking for the active billing period so the
+	//    in-app quota chip and refill date reflect Stripe's view of the
+	//    subscription (period_end = Stripe's current_period_end). Failure
+	//    here must NOT roll back the public.organization_plans write — the
+	//    user has paid and the next quota query auto-creates a period from
+	//    the active plan when none is found.
+	if syncErr := a.syncTenantUsagePeriod(ctx, tx, orgID, planID, periodEnd); syncErr != nil {
 		// Best-effort — log to stderr via fmt to avoid pulling logger
 		// dependency into wiring. The transaction still commits below.
-		fmt.Printf("billing plan assigner: sync tenant checks_allowed (org=%s): %v\n", orgID, syncErr)
+		fmt.Printf("billing plan assigner: sync tenant usage period (org=%s): %v\n", orgID, syncErr)
 	}
 
 	err = tx.Commit()
@@ -176,12 +176,17 @@ func (a *PlanAssigner) Assign(ctx context.Context, in services.AssignInput) erro
 	return nil
 }
 
-// syncTenantChecksAllowed updates the tenant schema's usage_tracking row for
-// the current billing period so the quota chip reflects the freshly-assigned
-// plan's checks_allowed_monthly. Schema name is read from the same
-// transaction; the UPDATE uses a quoted identifier safe against injection by
-// virtue of the schema_name validation done at organisation creation time.
-func (a *PlanAssigner) syncTenantChecksAllowed(ctx context.Context, tx Tx, orgID, planID uuid.UUID) error {
+// syncTenantUsagePeriod realigns the tenant's active usage_tracking row to
+// the freshly-assigned plan AND to Stripe's current_period_end. When no row
+// covers today, a fresh one is inserted. Schema name is validated before
+// being interpolated into the SQL identifier.
+func (a *PlanAssigner) syncTenantUsagePeriod(ctx context.Context, tx Tx, orgID, planID uuid.UUID, periodEnd *time.Time) error {
+	if periodEnd == nil || periodEnd.IsZero() {
+		// Without a Stripe period_end we cannot align cycles — let
+		// get_quotas auto-create a calendar-month period on next read.
+		return nil
+	}
+
 	var schema string
 	row := tx.QueryRowContext(ctx, `SELECT schema_name FROM public.organizations WHERE id = $1`, orgID)
 	if err := row.Scan(&schema); err != nil {
@@ -190,29 +195,55 @@ func (a *PlanAssigner) syncTenantChecksAllowed(ctx context.Context, tx Tx, orgID
 	if schema == "" {
 		return errors.New("empty schema_name")
 	}
-
-	var checksAllowed int
-	row = tx.QueryRowContext(ctx, `SELECT checks_allowed_monthly FROM public.plans WHERE id = $1`, planID)
-	if err := row.Scan(&checksAllowed); err != nil {
-		return fmt.Errorf("lookup plan checks_allowed_monthly: %w", err)
-	}
-
-	// Validate schema is a safe identifier before interpolation.
 	for _, c := range schema {
 		if !(c == '_' || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')) {
 			return fmt.Errorf("unsafe schema_name %q", schema)
 		}
 	}
 
-	q := fmt.Sprintf(`
-		UPDATE %q.usage_tracking
-		SET    checks_allowed = $1,
-		       updated_at     = NOW()
-		WHERE  period_start <= CURRENT_DATE
-		  AND  period_end   >= CURRENT_DATE
+	var checksAllowed, storagePeriodDays int
+	row = tx.QueryRowContext(ctx, `SELECT checks_allowed_monthly, COALESCE(storage_period_days, 7) FROM public.plans WHERE id = $1`, planID)
+	if err := row.Scan(&checksAllowed, &storagePeriodDays); err != nil {
+		return fmt.Errorf("lookup plan limits: %w", err)
+	}
+
+	// Period start = one billing cycle before the Stripe period_end.
+	// Use 1 calendar month so the displayed window matches what Stripe
+	// charges. For yearly subs, swap to -1 year via plan interval lookup
+	// later; for now monthly is the only paid cycle.
+	periodStart := periodEnd.AddDate(0, -1, 0)
+
+	upsertSQL := fmt.Sprintf(`
+		INSERT INTO %q.usage_tracking
+		      (period_start, period_end, checks_allowed, checks_used,
+		       last_refill_at, next_refill_at,
+		       storage_period_days, created_at, updated_at)
+		VALUES ($1, $2, $3, 0, $1, $2, $4, NOW(), NOW())
+		ON CONFLICT (period_start) DO UPDATE
+		SET    period_end          = EXCLUDED.period_end,
+		       checks_allowed      = EXCLUDED.checks_allowed,
+		       next_refill_at      = EXCLUDED.next_refill_at,
+		       storage_period_days = EXCLUDED.storage_period_days,
+		       updated_at          = NOW()
 	`, schema)
-	if _, err := tx.ExecContext(ctx, q, checksAllowed); err != nil {
-		return fmt.Errorf("update usage_tracking: %w", err)
+
+	if _, err := tx.ExecContext(ctx, upsertSQL, periodStart, *periodEnd, checksAllowed, storagePeriodDays); err != nil {
+		// Fallback: the table may not have a unique constraint on
+		// period_start; try a plain UPDATE on the current row instead.
+		updateSQL := fmt.Sprintf(`
+			UPDATE %q.usage_tracking
+			SET    period_start        = $1,
+			       period_end          = $2,
+			       checks_allowed      = $3,
+			       next_refill_at      = $2,
+			       storage_period_days = $4,
+			       updated_at          = NOW()
+			WHERE  period_start <= CURRENT_DATE
+			  AND  period_end   >= CURRENT_DATE
+		`, schema)
+		if _, err2 := tx.ExecContext(ctx, updateSQL, periodStart, *periodEnd, checksAllowed, storagePeriodDays); err2 != nil {
+			return fmt.Errorf("upsert usage_tracking: %w (fallback: %v)", err, err2)
+		}
 	}
 	return nil
 }
