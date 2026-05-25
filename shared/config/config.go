@@ -117,13 +117,13 @@ type Config struct {
 	GmailIntegrationEnabled bool // GMAIL_INTEGRATION_ENABLED
 
 	// Stripe / Billing
-	StripeSecretKey          string
-	StripeWebhookSecret      string
-	StripePublishableKey     string
-	StripePortalReturnURL    string
-	StripeCheckoutSuccessURL string
-	StripeCheckoutCancelURL  string
-	BillingEnabled           bool // BILLING_ENABLED — gates /billing/* routes
+	// Note: checkout success/cancel URLs and portal return URL are built
+	// per-request from the tenant subdomain in the HTTP layer — they are not
+	// configurable via env. Only the Stripe API credentials live here.
+	StripeSecretKey      string
+	StripeWebhookSecret  string
+	StripePublishableKey string
+	BillingEnabled       bool // BILLING_ENABLED — gates /billing/* routes
 
 	// Trial (self-serve onboarding)
 	TrialDays           int    // TRIAL_DAYS — number of days the no-card trial lasts
@@ -221,13 +221,10 @@ func Load() *Config {
 
 		GmailIntegrationEnabled: getEnvBool("GMAIL_INTEGRATION_ENABLED", false),
 
-		StripeSecretKey:          getEnv("STRIPE_SECRET_KEY", ""),
-		StripeWebhookSecret:      getEnv("STRIPE_WEBHOOK_SECRET", ""),
-		StripePublishableKey:     getEnv("STRIPE_PUBLISHABLE_KEY", ""),
-		StripePortalReturnURL:    getEnv("STRIPE_PORTAL_RETURN_URL", ""),
-		StripeCheckoutSuccessURL: getEnv("STRIPE_CHECKOUT_SUCCESS_URL", ""),
-		StripeCheckoutCancelURL:  getEnv("STRIPE_CHECKOUT_CANCEL_URL", ""),
-		BillingEnabled:           getEnvBool("BILLING_ENABLED", false),
+		StripeSecretKey:      getEnv("STRIPE_SECRET_KEY", ""),
+		StripeWebhookSecret:  getEnv("STRIPE_WEBHOOK_SECRET", ""),
+		StripePublishableKey: getEnv("STRIPE_PUBLISHABLE_KEY", ""),
+		BillingEnabled:       getEnvBool("BILLING_ENABLED", false),
 
 		TrialDays:           getEnvInt("TRIAL_DAYS", 14),
 		TrialChecksPerMonth: getEnvInt("TRIAL_CHECKS_PER_MONTH", 500),

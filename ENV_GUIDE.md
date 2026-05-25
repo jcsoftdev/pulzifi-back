@@ -321,9 +321,7 @@ For staging/production, create separate config files per environment and pass vi
 - `STRIPE_SECRET_KEY` — Stripe restricted API key (e.g., `sk_live_...` or `sk_test_...`)
 - `STRIPE_WEBHOOK_SECRET` — Signing secret from Stripe webhook endpoint config (e.g., `whsec_...`)
 - `STRIPE_PUBLISHABLE_KEY` — Publishable key for frontend use (e.g., `pk_live_...` or `pk_test_...`)
-- `STRIPE_PORTAL_RETURN_URL` — URL Stripe returns to after Customer Portal (e.g., `https://app.pulzifi.com/settings/billing`)
-- `STRIPE_CHECKOUT_SUCCESS_URL` — Redirect after successful checkout (e.g., `https://app.pulzifi.com/settings/billing?checkout=success`)
-- `STRIPE_CHECKOUT_CANCEL_URL` — Redirect when checkout is cancelled (e.g., `https://app.pulzifi.com/settings/billing`)
+- `STRIPE_PORTAL_RETURN_URL` — **Only consumed by `tools/scripts/setup-stripe-portal.sh`** when seeding the Stripe Customer Portal's `default_return_url`. The application itself builds per-request return URLs from the tenant subdomain — no runtime env var needed.
 
 > **Important**: Register the webhook endpoint in the Stripe Dashboard pointing at `https://api.yourdomain.com/api/v1/billing/webhook`. Events to enable: `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, `invoice.payment_failed`.
 
@@ -340,7 +338,7 @@ Follow this order when enabling billing for the first time:
    - URL: `https://api.yourdomain.com/api/v1/billing/webhook`
    - Events to send: `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, `invoice.payment_failed`
    - After saving, copy the **Signing secret** (`whsec_...`) → set as `STRIPE_WEBHOOK_SECRET`.
-4. **Set the remaining env vars** — `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_PORTAL_RETURN_URL`, `STRIPE_CHECKOUT_SUCCESS_URL`, `STRIPE_CHECKOUT_CANCEL_URL`.
+4. **Set the remaining env vars** — `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`. (`STRIPE_PORTAL_RETURN_URL` is only needed by the portal setup script.)
 5. **Flip the flag** — Set `BILLING_ENABLED=true` and redeploy. All `/api/v1/billing/*` routes become available.
 6. **Smoke test** (optional but recommended):
    ```bash
