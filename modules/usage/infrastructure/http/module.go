@@ -14,6 +14,8 @@ import (
 	listorgs "github.com/jcsoftdev/pulzifi-back/modules/usage/application/list_organizations_with_plans"
 	listplans "github.com/jcsoftdev/pulzifi-back/modules/usage/application/list_plans"
 	trialstatus "github.com/jcsoftdev/pulzifi-back/modules/usage/application/trial_status"
+	"github.com/jcsoftdev/pulzifi-back/modules/usage/domain/services"
+	usagepersistence "github.com/jcsoftdev/pulzifi-back/modules/usage/infrastructure/persistence"
 	"github.com/jcsoftdev/pulzifi-back/shared/contextkeys"
 	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
 	"github.com/jcsoftdev/pulzifi-back/shared/router"
@@ -121,19 +123,28 @@ func (m *Module) handleGetMetrics(w http.ResponseWriter, r *http.Request) {
 }
 
 func (m *Module) handleGetQuotas(w http.ResponseWriter, r *http.Request) {
-	if m.deps.GetQuotasHandler == nil {
-		writeJSON(w, http.StatusOK, map[string]interface{}{
-			"quotas":  map[string]interface{}{"checks_used": 300, "checks_allowed": 1000, "next_refill_at": "2025-10-20T00:00:00Z"},
-			"message": "get usage quotas (mock - handler not initialized)",
-		})
-		return
-	}
 	tenant := middleware.GetTenantFromContext(r.Context())
 	if tenant == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "tenant not found"})
 		return
 	}
-	resp, err := m.deps.GetQuotasHandler.Handle(r.Context(), &getquotas.Request{Tenant: tenant})
+
+	// Build a tenant-scoped GetQuotas handler on demand. The repositories
+	// touch tenant schemas, so they cannot be wired once at startup the way
+	// a single-tenant module would; constructing per-request keeps the
+	// dependency graph simple until the usage module is fully hexagonalised.
+	handler := m.deps.GetQuotasHandler
+	if handler == nil {
+		if m.deps.DB == nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "usage module not configured"})
+			return
+		}
+		usageRepo := usagepersistence.NewUsageTrackingPostgresRepository(m.deps.DB, tenant)
+		orgPlanRepo := usagepersistence.NewOrganizationPlanPostgresRepository(m.deps.DB)
+		handler = getquotas.NewHandler(usageRepo, orgPlanRepo, services.New())
+	}
+
+	resp, err := handler.Handle(r.Context(), &getquotas.Request{Tenant: tenant})
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to load quotas"})
 		return
