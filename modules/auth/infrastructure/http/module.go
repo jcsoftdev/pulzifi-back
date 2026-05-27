@@ -649,6 +649,10 @@ func (m *Module) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	if !hasMembership {
 		// Brand-new OAuth user with no org — send to onboarding page.
 		onboardingURL := m.frontendURL + "/onboarding"
+		logger.Info("OAuth callback: redirecting to onboarding (no membership)",
+			zap.String("user_id", userID.String()),
+			zap.String("redirect_url", onboardingURL),
+		)
 		http.Redirect(w, r, onboardingURL, http.StatusTemporaryRedirect)
 		return
 	}
@@ -667,12 +671,22 @@ func (m *Module) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		if redirectURL == "" {
 			redirectURL = "/"
 		}
+		logger.Info("OAuth callback: redirecting to fallback (no subdomain found)",
+			zap.String("user_id", userID.String()),
+			zap.String("redirect_url", redirectURL),
+			zap.Bool("subdomain_nil", subdomain == nil),
+		)
 		http.Redirect(w, r, redirectURL, http.StatusTemporaryRedirect)
 		return
 	}
 
 	// Build a tenant-subdomain URL: {scheme}://{subdomain}.{cookieDomainBase}:{port}/
 	if tenantURL, ok := buildTenantRedirectURL(m.frontendURL, m.cookieDomain, *subdomain); ok {
+		logger.Info("OAuth callback: redirecting to tenant subdomain",
+			zap.String("user_id", userID.String()),
+			zap.String("subdomain", *subdomain),
+			zap.String("redirect_url", tenantURL),
+		)
 		http.Redirect(w, r, tenantURL, http.StatusTemporaryRedirect)
 		return
 	}
@@ -684,6 +698,13 @@ func (m *Module) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	if redirectURL == "" {
 		redirectURL = "/"
 	}
+	logger.Warn("OAuth callback: buildTenantRedirectURL returned false, falling back",
+		zap.String("user_id", userID.String()),
+		zap.String("subdomain", *subdomain),
+		zap.String("cookie_domain", m.cookieDomain),
+		zap.String("frontend_url", m.frontendURL),
+		zap.String("redirect_url", redirectURL),
+	)
 	http.Redirect(w, r, redirectURL, http.StatusTemporaryRedirect)
 }
 
