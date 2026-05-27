@@ -7,24 +7,25 @@ End-to-end Stripe configuration for Pulzifi: from creating the account to going 
 ## Table of Contents
 
 1. [Architecture context](#architecture-context)
-2. [The `BILLING_ENABLED` flag](#the-billing_enabled-flag)
-3. [Trial strategy](#trial-strategy)
-4. [Stripe account setup (from scratch)](#stripe-account-setup-from-scratch)
-5. [Business profile](#business-profile)
-6. [API keys](#api-keys)
-7. [Products and prices](#products-and-prices)
-8. [Sync price IDs to database](#sync-price-ids-to-database)
-9. [Customer Portal](#customer-portal)
-10. [Checkout settings](#checkout-settings)
-11. [Webhooks](#webhooks)
-12. [Test cards](#test-cards)
-13. [End-to-end test flow](#end-to-end-test-flow)
-14. [Live mode migration](#live-mode-migration)
-15. [Recommended live-mode settings](#recommended-live-mode-settings)
-16. [Pre-launch checklist](#pre-launch-checklist)
-17. [Environment variables](#environment-variables)
-18. [Stripe-related code in this repo](#stripe-related-code-in-this-repo)
-19. [References](#references)
+2. [Multi-tenant model](#multi-tenant-model)
+3. [The `BILLING_ENABLED` flag](#the-billing_enabled-flag)
+4. [Trial strategy](#trial-strategy)
+5. [Stripe account setup (from scratch)](#stripe-account-setup-from-scratch)
+6. [Business profile](#business-profile)
+7. [API keys](#api-keys)
+8. [Products and prices](#products-and-prices)
+9. [Sync price IDs to database](#sync-price-ids-to-database)
+10. [Customer Portal](#customer-portal)
+11. [Checkout settings](#checkout-settings)
+12. [Webhooks](#webhooks)
+13. [Test cards](#test-cards)
+14. [End-to-end test flow](#end-to-end-test-flow)
+15. [Live mode migration](#live-mode-migration)
+16. [Recommended live-mode settings](#recommended-live-mode-settings)
+17. [Pre-launch checklist](#pre-launch-checklist)
+18. [Environment variables](#environment-variables)
+19. [Stripe-related code in this repo](#stripe-related-code-in-this-repo)
+20. [References](#references)
 
 ---
 
@@ -44,6 +45,70 @@ Key design decisions already implemented:
 - **Webhook idempotency at DB level** — `INSERT … ON CONFLICT DO NOTHING` on `public.stripe_webhook_events`. Duplicate deliveries return 200 immediately.
 - **Cross-module adapter** — `PlanAssigner` interface is defined in `modules/billing/domain/services/` but implemented in `cmd/wiring/billing/plan_assigner.go` to avoid importing `modules/usage` or `modules/organization` directly.
 - **Migrations** — `shared/database/migrations/public/000018_stripe_billing.up.sql` adds `stripe_customer_id`, `stripe_subscription_id`, `stripe_price_id`, `billing_status`, `current_period_end`, `payment_status`, plus the `stripe_webhook_events` idempotency table. All columns are nullable / have safe defaults — fully backwards-compatible.
+
+---
+
+## Multi-tenant model
+
+Pulzifi is multi-tenant by subdomain: `acme.pulzifi.com`, `foo.pulzifi.com`, etc. Stripe is configured ONCE for the whole platform — no per-tenant dashboard work.
+
+### One Stripe account, N customers
+
+| Object | Cardinality |
+|---|---|
+| Stripe account / `sk_live_...` | 1 (the platform) |
+| Stripe products + prices | 1 set, shared by all tenants |
+| Stripe webhook endpoint | 1, hosted at root domain |
+| Stripe `Customer` | 1 per organization |
+| Stripe `Subscription` | 1 per organization |
+
+`public.organization_plans` stores `stripe_customer_id` and `stripe_subscription_id` per org. The webhook handler dispatches events to the correct org by looking up `customer_id` in this table.
+
+### Dynamic URLs from `r.Host`
+
+Checkout `success_url`, `cancel_url`, and Portal `return_url` are built per-request from the incoming `r.Host` header, NOT from env vars:
+
+```
+GET acme.pulzifi.com/api/v1/billing/checkout
+  → success_url = https://acme.pulzifi.com/settings/billing
+
+GET foo.pulzifi.com/api/v1/billing/checkout
+  → success_url = https://foo.pulzifi.com/settings/billing
+```
+
+Stripe does not need to know which tenants exist. Every new tenant subdomain works without touching the dashboard. See `modules/billing/infrastructure/http/module.go` (handlers for checkout and portal).
+
+### Single global webhook
+
+```
+https://pulzifi.com/api/v1/billing/webhook
+```
+
+- Lives at the ROOT domain (no subdomain). Registered in `shared/middleware/tenant.go` `publicPaths` so the tenant middleware does NOT try to resolve a subdomain.
+- Stripe sends every event (across all customers) to this URL.
+- Handler reads `customer.id` from the event payload → looks up the org via `stripe_customer_id` → updates THAT org's plan via `cmd/wiring/billing/plan_assigner.go`.
+- Idempotent via `stripe_webhook_events` (`ON CONFLICT DO NOTHING`).
+
+### What env vars actually need
+
+For Stripe, only ONE set of env vars, scoped to the platform — not per tenant:
+
+```
+BILLING_ENABLED=true
+STRIPE_SECRET_KEY=sk_live_...
+STRIPE_PUBLISHABLE_KEY=pk_live_...
+STRIPE_WEBHOOK_SECRET=whsec_live_...
+STRIPE_PORTAL_RETURN_URL=https://pulzifi.com/settings/billing  # only seeds Portal default; app overrides per request
+```
+
+### Adding a new tenant
+
+Zero Stripe-side work:
+
+1. Provision tenant via existing org-creation flow → schema + `organization_plans` row (no `stripe_customer_id` yet).
+2. Tenant admin visits `<sub>.pulzifi.com/settings/billing` → clicks upgrade.
+3. Checkout session created → Stripe creates a new `Customer` → backend stores `stripe_customer_id`.
+4. Webhook updates the org's plan.
 
 ---
 
@@ -356,7 +421,7 @@ Settings → **Billing** → **Customer portal** → **Activate**
 
 ### Default redirect
 
-- Default return URL: `https://app.pulzifi.com/billing` (production)
+- Default return URL: `https://pulzifi.com/billing` (production)
 - Dev: `http://localhost:3002/billing` (Go is the entry point; it proxies `/billing` to Next.js on 3003 internally)
 
 Save changes.
@@ -405,7 +470,7 @@ Keep this command running while developing.
 
 Developers → **Webhooks** → **Add endpoint**
 
-- Endpoint URL: `https://app.pulzifi.com/api/v1/billing/webhook`
+- Endpoint URL: `https://pulzifi.com/api/v1/billing/webhook`
 - Description: `Pulzifi billing sync — production`
 - Listen to: **Events on your account**
 - Events:
@@ -685,7 +750,7 @@ BILLING_ENABLED=true
 STRIPE_SECRET_KEY=sk_live_51...
 STRIPE_PUBLISHABLE_KEY=pk_live_51...
 STRIPE_WEBHOOK_SECRET=whsec_live_...
-STRIPE_PORTAL_RETURN_URL=https://app.pulzifi.com/settings/billing
+STRIPE_PORTAL_RETURN_URL=https://pulzifi.com/settings/billing
 
 TRIAL_DAYS=14
 TRIAL_CHECKS_PER_MONTH=500

@@ -10,7 +10,7 @@
 #
 # Usage:
 #   ./tools/scripts/setup-stripe-all.sh                                       # test mode (.env)
-#   ENV_FILE=.env.production ./tools/scripts/setup-stripe-all.sh https://app.pulzifi.com/api/v1/billing/webhook
+#   ENV_FILE=.env.production ./tools/scripts/setup-stripe-all.sh https://pulzifi.com/api/v1/billing/webhook
 #   ./tools/scripts/setup-stripe-all.sh --skip-webhook                        # everything except webhook (e.g. local dev)
 
 set -euo pipefail
@@ -67,7 +67,7 @@ else
   warn ""
   warn "5/5 — Webhook URL not provided. Skipping."
   warn "       For prod, run:"
-  warn "         ./tools/scripts/setup-stripe-webhook.sh https://app.pulzifi.com/api/v1/billing/webhook"
+  warn "         ./tools/scripts/setup-stripe-webhook.sh https://pulzifi.com/api/v1/billing/webhook"
   warn "       For local dev, run:"
   warn "         stripe listen --forward-to localhost:3002/api/v1/billing/webhook"
 fi

@@ -42,14 +42,14 @@ PRICES_JSON=$(stripe_call prices list --limit 100 --expand 'data.product' \
 resolve_price()   { echo "$PRICES_JSON" | jq -r --arg k "$1" '.data[] | select(.active and .lookup_key == $k) | .id'      | head -n 1; }
 resolve_product() { echo "$PRICES_JSON" | jq -r --arg k "$1" '.data[] | select(.active and .lookup_key == $k) | .product.id' | head -n 1; }
 
-# Each entry: "<lookup_key>". The portal config builds one product-entry per
-# price because the current Stripe state has a separate product per interval
-# (legacy from earlier setup runs). Stripe rejects a portal product entry whose
-# prices don't all belong to the same product, so we enumerate per-interval.
+# Group prices by product. Stripe requires each product to appear ONCE in
+# features[subscription_update][products] with a LIST of its prices. Legacy
+# test-mode setups had a separate product per interval (memory #283); live
+# mode shares products across intervals — this loop handles both.
 PORTAL_KEYS=(starter_monthly starter_yearly pro_monthly pro_yearly)
 
-declare -a PORTAL_PRODUCT_IDS=()
-declare -a PORTAL_PRICE_IDS=()
+declare -A PRODUCT_PRICES=()
+declare -a PRODUCT_ORDER=()
 
 for key in "${PORTAL_KEYS[@]}"; do
   price_id=$(resolve_price   "$key")
@@ -58,12 +58,16 @@ for key in "${PORTAL_KEYS[@]}"; do
     warn "  ↷ skipping $key (no active price)"
     continue
   fi
-  PORTAL_PRICE_IDS+=("$price_id")
-  PORTAL_PRODUCT_IDS+=("$prod_id")
   info "  ✓ $key → product=$prod_id price=$price_id"
+  if [ -z "${PRODUCT_PRICES[$prod_id]+x}" ]; then
+    PRODUCT_ORDER+=("$prod_id")
+    PRODUCT_PRICES[$prod_id]="$price_id"
+  else
+    PRODUCT_PRICES[$prod_id]="${PRODUCT_PRICES[$prod_id]} $price_id"
+  fi
 done
 
-[ "${#PORTAL_PRICE_IDS[@]}" -eq 0 ] && { err "No active prices found for any of: ${PORTAL_KEYS[*]}"; err "Run ./tools/scripts/setup-stripe-products.sh first."; exit 1; }
+[ "${#PRODUCT_ORDER[@]}" -eq 0 ] && { err "No active prices found for any of: ${PORTAL_KEYS[*]}"; err "Run ./tools/scripts/setup-stripe-products.sh first."; exit 1; }
 
 API_URL="https://api.stripe.com/v1"
 
@@ -99,10 +103,14 @@ build_curl_args() {
     --data-urlencode "features[subscription_update][default_allowed_updates][]=promotion_code"
     --data-urlencode "features[subscription_update][proration_behavior]=create_prorations"
   )
-  local i
-  for i in "${!PORTAL_PRODUCT_IDS[@]}"; do
-    args+=(--data-urlencode "features[subscription_update][products][${i}][product]=${PORTAL_PRODUCT_IDS[$i]}")
-    args+=(--data-urlencode "features[subscription_update][products][${i}][prices][]=${PORTAL_PRICE_IDS[$i]}")
+  local i=0
+  local prod_id price_id
+  for prod_id in "${PRODUCT_ORDER[@]}"; do
+    args+=(--data-urlencode "features[subscription_update][products][${i}][product]=${prod_id}")
+    for price_id in ${PRODUCT_PRICES[$prod_id]}; do
+      args+=(--data-urlencode "features[subscription_update][products][${i}][prices][]=${price_id}")
+    done
+    i=$((i + 1))
   done
   printf '%s\n' "${args[@]}"
 }

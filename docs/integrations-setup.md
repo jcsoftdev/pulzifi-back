@@ -15,7 +15,7 @@ Add to `.env` (dev) and Dokploy app env (prod).
 | Var | Purpose | Format |
 |---|---|---|
 | `INTEGRATION_TOKEN_KEY` | AES-256-GCM key for at-rest token encryption AND HMAC for OAuth state token. Phase 1 reuses the same key for both. | 32 bytes hex (64 chars). Generate: `openssl rand -hex 32` |
-| `INTEGRATION_OAUTH_REDIRECT_BASE` | Root domain that receives OAuth callbacks. The callback path appended is `/api/v1/integrations/oauth/{provider}/callback`. | URL, no trailing slash. Dev: `http://localhost:3000`. Prod: `https://app.pulzifi.com` |
+| `INTEGRATION_OAUTH_REDIRECT_BASE` | Root domain that receives OAuth callbacks. The callback path appended is `/api/v1/integrations/oauth/{provider}/callback`. | URL, no trailing slash. Dev: `http://localhost:3000`. Prod: `https://pulzifi.com` |
 
 In dev, if `INTEGRATION_TOKEN_KEY` is unset the server boots with an insecure default `00…00ff` and logs a warning. In production, missing key → fatal startup error (matches `JWT_SECRET` behavior).
 
@@ -48,7 +48,7 @@ Backoff schedule (hardcoded): `5s → 30s → 2m → 10m → 1h`, indexed by `at
 2. **OAuth & Permissions** → Bot Token Scopes → add: `chat:write`, `channels:read`, `groups:read`.
 3. **OAuth & Permissions** → Redirect URLs → add:
    - Dev: `http://localhost:3000/api/v1/integrations/oauth/slack/callback`
-   - Prod: `https://app.pulzifi.com/api/v1/integrations/oauth/slack/callback`
+   - Prod: `https://pulzifi.com/api/v1/integrations/oauth/slack/callback`
 4. **Basic Information** → copy `Client ID` and `Client Secret` into env.
 5. Install app to your dev workspace (button on Basic Information page).
 
@@ -233,7 +233,7 @@ Add to `.env` (dev) and Dokploy app env (prod) as needed.
 1. Create application at https://discord.com/developers/applications → "New Application".
 2. Navigate to **OAuth2** → **Redirects** → add:
    - Dev: `http://localhost:3000/api/v1/integrations/oauth/discord/callback`
-   - Prod: `https://app.pulzifi.com/api/v1/integrations/oauth/discord/callback`
+   - Prod: `https://pulzifi.com/api/v1/integrations/oauth/discord/callback`
 3. **OAuth2 → General** → copy `Client ID` and `Client Secret` into env as `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET`.
 4. Under **Bot**, enable the bot and grant **Send Messages** + **Embed Links** permissions.
 
@@ -393,7 +393,7 @@ Add to `.env` (dev) and Dokploy app env (prod) as needed.
    - Application type: **Web application**
    - Authorized redirect URIs → add:
      - Dev: `http://localhost:3000/api/v1/integrations/oauth/sheets/callback`
-     - Prod: `https://app.pulzifi.com/api/v1/integrations/oauth/sheets/callback`
+     - Prod: `https://pulzifi.com/api/v1/integrations/oauth/sheets/callback`
 5. Copy **Client ID** and **Client Secret** into env as `SHEETS_CLIENT_ID` / `SHEETS_CLIENT_SECRET`.
 
 The callback is root-mounted — same HMAC state pattern as Slack/Discord.
@@ -406,7 +406,7 @@ The callback is root-mounted — same HMAC state pattern as Slack/Discord.
 2. **Supported account types**: select **"Accounts in any organizational directory (Any Azure AD directory - Multitenant)"**.
 3. **Redirect URI** (Web) → add:
    - Dev: `http://localhost:3000/api/v1/integrations/oauth/teams/callback`
-   - Prod: `https://app.pulzifi.com/api/v1/integrations/oauth/teams/callback`
+   - Prod: `https://pulzifi.com/api/v1/integrations/oauth/teams/callback`
 4. **API permissions → Add a permission → Microsoft Graph → Delegated permissions**:
    - `ChannelMessage.Send`
    - `Team.ReadBasic.All`

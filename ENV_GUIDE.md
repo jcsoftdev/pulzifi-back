@@ -26,7 +26,7 @@ This document maps which environment variables are used by each service/Docker c
 - `JWT_REFRESH_EXPIRATION` (default: 604800s / 7 days)
 
 ### Frontend & Routing
-- `FRONTEND_URL` [REQUIRED] — e.g., https://app.pulzifi.com
+- `FRONTEND_URL` [REQUIRED] — e.g., https://pulzifi.com
 - `NEXTJS_URL` (default: http://localhost:3001)
 - `COOKIE_DOMAIN` — e.g., .pulzifi.com (for cross-subdomain cookies)
 - `CORS_ALLOWED_ORIGINS` [REQUIRED] — comma-separated list
@@ -67,7 +67,7 @@ This document maps which environment variables are used by each service/Docker c
 - `GOOGLE_CLIENT_SECRET`
 - `GITHUB_CLIENT_ID`
 - `GITHUB_CLIENT_SECRET`
-- `OAUTH_REDIRECT_BASE_URL` — e.g., https://app.pulzifi.com
+- `OAUTH_REDIRECT_BASE_URL` — e.g., https://pulzifi.com
 
 ### Redis (Optional)
 - `REDIS_HOST` — IP/hostname of Redis server
@@ -130,8 +130,11 @@ Uses **the same environment variables as the API Server**, but only reads:
 
 ### Build-Time Variables (baked into bundle)
 - `NEXT_PUBLIC_APP_DOMAIN` — e.g., pulzifi.com (used for subdomain validation)
-- `NEXT_PUBLIC_APP_BASE_URL` — e.g., https://app.pulzifi.com (for cross-subdomain redirects)
-- `SERVER_API_URL` — e.g., https://api.pulzifi.com (backend API base URL, if different from frontend domain)
+- `NEXT_PUBLIC_APP_BASE_URL` — e.g., https://pulzifi.com (for cross-subdomain redirects)
+- `SERVER_API_URL` — Internal hostname Next.js SSR uses to reach the API container (NOT a public URL).
+  - Docker Compose: `http://monolith:3000`
+  - Dokploy: `http://pulzifi-api-<hash>:3000` (internal service hostname)
+  - Browser calls bypass this entirely and use `window.location.origin` — Go on :3000 is the single public entry point and proxies unmatched routes to Next.js
 
 ### Runtime Configuration
 - `PORT` (default: 3000) — HTTP port for Next.js server
@@ -235,7 +238,7 @@ Scraper (modules/infra/scraper/Dockerfile)
 
 Frontend (frontend/Dockerfile)
 ├─ NEXT_PUBLIC_APP_DOMAIN → staging.pulzifi.com
-└─ SERVER_API_URL → https://api.staging.pulzifi.com
+└─ SERVER_API_URL → http://pulzifi-api-staging:3000   # Dokploy internal hostname
 ```
 
 ### Production (Dokploy VPS)
@@ -257,7 +260,7 @@ Scraper (modules/infra/scraper/Dockerfile)
 
 Frontend (frontend/Dockerfile)
 ├─ NEXT_PUBLIC_APP_DOMAIN → pulzifi.com
-└─ SERVER_API_URL → https://api.pulzifi.com
+└─ SERVER_API_URL → http://pulzifi-api-<hash>:3000   # Dokploy internal hostname (NOT public api.pulzifi.com)
 ```
 
 ---

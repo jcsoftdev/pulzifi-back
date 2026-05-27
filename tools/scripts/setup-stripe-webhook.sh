@@ -8,7 +8,7 @@
 #
 # Usage:
 #   ENV_FILE=.env.staging    ./tools/scripts/setup-stripe-webhook.sh https://staging.pulzifi.com/api/v1/billing/webhook
-#   ENV_FILE=.env.production ./tools/scripts/setup-stripe-webhook.sh https://app.pulzifi.com/api/v1/billing/webhook
+#   ENV_FILE=.env.production ./tools/scripts/setup-stripe-webhook.sh https://pulzifi.com/api/v1/billing/webhook
 #
 # After running, copy the printed `whsec_...` signing secret into the target env file as STRIPE_WEBHOOK_SECRET.
 
@@ -66,33 +66,38 @@ EXISTING_ID=$(echo "$EXISTING" | jq -r --arg url "$WEBHOOK_URL" '.data[] | selec
 
 API_URL="https://api.stripe.com/v1"
 
-build_payload() {
-  echo "url=$WEBHOOK_URL"
-  echo "description=Pulzifi billing — $STRIPE_MODE"
+DESCRIPTION="Pulzifi billing - $STRIPE_MODE"
+
+build_curl_args() {
+  local args=(
+    --data-urlencode "url=$WEBHOOK_URL"
+    --data-urlencode "description=$DESCRIPTION"
+  )
   for e in "${EVENTS[@]}"; do
-    echo "enabled_events[]=$e"
+    args+=(--data-urlencode "enabled_events[]=$e")
   done
+  printf '%s\n' "${args[@]}"
+}
+
+build_curl_args_update() {
+  local args=(--data-urlencode "description=$DESCRIPTION")
+  for e in "${EVENTS[@]}"; do
+    args+=(--data-urlencode "enabled_events[]=$e")
+  done
+  printf '%s\n' "${args[@]}"
 }
 
 if [ -n "$EXISTING_ID" ]; then
-  warn "Endpoint already exists: $EXISTING_ID — updating events list"
-  # Update can't change URL, only events + description + status
-  PAYLOAD=$(mktemp)
-  {
-    echo "description=Pulzifi billing — $STRIPE_MODE"
-    for e in "${EVENTS[@]}"; do echo "enabled_events[]=$e"; done
-  } > "$PAYLOAD"
+  warn "Endpoint already exists: $EXISTING_ID - updating events list"
+  mapfile -t CURL_ARGS < <(build_curl_args_update)
   curl -s -u "$STRIPE_SECRET_KEY:" "$API_URL/webhook_endpoints/$EXISTING_ID" \
-    --data-binary @"$PAYLOAD" > /tmp/webhook_result.json
-  rm -f "$PAYLOAD"
+    "${CURL_ARGS[@]}" > /tmp/webhook_result.json
   SECRET_HINT="Existing secret unchanged. Retrieve via: stripe webhook_endpoints retrieve $EXISTING_ID --api-key \$STRIPE_SECRET_KEY"
 else
   info "Creating new webhook endpoint..."
-  PAYLOAD=$(mktemp)
-  build_payload > "$PAYLOAD"
+  mapfile -t CURL_ARGS < <(build_curl_args)
   curl -s -u "$STRIPE_SECRET_KEY:" "$API_URL/webhook_endpoints" \
-    --data-binary @"$PAYLOAD" > /tmp/webhook_result.json
-  rm -f "$PAYLOAD"
+    "${CURL_ARGS[@]}" > /tmp/webhook_result.json
   SECRET=$(jq -r '.secret // empty' /tmp/webhook_result.json)
   SECRET_HINT="STRIPE_WEBHOOK_SECRET=$SECRET"
 fi
