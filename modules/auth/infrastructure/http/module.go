@@ -885,6 +885,29 @@ func (m *Module) handleOnboarding(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Re-issue tokens so the JWT picks up the ADMIN role + permissions that
+	// were just assigned by TrialProvisioner. Without this the old JWT (issued
+	// during the OAuth callback) carries empty Roles/Permissions, and the
+	// first request to any RequirePermission-protected route returns 403.
+	userEmail, _ := r.Context().Value(authmw.UserEmailKey).(string)
+	if newAccessToken, tokErr := m.tokenService.GenerateAccessToken(r.Context(), userID, userEmail); tokErr == nil {
+		accessExpires := time.Now().Add(m.tokenService.GetTokenExpiration())
+		cookies.SetAccessTokenCookie(w, r, newAccessToken, accessExpires, m.cookieDomain, m.cookieSecure)
+
+		if newRefreshTokenStr, refreshErr := m.tokenService.GenerateRefreshToken(r.Context(), userID); refreshErr == nil {
+			refreshExpiry := time.Now().Add(m.tokenService.GetRefreshTokenExpiration())
+			newRefreshToken := entities.NewRefreshToken(userID, newRefreshTokenStr, refreshExpiry)
+			if storeErr := m.refreshTokenRepo.Create(r.Context(), newRefreshToken); storeErr != nil {
+				logger.Warn("Failed to store refresh token after onboarding (non-fatal)", zap.Error(storeErr))
+			}
+			cookies.SetRefreshTokenCookie(w, r, newRefreshTokenStr, refreshExpiry, m.cookieDomain, m.cookieSecure)
+		} else {
+			logger.Warn("Failed to regenerate refresh token after onboarding (non-fatal)", zap.Error(refreshErr))
+		}
+	} else {
+		logger.Warn("Failed to regenerate access token after onboarding (non-fatal)", zap.Error(tokErr))
+	}
+
 	writeJSON(w, http.StatusOK, resp)
 }
 
