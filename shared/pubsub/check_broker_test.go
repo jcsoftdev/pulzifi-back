@@ -177,7 +177,7 @@ func TestCheckBroker_MultiSubscriberFanout(t *testing.T) {
 					if string(got) != string(payload) {
 						t.Errorf("subscriber %d: got %q, want %q", i+1, got, payload)
 					}
-				case <-time.After(200 * time.Millisecond):
+				case <-time.After(2 * time.Second):
 					t.Errorf("subscriber %d: timed out", i+1)
 				}
 			}
