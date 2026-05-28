@@ -31,8 +31,7 @@ function buildTenantUrl(subdomain: string): string {
     const parts = hostWithoutPort.split('.')
     baseDomain = parts.length >= 2 ? parts.slice(-2).join('.') : hostWithoutPort
   }
-  const isLocal = baseDomain === 'localhost' || baseDomain === '127.0.0.1'
-  const portSuffix = isLocal && port ? `:${port}` : ''
+  const portSuffix = port ? `:${port}` : ''
   return `${protocol}//${subdomain}.${baseDomain}${portSuffix}/`
 }
 

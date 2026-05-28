@@ -36,11 +36,10 @@ function buildTenantRedirectUrl(host: string, protocol: string, tenant: string):
     baseDomain = hostWithoutPort.split('.').slice(-2).join('.')
   }
 
-  // Include port only for localhost (dev). Production domains use standard ports.
-  const isLocalDomain = baseDomain === 'localhost' || baseDomain === '127.0.0.1'
-  const portSuffix = isLocalDomain ? hostPort : ''
-
-  return `${protocol}//${tenant}.${baseDomain}${portSuffix}/`
+  // Preserve port whenever the incoming host has one. Production hosts on
+  // standard ports (80/443) never include a port in the Host header, so this
+  // stays empty in prod; dev wildcards like lvh.me/nip.io keep their port.
+  return `${protocol}//${tenant}.${baseDomain}${hostPort}/`
 }
 
 export default async function AuthLayout({ children }: { children: React.ReactNode }) {

@@ -26,10 +26,7 @@ function buildTenantRedirectUrl(host: string, protocol: string, tenant: string):
     baseDomain = hostWithoutPort.split('.').slice(-2).join('.')
   }
 
-  const isLocalDomain = baseDomain === 'localhost' || baseDomain === '127.0.0.1'
-  const portSuffix = isLocalDomain ? hostPort : ''
-
-  return `${protocol}//${tenant}.${baseDomain}${portSuffix}/`
+  return `${protocol}//${tenant}.${baseDomain}${hostPort}/`
 }
 
 export default async function OnboardingPage() {
