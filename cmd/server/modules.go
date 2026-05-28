@@ -11,6 +11,8 @@ import (
 	alert "github.com/jcsoftdev/pulzifi-back/modules/alert/infrastructure/http"
 	billing "github.com/jcsoftdev/pulzifi-back/modules/billing/infrastructure/http"
 	createcheckoutsession "github.com/jcsoftdev/pulzifi-back/modules/billing/application/create_checkout_session"
+	reconcilesubscription "github.com/jcsoftdev/pulzifi-back/modules/billing/application/reconcile_subscription"
+	updatesubscription "github.com/jcsoftdev/pulzifi-back/modules/billing/application/update_subscription"
 	createportalsession "github.com/jcsoftdev/pulzifi-back/modules/billing/application/create_portal_session"
 	getsubscription "github.com/jcsoftdev/pulzifi-back/modules/billing/application/get_subscription"
 	handlewebhook "github.com/jcsoftdev/pulzifi-back/modules/billing/application/handle_webhook"
@@ -315,9 +317,15 @@ func registerAllModulesInternal(
 		customerRepo := billingpostgres.NewCustomerPostgresRepository(db)
 		planRepo := billingpostgres.NewPlanPostgresRepository(db)
 
-		checkoutHandler := createcheckoutsession.NewHandler(stripeGateway, customerRepo, planRepo)
+		reconcileHandler := reconcilesubscription.NewHandler(stripeGateway, planAssigner, webhookRepo)
+
+		checkoutHandler := createcheckoutsession.
+			NewHandler(stripeGateway, customerRepo, planRepo).
+			WithReconciler(reconcileHandler)
 		portalHandler := createportalsession.NewHandler(stripeGateway, customerRepo)
 		subscriptionHandler := getsubscription.NewHandler(subscriptionRepo).WithStripeGateway(stripeGateway)
+		usageReader := billingwiring.NewUsageReader(db)
+		updateSubHandler := updatesubscription.NewHandler(stripeGateway, planRepo, subscriptionRepo, usageReader, planAssigner)
 		trialConverter := billingwiring.NewTrialConverter(db)
 		webhookHandler := handlewebhook.NewHandler(
 			stripeGateway,
@@ -334,6 +342,7 @@ func registerAllModulesInternal(
 			PortalHandler:       portalHandler,
 			SubscriptionHandler: subscriptionHandler,
 			WebhookHandler:      webhookHandler,
+			UpdateSubHandler:    updateSubHandler,
 		})
 
 		moduleInstances = append(moduleInstances, struct {

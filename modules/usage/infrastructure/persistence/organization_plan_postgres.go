@@ -113,8 +113,10 @@ func (r *OrganizationPlanPostgresRepository) GetSchemaName(ctx context.Context, 
 func (r *OrganizationPlanPostgresRepository) GetActivePlanForOrg(ctx context.Context, orgID uuid.UUID) (*repositories.OrgPlanInfo, error) {
 	var info repositories.OrgPlanInfo
 	var startedAt time.Time
+	var aiAllowed sql.NullInt64
 	err := r.exec.QueryRowContext(ctx, `
-		SELECT o.schema_name, p.checks_allowed_monthly, COALESCE(p.storage_period_days, 7), op.started_at
+		SELECT o.schema_name, p.checks_allowed_monthly, COALESCE(p.storage_period_days, 7),
+		       p.ai_insights_allowed_monthly, op.started_at
 		FROM public.organizations o
 		JOIN public.organization_plans op ON op.organization_id = o.id
 			AND op.status = 'active' AND op.deleted_at IS NULL
@@ -122,13 +124,14 @@ func (r *OrganizationPlanPostgresRepository) GetActivePlanForOrg(ctx context.Con
 		WHERE o.id = $1
 		ORDER BY op.started_at DESC
 		LIMIT 1
-	`, orgID).Scan(&info.SchemaName, &info.ChecksAllowed, &info.StoragePeriodDays, &startedAt)
+	`, orgID).Scan(&info.SchemaName, &info.ChecksAllowed, &info.StoragePeriodDays, &aiAllowed, &startedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
+	info.AIInsightsAllowed = resolveAILimit(aiAllowed)
 	info.StartedAt = startedAt
 	return &info, nil
 }
@@ -136,8 +139,10 @@ func (r *OrganizationPlanPostgresRepository) GetActivePlanForOrg(ctx context.Con
 func (r *OrganizationPlanPostgresRepository) GetActivePlanForTenant(ctx context.Context, tenant string) (*repositories.OrgPlanInfo, error) {
 	var info repositories.OrgPlanInfo
 	var startedAt time.Time
+	var aiAllowed sql.NullInt64
 	err := r.exec.QueryRowContext(ctx, `
-		SELECT p.checks_allowed_monthly, COALESCE(p.storage_period_days, 7), op.started_at
+		SELECT p.checks_allowed_monthly, COALESCE(p.storage_period_days, 7),
+		       p.ai_insights_allowed_monthly, op.started_at
 		FROM public.organizations o
 		JOIN public.organization_plans op ON op.organization_id = o.id
 			AND op.status = 'active' AND op.deleted_at IS NULL
@@ -145,13 +150,24 @@ func (r *OrganizationPlanPostgresRepository) GetActivePlanForTenant(ctx context.
 		WHERE o.schema_name = $1
 		ORDER BY op.started_at DESC
 		LIMIT 1
-	`, tenant).Scan(&info.ChecksAllowed, &info.StoragePeriodDays, &startedAt)
+	`, tenant).Scan(&info.ChecksAllowed, &info.StoragePeriodDays, &aiAllowed, &startedAt)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
+	info.AIInsightsAllowed = resolveAILimit(aiAllowed)
 	info.StartedAt = startedAt
 	return &info, nil
+}
+
+// resolveAILimit converts the nullable plan column into the application-level
+// allowance. NULL (Enterprise/unlimited) → INT max sentinel so the
+// "used < allowed" comparison keeps working without nullable branching.
+func resolveAILimit(v sql.NullInt64) int {
+	if !v.Valid {
+		return 2147483647
+	}
+	return int(v.Int64)
 }

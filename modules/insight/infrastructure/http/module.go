@@ -245,7 +245,8 @@ func (m *Module) handleGenerateInsight(w http.ResponseWriter, r *http.Request) {
 		insightRepo := persistence.NewInsightPostgresRepository(m.db, tenant)
 		openRouterClient := sharedAI.NewOpenRouterClient(cfg.OpenRouterAPIKey, cfg.OpenRouterModel)
 		generator := insightAI.NewOpenRouterGenerator(openRouterClient)
-		insightHandler := generateinsights.NewGenerateInsightsHandler(generator, insightRepo)
+		quotaReader := persistence.NewQuotaPostgresRepository(m.db)
+		insightHandler := generateinsights.NewGenerateInsightsHandler(generator, insightRepo, quotaReader)
 
 		if err := insightHandler.Handle(ctx, &generateinsights.Request{
 			PageID:              pageID,
@@ -253,6 +254,7 @@ func (m *Module) handleGenerateInsight(w http.ResponseWriter, r *http.Request) {
 			PageURL:             pageURL,
 			PrevText:            prevText,
 			NewText:             newText,
+			SchemaName:          tenant,
 			EnabledInsightTypes: enabledTypes,
 		}); err != nil {
 			logger.Error("Failed to generate insights on demand", zap.Error(err))

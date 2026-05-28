@@ -32,6 +32,10 @@ type OrgPlanInfo struct {
 	ChecksAllowed     int
 	StartedAt         interface{} // time.Time from DB
 	StoragePeriodDays int
+	// AIInsightsAllowed mirrors plans.ai_insights_allowed_monthly. NULL in the
+	// plan (Enterprise = unlimited) is resolved to the INT max sentinel
+	// (2147483647) by the repository so callers never see a raw NULL.
+	AIInsightsAllowed int
 }
 
 // OrganizationPlanRepository manages organization_plans in the public schema.

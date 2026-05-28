@@ -2,6 +2,7 @@ package generateinsights
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -9,21 +10,40 @@ import (
 	"github.com/jcsoftdev/pulzifi-back/modules/insight/domain/entities"
 	"github.com/jcsoftdev/pulzifi-back/modules/insight/domain/repositories"
 	"github.com/jcsoftdev/pulzifi-back/modules/insight/domain/services"
+	"github.com/jcsoftdev/pulzifi-back/shared/logger"
+	"go.uber.org/zap"
 )
 
 var defaultInsightTypes = []string{"marketing", "market_analysis"}
 
 // GenerateInsightsHandler orchestrates insight generation and persistence.
+//
+// Quota enforcement (Plan B model):
+//   - Before invoking the (expensive) LLM, snapshot the tenant's AI insight
+//     usage via InsightQuotaReader.Read; abort with ErrInsightQuotaExhausted
+//     when used >= allowed and the plan is NOT unlimited.
+//   - After each successful repo.Create, atomically increment the counter via
+//     InsightQuotaReader.Increment. When the post-increment value overflows
+//     the cap, break the loop — already-persisted insights remain; remaining
+//     ones in the batch are dropped (acceptable: cap is hard, not metered).
 type GenerateInsightsHandler struct {
-	generator services.InsightGenerator
-	repo      repositories.InsightRepository
+	generator   services.InsightGenerator
+	repo        repositories.InsightRepository
+	quotaReader services.InsightQuotaReader
 }
 
 // NewGenerateInsightsHandler creates a new GenerateInsightsHandler.
-func NewGenerateInsightsHandler(generator services.InsightGenerator, repo repositories.InsightRepository) *GenerateInsightsHandler {
+// quotaReader is optional — when nil, the handler runs unguarded (legacy
+// behaviour, used by tests that don't exercise quota).
+func NewGenerateInsightsHandler(
+	generator services.InsightGenerator,
+	repo repositories.InsightRepository,
+	quotaReader services.InsightQuotaReader,
+) *GenerateInsightsHandler {
 	return &GenerateInsightsHandler{
-		generator: generator,
-		repo:      repo,
+		generator:   generator,
+		repo:        repo,
+		quotaReader: quotaReader,
 	}
 }
 
@@ -34,6 +54,22 @@ func (h *GenerateInsightsHandler) Handle(ctx context.Context, req *Request) erro
 	enabledTypes := req.EnabledInsightTypes
 	if len(enabledTypes) == 0 {
 		enabledTypes = defaultInsightTypes
+	}
+
+	// Pre-flight quota check — short-circuit BEFORE the LLM call when the
+	// tenant has already exhausted their monthly allowance. Skipped when no
+	// reader is wired (test / legacy paths).
+	if h.quotaReader != nil && req.SchemaName != "" {
+		snap, err := h.quotaReader.Read(ctx, req.SchemaName)
+		if err != nil {
+			// Quota check failures must not block insight generation —
+			// fail-open is safer than fail-closed for billing-adjacent reads.
+			logger.Warn("insight quota read failed — proceeding without guard",
+				zap.String("tenant", req.SchemaName),
+				zap.Error(err))
+		} else if !snap.Unlimited && snap.Used >= snap.Allowed {
+			return ErrInsightQuotaExhausted
+		}
 	}
 
 	var insights []*entities.Insight
@@ -59,7 +95,36 @@ func (h *GenerateInsightsHandler) Handle(ctx context.Context, req *Request) erro
 		if err := h.repo.Create(ctx, insight); err != nil {
 			return fmt.Errorf("store insight %q: %w", insight.InsightType, err)
 		}
+
+		// Increment + early-stop on overflow. Increment failure must not
+		// undo the successful Create — log and continue.
+		if h.quotaReader != nil && req.SchemaName != "" {
+			post, incErr := h.quotaReader.Increment(ctx, req.SchemaName)
+			if incErr != nil {
+				logger.Warn("insight quota increment failed — counter may be stale",
+					zap.String("tenant", req.SchemaName),
+					zap.Error(incErr))
+				continue
+			}
+			if !post.Unlimited && post.Used >= post.Allowed {
+				logger.Info("insight quota reached cap mid-batch — dropping remaining insights",
+					zap.String("tenant", req.SchemaName),
+					zap.Int("used", post.Used),
+					zap.Int("allowed", post.Allowed))
+				break
+			}
+		}
 	}
 
 	return nil
+}
+
+// ErrInsightQuotaExhausted re-exports the domain sentinel so callers in this
+// package can errors.Is() against it without an extra import.
+var ErrInsightQuotaExhausted = services.ErrInsightQuotaExhausted
+
+// IsQuotaExhausted is a small helper for callers that want to differentiate
+// quota-driven failures from genuine errors without importing the domain pkg.
+func IsQuotaExhausted(err error) bool {
+	return errors.Is(err, ErrInsightQuotaExhausted)
 }

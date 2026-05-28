@@ -16,9 +16,12 @@ import (
 // insightDispatcherAdapter implements snapshot's InsightDispatcher port by
 // wrapping insight/application/generate_insights.GenerateInsightsHandler.
 // The handler is created per-dispatch so the repository is tenant-scoped.
+// The quotaReader is process-wide (tenant arrives in the Request) and shared
+// across dispatches.
 type insightDispatcherAdapter struct {
-	db        *sql.DB
-	generator services.InsightGenerator
+	db          *sql.DB
+	generator   services.InsightGenerator
+	quotaReader services.InsightQuotaReader
 }
 
 // NewInsightDispatcher builds an InsightDispatcher adapter. Returns nil when
@@ -29,13 +32,14 @@ func NewInsightDispatcher(db *sql.DB, cfg *config.Config) snapServices.InsightDi
 	}
 	openRouterClient := sharedAI.NewOpenRouterClient(cfg.OpenRouterAPIKey, cfg.OpenRouterModel)
 	generator := insightAI.NewOpenRouterGenerator(openRouterClient)
-	return &insightDispatcherAdapter{db: db, generator: generator}
+	quotaReader := insightpersistence.NewQuotaPostgresRepository(db)
+	return &insightDispatcherAdapter{db: db, generator: generator, quotaReader: quotaReader}
 }
 
 func (a *insightDispatcherAdapter) Dispatch(ctx context.Context, req snapServices.InsightRequest) error {
 	// Create a tenant-scoped insight repository per dispatch call.
 	repo := insightpersistence.NewInsightPostgresRepository(a.db, req.SchemaName)
-	handler := generateinsights.NewGenerateInsightsHandler(a.generator, repo)
+	handler := generateinsights.NewGenerateInsightsHandler(a.generator, repo, a.quotaReader)
 	return handler.Handle(ctx, &generateinsights.Request{
 		PageID:              req.PageID,
 		CheckID:             req.CheckID,
@@ -43,6 +47,7 @@ func (a *insightDispatcherAdapter) Dispatch(ctx context.Context, req snapService
 		PrevText:            req.PrevText,
 		NewText:             req.NewText,
 		DiffText:            req.DiffText,
+		SchemaName:          req.SchemaName,
 		EnabledInsightTypes: req.EnabledInsightTypes,
 	})
 }

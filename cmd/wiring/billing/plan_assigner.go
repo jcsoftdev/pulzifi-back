@@ -163,10 +163,25 @@ func (a *PlanAssigner) Assign(ctx context.Context, in services.AssignInput) erro
 	//    here must NOT roll back the public.organization_plans write — the
 	//    user has paid and the next quota query auto-creates a period from
 	//    the active plan when none is found.
+	//
+	//    Wrap the sync in a SAVEPOINT so a tenant schema mismatch (e.g. a
+	//    missing column on legacy tenant DDL) does NOT abort the outer
+	//    transaction. Without the savepoint a single failed statement marks
+	//    the whole tx as aborted and the subsequent Commit() returns
+	//    "current transaction is aborted" even though the org_plans INSERT
+	//    succeeded.
+	if _, err = tx.ExecContext(ctx, "SAVEPOINT sync_usage"); err != nil {
+		return fmt.Errorf("billing plan assigner: savepoint: %w", err)
+	}
 	if syncErr := a.syncTenantUsagePeriod(ctx, tx, orgID, planID, periodEnd); syncErr != nil {
-		// Best-effort — log to stderr via fmt to avoid pulling logger
-		// dependency into wiring. The transaction still commits below.
 		fmt.Printf("billing plan assigner: sync tenant usage period (org=%s): %v\n", orgID, syncErr)
+		if _, rbErr := tx.ExecContext(ctx, "ROLLBACK TO SAVEPOINT sync_usage"); rbErr != nil {
+			return fmt.Errorf("billing plan assigner: rollback savepoint: %w", rbErr)
+		}
+	} else {
+		if _, relErr := tx.ExecContext(ctx, "RELEASE SAVEPOINT sync_usage"); relErr != nil {
+			return fmt.Errorf("billing plan assigner: release savepoint: %w", relErr)
+		}
 	}
 
 	err = tx.Commit()
@@ -202,9 +217,25 @@ func (a *PlanAssigner) syncTenantUsagePeriod(ctx context.Context, tx Tx, orgID, 
 	}
 
 	var checksAllowed, storagePeriodDays int
-	row = tx.QueryRowContext(ctx, `SELECT checks_allowed_monthly, COALESCE(storage_period_days, 7) FROM public.plans WHERE id = $1`, planID)
-	if err := row.Scan(&checksAllowed, &storagePeriodDays); err != nil {
+	var aiAllowed sql.NullInt64
+	row = tx.QueryRowContext(ctx, `
+		SELECT checks_allowed_monthly,
+		       COALESCE(storage_period_days, 7),
+		       ai_insights_allowed_monthly
+		  FROM public.plans
+		 WHERE id = $1
+	`, planID)
+	if err := row.Scan(&checksAllowed, &storagePeriodDays, &aiAllowed); err != nil {
 		return fmt.Errorf("lookup plan limits: %w", err)
+	}
+
+	// NULL ai_insights_allowed_monthly (Enterprise) → write INT max sentinel
+	// so the SQL comparison "used < allowed" keeps working uniformly without
+	// branching on nullable columns at the application layer.
+	const unlimitedSentinel = int64(2147483647)
+	aiInsightsAllowed := unlimitedSentinel
+	if aiAllowed.Valid {
+		aiInsightsAllowed = aiAllowed.Int64
 	}
 
 	// Period start = one billing cycle before the Stripe period_end.
@@ -216,18 +247,20 @@ func (a *PlanAssigner) syncTenantUsagePeriod(ctx context.Context, tx Tx, orgID, 
 	upsertSQL := fmt.Sprintf(`
 		INSERT INTO %q.usage_tracking
 		      (period_start, period_end, checks_allowed, checks_used,
+		       ai_insights_allowed, ai_insights_used,
 		       last_refill_at, next_refill_at,
 		       storage_period_days, created_at, updated_at)
-		VALUES ($1, $2, $3, 0, $1, $2, $4, NOW(), NOW())
+		VALUES ($1, $2, $3, 0, $5, 0, $1, $2, $4, NOW(), NOW())
 		ON CONFLICT (period_start) DO UPDATE
 		SET    period_end          = EXCLUDED.period_end,
 		       checks_allowed      = EXCLUDED.checks_allowed,
+		       ai_insights_allowed = EXCLUDED.ai_insights_allowed,
 		       next_refill_at      = EXCLUDED.next_refill_at,
 		       storage_period_days = EXCLUDED.storage_period_days,
 		       updated_at          = NOW()
 	`, schema)
 
-	if _, err := tx.ExecContext(ctx, upsertSQL, periodStart, *periodEnd, checksAllowed, storagePeriodDays); err != nil {
+	if _, err := tx.ExecContext(ctx, upsertSQL, periodStart, *periodEnd, checksAllowed, storagePeriodDays, aiInsightsAllowed); err != nil {
 		// Fallback: the table may not have a unique constraint on
 		// period_start; try a plain UPDATE on the current row instead.
 		updateSQL := fmt.Sprintf(`
@@ -235,13 +268,14 @@ func (a *PlanAssigner) syncTenantUsagePeriod(ctx context.Context, tx Tx, orgID, 
 			SET    period_start        = $1,
 			       period_end          = $2,
 			       checks_allowed      = $3,
+			       ai_insights_allowed = $5,
 			       next_refill_at      = $2,
 			       storage_period_days = $4,
 			       updated_at          = NOW()
 			WHERE  period_start <= CURRENT_DATE
 			  AND  period_end   >= CURRENT_DATE
 		`, schema)
-		if _, err2 := tx.ExecContext(ctx, updateSQL, periodStart, *periodEnd, checksAllowed, storagePeriodDays); err2 != nil {
+		if _, err2 := tx.ExecContext(ctx, updateSQL, periodStart, *periodEnd, checksAllowed, storagePeriodDays, aiInsightsAllowed); err2 != nil {
 			return fmt.Errorf("upsert usage_tracking: %w (fallback: %v)", err, err2)
 		}
 	}

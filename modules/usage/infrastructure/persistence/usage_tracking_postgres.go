@@ -32,13 +32,25 @@ func (r *UsageTrackingPostgresRepository) FindCurrent(ctx context.Context, today
 		return nil, err
 	}
 	ut := &entities.UsageTracking{}
+	// COALESCE on the AI counter columns lets this query survive the window
+	// between the public migration deploy and the tenant migration adding
+	// ai_insights_used / ai_insights_allowed. Once the tenant migration runs,
+	// the COALESCE just returns the real value.
 	err := r.db.QueryRowContext(ctx, `
-		SELECT period_start, period_end, checks_allowed, checks_used, next_refill_at
+		SELECT period_start, period_end,
+		       checks_allowed, checks_used,
+		       COALESCE(ai_insights_allowed, 0), COALESCE(ai_insights_used, 0),
+		       next_refill_at
 		FROM usage_tracking
 		WHERE period_start <= $1::date AND period_end >= $1::date
 		ORDER BY period_end DESC
 		LIMIT 1
-	`, today).Scan(&ut.PeriodStart, &ut.PeriodEnd, &ut.ChecksAllowed, &ut.ChecksUsed, &ut.NextRefillAt)
+	`, today).Scan(
+		&ut.PeriodStart, &ut.PeriodEnd,
+		&ut.ChecksAllowed, &ut.ChecksUsed,
+		&ut.AIInsightsAllowed, &ut.AIInsightsUsed,
+		&ut.NextRefillAt,
+	)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -54,10 +66,10 @@ func (r *UsageTrackingPostgresRepository) Insert(ctx context.Context, ut *entiti
 	}
 	nextRefill := ut.PeriodEnd.AddDate(0, 0, 1)
 	_, err := r.db.ExecContext(ctx, `
-		INSERT INTO usage_tracking (period_start, period_end, checks_allowed, checks_used, last_refill_at, next_refill_at, created_at, updated_at)
-		VALUES ($1, $2, $3, 0, NOW(), $4, NOW(), NOW())
+		INSERT INTO usage_tracking (period_start, period_end, checks_allowed, checks_used, ai_insights_allowed, ai_insights_used, last_refill_at, next_refill_at, created_at, updated_at)
+		VALUES ($1, $2, $3, 0, $5, 0, NOW(), $4, NOW(), NOW())
 		ON CONFLICT DO NOTHING
-	`, ut.PeriodStart, ut.PeriodEnd, ut.ChecksAllowed, nextRefill)
+	`, ut.PeriodStart, ut.PeriodEnd, ut.ChecksAllowed, nextRefill, ut.AIInsightsAllowed)
 	return err
 }
 

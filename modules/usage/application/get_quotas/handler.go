@@ -57,6 +57,7 @@ func (h *Handler) Handle(ctx context.Context, req *Request) (*Response, error) {
 			PeriodEnd:         periodEnd,
 			ChecksAllowed:     planInfo.ChecksAllowed,
 			StoragePeriodDays: planInfo.StoragePeriodDays,
+			AIInsightsAllowed: planInfo.AIInsightsAllowed,
 		}
 
 		if insertErr := h.usageRepo.Insert(ctx, ut); insertErr != nil {
@@ -69,11 +70,26 @@ func (h *Handler) Handle(ctx context.Context, req *Request) (*Response, error) {
 		refill = ut.NextRefillAt.UTC().Format(time.RFC3339)
 	}
 
+	const unlimitedSentinel = 2147483647
+	aiUnlimited := ut.AIInsightsAllowed >= unlimitedSentinel
+	aiRemaining := ut.AIInsightsAllowed - ut.AIInsightsUsed
+	if aiRemaining < 0 {
+		aiRemaining = 0
+	}
+	if aiUnlimited {
+		// Hide the gigantic sentinel from the API surface.
+		aiRemaining = -1
+	}
+
 	return &Response{
-		ChecksUsed:        ut.ChecksUsed,
-		ChecksAllowed:     ut.ChecksAllowed,
-		NextRefillAt:      refill,
-		StoragePeriodDays: ut.StoragePeriodDays,
-		Message:           "get usage quotas",
+		ChecksUsed:          ut.ChecksUsed,
+		ChecksAllowed:       ut.ChecksAllowed,
+		NextRefillAt:        refill,
+		StoragePeriodDays:   ut.StoragePeriodDays,
+		AIInsightsUsed:      ut.AIInsightsUsed,
+		AIInsightsAllowed:   ut.AIInsightsAllowed,
+		AIInsightsRemaining: aiRemaining,
+		AIInsightsUnlimited: aiUnlimited,
+		Message:             "get usage quotas",
 	}, nil
 }

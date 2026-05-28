@@ -94,7 +94,7 @@ func (r *UsagePostgresRepository) ensureCurrentPeriod(ctx context.Context) error
 
 	// Look up plan info
 	planQuery := `
-		SELECT p.checks_allowed_monthly, op.started_at
+		SELECT p.checks_allowed_monthly, p.ai_insights_allowed_monthly, op.started_at
 		FROM public.organizations o
 		JOIN public.organization_plans op ON op.organization_id = o.id
 			AND op.status = 'active' AND op.deleted_at IS NULL
@@ -104,12 +104,19 @@ func (r *UsagePostgresRepository) ensureCurrentPeriod(ctx context.Context) error
 		LIMIT 1
 	`
 	var checksAllowed int
+	var aiAllowed sql.NullInt64
 	var startedAt time.Time
-	if err := r.db.QueryRowContext(ctx, planQuery, r.tenant).Scan(&checksAllowed, &startedAt); err != nil {
+	if err := r.db.QueryRowContext(ctx, planQuery, r.tenant).Scan(&checksAllowed, &aiAllowed, &startedAt); err != nil {
 		if err == sql.ErrNoRows {
 			return nil // no plan, nothing to create
 		}
 		return err
+	}
+
+	// NULL ai limit (Enterprise) → INT max sentinel = unlimited.
+	aiInsightsAllowed := int64(2147483647)
+	if aiAllowed.Valid {
+		aiInsightsAllowed = aiAllowed.Int64
 	}
 
 	anchorDay := startedAt.Day()
@@ -117,11 +124,11 @@ func (r *UsagePostgresRepository) ensureCurrentPeriod(ctx context.Context) error
 	nextRefill := periodEnd.AddDate(0, 0, 1)
 
 	insertQ := `
-		INSERT INTO usage_tracking (period_start, period_end, checks_allowed, checks_used, last_refill_at, next_refill_at, created_at, updated_at)
-		VALUES ($1, $2, $3, 0, NOW(), $4, NOW(), NOW())
+		INSERT INTO usage_tracking (period_start, period_end, checks_allowed, checks_used, ai_insights_allowed, ai_insights_used, last_refill_at, next_refill_at, created_at, updated_at)
+		VALUES ($1, $2, $3, 0, $5, 0, NOW(), $4, NOW(), NOW())
 		ON CONFLICT DO NOTHING
 	`
-	_, err = r.db.ExecContext(ctx, insertQ, periodStart, periodEnd, checksAllowed, nextRefill)
+	_, err = r.db.ExecContext(ctx, insertQ, periodStart, periodEnd, checksAllowed, nextRefill, aiInsightsAllowed)
 	return err
 }
 
