@@ -2,12 +2,22 @@ package inmem
 
 import (
 	"context"
+	"encoding/json"
+	"sort"
 	"sync"
 	"time"
 
 	"github.com/jcsoftdev/pulzifi-back/modules/billing/domain/entities"
 	"github.com/jcsoftdev/pulzifi-back/modules/billing/domain/repositories"
 )
+
+var jsonUnmarshal = json.Unmarshal
+
+func sortByReceived(events []*entities.WebhookEvent) {
+	sort.SliceStable(events, func(i, j int) bool {
+		return events[i].ReceivedAt.Before(events[j].ReceivedAt)
+	})
+}
 
 // compile-time interface check
 var _ repositories.WebhookEventRepository = (*WebhookEventRepo)(nil)
@@ -51,4 +61,42 @@ func (r *WebhookEventRepo) MarkProcessed(ctx context.Context, eventID string, st
 	ev.ProcessedAt = &now
 	ev.Status = status
 	return nil
+}
+
+// FindDeferredByCustomer scans the in-memory store for deferred events whose
+// raw_payload's data.object.customer field matches the given customer ID.
+// Returns events ordered by ReceivedAt ascending.
+func (r *WebhookEventRepo) FindDeferredByCustomer(ctx context.Context, customerID string) ([]*entities.WebhookEvent, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var out []*entities.WebhookEvent
+	for _, ev := range r.events {
+		if ev.Status != entities.WebhookEventDeferred {
+			continue
+		}
+		if extractPayloadCustomer(ev.RawPayload) != customerID {
+			continue
+		}
+		cp := *ev
+		out = append(out, &cp)
+	}
+	sortByReceived(out)
+	return out, nil
+}
+
+func extractPayloadCustomer(payload []byte) string {
+	if len(payload) == 0 {
+		return ""
+	}
+	var wrapper struct {
+		Data struct {
+			Object struct {
+				Customer string `json:"customer"`
+			} `json:"object"`
+		} `json:"data"`
+	}
+	if err := jsonUnmarshal(payload, &wrapper); err != nil {
+		return ""
+	}
+	return wrapper.Data.Object.Customer
 }

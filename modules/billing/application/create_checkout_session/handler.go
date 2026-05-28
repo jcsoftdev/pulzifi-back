@@ -8,7 +8,17 @@ import (
 	"github.com/jcsoftdev/pulzifi-back/modules/billing/domain/entities"
 	"github.com/jcsoftdev/pulzifi-back/modules/billing/domain/repositories"
 	"github.com/jcsoftdev/pulzifi-back/modules/billing/domain/services"
+	"github.com/jcsoftdev/pulzifi-back/shared/logger"
+	"go.uber.org/zap"
 )
+
+// Reconciler is the optional dependency that materialises Stripe state into
+// public.organization_plans whenever a Stripe customer is freshly linked to an
+// org. Implemented by application/reconcile_subscription.Handler. Kept narrow
+// here to avoid an import cycle between application packages.
+type Reconciler interface {
+	Reconcile(ctx context.Context, orgID uuid.UUID, stripeCustomerID string) error
+}
 
 // Sentinel errors returned by the use case.
 var (
@@ -22,11 +32,20 @@ type Handler struct {
 	gateway      services.StripeGateway
 	customerRepo repositories.CustomerRepository
 	planRepo     repositories.PlanRepository
+	reconciler   Reconciler // optional; nil → reconcile-on-link is skipped
 }
 
 // NewHandler returns a Handler with its dependencies injected.
 func NewHandler(gateway services.StripeGateway, customerRepo repositories.CustomerRepository, planRepo repositories.PlanRepository) *Handler {
 	return &Handler{gateway: gateway, customerRepo: customerRepo, planRepo: planRepo}
+}
+
+// WithReconciler wires the reconcile-on-link hook and returns the handler for
+// chaining. When set, the Reconciler runs once per checkout invocation after
+// CustomerRepository.Save persists a fresh customer linkage.
+func (h *Handler) WithReconciler(r Reconciler) *Handler {
+	h.reconciler = r
+	return h
 }
 
 // Handle runs the create_checkout_session use case.
@@ -61,10 +80,26 @@ func (h *Handler) Handle(ctx context.Context, req Request) (*Response, error) {
 	if err == nil {
 		existing, _ := h.customerRepo.FindByOrgID(ctx, orgID)
 		if existing == nil {
-			_ = h.customerRepo.Save(ctx, &entities.Customer{
+			if saveErr := h.customerRepo.Save(ctx, &entities.Customer{
 				OrgID:            orgID,
 				StripeCustomerID: customerID,
-			})
+			}); saveErr != nil {
+				logger.Warn("create_checkout_session: persist customer linkage failed",
+					zap.String("org_id", req.OrgID),
+					zap.String("customer_id", customerID),
+					zap.Error(saveErr),
+				)
+			} else if h.reconciler != nil {
+				// Fresh link → reconcile in case Stripe has paid subs we missed
+				// (orphan webhooks, guest payments, etc.). Best-effort: log + continue.
+				if recErr := h.reconciler.Reconcile(ctx, orgID, customerID); recErr != nil {
+					logger.Warn("create_checkout_session: reconcile-on-link failed",
+						zap.String("org_id", req.OrgID),
+						zap.String("customer_id", customerID),
+						zap.Error(recErr),
+					)
+				}
+			}
 		}
 	}
 

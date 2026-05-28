@@ -70,10 +70,12 @@ func (r *CustomerPostgresRepository) FindByStripeCustomerID(ctx context.Context,
 
 // Save persists the Stripe customer ID on the organization row.
 // This is an UPDATE rather than an INSERT because the organization must already exist.
+// updated_at is bumped so audit queries can observe the linkage moment.
 func (r *CustomerPostgresRepository) Save(ctx context.Context, customer *entities.Customer) error {
 	const query = `
 		UPDATE public.organizations
-		SET stripe_customer_id = $2
+		SET stripe_customer_id = $2,
+		    updated_at         = NOW()
 		WHERE id = $1
 	`
 	_, err := r.db.ExecContext(ctx, query, customer.OrgID, customer.StripeCustomerID)

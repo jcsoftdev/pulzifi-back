@@ -74,12 +74,14 @@ func (h *Handler) Handle(ctx context.Context, rawBody []byte, signature string) 
 		return ErrInvalidSignature
 	}
 
-	// 3. Idempotency check
+	// 3. Idempotency check — persist the raw payload so deferred / failed events
+	// can be replayed by ReconcileFromStripe without re-fetching from Stripe.
 	we := &entities.WebhookEvent{
 		EventID:    event.ID,
 		EventType:  event.Type,
 		ReceivedAt: time.Now(),
 		Status:     entities.WebhookEventReceived,
+		RawPayload: rawBody,
 	}
 	inserted, err := h.webhookRepo.Save(ctx, we)
 	if err != nil {
@@ -93,6 +95,17 @@ func (h *Handler) Handle(ctx context.Context, rawBody []byte, signature string) 
 	// 4. Dispatch
 	dispatchErr := h.dispatch(ctx, event)
 	if dispatchErr != nil {
+		// Orphan customer is NOT a failure — the org will appear later and
+		// reconcile-on-link will replay the payload. Mark deferred and
+		// acknowledge (do not propagate to HTTP layer).
+		if errors.Is(dispatchErr, services.ErrOrphanCustomer) {
+			logger.Warn("webhook deferred: customer not linked to any org yet",
+				zap.String("event_id", event.ID),
+				zap.String("event_type", event.Type),
+			)
+			_ = h.webhookRepo.MarkProcessed(ctx, event.ID, entities.WebhookEventDeferred)
+			return nil
+		}
 		logger.Error("webhook dispatch error", zap.String("event_id", event.ID), zap.String("event_type", event.Type), zap.Error(dispatchErr))
 		// Still mark as failed so ops can see it; don't return error to Stripe (would cause retry loop)
 		_ = h.webhookRepo.MarkProcessed(ctx, event.ID, entities.WebhookEventFailed)

@@ -91,6 +91,10 @@ func (r *fakeWebhookEventRepo) MarkProcessed(_ context.Context, eventID string, 
 	return nil
 }
 
+func (r *fakeWebhookEventRepo) FindDeferredByCustomer(_ context.Context, _ string) ([]*entities.WebhookEvent, error) {
+	return nil, nil
+}
+
 type fakeSubscriptionRepo struct {
 	mu    sync.RWMutex
 	byID  map[uuid.UUID]*entities.Subscription
@@ -482,5 +486,47 @@ func TestHandleWebhookHandler_Handle(t *testing.T) {
 				tt.assertFn(t, pa, tt.webhookRepo)
 			}
 		})
+	}
+}
+
+// TestHandleWebhook_OrphanCustomer_IsDeferred verifies the critical defense-by-
+// sync contract: when the Stripe customer has no local org yet, the handler
+// MUST mark the event as 'deferred' (NOT 'failed'), persist the raw payload,
+// and return nil so the HTTP layer responds with 200 OK. Stripe must not retry.
+func TestHandleWebhook_OrphanCustomer_IsDeferred(t *testing.T) {
+	const (
+		secret     = "whsec_test"
+		customerID = "cus_orphan_xyz"
+		subID      = "sub_orphan"
+		priceID    = "price_orphan"
+	)
+	eventID := "evt_orphan_001"
+	rawBody := []byte(`{"data":{"object":{"customer":"` + customerID + `","subscription":"` + subID + `"}}}`)
+
+	gw := &billingmocks.MockStripeGateway{
+		ConstructEventResult:       makeEvent(eventID, "checkout.session.completed", checkoutData(customerID, subID)),
+		RetrieveSubscriptionResult: makeSubResult(customerID, subID, priceID, "active", time.Now().Add(30*24*time.Hour).Unix()),
+	}
+	customerRepo := newFakeCustomerRepo() // empty — no org linked to customer
+	webhookRepo := newFakeWebhookEventRepo()
+	subRepo := newFakeSubscriptionRepo()
+	pa := &billingmocks.MockPlanAssigner{AssignErr: services.ErrOrphanCustomer}
+
+	h := NewHandler(gw, secret, pa, customerRepo, webhookRepo, subRepo)
+
+	err := h.Handle(context.Background(), rawBody, "valid-sig")
+	if err != nil {
+		t.Fatalf("orphan customer must return nil to HTTP layer, got: %v", err)
+	}
+
+	stored, ok := webhookRepo.events[eventID]
+	if !ok {
+		t.Fatalf("event %q not persisted", eventID)
+	}
+	if stored.Status != entities.WebhookEventDeferred {
+		t.Errorf("status: want %q, got %q", entities.WebhookEventDeferred, stored.Status)
+	}
+	if len(stored.RawPayload) == 0 {
+		t.Error("raw payload must be persisted so ReconcileFromStripe can replay it")
 	}
 }

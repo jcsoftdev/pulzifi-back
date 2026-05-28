@@ -114,6 +114,7 @@ modules/*/docs/
 /server
 /pulzifi-monolith
 /pulzifi-worker
+/reconcile
 
 # compiled module binaries
 modules/*/organization

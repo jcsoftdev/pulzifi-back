@@ -15,4 +15,9 @@ type WebhookEventRepository interface {
 
 	// MarkProcessed updates processed_at and status for the given event_id.
 	MarkProcessed(ctx context.Context, eventID string, status entities.WebhookEventStatus) error
+
+	// FindDeferredByCustomer returns deferred events for a given Stripe customer.
+	// Used by ReconcileFromStripe to replay events that arrived before the org
+	// existed locally. Empty slice (not nil error) when none exist.
+	FindDeferredByCustomer(ctx context.Context, customerID string) ([]*entities.WebhookEvent, error)
 }
