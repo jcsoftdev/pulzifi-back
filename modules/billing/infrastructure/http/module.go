@@ -26,7 +26,7 @@ import (
 	createportalsession "github.com/jcsoftdev/pulzifi-back/modules/billing/application/create_portal_session"
 	getsubscription "github.com/jcsoftdev/pulzifi-back/modules/billing/application/get_subscription"
 	handlewebhook "github.com/jcsoftdev/pulzifi-back/modules/billing/application/handle_webhook"
-	billingservices "github.com/jcsoftdev/pulzifi-back/modules/billing/domain/services"
+	updatesubscription "github.com/jcsoftdev/pulzifi-back/modules/billing/application/update_subscription"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
 	"github.com/jcsoftdev/pulzifi-back/shared/router"
@@ -61,10 +61,11 @@ func buildTenantBillingURL(r *http.Request, query string) string {
 type Deps struct {
 	DB *sql.DB
 
-	CheckoutHandler     *createcheckoutsession.Handler
-	PortalHandler       *createportalsession.Handler
-	SubscriptionHandler *getsubscription.Handler
-	WebhookHandler      *handlewebhook.Handler
+	CheckoutHandler       *createcheckoutsession.Handler
+	PortalHandler         *createportalsession.Handler
+	SubscriptionHandler   *getsubscription.Handler
+	WebhookHandler        *handlewebhook.Handler
+	UpdateSubHandler      *updatesubscription.Handler
 }
 
 // Module is the Billing HTTP module.
@@ -108,6 +109,11 @@ func (m *Module) RegisterHTTPRoutes(r chi.Router) {
 				r.Use(m.requireAdminOrSuperAdmin())
 				r.Post("/checkout", m.handleCheckout)
 				r.Post("/portal", m.handlePortal)
+				// In-place plan change (upgrade/downgrade with proration) —
+				// mutates the existing Stripe Subscription without sending the
+				// user to Stripe's hosted UI. Preview=true returns the prorated
+				// charge without applying.
+				r.Post("/subscription", m.handleUpdateSubscription)
 			})
 		})
 	})
@@ -166,13 +172,10 @@ func (m *Module) handleWebhook(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid webhook signature"})
 			return
 		}
-		if errors.Is(err, billingservices.ErrOrphanCustomer) {
-			// Unknown Stripe customer — acknowledge so Stripe stops retrying.
-			// This happens for events tied to customers that were never linked
-			// to a local org (e.g. duplicate signups, test events).
-			writeJSON(w, http.StatusOK, map[string]string{"status": "ignored_orphan_customer"})
-			return
-		}
+		// Orphan customer is no longer surfaced here — the application layer
+		// stores the event as 'deferred' with full payload and returns nil so
+		// Stripe receives a clean 200. Reconciliation runs when the org is
+		// later linked to the Stripe customer.
 		logger.Error("billing: webhook handler error", zap.Error(err))
 		// Return 500 so Stripe retries — only for non-signature errors.
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "webhook processing failed"})
@@ -262,6 +265,64 @@ func (m *Module) handlePortal(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{"portal_url": resp.PortalURL})
+}
+
+// handleUpdateSubscription handles POST /billing/subscription.
+// Body: {"plan_id": "pro", "billing_cycle": "monthly", "preview": false}.
+// Returns: {"subscription_id", "new_price_id", "billing_cycle", "prorated_amount_cents", "currency", "preview"}.
+//
+// Drives the in-place upgrade/downgrade flow: when preview=true the response
+// carries the prorated amount Stripe would charge if applied; preview=false
+// applies the change immediately (always_invoice proration) and the local
+// org_plans row is updated synchronously.
+func (m *Module) handleUpdateSubscription(w http.ResponseWriter, r *http.Request) {
+	if m.deps.UpdateSubHandler == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "in-place upgrade not configured"})
+		return
+	}
+	ctx := r.Context()
+	var body struct {
+		PlanID       string `json:"plan_id"`
+		BillingCycle string `json:"billing_cycle"`
+		Preview      bool   `json:"preview"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+
+	orgID, _, _, err := m.resolveOrgContext(ctx, middleware.GetSubdomainFromContext(ctx))
+	if err != nil {
+		logger.Error("billing: failed to resolve org context", zap.Error(err))
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "org lookup failed"})
+		return
+	}
+
+	resp, err := m.deps.UpdateSubHandler.Handle(ctx, updatesubscription.Request{
+		OrgID:        orgID,
+		PlanID:       body.PlanID,
+		BillingCycle: body.BillingCycle,
+		Preview:      body.Preview,
+	})
+	if err != nil {
+		switch {
+		case errors.Is(err, updatesubscription.ErrInvalidBillingCycle),
+			errors.Is(err, updatesubscription.ErrMissingPriceID):
+			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": err.Error()})
+			return
+		case errors.Is(err, updatesubscription.ErrPlanNotFound):
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+			return
+		case errors.Is(err, updatesubscription.ErrNoActiveSubscription):
+			writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
+			return
+		}
+		logger.Error("billing: update subscription handler error", zap.Error(err))
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "update subscription failed"})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, resp)
 }
 
 // handleGetSubscription handles GET /billing/subscription.

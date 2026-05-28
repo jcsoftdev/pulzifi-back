@@ -5,10 +5,14 @@ package stripe
 import (
 	"context"
 	"fmt"
+	"time"
 
 	stripe "github.com/stripe/stripe-go/v79"
 	"github.com/stripe/stripe-go/v79/checkout/session"
 	"github.com/stripe/stripe-go/v79/customer"
+	"github.com/stripe/stripe-go/v79/invoice"
+	"github.com/stripe/stripe-go/v79/invoiceitem"
+	"github.com/stripe/stripe-go/v79/price"
 	"github.com/stripe/stripe-go/v79/subscription"
 	"github.com/stripe/stripe-go/v79/webhook"
 
@@ -151,6 +155,230 @@ func (g *Gateway) RetrieveSubscription(_ context.Context, subID string) (billing
 		CustomerID:       customerID,
 		PriceID:          priceID,
 	}, nil
+}
+
+// ListSubscriptions returns all subscriptions Stripe holds for the customer.
+// Caller filters by Status. Items[0].Price.ID is exposed as PriceID for parity
+// with RetrieveSubscription. Pagination uses stripe-go's auto-iteration.
+func (g *Gateway) ListSubscriptions(_ context.Context, customerID string) ([]billingservices.StripeSubscription, error) {
+	params := &stripe.SubscriptionListParams{
+		Customer: stripe.String(customerID),
+	}
+	// Stripe defaults to status=incomplete-active mix; we want all so the caller can decide.
+	params.Status = stripe.String("all")
+	params.Filters.AddFilter("limit", "", "100")
+
+	iter := subscription.List(params)
+	var out []billingservices.StripeSubscription
+	for iter.Next() {
+		sub := iter.Subscription()
+		var priceID string
+		if sub.Items != nil && len(sub.Items.Data) > 0 && sub.Items.Data[0].Price != nil {
+			priceID = sub.Items.Data[0].Price.ID
+		}
+		var custID string
+		if sub.Customer != nil {
+			custID = sub.Customer.ID
+		}
+		out = append(out, billingservices.StripeSubscription{
+			ID:               sub.ID,
+			Status:           string(sub.Status),
+			CurrentPeriodEnd: sub.CurrentPeriodEnd,
+			CustomerID:       custID,
+			PriceID:          priceID,
+		})
+	}
+	if err := iter.Err(); err != nil {
+		return nil, fmt.Errorf("billing: stripe list subscriptions: %w", err)
+	}
+	return out, nil
+}
+
+// UpdateSubscriptionItem swaps the first item's price on subID to newPriceID
+// and lets Stripe handle the proration via the supplied prorationBehavior.
+// Returns the refreshed subscription so callers can persist new period_end.
+func (g *Gateway) UpdateSubscriptionItem(_ context.Context, subID, newPriceID, prorationBehavior string) (billingservices.StripeSubscription, error) {
+	current, err := subscription.Get(subID, nil)
+	if err != nil {
+		return billingservices.StripeSubscription{}, fmt.Errorf("billing: stripe get sub: %w", err)
+	}
+	if current.Items == nil || len(current.Items.Data) == 0 {
+		return billingservices.StripeSubscription{}, fmt.Errorf("billing: subscription %s has no items", subID)
+	}
+	itemID := current.Items.Data[0].ID
+
+	if prorationBehavior == "" {
+		prorationBehavior = "create_prorations"
+	}
+
+	params := &stripe.SubscriptionParams{
+		ProrationBehavior: stripe.String(prorationBehavior),
+		Items: []*stripe.SubscriptionItemsParams{
+			{
+				ID:    stripe.String(itemID),
+				Price: stripe.String(newPriceID),
+			},
+		},
+	}
+	updated, err := subscription.Update(subID, params)
+	if err != nil {
+		return billingservices.StripeSubscription{}, fmt.Errorf("billing: stripe subscription update: %w", err)
+	}
+
+	var priceID string
+	if updated.Items != nil && len(updated.Items.Data) > 0 && updated.Items.Data[0].Price != nil {
+		priceID = updated.Items.Data[0].Price.ID
+	}
+	var customerID string
+	if updated.Customer != nil {
+		customerID = updated.Customer.ID
+	}
+	return billingservices.StripeSubscription{
+		ID:               updated.ID,
+		Status:           string(updated.Status),
+		CurrentPeriodEnd: updated.CurrentPeriodEnd,
+		CustomerID:       customerID,
+		PriceID:          priceID,
+	}, nil
+}
+
+// PreviewProration returns the prorated amount that would be charged today if
+// the subscription's price changed to newPriceID right now. Uses the upcoming
+// invoice preview endpoint with subscription_proration_date=now so Stripe
+// computes the credit for the unused portion of the current plan and only the
+// proration line items are returned (not the next full cycle invoice).
+func (g *Gateway) PreviewProration(_ context.Context, subID, newPriceID string) (int64, string, error) {
+	current, err := subscription.Get(subID, nil)
+	if err != nil {
+		return 0, "", fmt.Errorf("billing: stripe get sub: %w", err)
+	}
+	if current.Items == nil || len(current.Items.Data) == 0 {
+		return 0, "", fmt.Errorf("billing: subscription %s has no items", subID)
+	}
+	itemID := current.Items.Data[0].ID
+	customerID := ""
+	if current.Customer != nil {
+		customerID = current.Customer.ID
+	}
+
+	prorationTimestamp := time.Now().Unix()
+	params := &stripe.InvoiceUpcomingParams{
+		Customer:     stripe.String(customerID),
+		Subscription: stripe.String(subID),
+		SubscriptionItems: []*stripe.SubscriptionItemsParams{
+			{
+				ID:    stripe.String(itemID),
+				Price: stripe.String(newPriceID),
+			},
+		},
+		SubscriptionProrationBehavior: stripe.String("create_prorations"),
+		SubscriptionProrationDate:     stripe.Int64(prorationTimestamp),
+	}
+	preview, err := invoice.Upcoming(params)
+	if err != nil {
+		return 0, "", fmt.Errorf("billing: stripe invoice upcoming: %w", err)
+	}
+
+	// Sum only the proration line items so we report the delta charged today,
+	// not the next full cycle invoice. Proration entries are flagged by the
+	// `proration` field on each line. Falling back to AmountDue is misleading
+	// when Stripe returns the upcoming-cycle invoice (full new plan price).
+	var prorationCents int64
+	if preview.Lines != nil {
+		for _, line := range preview.Lines.Data {
+			if line == nil || !line.Proration {
+				continue
+			}
+			prorationCents += line.Amount
+		}
+	}
+	// When Stripe found no proration lines (e.g. switching to a price with
+	// the same recurring amount), fall through to AmountDue so we never show
+	// a $0 charge on what could still be a real upgrade.
+	if prorationCents == 0 {
+		prorationCents = preview.AmountDue
+	}
+	if prorationCents < 0 {
+		prorationCents = 0
+	}
+	return prorationCents, string(preview.Currency), nil
+}
+
+// CreateRefundCreditInvoiceItem attaches a negative-amount InvoiceItem to
+// customerID so the next invoice is reduced by amountCents. amountCents must
+// be positive; the SDK requires the negative-sign explicit on Amount.
+func (g *Gateway) CreateRefundCreditInvoiceItem(_ context.Context, customerID string, amountCents int64, currency, description string) error {
+	if amountCents <= 0 {
+		return nil
+	}
+	if currency == "" {
+		currency = "usd"
+	}
+	params := &stripe.InvoiceItemParams{
+		Customer:    stripe.String(customerID),
+		Amount:      stripe.Int64(-amountCents),
+		Currency:    stripe.String(currency),
+		Description: stripe.String(description),
+	}
+	if _, err := invoiceitem.New(params); err != nil {
+		return fmt.Errorf("billing: stripe create refund credit invoice item: %w", err)
+	}
+	return nil
+}
+
+// UpdateSubscriptionAnchorNow swaps the subscription's price to newPriceID,
+// resets the billing cycle to start today, and turns proration OFF — the
+// caller is expected to have applied any custom credit (e.g. usage-based
+// refund) via a negative InvoiceItem before calling this.
+func (g *Gateway) UpdateSubscriptionAnchorNow(_ context.Context, subID, newPriceID string) (billingservices.StripeSubscription, error) {
+	current, err := subscription.Get(subID, nil)
+	if err != nil {
+		return billingservices.StripeSubscription{}, fmt.Errorf("billing: stripe get sub: %w", err)
+	}
+	if current.Items == nil || len(current.Items.Data) == 0 {
+		return billingservices.StripeSubscription{}, fmt.Errorf("billing: subscription %s has no items", subID)
+	}
+	itemID := current.Items.Data[0].ID
+
+	params := &stripe.SubscriptionParams{
+		ProrationBehavior:     stripe.String("none"),
+		BillingCycleAnchorNow: stripe.Bool(true),
+		Items: []*stripe.SubscriptionItemsParams{
+			{
+				ID:    stripe.String(itemID),
+				Price: stripe.String(newPriceID),
+			},
+		},
+	}
+	updated, err := subscription.Update(subID, params)
+	if err != nil {
+		return billingservices.StripeSubscription{}, fmt.Errorf("billing: stripe subscription update (anchor=now): %w", err)
+	}
+
+	var priceID string
+	if updated.Items != nil && len(updated.Items.Data) > 0 && updated.Items.Data[0].Price != nil {
+		priceID = updated.Items.Data[0].Price.ID
+	}
+	var customerID string
+	if updated.Customer != nil {
+		customerID = updated.Customer.ID
+	}
+	return billingservices.StripeSubscription{
+		ID:               updated.ID,
+		Status:           string(updated.Status),
+		CurrentPeriodEnd: updated.CurrentPeriodEnd,
+		CustomerID:       customerID,
+		PriceID:          priceID,
+	}, nil
+}
+
+// RetrievePriceAmount returns the unit_amount and currency of a Stripe Price.
+func (g *Gateway) RetrievePriceAmount(_ context.Context, priceID string) (int64, string, error) {
+	p, err := price.Get(priceID, nil)
+	if err != nil {
+		return 0, "", fmt.Errorf("billing: stripe get price: %w", err)
+	}
+	return p.UnitAmount, string(p.Currency), nil
 }
 
 // RetrieveCustomerBalance returns the customer's account balance and currency.

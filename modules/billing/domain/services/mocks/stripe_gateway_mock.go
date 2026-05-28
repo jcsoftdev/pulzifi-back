@@ -43,6 +43,40 @@ type MockStripeGateway struct {
 	RetrieveCustomerBalanceErr      error
 	RetrieveCustomerBalanceFn       func(ctx context.Context, customerID string) (int64, string, error)
 
+	// ListSubscriptions
+	ListSubscriptionsResult []services.StripeSubscription
+	ListSubscriptionsErr    error
+	ListSubscriptionsFn     func(ctx context.Context, customerID string) ([]services.StripeSubscription, error)
+
+	// UpdateSubscriptionItem
+	UpdateSubscriptionItemResult services.StripeSubscription
+	UpdateSubscriptionItemErr    error
+	UpdateSubscriptionItemFn     func(ctx context.Context, subID, newPriceID, prorationBehavior string) (services.StripeSubscription, error)
+
+	// PreviewProration
+	PreviewProrationAmount   int64
+	PreviewProrationCurrency string
+	PreviewProrationErr      error
+	PreviewProrationFn       func(ctx context.Context, subID, newPriceID string) (int64, string, error)
+
+	// CreateRefundCreditInvoiceItem
+	CreateRefundCreditInvoiceItemErr error
+	CreateRefundCreditInvoiceItemFn  func(ctx context.Context, customerID string, amountCents int64, currency, description string) error
+	LastRefundCreditAmount           int64
+	LastRefundCreditCurrency         string
+	LastRefundCreditDescription      string
+
+	// UpdateSubscriptionAnchorNow
+	UpdateSubscriptionAnchorNowResult services.StripeSubscription
+	UpdateSubscriptionAnchorNowErr    error
+	UpdateSubscriptionAnchorNowFn     func(ctx context.Context, subID, newPriceID string) (services.StripeSubscription, error)
+
+	// RetrievePriceAmount — key by priceID
+	RetrievePriceAmountByID map[string]int64
+	RetrievePriceCurrency   string
+	RetrievePriceAmountErr  error
+	RetrievePriceAmountFn   func(ctx context.Context, priceID string) (int64, string, error)
+
 	// Call counters
 	EnsureCustomerCalls            int
 	CreateCheckoutSessionCalls     int
@@ -50,6 +84,11 @@ type MockStripeGateway struct {
 	ConstructEventCalls            int
 	RetrieveSubscriptionCalls      int
 	RetrieveCustomerBalanceCalls   int
+	ListSubscriptionsCalls               int
+	UpdateSubscriptionItemCalls          int
+	PreviewProrationCalls                int
+	CreateRefundCreditInvoiceItemCalls   int
+	UpdateSubscriptionAnchorNowCalls     int
 }
 
 func (m *MockStripeGateway) EnsureCustomer(ctx context.Context, orgID, email, name string) (string, error) {
@@ -98,4 +137,63 @@ func (m *MockStripeGateway) RetrieveCustomerBalance(ctx context.Context, custome
 		return m.RetrieveCustomerBalanceFn(ctx, customerID)
 	}
 	return m.RetrieveCustomerBalanceCents, m.RetrieveCustomerBalanceCurrency, m.RetrieveCustomerBalanceErr
+}
+
+func (m *MockStripeGateway) ListSubscriptions(ctx context.Context, customerID string) ([]services.StripeSubscription, error) {
+	m.ListSubscriptionsCalls++
+	if m.ListSubscriptionsFn != nil {
+		return m.ListSubscriptionsFn(ctx, customerID)
+	}
+	return m.ListSubscriptionsResult, m.ListSubscriptionsErr
+}
+
+func (m *MockStripeGateway) UpdateSubscriptionItem(ctx context.Context, subID, newPriceID, prorationBehavior string) (services.StripeSubscription, error) {
+	m.UpdateSubscriptionItemCalls++
+	if m.UpdateSubscriptionItemFn != nil {
+		return m.UpdateSubscriptionItemFn(ctx, subID, newPriceID, prorationBehavior)
+	}
+	return m.UpdateSubscriptionItemResult, m.UpdateSubscriptionItemErr
+}
+
+func (m *MockStripeGateway) PreviewProration(ctx context.Context, subID, newPriceID string) (int64, string, error) {
+	m.PreviewProrationCalls++
+	if m.PreviewProrationFn != nil {
+		return m.PreviewProrationFn(ctx, subID, newPriceID)
+	}
+	return m.PreviewProrationAmount, m.PreviewProrationCurrency, m.PreviewProrationErr
+}
+
+func (m *MockStripeGateway) CreateRefundCreditInvoiceItem(ctx context.Context, customerID string, amountCents int64, currency, description string) error {
+	m.CreateRefundCreditInvoiceItemCalls++
+	m.LastRefundCreditAmount = amountCents
+	m.LastRefundCreditCurrency = currency
+	m.LastRefundCreditDescription = description
+	if m.CreateRefundCreditInvoiceItemFn != nil {
+		return m.CreateRefundCreditInvoiceItemFn(ctx, customerID, amountCents, currency, description)
+	}
+	return m.CreateRefundCreditInvoiceItemErr
+}
+
+func (m *MockStripeGateway) UpdateSubscriptionAnchorNow(ctx context.Context, subID, newPriceID string) (services.StripeSubscription, error) {
+	m.UpdateSubscriptionAnchorNowCalls++
+	if m.UpdateSubscriptionAnchorNowFn != nil {
+		return m.UpdateSubscriptionAnchorNowFn(ctx, subID, newPriceID)
+	}
+	return m.UpdateSubscriptionAnchorNowResult, m.UpdateSubscriptionAnchorNowErr
+}
+
+func (m *MockStripeGateway) RetrievePriceAmount(ctx context.Context, priceID string) (int64, string, error) {
+	if m.RetrievePriceAmountFn != nil {
+		return m.RetrievePriceAmountFn(ctx, priceID)
+	}
+	if m.RetrievePriceAmountByID != nil {
+		if amt, ok := m.RetrievePriceAmountByID[priceID]; ok {
+			currency := m.RetrievePriceCurrency
+			if currency == "" {
+				currency = "usd"
+			}
+			return amt, currency, m.RetrievePriceAmountErr
+		}
+	}
+	return 0, m.RetrievePriceCurrency, m.RetrievePriceAmountErr
 }

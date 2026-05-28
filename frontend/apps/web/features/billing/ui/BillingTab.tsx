@@ -1,13 +1,16 @@
 'use client'
 
 import { Button } from '@workspace/ui/components/atoms/button'
-import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import { useCreateCheckout } from '../application/useCreateCheckout'
 import { useCustomerPortal } from '../application/useCustomerPortal'
 import { useSubscription } from '../application/useSubscription'
+import { useUpdateSubscription } from '../application/useUpdateSubscription'
 import type { Plan } from '../domain/plan'
 import type { BillingCycle } from '../domain/subscription'
 import { PlanCard, type PlanRelation } from './PlanCard'
+import { PlanChangeModal } from './PlanChangeModal'
 import { SubscriptionStatusCard } from './SubscriptionStatusCard'
 
 /**
@@ -25,7 +28,76 @@ import { SubscriptionStatusCard } from './SubscriptionStatusCard'
  * `subscription.plan_code`). When fetching plans from an API later, preserve
  * tier order: starter → pro → enterprise.
  */
+/**
+ * Canonical feature catalog — every plan card shows the SAME list with
+ * per-plan inclusion flags so customers can compare side-by-side and see
+ * exactly what unlocks at each tier.
+ *
+ * To add a new feature: append to FEATURES with one column per plan code.
+ * Feature ordering matches the visual hierarchy (workspaces → pages →
+ * checks → history → integrations → support tier).
+ */
+/**
+ * Quantitative features — each plan exposes a different value (e.g. number of
+ * workspaces). Rendered as "Label: value" with a primary ✓ bullet on every
+ * card so the customer compares values directly, not crossed-out lines.
+ */
+const QUANT_FEATURES: ReadonlyArray<{ label: string; values: Record<string, string> }> = [
+  {
+    label: 'Workspaces',
+    values: { trial: '1', starter: '3', pro: 'Unlimited', enterprise: 'Unlimited' },
+  },
+  {
+    label: 'Pages',
+    values: { trial: '5', starter: '10', pro: '100', enterprise: 'Custom' },
+  },
+  {
+    label: 'Checks / month',
+    values: { trial: '100', starter: '500', pro: '10,000', enterprise: 'Unlimited' },
+  },
+  {
+    label: 'History',
+    values: { trial: '7 days', starter: '7 days', pro: '90 days', enterprise: '90+ days' },
+  },
+  {
+    label: 'AI insights / month',
+    values: { trial: '5', starter: '50', pro: '250', enterprise: 'Unlimited' },
+  },
+]
+
+/**
+ * Boolean features — rendered with ✓ when included, ✗ when not. One row per
+ * capability, same row on every card so the eye can scan across.
+ */
+const BOOLEAN_FEATURES: ReadonlyArray<{ label: string; in: Record<string, boolean> }> = [
+  { label: 'Slack & email alerts', in: { trial: false, starter: false, pro: true, enterprise: true } },
+  { label: 'SLA guarantee',        in: { trial: false, starter: false, pro: false, enterprise: true } },
+  { label: 'Priority support',     in: { trial: false, starter: false, pro: false, enterprise: true } },
+]
+
+function featuresFor(code: string) {
+  const quant = QUANT_FEATURES.map((f) => ({
+    label: f.label,
+    value: f.values[code] ?? '—',
+    included: true,
+  }))
+  const bools = BOOLEAN_FEATURES.map((f) => ({
+    label: f.label,
+    included: f.in[code] ?? false,
+  }))
+  return [...quant, ...bools]
+}
+
 const PLANS: Plan[] = [
+  {
+    id: 'trial',
+    name: 'Free Trial',
+    code: 'trial',
+    description: 'Try Pulzifi free for 15 days. No card required.',
+    priceMonthly: 0,
+    priceYearly: 0,
+    features: featuresFor('trial'),
+  },
   {
     id: 'starter',
     name: 'Starter',
@@ -33,7 +105,7 @@ const PLANS: Plan[] = [
     description: 'For small teams getting started with monitoring.',
     priceMonthly: 2700,
     priceYearly: 27000,
-    features: ['3 workspaces', '10 pages', '500 checks/month', '7-day history'],
+    features: featuresFor('starter'),
   },
   {
     id: 'pro',
@@ -42,14 +114,7 @@ const PLANS: Plan[] = [
     description: 'Everything you need to monitor at scale.',
     priceMonthly: 6200,
     priceYearly: 62000,
-    features: [
-      'Unlimited workspaces',
-      '100 pages',
-      '10,000 checks/month',
-      '90-day history',
-      'AI insights',
-      'Slack & email alerts',
-    ],
+    features: featuresFor('pro'),
     isPopular: true,
   },
   {
@@ -59,34 +124,37 @@ const PLANS: Plan[] = [
     description: 'Custom limits, SLA, and dedicated support.',
     priceMonthly: 0,
     priceYearly: 0,
-    features: [
-      'Everything in Pro',
-      'Custom page limits',
-      'Unlimited checks',
-      'SLA guarantee',
-      'Priority support',
-    ],
+    features: featuresFor('enterprise'),
   },
 ]
 
 const SALES_EMAIL = 'sales@pulzifi.com'
 
+// Tier ordering for upgrade/downgrade detection. Lower = cheaper tier.
+// Decoupled from array index so filtering (e.g. hiding Trial once the user
+// pays) doesn't shift the upgrade direction.
+const TIER_ORDER: Record<string, number> = {
+  trial: 0,
+  starter: 1,
+  pro: 2,
+  enterprise: 3,
+}
+
 function relationFor(
-  planCode: string,
-  currentTierIndex: number,
-  thisTierIndex: number,
+  thisPlanCode: string,
+  currentPlanCode: string | undefined,
   currentCycle: BillingCycle | '' | undefined,
   selectedCycle: BillingCycle
 ): PlanRelation {
-  if (currentTierIndex === -1) return 'new'
-  if (thisTierIndex === currentTierIndex) {
-    // Same tier — if the selected billing cycle differs from the active one,
-    // the user is actually changing cycles. Treat that as an upgrade so the
-    // CTA routes to the Customer Portal (where Stripe handles the swap).
+  if (!currentPlanCode) return 'new'
+  const thisTier = TIER_ORDER[thisPlanCode] ?? -1
+  const currentTier = TIER_ORDER[currentPlanCode] ?? -1
+  if (currentTier === -1) return 'new'
+  if (thisTier === currentTier) {
     if (currentCycle && currentCycle !== selectedCycle) return 'upgrade'
     return 'current'
   }
-  if (thisTierIndex > currentTierIndex) return 'upgrade'
+  if (thisTier > currentTier) return 'upgrade'
   return 'downgrade'
 }
 
@@ -100,33 +168,96 @@ function relationFor(
  *   - Enterprise → mailto sales (no Stripe flow)
  */
 export function BillingTab() {
-  const { subscription, isLoading: subLoading, error: subError } = useSubscription()
+  const router = useRouter()
+  const {
+    subscription,
+    isLoading: subLoading,
+    error: subError,
+    refresh: refreshSubscription,
+  } = useSubscription()
   const { isLoading: checkoutLoading, error: checkoutError, createCheckout } = useCreateCheckout()
   const { isLoading: portalLoading, error: portalError, openPortal } = useCustomerPortal()
+  const {
+    isLoading: updateLoading,
+    error: updateError,
+    preview,
+    previewUpdate,
+    applyUpdate,
+    clear: clearUpdate,
+  } = useUpdateSubscription()
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly')
+  const [pendingChange, setPendingChange] = useState<{
+    planId: string
+    cycle: BillingCycle
+    planName: string
+  } | null>(null)
 
-  const currentTierIndex = subscription?.plan_code
-    ? PLANS.findIndex((p) => p.code === subscription.plan_code)
-    : -1
+  // Sync the cycle toggle with the active subscription's cycle so the user
+  // sees their current plan highlighted on the right tab after the
+  // subscription loads. Only fires on the initial subscription load — we do
+  // NOT override the user's manual toggle once they start exploring plans.
+  useEffect(() => {
+    if (subscription?.billing_cycle === 'yearly' || subscription?.billing_cycle === 'monthly') {
+      setBillingCycle(subscription.billing_cycle)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subscription?.billing_cycle])
 
-  const actionLoading = checkoutLoading || portalLoading
-  const actionError = checkoutError || portalError
+  const currentPlanCode = subscription?.plan_code
+  const isOnTrial = currentPlanCode === 'trial'
 
-  const handleChoosePlan = (planId: string, cycle: BillingCycle, relation: PlanRelation) => {
+  const actionLoading = checkoutLoading || portalLoading || updateLoading
+  const actionError = checkoutError || portalError || updateError
+
+  const handleChoosePlan = async (planId: string, cycle: BillingCycle, relation: PlanRelation) => {
     const plan = PLANS.find((p) => p.id === planId)
     if (plan?.code === 'enterprise') {
       window.location.href = `mailto:${SALES_EMAIL}?subject=Enterprise plan inquiry`
       return
     }
-    // Portal works whenever the org has a Stripe customer — even if our DB
-    // has not yet recorded the subscription_id (e.g. webhook lag/replay).
-    // First-time paid pick (no customer yet) must go through Checkout.
+
     const hasStripeCustomer = Boolean(subscription?.stripe_customer_id)
+    const hasActiveSub = Boolean(subscription?.stripe_subscription_id)
+
+    // In-place upgrade/downgrade path: customer + active sub already exist →
+    // confirm via modal (preview prorated amount) then mutate the existing
+    // Stripe Subscription via our API (proration applied immediately) instead
+    // of bouncing through Stripe's hosted Portal UI.
+    if (hasStripeCustomer && hasActiveSub && (relation === 'upgrade' || relation === 'downgrade')) {
+      setPendingChange({ planId, cycle, planName: plan?.name ?? planId })
+      previewUpdate(planId, cycle)
+      return
+    }
+
+    // Customer exists but no active sub yet (rare — orphan/deferred state):
+    // fall back to the Stripe Portal so the user can resume in Stripe's UI.
     if (hasStripeCustomer && (relation === 'upgrade' || relation === 'downgrade')) {
       openPortal()
       return
     }
+
+    // First-time paid pick (no customer yet) — must go through Checkout.
     createCheckout(planId, cycle)
+  }
+
+  const handleConfirmChange = async () => {
+    if (!pendingChange) return
+    const res = await applyUpdate(pendingChange.planId, pendingChange.cycle)
+    if (res) {
+      // Refresh client state (subscription card + plan grid) AND the RSC
+      // tree (header checks chip + any other server-rendered usage data).
+      // router.refresh() invalidates the Next.js fetch cache for this route
+      // without doing a full page navigation. Both happen in parallel so
+      // the UI catches up in one round-trip.
+      await Promise.all([refreshSubscription(), Promise.resolve(router.refresh())])
+      setPendingChange(null)
+      clearUpdate()
+    }
+  }
+
+  const handleCancelChange = () => {
+    setPendingChange(null)
+    clearUpdate()
   }
 
   return (
@@ -193,26 +324,42 @@ export function BillingTab() {
         </div>
       </div>
 
-      {/* Plan grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {PLANS.map((plan, idx) => (
-          <PlanCard
-            key={plan.id}
-            plan={plan}
-            billingCycle={billingCycle}
-            relation={relationFor(
-              plan.code,
-              currentTierIndex,
-              idx,
-              subscription?.billing_cycle as BillingCycle | '' | undefined,
-              billingCycle
-            )}
-            isEnterprise={plan.code === 'enterprise'}
-            isLoading={actionLoading}
-            onChoose={handleChoosePlan}
-          />
-        ))}
+      {/* Plan grid — 4 cards (Trial, Starter, Pro, Enterprise). Trial only
+          renders when the user is currently on it; once a paid plan is
+          active the Trial card disappears (you can't downgrade back to
+          a free trial). */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        {PLANS.filter((plan) => plan.code !== 'trial' || isOnTrial).map((plan) => {
+          const relation = relationFor(
+            plan.code,
+            currentPlanCode,
+            subscription?.billing_cycle as BillingCycle | '' | undefined,
+            billingCycle
+          )
+          return (
+            <PlanCard
+              key={plan.id}
+              plan={plan}
+              billingCycle={billingCycle}
+              relation={relation}
+              isEnterprise={plan.code === 'enterprise'}
+              isLoading={actionLoading}
+              onChoose={handleChoosePlan}
+            />
+          )
+        })}
       </div>
+
+      <PlanChangeModal
+        isOpen={pendingChange !== null}
+        targetPlanName={pendingChange?.planName ?? ''}
+        isPreviewLoading={updateLoading && preview === null}
+        preview={preview}
+        previewError={updateError}
+        isApplying={updateLoading && preview !== null}
+        onConfirm={handleConfirmChange}
+        onCancel={handleCancelChange}
+      />
     </div>
   )
 }

@@ -7,6 +7,7 @@ export type {
   PaymentStatusDto,
   PortalSessionDto,
   SubscriptionDto,
+  UpdateSubscriptionDto,
 } from './billing-api'
 export { BillingApi } from './billing-api'
 export type {

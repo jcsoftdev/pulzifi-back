@@ -42,6 +42,24 @@ export interface PortalSessionDto {
   portal_url: string
 }
 
+export interface UpdateSubscriptionDto {
+  subscription_id: string
+  new_price_id: string
+  billing_cycle: 'monthly' | 'yearly'
+  /** Refund for the unused checks of the current plan (cents). */
+  usage_credit_cents: number
+  /** Stripe customer balance credit auto-applied to invoices (cents). */
+  account_credit_cents: number
+  /** Full price of the new plan starting today (cents). */
+  new_plan_charge_cents: number
+  /** Final amount charged today = max(0, new_plan_charge - usage_credit - account_credit). */
+  amount_due_cents: number
+  currency: string
+  checks_remaining: number
+  checks_allowed: number
+  preview: boolean
+}
+
 // ---- API Object ----
 
 export const BillingApi = {
@@ -63,6 +81,27 @@ export const BillingApi = {
     return {
       checkoutUrl: response.checkout_url,
     }
+  },
+
+  /**
+   * In-place subscription change. Mutates the existing Stripe Subscription
+   * without sending the user through Stripe-hosted UI. Used for upgrades and
+   * downgrades initiated from the app's own pricing UI.
+   *
+   * When preview=true, returns the prorated amount that would be charged
+   * without actually applying the change.
+   */
+  async updateSubscription(
+    planId: string,
+    billingCycle: 'monthly' | 'yearly',
+    preview = false
+  ): Promise<UpdateSubscriptionDto> {
+    const http = await getHttpClient()
+    return await http.post<UpdateSubscriptionDto>('/api/v1/billing/subscription', {
+      plan_id: planId,
+      billing_cycle: billingCycle,
+      preview,
+    })
   },
 
   /**
