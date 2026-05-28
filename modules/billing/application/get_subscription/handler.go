@@ -3,6 +3,7 @@ package getsubscription
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jcsoftdev/pulzifi-back/modules/billing/domain/repositories"
@@ -82,6 +83,44 @@ func (h *Handler) Handle(ctx context.Context, orgIDStr string) (*Response, error
 		} else if balance < 0 {
 			resp.CreditBalanceCents = -balance
 			resp.CreditBalanceCurrency = currency
+		}
+	}
+
+	// Surface an active gift discount so the UI can show a clear "free month"
+	// banner instead of a generic credit line. A gift is a subscription
+	// discount whose coupon metadata purpose == "gift_one_month".
+	if h.gateway != nil && sub.StripeSubscriptionID != "" {
+		live, err := h.gateway.RetrieveSubscription(ctx, sub.StripeSubscriptionID)
+		if err != nil {
+			logger.Warn("billing: failed to fetch live subscription for gift info",
+				zap.String("subscription_id", sub.StripeSubscriptionID),
+				zap.Error(err),
+			)
+		} else {
+			if live.DiscountPurpose == "gift_one_month" && live.DiscountAmountOffCents > 0 {
+				resp.GiftActive = true
+				resp.GiftAmountOffCents = live.DiscountAmountOffCents
+			}
+			// Surface scheduled cancellation so the UI can show "Cancels on X"
+			// + a Resume action.
+			resp.CancelAtPeriodEnd = live.CancelAtPeriodEnd
+			if live.CancelAt > 0 {
+				t := time.Unix(live.CancelAt, 0).UTC()
+				resp.CancelAt = &t
+			}
+
+			// Surface an active plan gift (free higher-tier plan for a cycle).
+			// The gift ends at the current period end, when the schedule
+			// reverts to the original plan.
+			if live.GiftPlanActive {
+				resp.PlanGiftActive = true
+				resp.GiftPlanCode = live.GiftPlanCode
+				resp.GiftRevertPlanCode = live.GiftRevertPlanCode
+				if live.CurrentPeriodEnd > 0 {
+					t := time.Unix(live.CurrentPeriodEnd, 0).UTC()
+					resp.GiftEndsAt = &t
+				}
+			}
 		}
 	}
 

@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	assignplan "github.com/jcsoftdev/pulzifi-back/modules/usage/application/assign_plan"
+	"github.com/jcsoftdev/pulzifi-back/modules/usage/domain/repositories"
 	"github.com/jcsoftdev/pulzifi-back/modules/usage/domain/repositories/mocks"
 )
 
@@ -46,7 +47,7 @@ func TestAssignPlanHandler_Handle(t *testing.T) {
 			tt.setup(planRepo, orgRepo, usageRepo)
 
 			txb := &mocks.MockTxBeginner{}
-			h := assignplan.NewHandler(txb, planRepo, orgRepo, usageRepo)
+			h := assignplan.NewHandler(txb, planRepo, orgRepo, func(string) repositories.UsageTrackingRepository { return usageRepo })
 			_, err := h.Handle(context.Background(), &assignplan.Request{OrgID: orgID, PlanCode: "pro"})
 
 			if tt.wantErr {
@@ -69,7 +70,7 @@ func TestAssignPlanHandler_PlanNotFound(t *testing.T) {
 	usageRepo := &mocks.MockUsageTrackingRepository{}
 
 	txb := &mocks.MockTxBeginner{}
-	h := assignplan.NewHandler(txb, planRepo, orgRepo, usageRepo)
+	h := assignplan.NewHandler(txb, planRepo, orgRepo, func(string) repositories.UsageTrackingRepository { return usageRepo })
 	_, err := h.Handle(context.Background(), &assignplan.Request{OrgID: uuid.New(), PlanCode: "nonexistent"})
 	if err == nil {
 		t.Fatal("expected error for plan not found, got nil")

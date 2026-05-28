@@ -39,4 +39,11 @@ type PlanAssigner interface {
 	// It also persists stripe_customer_id on public.organizations if not already set.
 	// Returns ErrPlanNotFound if the price ID is not in public.plans.
 	Assign(ctx context.Context, in AssignInput) error
+
+	// Deactivate marks the org's active plan row as inactive WITHOUT inserting a
+	// replacement. After this the org has no active plan (expired) — read-only /
+	// gated until they subscribe again. Called when a subscription is fully
+	// canceled (customer.subscription.deleted). OrgID is resolved from
+	// StripeCustomerID when uuid.Nil.
+	Deactivate(ctx context.Context, customerID string) error
 }

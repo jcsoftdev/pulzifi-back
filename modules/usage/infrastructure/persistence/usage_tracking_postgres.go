@@ -32,14 +32,10 @@ func (r *UsageTrackingPostgresRepository) FindCurrent(ctx context.Context, today
 		return nil, err
 	}
 	ut := &entities.UsageTracking{}
-	// COALESCE on the AI counter columns lets this query survive the window
-	// between the public migration deploy and the tenant migration adding
-	// ai_insights_used / ai_insights_allowed. Once the tenant migration runs,
-	// the COALESCE just returns the real value.
 	err := r.db.QueryRowContext(ctx, `
 		SELECT period_start, period_end,
 		       checks_allowed, checks_used,
-		       COALESCE(ai_insights_allowed, 0), COALESCE(ai_insights_used, 0),
+		       ai_insights_allowed, ai_insights_used,
 		       next_refill_at
 		FROM usage_tracking
 		WHERE period_start <= $1::date AND period_end >= $1::date

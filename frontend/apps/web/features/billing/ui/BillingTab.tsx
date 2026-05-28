@@ -1,7 +1,7 @@
 'use client'
 
 import { Button } from '@workspace/ui/components/atoms/button'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { useCreateCheckout } from '../application/useCreateCheckout'
 import { useCustomerPortal } from '../application/useCustomerPortal'
@@ -169,6 +169,10 @@ function relationFor(
  */
 export function BillingTab() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  // ?promo=<code> from the "Try for $1" apply link. Forwarded to checkout so
+  // the discount is pre-applied; an invalid code is ignored server-side.
+  const promoCode = searchParams.get('promo') ?? undefined
   const {
     subscription,
     isLoading: subLoading,
@@ -237,7 +241,8 @@ export function BillingTab() {
     }
 
     // First-time paid pick (no customer yet) — must go through Checkout.
-    createCheckout(planId, cycle)
+    // Forward the ?promo= code so the first-month-$1 discount pre-applies.
+    createCheckout(planId, cycle, promoCode)
   }
 
   const handleConfirmChange = async () => {
@@ -260,8 +265,16 @@ export function BillingTab() {
     clearUpdate()
   }
 
+  // Only the Trial card is conditional; everything else always renders. The
+  // grid columns + page width adapt to the actual card count so 3 cards don't
+  // leave an empty 4th column (cramped) and 4 cards aren't squeezed.
+  const visiblePlans = PLANS.filter((plan) => plan.code !== 'trial' || isOnTrial)
+  // Static class literals (Tailwind JIT needs them whole, not interpolated).
+  const gridColsClass = visiblePlans.length >= 4 ? 'lg:grid-cols-4' : 'lg:grid-cols-3'
+  const containerWidthClass = visiblePlans.length >= 4 ? 'max-w-7xl' : 'max-w-5xl'
+
   return (
-    <div className="px-4 md:px-8 lg:px-16 py-8 max-w-5xl">
+    <div className={`px-4 md:px-8 lg:px-16 py-8 ${containerWidthClass}`}>
       {/* Page header */}
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-foreground">Billing</h1>
@@ -324,12 +337,10 @@ export function BillingTab() {
         </div>
       </div>
 
-      {/* Plan grid — 4 cards (Trial, Starter, Pro, Enterprise). Trial only
-          renders when the user is currently on it; once a paid plan is
-          active the Trial card disappears (you can't downgrade back to
-          a free trial). */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        {PLANS.filter((plan) => plan.code !== 'trial' || isOnTrial).map((plan) => {
+      {/* Plan grid — Trial card only renders while the user is on it; once a
+          paid plan is active it disappears. Columns adapt to the card count. */}
+      <div className={`grid grid-cols-1 sm:grid-cols-2 ${gridColsClass} gap-6`}>
+        {visiblePlans.map((plan) => {
           const relation = relationFor(
             plan.code,
             currentPlanCode,

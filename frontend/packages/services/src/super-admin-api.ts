@@ -54,15 +54,31 @@ export const SuperAdminApi = {
     })
   },
 
-  async giftMonth(organizationId: string): Promise<{
-    gifted_period: {
-      period_start: string
-      period_end: string
-      checks_allowed: number
-    }
+  // Gift = a Stripe amount_off-once coupon worth ONE MONTH of the selected
+  // plan (planCode: "starter" | "pro"), credited to the org's Stripe customer
+  // balance. Always one month (monthly price), never yearly. Does not change
+  // the org's plan. Balance auto-applies to upcoming invoices and carries any
+  // leftover forward. Requires an existing Stripe customer.
+  async giftMonth(
+    organizationId: string,
+    planCode: string
+  ): Promise<{
+    org_id: string
+    customer_id: string
+    gift_plan_code: string
+    /** "plan_gift" (used the gifted higher plan now) | "balance_credit" (banked). */
+    mode: 'plan_gift' | 'balance_credit'
+    amount_cents: number
+    currency: string
+    /** Unix seconds the plan gift ends (0 for balance gifts). */
+    revert_at: number
+    message: string
   }> {
     const http = await getHttpClient()
-    return http.post(`/api/v1/usage/admin/organizations/${organizationId}/gift-month`, {})
+    return http.post('/api/v1/billing/admin/gift', {
+      org_id: organizationId,
+      plan_code: planCode,
+    })
   },
 
   async listPendingUsers(): Promise<PendingUser[]> {

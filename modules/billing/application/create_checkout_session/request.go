@@ -11,4 +11,9 @@ type Request struct {
 	// Config URLs — passed from shared/config by the HTTP layer.
 	SuccessURL string
 	CancelURL  string
+
+	// PromotionCode is an optional human promo code (from the ?promo= apply
+	// link). When present and valid, it is pre-applied as a Checkout discount.
+	// Invalid/expired codes are ignored (the hosted promo field still works).
+	PromotionCode string
 }

@@ -16,20 +16,21 @@ var schemaNameRegex = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
 
 // Handler handles the assign_plan use case.
 type Handler struct {
-	txBeginner repositories.TxBeginner
-	plans      repositories.PlanRepository
-	orgPlans   repositories.OrganizationPlanRepository
-	usage      repositories.UsageTrackingRepository
+	txBeginner   repositories.TxBeginner
+	plans        repositories.PlanRepository
+	orgPlans     repositories.OrganizationPlanRepository
+	usageFactory repositories.UsageTrackingRepositoryFactory
 }
 
-// NewHandler creates a new assign plan handler.
+// NewHandler creates a new assign plan handler. usageFactory builds the
+// tenant-scoped repo for the TARGET org's schema (resolved post-commit).
 func NewHandler(
 	txBeginner repositories.TxBeginner,
 	plans repositories.PlanRepository,
 	orgPlans repositories.OrganizationPlanRepository,
-	usage repositories.UsageTrackingRepository,
+	usageFactory repositories.UsageTrackingRepositoryFactory,
 ) *Handler {
-	return &Handler{txBeginner: txBeginner, plans: plans, orgPlans: orgPlans, usage: usage}
+	return &Handler{txBeginner: txBeginner, plans: plans, orgPlans: orgPlans, usageFactory: usageFactory}
 }
 
 // Handle executes the multi-step plan assignment atomically.
@@ -87,8 +88,9 @@ func (h *Handler) Handle(ctx context.Context, req *Request) (*Response, error) {
 		return nil, fmt.Errorf("commit: %w", err)
 	}
 
-	// Post-commit best-effort: sync tenant usage_tracking (non-fatal — tenant may not have the table yet)
-	if syncErr := h.usage.SyncChecksAllowed(ctx, plan.ChecksAllowedMonthly); syncErr != nil {
+	// Post-commit best-effort: sync the TARGET org's tenant usage_tracking
+	// (non-fatal — tenant may not have the table yet).
+	if syncErr := h.usageFactory(schemaName).SyncChecksAllowed(ctx, plan.ChecksAllowedMonthly); syncErr != nil {
 		logger.Warn("assign_plan: failed to sync tenant usage_tracking (non-fatal)",
 			zap.String("schema", schemaName), zap.Error(syncErr))
 	}

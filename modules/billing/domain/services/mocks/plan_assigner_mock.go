@@ -14,9 +14,14 @@ type MockPlanAssigner struct {
 	AssignErr error
 	AssignFn  func(ctx context.Context, in services.AssignInput) error
 
+	DeactivateErr error
+	DeactivateFn  func(ctx context.Context, customerID string) error
+
 	// Call tracking
-	AssignCalls  int
-	LastAssignIn services.AssignInput
+	AssignCalls          int
+	LastAssignIn         services.AssignInput
+	DeactivateCalls      int
+	LastDeactivateCustID string
 }
 
 func (m *MockPlanAssigner) Assign(ctx context.Context, in services.AssignInput) error {
@@ -26,4 +31,13 @@ func (m *MockPlanAssigner) Assign(ctx context.Context, in services.AssignInput) 
 		return m.AssignFn(ctx, in)
 	}
 	return m.AssignErr
+}
+
+func (m *MockPlanAssigner) Deactivate(ctx context.Context, customerID string) error {
+	m.DeactivateCalls++
+	m.LastDeactivateCustID = customerID
+	if m.DeactivateFn != nil {
+		return m.DeactivateFn(ctx, customerID)
+	}
+	return m.DeactivateErr
 }

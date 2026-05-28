@@ -6,30 +6,41 @@ import (
 	"encoding/hex"
 	"time"
 
+	adminwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/admin"
+	authwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/auth"
+	billingwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/billing"
+	insightwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/insight"
+	intwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/integration"
+	monitoringwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/monitoring"
+	pagewiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/page"
+	teamwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/team"
 	admin "github.com/jcsoftdev/pulzifi-back/modules/admin/infrastructure/http"
 	adminpersistence "github.com/jcsoftdev/pulzifi-back/modules/admin/infrastructure/persistence"
 	alert "github.com/jcsoftdev/pulzifi-back/modules/alert/infrastructure/http"
-	billing "github.com/jcsoftdev/pulzifi-back/modules/billing/infrastructure/http"
-	createcheckoutsession "github.com/jcsoftdev/pulzifi-back/modules/billing/application/create_checkout_session"
-	reconcilesubscription "github.com/jcsoftdev/pulzifi-back/modules/billing/application/reconcile_subscription"
-	updatesubscription "github.com/jcsoftdev/pulzifi-back/modules/billing/application/update_subscription"
-	createportalsession "github.com/jcsoftdev/pulzifi-back/modules/billing/application/create_portal_session"
-	getsubscription "github.com/jcsoftdev/pulzifi-back/modules/billing/application/get_subscription"
-	handlewebhook "github.com/jcsoftdev/pulzifi-back/modules/billing/application/handle_webhook"
-	billingpostgres "github.com/jcsoftdev/pulzifi-back/modules/billing/infrastructure/persistence/postgres"
-	billingstripe "github.com/jcsoftdev/pulzifi-back/modules/billing/infrastructure/stripe"
-	billingwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/billing"
+	"github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/bff"
 	auth "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/http"
 	authpersistence "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/persistence"
 	authservices "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/services"
+	billingcancel "github.com/jcsoftdev/pulzifi-back/modules/billing/application/cancel_subscription"
+	createcheckoutsession "github.com/jcsoftdev/pulzifi-back/modules/billing/application/create_checkout_session"
+	createportalsession "github.com/jcsoftdev/pulzifi-back/modules/billing/application/create_portal_session"
+	getsubscription "github.com/jcsoftdev/pulzifi-back/modules/billing/application/get_subscription"
+	billinggiftmonth "github.com/jcsoftdev/pulzifi-back/modules/billing/application/gift_month"
+	handlewebhook "github.com/jcsoftdev/pulzifi-back/modules/billing/application/handle_webhook"
+	managecoupons "github.com/jcsoftdev/pulzifi-back/modules/billing/application/manage_coupons"
+	reconcilesubscription "github.com/jcsoftdev/pulzifi-back/modules/billing/application/reconcile_subscription"
+	updatesubscription "github.com/jcsoftdev/pulzifi-back/modules/billing/application/update_subscription"
+	billing "github.com/jcsoftdev/pulzifi-back/modules/billing/infrastructure/http"
+	billingpostgres "github.com/jcsoftdev/pulzifi-back/modules/billing/infrastructure/persistence/postgres"
+	billingstripe "github.com/jcsoftdev/pulzifi-back/modules/billing/infrastructure/stripe"
 	dashboard "github.com/jcsoftdev/pulzifi-back/modules/dashboard/infrastructure/http"
 	emailservices "github.com/jcsoftdev/pulzifi-back/modules/email/domain/services"
 	email "github.com/jcsoftdev/pulzifi-back/modules/email/infrastructure/http"
 	emailproviders "github.com/jcsoftdev/pulzifi-back/modules/email/infrastructure/providers"
-	insight "github.com/jcsoftdev/pulzifi-back/modules/insight/infrastructure/http"
-	insightwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/insight"
 	insightservices "github.com/jcsoftdev/pulzifi-back/modules/insight/domain/services"
+	insight "github.com/jcsoftdev/pulzifi-back/modules/insight/infrastructure/http"
 	dispatchevent "github.com/jcsoftdev/pulzifi-back/modules/integration/application/dispatch_event"
+	intdomainservices "github.com/jcsoftdev/pulzifi-back/modules/integration/domain/services"
 	integration "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/http"
 	intoauth "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/oauth"
 	intpersistence "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/persistence"
@@ -42,11 +53,7 @@ import (
 	slackprovider "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers/slack"
 	teamsprovider "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers/teams"
 	twilioprovider "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers/twilio"
-	intdomainservices "github.com/jcsoftdev/pulzifi-back/modules/integration/domain/services"
-	"github.com/jcsoftdev/pulzifi-back/shared/featureflags"
-	"github.com/jcsoftdev/pulzifi-back/shared/integrationusage"
 	monitoring "github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/http"
-	monitoringwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/monitoring"
 	orgservices "github.com/jcsoftdev/pulzifi-back/modules/organization/domain/services"
 	organization "github.com/jcsoftdev/pulzifi-back/modules/organization/infrastructure/http"
 	orgmessaging "github.com/jcsoftdev/pulzifi-back/modules/organization/infrastructure/messaging"
@@ -55,24 +62,20 @@ import (
 	report "github.com/jcsoftdev/pulzifi-back/modules/report/infrastructure/http"
 	snapshotextractor "github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/extractor"
 	team "github.com/jcsoftdev/pulzifi-back/modules/team/infrastructure/http"
-	usage "github.com/jcsoftdev/pulzifi-back/modules/usage/infrastructure/http"
 	trialstatus "github.com/jcsoftdev/pulzifi-back/modules/usage/application/trial_status"
+	usage "github.com/jcsoftdev/pulzifi-back/modules/usage/infrastructure/http"
 	usagepersistence "github.com/jcsoftdev/pulzifi-back/modules/usage/infrastructure/persistence"
 	workspace "github.com/jcsoftdev/pulzifi-back/modules/workspace/infrastructure/http"
-	"github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/bff"
 	"github.com/jcsoftdev/pulzifi-back/shared/config"
 	"github.com/jcsoftdev/pulzifi-back/shared/crypto"
 	"github.com/jcsoftdev/pulzifi-back/shared/eventbus"
+	"github.com/jcsoftdev/pulzifi-back/shared/featureflags"
+	"github.com/jcsoftdev/pulzifi-back/shared/integrationusage"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
 	"github.com/jcsoftdev/pulzifi-back/shared/noncestore"
 	"github.com/jcsoftdev/pulzifi-back/shared/pubsub"
 	"github.com/jcsoftdev/pulzifi-back/shared/router"
-	adminwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/admin"
-	authwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/auth"
-	intwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/integration"
-	pagewiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/page"
-	teamwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/team"
 	"go.uber.org/zap"
 )
 
@@ -266,29 +269,33 @@ func registerAllModulesInternal(
 			return m
 		}()},
 		{"Monitoring", func() router.ModuleRegisterer {
-				snapshotWorker, err := monitoringwiring.NewSnapshotWorker(monitoringwiring.SnapshotWorkerDeps{
-					DB:            db,
-					EventBus:      eventBus,
-					EmailProvider: emailProvider,
-					FrontendURL:   cfg.FrontendURL,
-					Cfg:           cfg,
-				})
-				if err != nil {
-					logger.Error("Failed to build snapshot worker, monitoring will run without snapshot execution", zap.Error(err))
-				}
-				return monitoring.NewModuleWithDeps(monitoring.Deps{
-					DB:               db,
-					EventBus:         eventBus,
-					SnapshotExecutor: snapshotWorker,
-					CheckBroker:      checkBroker,
-				})
-			}()},
+			snapshotWorker, err := monitoringwiring.NewSnapshotWorker(monitoringwiring.SnapshotWorkerDeps{
+				DB:            db,
+				EventBus:      eventBus,
+				EmailProvider: emailProvider,
+				FrontendURL:   cfg.FrontendURL,
+				Cfg:           cfg,
+			})
+			if err != nil {
+				logger.Error("Failed to build snapshot worker, monitoring will run without snapshot execution", zap.Error(err))
+			}
+			return monitoring.NewModuleWithDeps(monitoring.Deps{
+				DB:               db,
+				EventBus:         eventBus,
+				SnapshotExecutor: snapshotWorker,
+				CheckBroker:      checkBroker,
+			})
+		}()},
 		{"Integration", integrationMod},
 		{"Insight", insight.NewModuleWithDeps(
 			db,
 			insightBroker,
-			func(tenant string) insightservices.CheckReader { return insightwiring.NewCheckReaderAdapter(db, tenant) },
-			func(tenant string) insightservices.PageConfigReader { return insightwiring.NewPageConfigReaderAdapter(db, tenant) },
+			func(tenant string) insightservices.CheckReader {
+				return insightwiring.NewCheckReaderAdapter(db, tenant)
+			},
+			func(tenant string) insightservices.PageConfigReader {
+				return insightwiring.NewPageConfigReaderAdapter(db, tenant)
+			},
 		)},
 		{"Report", report.NewModuleWithDB(db)},
 		{"Usage", func() router.ModuleRegisterer {
@@ -326,6 +333,9 @@ func registerAllModulesInternal(
 		subscriptionHandler := getsubscription.NewHandler(subscriptionRepo).WithStripeGateway(stripeGateway)
 		usageReader := billingwiring.NewUsageReader(db)
 		updateSubHandler := updatesubscription.NewHandler(stripeGateway, planRepo, subscriptionRepo, usageReader, planAssigner)
+		couponHandler := managecoupons.NewHandler(stripeGateway, planRepo, cfg.FrontendURL)
+		giftHandler := billinggiftmonth.NewHandler(stripeGateway, subscriptionRepo, planRepo, planAssigner)
+		cancelHandler := billingcancel.NewHandler(stripeGateway, subscriptionRepo)
 		trialConverter := billingwiring.NewTrialConverter(db)
 		webhookHandler := handlewebhook.NewHandler(
 			stripeGateway,
@@ -343,6 +353,9 @@ func registerAllModulesInternal(
 			SubscriptionHandler: subscriptionHandler,
 			WebhookHandler:      webhookHandler,
 			UpdateSubHandler:    updateSubHandler,
+			CouponHandler:       couponHandler,
+			GiftHandler:         giftHandler,
+			CancelHandler:       cancelHandler,
 		})
 
 		moduleInstances = append(moduleInstances, struct {

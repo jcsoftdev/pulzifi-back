@@ -3,13 +3,17 @@ export type { LoginDto, LoginResponse, User, UserOrganization } from './auth-api
 export { AuthApi } from './auth-api'
 export type {
   BillingStatusDto,
+  CancelSubscriptionDto,
   CheckoutSessionDto,
+  CouponDto,
+  CreateCouponDto,
+  CreateCouponInput,
   PaymentStatusDto,
   PortalSessionDto,
   SubscriptionDto,
   UpdateSubscriptionDto,
 } from './billing-api'
-export { BillingApi } from './billing-api'
+export { AdminCouponsApi, BillingApi } from './billing-api'
 export type {
   DashboardStats,
   RecentAlert,

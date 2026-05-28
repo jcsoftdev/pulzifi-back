@@ -10,10 +10,10 @@ import (
 	assignplan "github.com/jcsoftdev/pulzifi-back/modules/usage/application/assign_plan"
 	getmetrics "github.com/jcsoftdev/pulzifi-back/modules/usage/application/get_metrics"
 	getquotas "github.com/jcsoftdev/pulzifi-back/modules/usage/application/get_quotas"
-	giftmonth "github.com/jcsoftdev/pulzifi-back/modules/usage/application/gift_month"
 	listorgs "github.com/jcsoftdev/pulzifi-back/modules/usage/application/list_organizations_with_plans"
 	listplans "github.com/jcsoftdev/pulzifi-back/modules/usage/application/list_plans"
 	trialstatus "github.com/jcsoftdev/pulzifi-back/modules/usage/application/trial_status"
+	"github.com/jcsoftdev/pulzifi-back/modules/usage/domain/repositories"
 	"github.com/jcsoftdev/pulzifi-back/modules/usage/domain/services"
 	usagepersistence "github.com/jcsoftdev/pulzifi-back/modules/usage/infrastructure/persistence"
 	"github.com/jcsoftdev/pulzifi-back/shared/contextkeys"
@@ -29,7 +29,6 @@ type ModuleDeps struct {
 	ListPlansHandler   *listplans.Handler
 	ListOrgsHandler    *listorgs.Handler
 	AssignPlanHandler  *assignplan.Handler
-	GiftMonthHandler   *giftmonth.Handler
 	TrialStatusHandler *trialstatus.Handler
 }
 
@@ -50,11 +49,28 @@ func NewModuleWithDB(db *sql.DB) router.ModuleRegisterer {
 	return &Module{deps: ModuleDeps{DB: db}}
 }
 
-// NewModuleWithTrial creates a Usage module with the trial-status handler
-// wired in. The other use cases stay nil-defaulted (handlers fall back to
-// the existing mock responses) so this constructor is safe to drop in.
+// NewModuleWithTrial creates a Usage module with the trial-status handler plus
+// the SUPER_ADMIN read handlers (list plans, list orgs-with-plans) wired in.
+// Both read handlers only need db-level repositories (no tenant), so they are
+// safe to construct here. The mutation handlers (assign plan, gift month) need
+// per-request tenant scoping and stay nil until that wiring lands.
 func NewModuleWithTrial(db *sql.DB, trialStatusHandler *trialstatus.Handler) router.ModuleRegisterer {
-	return &Module{deps: ModuleDeps{DB: db, TrialStatusHandler: trialStatusHandler}}
+	planRepo := usagepersistence.NewPlanPostgresRepository(db)
+	orgPlanRepo := usagepersistence.NewOrganizationPlanPostgresRepository(db)
+	txBeginner := usagepersistence.NewSQLTxBeginner(db)
+	// Per-target-schema usage repo factory for assign_plan — it operates on the
+	// chosen org's tenant schema, not the caller's, so the repo is built
+	// per-request from the resolved schema.
+	usageFactory := func(tenant string) repositories.UsageTrackingRepository {
+		return usagepersistence.NewUsageTrackingPostgresRepository(db, tenant)
+	}
+	return &Module{deps: ModuleDeps{
+		DB:                 db,
+		TrialStatusHandler: trialStatusHandler,
+		ListPlansHandler:   listplans.NewHandler(planRepo),
+		ListOrgsHandler:    listorgs.NewHandler(orgPlanRepo),
+		AssignPlanHandler:  assignplan.NewHandler(txBeginner, planRepo, orgPlanRepo, usageFactory),
+	}}
 }
 
 // ModuleName returns the name of the module.
@@ -77,7 +93,8 @@ func (m *Module) RegisterHTTPRoutes(r chi.Router) {
 		r.Get("/plans", m.handleListPlans)
 		r.Get("/organizations", m.handleListOrganizationsWithPlans)
 		r.Put("/organizations/{id}/plan", m.handleAssignOrganizationPlan)
-		r.Post("/organizations/{id}/gift-month", m.handleGiftMonth)
+		// gift-month moved to the billing module (POST /billing/admin/gift):
+		// a gift is now a Stripe 100%-off-once coupon, not a local quota insert.
 	})
 }
 
@@ -245,30 +262,4 @@ func (m *Module) handleTrialStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, resp)
-}
-
-func (m *Module) handleGiftMonth(w http.ResponseWriter, r *http.Request) {
-	if !isSuperAdmin(r) {
-		forbidden(w)
-		return
-	}
-	if m.deps.GiftMonthHandler == nil {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "handler not initialized"})
-		return
-	}
-	orgID, err := uuid.Parse(chi.URLParam(r, "id"))
-	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid organization id"})
-		return
-	}
-	resp, err := m.deps.GiftMonthHandler.Handle(r.Context(), &giftmonth.Request{OrgID: orgID})
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"organization_id": resp.OrganizationID,
-		"gifted_period":   resp.GiftedPeriod,
-		"message":         resp.Message,
-	})
 }

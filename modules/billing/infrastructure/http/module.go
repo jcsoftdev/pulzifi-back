@@ -21,12 +21,16 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/jcsoftdev/pulzifi-back/shared/contextkeys"
+	"github.com/google/uuid"
+	cancelsubscription "github.com/jcsoftdev/pulzifi-back/modules/billing/application/cancel_subscription"
 	createcheckoutsession "github.com/jcsoftdev/pulzifi-back/modules/billing/application/create_checkout_session"
 	createportalsession "github.com/jcsoftdev/pulzifi-back/modules/billing/application/create_portal_session"
 	getsubscription "github.com/jcsoftdev/pulzifi-back/modules/billing/application/get_subscription"
+	giftmonth "github.com/jcsoftdev/pulzifi-back/modules/billing/application/gift_month"
 	handlewebhook "github.com/jcsoftdev/pulzifi-back/modules/billing/application/handle_webhook"
+	managecoupons "github.com/jcsoftdev/pulzifi-back/modules/billing/application/manage_coupons"
 	updatesubscription "github.com/jcsoftdev/pulzifi-back/modules/billing/application/update_subscription"
+	"github.com/jcsoftdev/pulzifi-back/shared/contextkeys"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
 	"github.com/jcsoftdev/pulzifi-back/shared/router"
@@ -61,11 +65,14 @@ func buildTenantBillingURL(r *http.Request, query string) string {
 type Deps struct {
 	DB *sql.DB
 
-	CheckoutHandler       *createcheckoutsession.Handler
-	PortalHandler         *createportalsession.Handler
-	SubscriptionHandler   *getsubscription.Handler
-	WebhookHandler        *handlewebhook.Handler
-	UpdateSubHandler      *updatesubscription.Handler
+	CheckoutHandler     *createcheckoutsession.Handler
+	PortalHandler       *createportalsession.Handler
+	SubscriptionHandler *getsubscription.Handler
+	WebhookHandler      *handlewebhook.Handler
+	UpdateSubHandler    *updatesubscription.Handler
+	CouponHandler       *managecoupons.Handler
+	GiftHandler         *giftmonth.Handler
+	CancelHandler       *cancelsubscription.Handler
 }
 
 // Module is the Billing HTTP module.
@@ -114,9 +121,40 @@ func (m *Module) RegisterHTTPRoutes(r chi.Router) {
 				// user to Stripe's hosted UI. Preview=true returns the prorated
 				// charge without applying.
 				r.Post("/subscription", m.handleUpdateSubscription)
+				// Cancel at period end (user keeps access until the paid period
+				// closes, then the plan deactivates) + resume a pending cancel.
+				r.Post("/subscription/cancel", m.handleCancelSubscription)
+				r.Post("/subscription/resume", m.handleResumeSubscription)
+			})
+
+			// Coupon management + gifts — SUPER_ADMIN only.
+			r.Group(func(r chi.Router) {
+				r.Use(m.requireSuperAdmin())
+				r.Post("/admin/coupons", m.handleCreateCoupon)
+				r.Get("/admin/coupons", m.handleListCoupons)
+				r.Delete("/admin/coupons/{id}", m.handleRevokeCoupon)
+				// Gift = 100%-off-once coupon attached to the org's active sub.
+				r.Post("/admin/gift", m.handleGift)
 			})
 		})
 	})
+}
+
+// requireSuperAdmin allows only SUPER_ADMIN JWT role. Coupon management is a
+// platform-operator concern, not a per-org-admin one.
+func (m *Module) requireSuperAdmin() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			roles, _ := r.Context().Value(contextkeys.UserRolesKey).([]string)
+			for _, role := range roles {
+				if role == "SUPER_ADMIN" {
+					next.ServeHTTP(w, r)
+					return
+				}
+			}
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": "super admin required"})
+		})
+	}
 }
 
 // requireAdminOrSuperAdmin returns a Chi middleware that allows requests only from
@@ -192,8 +230,9 @@ func (m *Module) handleCheckout(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	var body struct {
-		PlanID       string `json:"plan_id"`
-		BillingCycle string `json:"billing_cycle"`
+		PlanID        string `json:"plan_id"`
+		BillingCycle  string `json:"billing_cycle"`
+		PromotionCode string `json:"promotion_code"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
@@ -209,13 +248,14 @@ func (m *Module) handleCheckout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	req := createcheckoutsession.Request{
-		OrgID:        orgID,
-		OrgEmail:     orgEmail,
-		OrgName:      orgName,
-		PlanID:       body.PlanID,
-		BillingCycle: body.BillingCycle,
-		SuccessURL:   buildTenantBillingURL(r, "?success=true&session_id={CHECKOUT_SESSION_ID}"),
-		CancelURL:    buildTenantBillingURL(r, "?canceled=true"),
+		OrgID:         orgID,
+		OrgEmail:      orgEmail,
+		OrgName:       orgName,
+		PlanID:        body.PlanID,
+		BillingCycle:  body.BillingCycle,
+		PromotionCode: body.PromotionCode,
+		SuccessURL:    buildTenantBillingURL(r, "?success=true&session_id={CHECKOUT_SESSION_ID}"),
+		CancelURL:     buildTenantBillingURL(r, "?canceled=true"),
 	}
 
 	resp, err := m.deps.CheckoutHandler.Handle(ctx, req)
@@ -325,6 +365,180 @@ func (m *Module) handleUpdateSubscription(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusOK, resp)
 }
 
+// handleCancelSubscription handles POST /billing/subscription/cancel.
+// Schedules cancellation at the end of the current paid period.
+func (m *Module) handleCancelSubscription(w http.ResponseWriter, r *http.Request) {
+	if m.deps.CancelHandler == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "cancellation not configured"})
+		return
+	}
+	ctx := r.Context()
+	orgID, err := m.resolveOrgUUID(ctx)
+	if err != nil {
+		logger.Error("billing: failed to resolve org context", zap.Error(err))
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "org lookup failed"})
+		return
+	}
+
+	resp, err := m.deps.CancelHandler.Cancel(ctx, orgID)
+	if err != nil {
+		if errors.Is(err, cancelsubscription.ErrNoActiveSubscription) {
+			writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
+			return
+		}
+		logger.Error("billing: cancel subscription failed", zap.Error(err))
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "cancel subscription failed"})
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// handleResumeSubscription handles POST /billing/subscription/resume.
+// Clears a pending period-end cancellation.
+func (m *Module) handleResumeSubscription(w http.ResponseWriter, r *http.Request) {
+	if m.deps.CancelHandler == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "cancellation not configured"})
+		return
+	}
+	ctx := r.Context()
+	orgID, err := m.resolveOrgUUID(ctx)
+	if err != nil {
+		logger.Error("billing: failed to resolve org context", zap.Error(err))
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "org lookup failed"})
+		return
+	}
+
+	resp, err := m.deps.CancelHandler.Resume(ctx, orgID)
+	if err != nil {
+		if errors.Is(err, cancelsubscription.ErrNoActiveSubscription) {
+			writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
+			return
+		}
+		logger.Error("billing: resume subscription failed", zap.Error(err))
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "resume subscription failed"})
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// handleCreateCoupon handles POST /billing/admin/coupons (SUPER_ADMIN).
+// Body: {plan_code, billing_cycle, code?, max_redemptions?, expires_at?}.
+func (m *Module) handleCreateCoupon(w http.ResponseWriter, r *http.Request) {
+	if m.deps.CouponHandler == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "coupons not configured"})
+		return
+	}
+	var body struct {
+		PlanCode       string `json:"plan_code"`
+		BillingCycle   string `json:"billing_cycle"`
+		Code           string `json:"code"`
+		MaxRedemptions int64  `json:"max_redemptions"`
+		ExpiresAt      int64  `json:"expires_at"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+
+	resp, err := m.deps.CouponHandler.Create(r.Context(), managecoupons.CreateRequest{
+		PlanCode:       body.PlanCode,
+		BillingCycle:   body.BillingCycle,
+		Code:           body.Code,
+		MaxRedemptions: body.MaxRedemptions,
+		ExpiresAt:      body.ExpiresAt,
+	})
+	if err != nil {
+		switch {
+		case errors.Is(err, managecoupons.ErrInvalidBillingCycle),
+			errors.Is(err, managecoupons.ErrMissingPriceID):
+			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": err.Error()})
+			return
+		case errors.Is(err, managecoupons.ErrPlanNotFound):
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+			return
+		}
+		logger.Error("billing: create coupon failed", zap.Error(err))
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "create coupon failed"})
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// handleListCoupons handles GET /billing/admin/coupons (SUPER_ADMIN).
+func (m *Module) handleListCoupons(w http.ResponseWriter, r *http.Request) {
+	if m.deps.CouponHandler == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "coupons not configured"})
+		return
+	}
+	list, err := m.deps.CouponHandler.List(r.Context())
+	if err != nil {
+		logger.Error("billing: list coupons failed", zap.Error(err))
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "list coupons failed"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{"coupons": list})
+}
+
+// handleRevokeCoupon handles DELETE /billing/admin/coupons/{id} (SUPER_ADMIN).
+func (m *Module) handleRevokeCoupon(w http.ResponseWriter, r *http.Request) {
+	if m.deps.CouponHandler == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "coupons not configured"})
+		return
+	}
+	id := chi.URLParam(r, "id")
+	if err := m.deps.CouponHandler.Revoke(r.Context(), id); err != nil {
+		logger.Error("billing: revoke coupon failed", zap.Error(err))
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "revoke coupon failed"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "revoked"})
+}
+
+// handleGift handles POST /billing/admin/gift (SUPER_ADMIN).
+// Body: {"org_id": "<uuid>"}. Applies a 100%-off-once coupon to the org's
+// active subscription → next invoice $0. Quota refills via Stripe webhook.
+func (m *Module) handleGift(w http.ResponseWriter, r *http.Request) {
+	if m.deps.GiftHandler == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "gift not configured"})
+		return
+	}
+	var body struct {
+		OrgID    string `json:"org_id"`
+		PlanCode string `json:"plan_code"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+	orgID, err := uuid.Parse(body.OrgID)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid org_id"})
+		return
+	}
+	if body.PlanCode == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "plan_code required"})
+		return
+	}
+	// Resolve owner email + org name in case the org has no Stripe customer yet
+	// (gift to a new / trial org creates the customer + free trial sub).
+	orgEmail, orgName := m.resolveOrgIdentity(r.Context(), orgID)
+	resp, err := m.deps.GiftHandler.Handle(r.Context(), orgID, body.PlanCode, orgEmail, orgName)
+	if err != nil {
+		switch {
+		case errors.Is(err, giftmonth.ErrNoActiveSubscription):
+			writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
+			return
+		case errors.Is(err, giftmonth.ErrPlanNotFound), errors.Is(err, giftmonth.ErrMissingPriceID):
+			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": err.Error()})
+			return
+		}
+		logger.Error("billing: gift failed", zap.Error(err))
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "gift failed"})
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
 // handleGetSubscription handles GET /billing/subscription.
 // Returns the current subscription state for the authenticated org.
 func (m *Module) handleGetSubscription(w http.ResponseWriter, r *http.Request) {
@@ -353,9 +567,9 @@ func (m *Module) handleGetSubscriptionWithOrgID(w http.ResponseWriter, r *http.R
 			// FR7: return 200 with null stripe fields.
 			// The frontend must treat stripe_status: null as "no Stripe subscription".
 			writeJSON(w, http.StatusOK, map[string]interface{}{
-				"stripe_status":  nil,
-				"payment_status": nil,
-				"billing_status": nil,
+				"stripe_status":      nil,
+				"payment_status":     nil,
+				"billing_status":     nil,
 				"current_period_end": nil,
 			})
 			return
@@ -389,6 +603,34 @@ func (m *Module) resolveOrgContext(ctx context.Context, subdomain string) (strin
 	}
 
 	return orgID, ownerEmail.String, orgName, nil
+}
+
+// resolveOrgUUID resolves the authenticated org's UUID from the request
+// subdomain. Wraps resolveOrgContext for handlers that need a uuid.UUID.
+func (m *Module) resolveOrgUUID(ctx context.Context) (uuid.UUID, error) {
+	orgIDStr, _, _, err := m.resolveOrgContext(ctx, middleware.GetSubdomainFromContext(ctx))
+	if err != nil {
+		return uuid.Nil, err
+	}
+	return uuid.Parse(orgIDStr)
+}
+
+// resolveOrgIdentity returns the org's owner email + name by org UUID. Best
+// effort: returns empty strings on error (EnsureCustomer tolerates empties).
+func (m *Module) resolveOrgIdentity(ctx context.Context, orgID uuid.UUID) (email, name string) {
+	var orgName string
+	var ownerEmail sql.NullString
+	err := m.deps.DB.QueryRowContext(ctx, `
+		SELECT o.name, u.email
+		FROM public.organizations o
+		LEFT JOIN public.users u ON u.id = o.owner_user_id
+		WHERE o.id = $1 AND o.deleted_at IS NULL
+		LIMIT 1
+	`, orgID).Scan(&orgName, &ownerEmail)
+	if err != nil {
+		return "", ""
+	}
+	return ownerEmail.String, orgName
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

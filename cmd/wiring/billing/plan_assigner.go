@@ -282,6 +282,45 @@ func (a *PlanAssigner) syncTenantUsagePeriod(ctx context.Context, tx Tx, orgID, 
 	return nil
 }
 
+// Deactivate marks the org's active plan inactive WITHOUT inserting a
+// replacement — the org ends up with no active plan (expired). Used on
+// customer.subscription.deleted (full cancel). OrgID is resolved from the
+// Stripe customer id.
+func (a *PlanAssigner) Deactivate(ctx context.Context, customerID string) error {
+	tx, err := a.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("billing plan assigner: begin tx: %w", err)
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
+
+	orgID, err := a.resolveOrgByCustomer(ctx, tx, customerID)
+	if err != nil {
+		return err
+	}
+
+	_, err = tx.ExecContext(ctx, `
+		UPDATE public.organization_plans
+		SET    status     = 'inactive',
+		       ended_at   = NOW(),
+		       updated_at = NOW()
+		WHERE  organization_id = $1
+		  AND  status          = 'active'
+		  AND  deleted_at      IS NULL
+	`, orgID)
+	if err != nil {
+		return fmt.Errorf("billing plan assigner: deactivate plan: %w", err)
+	}
+
+	if err = tx.Commit(); err != nil {
+		return fmt.Errorf("billing plan assigner: commit: %w", err)
+	}
+	return nil
+}
+
 // resolveOrgByCustomer looks up the organization ID from the Stripe customer ID.
 func (a *PlanAssigner) resolveOrgByCustomer(ctx context.Context, tx Tx, customerID string) (uuid.UUID, error) {
 	var orgIDStr string

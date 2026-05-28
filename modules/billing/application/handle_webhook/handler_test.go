@@ -347,7 +347,7 @@ func TestHandleWebhookHandler_Handle(t *testing.T) {
 			},
 		},
 		{
-			name:    "customer.subscription.deleted — downgrades to starter (empty priceID)",
+			name:    "customer.subscription.deleted — deactivates plan (no replacement)",
 			rawBody: []byte(`{}`),
 			sig:     "valid-sig",
 			gw: &billingmocks.MockStripeGateway{
@@ -358,14 +358,14 @@ func TestHandleWebhookHandler_Handle(t *testing.T) {
 			webhookRepo:  newFakeWebhookEventRepo(),
 			subRepo:      newFakeSubscriptionRepo(),
 			assertFn: func(t *testing.T, pa *billingmocks.MockPlanAssigner, _ *fakeWebhookEventRepo) {
-				if pa.AssignCalls != 1 {
-					t.Errorf("subscription.deleted: expected 1 Assign call, got %d", pa.AssignCalls)
+				if pa.DeactivateCalls != 1 {
+					t.Errorf("subscription.deleted: expected 1 Deactivate call, got %d", pa.DeactivateCalls)
 				}
-				if pa.LastAssignIn.StripePriceID != "" {
-					t.Errorf("expected empty priceID for starter downgrade, got %q", pa.LastAssignIn.StripePriceID)
+				if pa.AssignCalls != 0 {
+					t.Errorf("subscription.deleted: expected 0 Assign calls, got %d", pa.AssignCalls)
 				}
-				if pa.LastAssignIn.BillingStatus != entities.BillingCanceled {
-					t.Errorf("expected BillingCanceled, got %v", pa.LastAssignIn.BillingStatus)
+				if pa.LastDeactivateCustID != customerID {
+					t.Errorf("expected Deactivate with customer %q, got %q", customerID, pa.LastDeactivateCustID)
 				}
 			},
 		},

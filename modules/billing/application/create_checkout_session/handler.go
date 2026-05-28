@@ -103,11 +103,29 @@ func (h *Handler) Handle(ctx context.Context, req Request) (*Response, error) {
 		}
 	}
 
+	// Resolve an optional promo code (apply-link path) to its Stripe
+	// promotion code id. Invalid / expired / unknown codes are ignored — the
+	// hosted promo-code field stays available so checkout never breaks on a
+	// bad code.
+	var promotionCodeID string
+	if req.PromotionCode != "" {
+		pc, pcErr := h.gateway.FindPromotionCodeByCode(ctx, req.PromotionCode)
+		if pcErr != nil || !pc.Active {
+			logger.Warn("create_checkout_session: promo code ignored",
+				zap.String("code", req.PromotionCode),
+				zap.Error(pcErr),
+			)
+		} else {
+			promotionCodeID = pc.ID
+		}
+	}
+
 	url, err := h.gateway.CreateCheckoutSession(ctx, services.CheckoutInput{
-		CustomerID: customerID,
-		PriceID:    priceID,
-		SuccessURL: req.SuccessURL,
-		CancelURL:  req.CancelURL,
+		CustomerID:      customerID,
+		PriceID:         priceID,
+		SuccessURL:      req.SuccessURL,
+		CancelURL:       req.CancelURL,
+		PromotionCodeID: promotionCodeID,
 	})
 	if err != nil {
 		return nil, err

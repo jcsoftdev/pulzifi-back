@@ -28,6 +28,29 @@ export interface SubscriptionDto {
   /** Account credit available — auto-applied to upcoming invoices. 0 when none. */
   credit_balance_cents?: number
   credit_balance_currency?: string
+  /** True when a "free month" gift coupon is applied to the subscription. */
+  gift_active?: boolean
+  /** Discount the gift applies to the next invoice (cents). */
+  gift_amount_off_cents?: number
+  /** True when the user scheduled cancellation at the end of the paid period. */
+  cancel_at_period_end?: boolean
+  /** When the scheduled cancellation takes effect (ISO date); null otherwise. */
+  cancel_at?: string | null
+  /** True while the org is using a gifted higher-tier plan for free. */
+  plan_gift_active?: boolean
+  /** Plan code being used for free during the gift (e.g. "pro"). */
+  gift_plan_code?: string
+  /** Plan code the org returns to when the gift ends (e.g. "starter"). */
+  gift_revert_plan_code?: string
+  /** When the plan gift ends and reverts (ISO date); null otherwise. */
+  gift_ends_at?: string | null
+}
+
+export interface CancelSubscriptionDto {
+  subscription_id: string
+  cancel_at_period_end: boolean
+  cancel_at: string | null
+  message: string
 }
 
 export type BillingStatusDto = 'active' | 'past_due' | 'canceled' | 'incomplete' | 'trialing'
@@ -69,7 +92,8 @@ export const BillingApi = {
    */
   async createCheckoutSession(
     planId: string,
-    billingCycle: 'monthly' | 'yearly'
+    billingCycle: 'monthly' | 'yearly',
+    promotionCode?: string
   ): Promise<{
     checkoutUrl: string
   }> {
@@ -77,6 +101,7 @@ export const BillingApi = {
     const response = await http.post<CheckoutSessionDto>('/api/v1/billing/checkout', {
       plan_id: planId,
       billing_cycle: billingCycle,
+      promotion_code: promotionCode ?? '',
     })
     return {
       checkoutUrl: response.checkout_url,
@@ -102,6 +127,23 @@ export const BillingApi = {
       billing_cycle: billingCycle,
       preview,
     })
+  },
+
+  /**
+   * Schedule cancellation of the current subscription at the end of the paid
+   * period. The org keeps access until then, then drops to no active plan.
+   */
+  async cancelSubscription(): Promise<CancelSubscriptionDto> {
+    const http = await getHttpClient()
+    return await http.post<CancelSubscriptionDto>('/api/v1/billing/subscription/cancel', {})
+  },
+
+  /**
+   * Revert a pending period-end cancellation, restoring normal renewal.
+   */
+  async resumeSubscription(): Promise<CancelSubscriptionDto> {
+    const http = await getHttpClient()
+    return await http.post<CancelSubscriptionDto>('/api/v1/billing/subscription/resume', {})
   },
 
   /**
@@ -152,5 +194,65 @@ export const BillingApi = {
       }
       throw err
     }
+  },
+}
+
+// ---- Admin Coupons (SUPER_ADMIN) ----
+
+export interface CouponDto {
+  id: string
+  code: string
+  amount_off_cents: number
+  currency: string
+  active: boolean
+  max_redemptions: number
+  times_redeemed: number
+  expires_at: number
+  plan_code: string
+  billing_cycle: string
+  apply_url: string
+}
+
+export interface CreateCouponInput {
+  planCode: string
+  billingCycle: 'monthly' | 'yearly'
+  code?: string
+  maxRedemptions?: number
+  expiresAt?: number
+}
+
+export interface CreateCouponDto {
+  coupon_id: string
+  promotion_code_id: string
+  code: string
+  amount_off_cents: number
+  currency: string
+  apply_url: string
+}
+
+export const AdminCouponsApi = {
+  /** Create a first-month-$1 promo for a plan (SUPER_ADMIN). */
+  async create(input: CreateCouponInput): Promise<CreateCouponDto> {
+    const http = await getHttpClient()
+    return await http.post<CreateCouponDto>('/api/v1/billing/admin/coupons', {
+      plan_code: input.planCode,
+      billing_cycle: input.billingCycle,
+      code: input.code ?? '',
+      max_redemptions: input.maxRedemptions ?? 0,
+      expires_at: input.expiresAt ?? 0,
+    })
+  },
+
+  /** List all promotion codes (active + inactive). */
+  async list(): Promise<CouponDto[]> {
+    const http = await getHttpClient()
+    const res = await http.get<{ coupons: CouponDto[] }>('/api/v1/billing/admin/coupons')
+    return res.coupons ?? []
+  },
+
+  /** Deactivate a promotion code. */
+  async revoke(promotionCodeId: string): Promise<void> {
+    const http = await getHttpClient()
+    await http.delete(`/api/v1/billing/admin/coupons/${promotionCodeId}`)
   },
 }

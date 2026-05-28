@@ -66,27 +66,30 @@ export function PlanManagement() {
     })
   }
 
-  const handleGiftMonth = (organizationId: string, orgName: string) => {
+  const handleGiftMonth = (organizationId: string, orgName: string, planCode: string) => {
     setActionError(null)
     startTransition(async () => {
       try {
-        const result = await SuperAdminApi.giftMonth(organizationId)
-        const period = result.gifted_period
+        const res = await SuperAdminApi.giftMonth(organizationId, planCode)
         notification.success({
-          title: 'Free month gifted',
-          description: `${orgName} received a free month (${period.period_start} to ${period.period_end}).`,
+          title: 'One month gifted',
+          description:
+            res.mode === 'plan_gift'
+              ? `${orgName} is now using ${planCode} free for one month, then reverts to their plan.`
+              : `${orgName} received one month of ${planCode} as credit, applied to upcoming invoices.`,
         })
+        await loadData()
       } catch {
-        setActionError('Failed to gift free month.')
+        setActionError('Failed to gift month.')
         notification.error({
           title: 'Failed to gift month',
-          description: 'The period may already exist.',
+          description: 'The organization may not have an active paid subscription.',
         })
       }
     })
   }
 
-  if (loadError) {
+if (loadError) {
     return (
       <div className="flex-1 p-8 max-w-7xl mx-auto w-full">
         <Card>
@@ -161,15 +164,26 @@ export function PlanManagement() {
                     </SelectContent>
                   </Select>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={isPending || !org.plan_code}
-                  onClick={() => handleGiftMonth(org.id, org.name)}
-                >
-                  <Gift className="w-4 h-4 mr-2" />
-                  Gift Month
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={isPending || !org.plan_code}
+                    onClick={() => handleGiftMonth(org.id, org.name, 'starter')}
+                  >
+                    <Gift className="w-4 h-4 mr-2" />
+                    Gift Starter
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={isPending || !org.plan_code}
+                    onClick={() => handleGiftMonth(org.id, org.name, 'pro')}
+                  >
+                    <Gift className="w-4 h-4 mr-2" />
+                    Gift Pro
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           ))}

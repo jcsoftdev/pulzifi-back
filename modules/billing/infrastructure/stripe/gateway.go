@@ -9,11 +9,15 @@ import (
 
 	stripe "github.com/stripe/stripe-go/v79"
 	"github.com/stripe/stripe-go/v79/checkout/session"
+	"github.com/stripe/stripe-go/v79/coupon"
 	"github.com/stripe/stripe-go/v79/customer"
+	"github.com/stripe/stripe-go/v79/customerbalancetransaction"
 	"github.com/stripe/stripe-go/v79/invoice"
 	"github.com/stripe/stripe-go/v79/invoiceitem"
 	"github.com/stripe/stripe-go/v79/price"
+	"github.com/stripe/stripe-go/v79/promotioncode"
 	"github.com/stripe/stripe-go/v79/subscription"
+	"github.com/stripe/stripe-go/v79/subscriptionschedule"
 	"github.com/stripe/stripe-go/v79/webhook"
 
 	billingservices "github.com/jcsoftdev/pulzifi-back/modules/billing/domain/services"
@@ -86,6 +90,17 @@ func (g *Gateway) CreateCheckoutSession(_ context.Context, in billingservices.Ch
 		},
 	}
 
+	// Discounts and AllowPromotionCodes are mutually exclusive in Stripe.
+	// Auto-apply link path → pre-apply the promotion code. Otherwise expose
+	// the hosted promo-code field so customers can type one manually.
+	if in.PromotionCodeID != "" {
+		params.Discounts = []*stripe.CheckoutSessionDiscountParams{
+			{PromotionCode: stripe.String(in.PromotionCodeID)},
+		}
+	} else {
+		params.AllowPromotionCodes = stripe.Bool(true)
+	}
+
 	s, err := session.New(params)
 	if err != nil {
 		return "", fmt.Errorf("billing: stripe checkout session: %w", err)
@@ -148,13 +163,81 @@ func (g *Gateway) RetrieveSubscription(_ context.Context, subID string) (billing
 		customerID = sub.Customer.ID
 	}
 
-	return billingservices.StripeSubscription{
-		ID:               sub.ID,
-		Status:           string(sub.Status),
-		CurrentPeriodEnd: sub.CurrentPeriodEnd,
-		CustomerID:       customerID,
-		PriceID:          priceID,
-	}, nil
+	out := billingservices.StripeSubscription{
+		ID:                sub.ID,
+		Status:            string(sub.Status),
+		CurrentPeriodEnd:  sub.CurrentPeriodEnd,
+		CustomerID:        customerID,
+		PriceID:           priceID,
+		CancelAtPeriodEnd: sub.CancelAtPeriodEnd,
+		CancelAt:          sub.CancelAt,
+	}
+	// Surface any active discount (coupon) so the UI can show a gift banner.
+	if sub.Discount != nil && sub.Discount.Coupon != nil {
+		c := sub.Discount.Coupon
+		out.DiscountAmountOffCents = c.AmountOff
+		out.DiscountPercentOff = int64(c.PercentOff)
+		if c.Metadata != nil {
+			out.DiscountPurpose = c.Metadata["purpose"]
+		}
+	}
+	// Surface plan-gift state from subscription metadata (set by a gift
+	// schedule). Phase 2 clears gift_active, so this is true only while the
+	// free gifted-plan phase is running.
+	if sub.Metadata != nil && sub.Metadata["gift_active"] == "1" {
+		out.GiftPlanActive = true
+		out.GiftPlanCode = sub.Metadata["gift_plan"]
+		out.GiftRevertPlanCode = sub.Metadata["gift_revert_plan"]
+	}
+	return out, nil
+}
+
+// GiftPlanSchedule converts subID into a 2-phase schedule: a free gifted-plan
+// phase (1 cycle, trial) then a revert to the current plan ongoing.
+func (g *Gateway) GiftPlanSchedule(_ context.Context, subID, giftPriceID, currentPriceID, giftCode, currentCode string) (int64, error) {
+	sched, err := subscriptionschedule.New(&stripe.SubscriptionScheduleParams{
+		FromSubscription: stripe.String(subID),
+	})
+	if err != nil {
+		return 0, fmt.Errorf("billing: stripe create gift schedule: %w", err)
+	}
+
+	updated, err := subscriptionschedule.Update(sched.ID, &stripe.SubscriptionScheduleParams{
+		EndBehavior:       stripe.String("release"),
+		ProrationBehavior: stripe.String("none"),
+		Phases: []*stripe.SubscriptionSchedulePhaseParams{
+			{
+				StartDateNow: stripe.Bool(true),
+				Items: []*stripe.SubscriptionSchedulePhaseItemParams{
+					{Price: stripe.String(giftPriceID)},
+				},
+				Iterations: stripe.Int64(1),
+				Trial:      stripe.Bool(true),
+				Metadata: map[string]string{
+					"gift_active":      "1",
+					"gift_plan":        giftCode,
+					"gift_revert_plan": currentCode,
+					"purpose":          "gift_plan_month",
+				},
+			},
+			{
+				Items: []*stripe.SubscriptionSchedulePhaseItemParams{
+					{Price: stripe.String(currentPriceID)},
+				},
+				Metadata: map[string]string{
+					"gift_active": "",
+				},
+			},
+		},
+	})
+	if err != nil {
+		return 0, fmt.Errorf("billing: stripe update gift schedule: %w", err)
+	}
+
+	if len(updated.Phases) > 0 {
+		return updated.Phases[0].EndDate, nil
+	}
+	return 0, nil
 }
 
 // ListSubscriptions returns all subscriptions Stripe holds for the customer.
@@ -388,4 +471,238 @@ func (g *Gateway) RetrieveCustomerBalance(_ context.Context, customerID string) 
 		return 0, "", fmt.Errorf("billing: stripe retrieve customer: %w", err)
 	}
 	return c.Balance, string(c.Currency), nil
+}
+
+// CreditCustomerBalance grants the customer a balance credit. amountCents is
+// positive; Stripe records credit as a NEGATIVE balance transaction.
+func (g *Gateway) CreditCustomerBalance(_ context.Context, customerID string, amountCents int64, currency, description string) error {
+	if amountCents <= 0 {
+		return fmt.Errorf("billing: credit amount must be positive, got %d", amountCents)
+	}
+	if currency == "" {
+		currency = "usd"
+	}
+	params := &stripe.CustomerBalanceTransactionParams{
+		Customer: stripe.String(customerID),
+		Amount:   stripe.Int64(-amountCents), // negative = credit to customer
+		Currency: stripe.String(currency),
+	}
+	if description != "" {
+		params.Description = stripe.String(description)
+	}
+	if _, err := customerbalancetransaction.New(params); err != nil {
+		return fmt.Errorf("billing: stripe credit customer balance: %w", err)
+	}
+	return nil
+}
+
+// ── Coupons / promotion codes ───────────────────────────────────────────────
+
+// CreateCoupon creates a once-applied amount_off coupon and returns its ID.
+func (g *Gateway) CreateCoupon(_ context.Context, amountOffCents int64, currency string, meta billingservices.CouponMetadata) (string, error) {
+	if currency == "" {
+		currency = "usd"
+	}
+	params := &stripe.CouponParams{
+		AmountOff: stripe.Int64(amountOffCents),
+		Currency:  stripe.String(currency),
+		Duration:  stripe.String(string(stripe.CouponDurationOnce)),
+	}
+	params.AddMetadata("plan_code", meta.PlanCode)
+	params.AddMetadata("billing_cycle", meta.BillingCycle)
+	params.AddMetadata("purpose", meta.Purpose)
+
+	c, err := coupon.New(params)
+	if err != nil {
+		return "", fmt.Errorf("billing: stripe create coupon: %w", err)
+	}
+	return c.ID, nil
+}
+
+// ApplyCouponToSubscription attaches couponID to an existing subscription so
+// the discount lands on the next invoice.
+func (g *Gateway) ApplyCouponToSubscription(_ context.Context, subID, couponID string) error {
+	_, err := subscription.Update(subID, &stripe.SubscriptionParams{
+		Coupon: stripe.String(couponID),
+	})
+	if err != nil {
+		return fmt.Errorf("billing: stripe apply coupon to subscription: %w", err)
+	}
+	return nil
+}
+
+// CreatePromotionCode wraps a coupon in a customer-facing code.
+func (g *Gateway) CreatePromotionCode(_ context.Context, couponID, code string, maxRedemptions, expiresAt int64) (billingservices.PromotionCode, error) {
+	params := &stripe.PromotionCodeParams{
+		Coupon: stripe.String(couponID),
+	}
+	if code != "" {
+		params.Code = stripe.String(code)
+	}
+	if maxRedemptions > 0 {
+		params.MaxRedemptions = stripe.Int64(maxRedemptions)
+	}
+	if expiresAt > 0 {
+		params.ExpiresAt = stripe.Int64(expiresAt)
+	}
+
+	pc, err := promotioncode.New(params)
+	if err != nil {
+		return billingservices.PromotionCode{}, fmt.Errorf("billing: stripe create promotion code: %w", err)
+	}
+	return toDomainPromotionCode(pc), nil
+}
+
+// ListPromotionCodes returns all promotion codes (active + inactive).
+func (g *Gateway) ListPromotionCodes(_ context.Context) ([]billingservices.PromotionCode, error) {
+	params := &stripe.PromotionCodeListParams{}
+	params.Filters.AddFilter("limit", "", "100")
+
+	iter := promotioncode.List(params)
+	var out []billingservices.PromotionCode
+	for iter.Next() {
+		out = append(out, toDomainPromotionCode(iter.PromotionCode()))
+	}
+	if err := iter.Err(); err != nil {
+		return nil, fmt.Errorf("billing: stripe list promotion codes: %w", err)
+	}
+	return out, nil
+}
+
+// DeactivatePromotionCode flips a promotion code inactive.
+func (g *Gateway) DeactivatePromotionCode(_ context.Context, promotionCodeID string) error {
+	_, err := promotioncode.Update(promotionCodeID, &stripe.PromotionCodeParams{
+		Active: stripe.Bool(false),
+	})
+	if err != nil {
+		return fmt.Errorf("billing: stripe deactivate promotion code: %w", err)
+	}
+	return nil
+}
+
+// FindPromotionCodeByCode resolves a human code to its (active) promotion code.
+func (g *Gateway) FindPromotionCodeByCode(_ context.Context, code string) (billingservices.PromotionCode, error) {
+	params := &stripe.PromotionCodeListParams{
+		Code:   stripe.String(code),
+		Active: stripe.Bool(true),
+	}
+	params.Filters.AddFilter("limit", "", "1")
+
+	iter := promotioncode.List(params)
+	for iter.Next() {
+		return toDomainPromotionCode(iter.PromotionCode()), nil
+	}
+	if err := iter.Err(); err != nil {
+		return billingservices.PromotionCode{}, fmt.Errorf("billing: stripe find promotion code: %w", err)
+	}
+	return billingservices.PromotionCode{}, fmt.Errorf("billing: promotion code %q not found or inactive", code)
+}
+
+// ── Cancellation ────────────────────────────────────────────────────────────
+
+// CancelSubscriptionAtPeriodEnd flags the subscription to end at period close.
+func (g *Gateway) CancelSubscriptionAtPeriodEnd(_ context.Context, subID string) (billingservices.StripeSubscription, error) {
+	updated, err := subscription.Update(subID, &stripe.SubscriptionParams{
+		CancelAtPeriodEnd: stripe.Bool(true),
+	})
+	if err != nil {
+		return billingservices.StripeSubscription{}, fmt.Errorf("billing: stripe cancel subscription at period end: %w", err)
+	}
+	return toDomainSubscription(updated), nil
+}
+
+// ResumeSubscription clears a pending period-end cancellation.
+func (g *Gateway) ResumeSubscription(_ context.Context, subID string) (billingservices.StripeSubscription, error) {
+	updated, err := subscription.Update(subID, &stripe.SubscriptionParams{
+		CancelAtPeriodEnd: stripe.Bool(false),
+	})
+	if err != nil {
+		return billingservices.StripeSubscription{}, fmt.Errorf("billing: stripe resume subscription: %w", err)
+	}
+	return toDomainSubscription(updated), nil
+}
+
+// RemoveSubscriptionDiscount deletes the active discount from a subscription.
+func (g *Gateway) RemoveSubscriptionDiscount(_ context.Context, subID string) error {
+	if _, err := subscription.DeleteDiscount(subID, nil); err != nil {
+		return fmt.Errorf("billing: stripe delete subscription discount: %w", err)
+	}
+	return nil
+}
+
+// CreateGiftSubscription creates a free one-month trial subscription on
+// giftPriceID for a customer with no active subscription. With no payment
+// method, the trial auto-cancels at the end (missing_payment_method=cancel).
+func (g *Gateway) CreateGiftSubscription(_ context.Context, customerID, giftPriceID, giftCode string) (billingservices.StripeSubscription, error) {
+	params := &stripe.SubscriptionParams{
+		Customer: stripe.String(customerID),
+		Items: []*stripe.SubscriptionItemsParams{
+			{Price: stripe.String(giftPriceID)},
+		},
+		TrialPeriodDays: stripe.Int64(30),
+		TrialSettings: &stripe.SubscriptionTrialSettingsParams{
+			EndBehavior: &stripe.SubscriptionTrialSettingsEndBehaviorParams{
+				MissingPaymentMethod: stripe.String("cancel"),
+			},
+		},
+		Metadata: map[string]string{
+			"gift_active":      "1",
+			"gift_plan":        giftCode,
+			"gift_revert_plan": "",
+			"purpose":          "gift_new_user",
+		},
+	}
+	sub, err := subscription.New(params)
+	if err != nil {
+		return billingservices.StripeSubscription{}, fmt.Errorf("billing: stripe create gift subscription: %w", err)
+	}
+	return toDomainSubscription(sub), nil
+}
+
+// toDomainSubscription maps a stripe.Subscription to the domain shape.
+func toDomainSubscription(sub *stripe.Subscription) billingservices.StripeSubscription {
+	var priceID string
+	if sub.Items != nil && len(sub.Items.Data) > 0 && sub.Items.Data[0].Price != nil {
+		priceID = sub.Items.Data[0].Price.ID
+	}
+	var customerID string
+	if sub.Customer != nil {
+		customerID = sub.Customer.ID
+	}
+	out := billingservices.StripeSubscription{
+		ID:                sub.ID,
+		Status:            string(sub.Status),
+		CurrentPeriodEnd:  sub.CurrentPeriodEnd,
+		CustomerID:        customerID,
+		PriceID:           priceID,
+		CancelAtPeriodEnd: sub.CancelAtPeriodEnd,
+		CancelAt:          sub.CancelAt,
+	}
+	if sub.Metadata != nil && sub.Metadata["gift_active"] == "1" {
+		out.GiftPlanActive = true
+		out.GiftPlanCode = sub.Metadata["gift_plan"]
+		out.GiftRevertPlanCode = sub.Metadata["gift_revert_plan"]
+	}
+	return out
+}
+
+func toDomainPromotionCode(pc *stripe.PromotionCode) billingservices.PromotionCode {
+	out := billingservices.PromotionCode{
+		ID:             pc.ID,
+		Code:           pc.Code,
+		Active:         pc.Active,
+		MaxRedemptions: pc.MaxRedemptions,
+		TimesRedeemed:  pc.TimesRedeemed,
+		ExpiresAt:      pc.ExpiresAt,
+	}
+	if pc.Coupon != nil {
+		out.CouponID = pc.Coupon.ID
+		out.AmountOffCents = pc.Coupon.AmountOff
+		out.Currency = string(pc.Coupon.Currency)
+		if pc.Coupon.Metadata != nil {
+			out.PlanCode = pc.Coupon.Metadata["plan_code"]
+			out.BillingCycle = pc.Coupon.Metadata["billing_cycle"]
+		}
+	}
+	return out
 }

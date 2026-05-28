@@ -34,3 +34,8 @@ type UsageTrackingRepository interface {
 	// CountAlerts returns alert count.
 	CountAlerts(ctx context.Context) (int, error)
 }
+
+// UsageTrackingRepositoryFactory builds a tenant-scoped usage repository for a
+// given schema. Used by admin use cases (assign_plan, gift_month) that operate
+// on a TARGET org's schema resolved per-request — not the caller's own tenant.
+type UsageTrackingRepositoryFactory func(tenant string) UsageTrackingRepository

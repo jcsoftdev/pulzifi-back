@@ -19,4 +19,25 @@ type Response struct {
 	// Zero when the customer has no credit (or a positive balance owed).
 	CreditBalanceCents int64  `json:"credit_balance_cents"`
 	CreditBalanceCurrency string `json:"credit_balance_currency"` // ISO currency, e.g. "usd"
+
+	// GiftActive is true when a "free month" gift coupon is applied to the
+	// subscription. Drives the clear free-month banner in the UI.
+	GiftActive bool `json:"gift_active"`
+	// GiftAmountOffCents is the discount the gift applies to the next invoice.
+	GiftAmountOffCents int64 `json:"gift_amount_off_cents"`
+
+	// CancelAtPeriodEnd is true when the user scheduled cancellation: the sub
+	// stays active until CancelAt, then the plan deactivates (no active plan).
+	CancelAtPeriodEnd bool `json:"cancel_at_period_end"`
+	// CancelAt is when the scheduled cancellation takes effect; nil otherwise.
+	CancelAt *time.Time `json:"cancel_at"`
+
+	// PlanGiftActive is true while the org is using a gifted higher-tier plan
+	// for free. GiftPlanCode is the plan they're using; GiftRevertPlanCode is
+	// the plan they return to when the gift ends (GiftEndsAt). Drives the clear
+	// "you're on a free month of Pro until X, then back to Starter" banner.
+	PlanGiftActive     bool       `json:"plan_gift_active"`
+	GiftPlanCode       string     `json:"gift_plan_code"`
+	GiftRevertPlanCode string     `json:"gift_revert_plan_code"`
+	GiftEndsAt         *time.Time `json:"gift_ends_at"`
 }

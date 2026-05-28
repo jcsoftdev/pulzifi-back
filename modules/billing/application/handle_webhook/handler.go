@@ -124,7 +124,7 @@ func (h *Handler) dispatch(ctx context.Context, event services.StripeEvent) erro
 		return h.handleCheckoutCompleted(ctx, event)
 	case "invoice.paid":
 		return h.handleInvoicePaid(ctx, event)
-	case "customer.subscription.updated":
+	case "customer.subscription.created", "customer.subscription.updated":
 		return h.handleSubscriptionUpdated(ctx, event)
 	case "customer.subscription.deleted":
 		return h.handleSubscriptionDeleted(ctx, event)
@@ -323,21 +323,11 @@ func (h *Handler) handleSubscriptionDeleted(ctx context.Context, event services.
 		return err
 	}
 
-	orgID, err := h.resolveOrgByCustomer(ctx, payload.Customer)
-	if err != nil {
-		return err
-	}
-
-	// Empty priceID signals starter plan downgrade to the PlanAssigner
-	return h.planAssigner.Assign(ctx, services.AssignInput{
-		OrgID:                orgID,
-		StripeSubscriptionID: payload.ID,
-		StripePriceID:        "", // signals: downgrade to starter
-		StripeCustomerID:     payload.Customer,
-		BillingStatus:        entities.BillingCanceled,
-		CurrentPeriodEnd:     time.Unix(payload.resolveCurrentPeriodEnd(), 0),
-		PaymentStatus:        "ok",
-	})
+	// Full cancellation → deactivate the org's plan with NO replacement. The org
+	// ends up with no active plan (expired): read-only / gated until they
+	// subscribe again. (Previously this downgraded to starter, which silently
+	// kept the org on a paid-looking tier after they canceled.)
+	return h.planAssigner.Deactivate(ctx, payload.Customer)
 }
 
 func (h *Handler) handlePaymentFailed(ctx context.Context, event services.StripeEvent) error {

@@ -43,6 +43,46 @@ type MockStripeGateway struct {
 	RetrieveCustomerBalanceErr      error
 	RetrieveCustomerBalanceFn       func(ctx context.Context, customerID string) (int64, string, error)
 
+	// Cancel / resume
+	CancelSubscriptionResult services.StripeSubscription
+	CancelSubscriptionErr    error
+	CancelSubscriptionFn     func(ctx context.Context, subID string) (services.StripeSubscription, error)
+	ResumeSubscriptionResult services.StripeSubscription
+	ResumeSubscriptionErr    error
+	ResumeSubscriptionFn     func(ctx context.Context, subID string) (services.StripeSubscription, error)
+
+	// CreditCustomerBalance
+	CreditCustomerBalanceErr error
+	CreditCustomerBalanceFn  func(ctx context.Context, customerID string, amountCents int64, currency, description string) error
+	CreditCustomerBalanceCalls int
+	LastCreditCustomerID       string
+	LastCreditAmountCents      int64
+	LastCreditCurrency         string
+
+	// RemoveSubscriptionDiscount
+	RemoveSubscriptionDiscountErr error
+	RemoveSubscriptionDiscountFn  func(ctx context.Context, subID string) error
+	RemoveDiscountCalls           int
+	LastRemoveDiscountSubID       string
+
+	// GiftPlanSchedule
+	GiftPlanScheduleRevertAt    int64
+	GiftPlanScheduleErr         error
+	GiftPlanScheduleFn          func(ctx context.Context, subID, giftPriceID, currentPriceID, giftCode, currentCode string) (int64, error)
+	GiftPlanScheduleCalls       int
+	LastGiftScheduleSubID       string
+	LastGiftScheduleGiftPriceID string
+	LastGiftScheduleGiftCode    string
+
+	// CreateGiftSubscription
+	CreateGiftSubscriptionResult services.StripeSubscription
+	CreateGiftSubscriptionErr    error
+	CreateGiftSubscriptionFn     func(ctx context.Context, customerID, giftPriceID, giftCode string) (services.StripeSubscription, error)
+	CreateGiftSubscriptionCalls  int
+	LastGiftSubCustomerID        string
+	LastGiftSubPriceID           string
+	LastGiftSubCode              string
+
 	// ListSubscriptions
 	ListSubscriptionsResult []services.StripeSubscription
 	ListSubscriptionsErr    error
@@ -77,6 +117,38 @@ type MockStripeGateway struct {
 	RetrievePriceAmountErr  error
 	RetrievePriceAmountFn   func(ctx context.Context, priceID string) (int64, string, error)
 
+	// CreateCoupon
+	CreateCouponResult string
+	CreateCouponErr    error
+	CreateCouponFn     func(ctx context.Context, amountOffCents int64, currency string, meta services.CouponMetadata) (string, error)
+	LastCouponAmount   int64
+
+	// ApplyCouponToSubscription
+	ApplyCouponToSubscriptionErr error
+	ApplyCouponToSubscriptionFn  func(ctx context.Context, subID, couponID string) error
+	LastApplySubID               string
+	LastApplyCouponID            string
+
+	// CreatePromotionCode
+	CreatePromotionCodeResult services.PromotionCode
+	CreatePromotionCodeErr    error
+	CreatePromotionCodeFn     func(ctx context.Context, couponID, code string, maxRedemptions, expiresAt int64) (services.PromotionCode, error)
+
+	// ListPromotionCodes
+	ListPromotionCodesResult []services.PromotionCode
+	ListPromotionCodesErr    error
+	ListPromotionCodesFn     func(ctx context.Context) ([]services.PromotionCode, error)
+
+	// DeactivatePromotionCode
+	DeactivatePromotionCodeErr error
+	DeactivatePromotionCodeFn  func(ctx context.Context, promotionCodeID string) error
+	LastDeactivatedPromoID     string
+
+	// FindPromotionCodeByCode
+	FindPromotionCodeByCodeResult services.PromotionCode
+	FindPromotionCodeByCodeErr    error
+	FindPromotionCodeByCodeFn     func(ctx context.Context, code string) (services.PromotionCode, error)
+
 	// Call counters
 	EnsureCustomerCalls            int
 	CreateCheckoutSessionCalls     int
@@ -89,6 +161,11 @@ type MockStripeGateway struct {
 	PreviewProrationCalls                int
 	CreateRefundCreditInvoiceItemCalls   int
 	UpdateSubscriptionAnchorNowCalls     int
+	CreateCouponCalls                    int
+	CreatePromotionCodeCalls             int
+	ListPromotionCodesCalls              int
+	DeactivatePromotionCodeCalls         int
+	FindPromotionCodeByCodeCalls         int
 }
 
 func (m *MockStripeGateway) EnsureCustomer(ctx context.Context, orgID, email, name string) (string, error) {
@@ -137,6 +214,39 @@ func (m *MockStripeGateway) RetrieveCustomerBalance(ctx context.Context, custome
 		return m.RetrieveCustomerBalanceFn(ctx, customerID)
 	}
 	return m.RetrieveCustomerBalanceCents, m.RetrieveCustomerBalanceCurrency, m.RetrieveCustomerBalanceErr
+}
+
+func (m *MockStripeGateway) GiftPlanSchedule(ctx context.Context, subID, giftPriceID, currentPriceID, giftCode, currentCode string) (int64, error) {
+	m.GiftPlanScheduleCalls++
+	m.LastGiftScheduleSubID = subID
+	m.LastGiftScheduleGiftPriceID = giftPriceID
+	m.LastGiftScheduleGiftCode = giftCode
+	if m.GiftPlanScheduleFn != nil {
+		return m.GiftPlanScheduleFn(ctx, subID, giftPriceID, currentPriceID, giftCode, currentCode)
+	}
+	return m.GiftPlanScheduleRevertAt, m.GiftPlanScheduleErr
+}
+
+func (m *MockStripeGateway) CreateGiftSubscription(ctx context.Context, customerID, giftPriceID, giftCode string) (services.StripeSubscription, error) {
+	m.CreateGiftSubscriptionCalls++
+	m.LastGiftSubCustomerID = customerID
+	m.LastGiftSubPriceID = giftPriceID
+	m.LastGiftSubCode = giftCode
+	if m.CreateGiftSubscriptionFn != nil {
+		return m.CreateGiftSubscriptionFn(ctx, customerID, giftPriceID, giftCode)
+	}
+	return m.CreateGiftSubscriptionResult, m.CreateGiftSubscriptionErr
+}
+
+func (m *MockStripeGateway) CreditCustomerBalance(ctx context.Context, customerID string, amountCents int64, currency, description string) error {
+	m.CreditCustomerBalanceCalls++
+	m.LastCreditCustomerID = customerID
+	m.LastCreditAmountCents = amountCents
+	m.LastCreditCurrency = currency
+	if m.CreditCustomerBalanceFn != nil {
+		return m.CreditCustomerBalanceFn(ctx, customerID, amountCents, currency, description)
+	}
+	return m.CreditCustomerBalanceErr
 }
 
 func (m *MockStripeGateway) ListSubscriptions(ctx context.Context, customerID string) ([]services.StripeSubscription, error) {
@@ -196,4 +306,78 @@ func (m *MockStripeGateway) RetrievePriceAmount(ctx context.Context, priceID str
 		}
 	}
 	return 0, m.RetrievePriceCurrency, m.RetrievePriceAmountErr
+}
+
+func (m *MockStripeGateway) CreateCoupon(ctx context.Context, amountOffCents int64, currency string, meta services.CouponMetadata) (string, error) {
+	m.CreateCouponCalls++
+	m.LastCouponAmount = amountOffCents
+	if m.CreateCouponFn != nil {
+		return m.CreateCouponFn(ctx, amountOffCents, currency, meta)
+	}
+	return m.CreateCouponResult, m.CreateCouponErr
+}
+
+func (m *MockStripeGateway) CreatePromotionCode(ctx context.Context, couponID, code string, maxRedemptions, expiresAt int64) (services.PromotionCode, error) {
+	m.CreatePromotionCodeCalls++
+	if m.CreatePromotionCodeFn != nil {
+		return m.CreatePromotionCodeFn(ctx, couponID, code, maxRedemptions, expiresAt)
+	}
+	return m.CreatePromotionCodeResult, m.CreatePromotionCodeErr
+}
+
+func (m *MockStripeGateway) ListPromotionCodes(ctx context.Context) ([]services.PromotionCode, error) {
+	m.ListPromotionCodesCalls++
+	if m.ListPromotionCodesFn != nil {
+		return m.ListPromotionCodesFn(ctx)
+	}
+	return m.ListPromotionCodesResult, m.ListPromotionCodesErr
+}
+
+func (m *MockStripeGateway) DeactivatePromotionCode(ctx context.Context, promotionCodeID string) error {
+	m.DeactivatePromotionCodeCalls++
+	m.LastDeactivatedPromoID = promotionCodeID
+	if m.DeactivatePromotionCodeFn != nil {
+		return m.DeactivatePromotionCodeFn(ctx, promotionCodeID)
+	}
+	return m.DeactivatePromotionCodeErr
+}
+
+func (m *MockStripeGateway) FindPromotionCodeByCode(ctx context.Context, code string) (services.PromotionCode, error) {
+	m.FindPromotionCodeByCodeCalls++
+	if m.FindPromotionCodeByCodeFn != nil {
+		return m.FindPromotionCodeByCodeFn(ctx, code)
+	}
+	return m.FindPromotionCodeByCodeResult, m.FindPromotionCodeByCodeErr
+}
+
+func (m *MockStripeGateway) ApplyCouponToSubscription(ctx context.Context, subID, couponID string) error {
+	m.LastApplySubID = subID
+	m.LastApplyCouponID = couponID
+	if m.ApplyCouponToSubscriptionFn != nil {
+		return m.ApplyCouponToSubscriptionFn(ctx, subID, couponID)
+	}
+	return m.ApplyCouponToSubscriptionErr
+}
+
+func (m *MockStripeGateway) CancelSubscriptionAtPeriodEnd(ctx context.Context, subID string) (services.StripeSubscription, error) {
+	if m.CancelSubscriptionFn != nil {
+		return m.CancelSubscriptionFn(ctx, subID)
+	}
+	return m.CancelSubscriptionResult, m.CancelSubscriptionErr
+}
+
+func (m *MockStripeGateway) ResumeSubscription(ctx context.Context, subID string) (services.StripeSubscription, error) {
+	if m.ResumeSubscriptionFn != nil {
+		return m.ResumeSubscriptionFn(ctx, subID)
+	}
+	return m.ResumeSubscriptionResult, m.ResumeSubscriptionErr
+}
+
+func (m *MockStripeGateway) RemoveSubscriptionDiscount(ctx context.Context, subID string) error {
+	m.RemoveDiscountCalls++
+	m.LastRemoveDiscountSubID = subID
+	if m.RemoveSubscriptionDiscountFn != nil {
+		return m.RemoveSubscriptionDiscountFn(ctx, subID)
+	}
+	return m.RemoveSubscriptionDiscountErr
 }
