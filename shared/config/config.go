@@ -166,7 +166,7 @@ func Load() *Config {
 		FrontendURL:           getEnv("FRONTEND_URL", ""),
 		NextJSURL:             getEnv("NEXTJS_URL", "http://localhost:3001"),
 		StaticDir:             getEnv("STATIC_DIR", "./frontend/dist"),
-		CORSAllowedOrigins:    mustGetEnv("CORS_ALLOWED_ORIGINS"),
+		CORSAllowedOrigins:    getEnv("CORS_ALLOWED_ORIGINS", ""),
 		CORSAllowedMethods:    getEnv("CORS_ALLOWED_METHODS", "GET,POST,PUT,DELETE,OPTIONS,PATCH"),
 		CORSAllowedHeaders:    getEnv("CORS_ALLOWED_HEADERS", "Content-Type,Authorization,X-Tenant"),
 		ModuleName:            getEnv("MODULE_NAME", "unknown"),
