@@ -27,7 +27,7 @@ func (p *rejectionProvisioner) Reject(ctx context.Context, input adminservices.R
 		logger.Error("Failed to begin rejection transaction", zap.Error(err))
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	// Update user status to rejected
 	_, err = tx.ExecContext(ctx,

@@ -40,6 +40,7 @@ import (
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"github.com/jcsoftdev/pulzifi-back/shared/router"
 	"go.uber.org/zap"
+	"golang.org/x/oauth2"
 )
 
 type Module struct {
@@ -538,79 +539,102 @@ func (m *Module) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	userID, ok := m.resolveOAuthUser(w, r, providerName, oauthUser, token)
+	if !ok {
+		return
+	}
+
+	if !m.issueOAuthSession(w, r, userID, oauthUser.Email) {
+		return
+	}
+
+	m.redirectAfterOAuth(w, r, userID)
+}
+
+// resolveOAuthUser finds or creates the user for an OAuth callback and ensures
+// the provider link row exists. On failure it writes the HTTP error and returns
+// ok=false.
+func (m *Module) resolveOAuthUser(w http.ResponseWriter, r *http.Request, providerName string, oauthUser *oauthproviders.OAuthUser, token *oauth2.Token) (uuid.UUID, bool) {
 	// Check if OAuth link exists
 	var existingUserID uuid.UUID
-	err = m.db.QueryRowContext(r.Context(),
+	err := m.db.QueryRowContext(r.Context(),
 		`SELECT user_id FROM public.user_oauth_providers WHERE provider = $1 AND provider_user_id = $2`,
 		providerName, oauthUser.ProviderID,
 	).Scan(&existingUserID)
 
-	var userID uuid.UUID
 	if err == nil {
 		// Existing OAuth link — log in
-		userID = existingUserID
-	} else {
-		// Check if user exists by email
-		existingUser, _ := m.userRepo.GetByEmail(r.Context(), oauthUser.Email)
-		if existingUser != nil {
-			userID = existingUser.ID
-		} else {
-			// Create new user (auto-approved for OAuth)
-			randomPassword := make([]byte, 32)
-			rand.Read(randomPassword)
-			hashedPw, _ := m.authService.HashPassword(hex.EncodeToString(randomPassword))
-
-			newUserID := uuid.New()
-			avatarPtr := &oauthUser.AvatarURL
-			if oauthUser.AvatarURL == "" {
-				avatarPtr = nil
-			}
-
-			_, err = m.db.ExecContext(r.Context(),
-				`INSERT INTO public.users (id, email, password_hash, first_name, last_name, avatar_url, status, email_verified, created_at, updated_at)
-				 VALUES ($1, $2, $3, $4, $5, $6, 'approved', true, NOW(), NOW())`,
-				newUserID, oauthUser.Email, hashedPw, oauthUser.FirstName, oauthUser.LastName, avatarPtr,
-			)
-			if err != nil {
-				logger.Error("Failed to create OAuth user", zap.Error(err))
-				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to create account"})
-				return
-			}
-			userID = newUserID
-		}
-
-		// Create OAuth provider link
-		accessToken := ""
-		refreshToken := ""
-		if token != nil {
-			accessToken = token.AccessToken
-			refreshToken = token.RefreshToken
-		}
-		_, err = m.db.ExecContext(r.Context(),
-			`INSERT INTO public.user_oauth_providers (user_id, provider, provider_user_id, email, access_token, refresh_token)
-			 VALUES ($1, $2, $3, $4, $5, $6)
-			 ON CONFLICT (provider, provider_user_id) DO UPDATE SET access_token = $5, refresh_token = $6, updated_at = NOW()`,
-			userID, providerName, oauthUser.ProviderID, oauthUser.Email, accessToken, refreshToken,
-		)
-		if err != nil {
-			logger.Error("Failed to save OAuth provider link", zap.Error(err))
-			// Non-fatal — user can still log in
-		}
+		return existingUserID, true
 	}
 
+	var userID uuid.UUID
+	// Check if user exists by email
+	existingUser, _ := m.userRepo.GetByEmail(r.Context(), oauthUser.Email)
+	if existingUser != nil {
+		userID = existingUser.ID
+	} else {
+		// Create new user (auto-approved for OAuth)
+		randomPassword := make([]byte, 32)
+		rand.Read(randomPassword)
+		hashedPw, _ := m.authService.HashPassword(hex.EncodeToString(randomPassword))
+
+		newUserID := uuid.New()
+		avatarPtr := &oauthUser.AvatarURL
+		if oauthUser.AvatarURL == "" {
+			avatarPtr = nil
+		}
+
+		_, err = m.db.ExecContext(r.Context(),
+			`INSERT INTO public.users (id, email, password_hash, first_name, last_name, avatar_url, status, email_verified, created_at, updated_at)
+			 VALUES ($1, $2, $3, $4, $5, $6, 'approved', true, NOW(), NOW())`,
+			newUserID, oauthUser.Email, hashedPw, oauthUser.FirstName, oauthUser.LastName, avatarPtr,
+		)
+		if err != nil {
+			logger.Error("Failed to create OAuth user", zap.Error(err))
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to create account"})
+			return uuid.Nil, false
+		}
+		userID = newUserID
+	}
+
+	// Create OAuth provider link
+	accessToken := ""
+	refreshToken := ""
+	if token != nil {
+		accessToken = token.AccessToken
+		refreshToken = token.RefreshToken
+	}
+	_, err = m.db.ExecContext(r.Context(),
+		`INSERT INTO public.user_oauth_providers (user_id, provider, provider_user_id, email, access_token, refresh_token)
+		 VALUES ($1, $2, $3, $4, $5, $6)
+		 ON CONFLICT (provider, provider_user_id) DO UPDATE SET access_token = $5, refresh_token = $6, updated_at = NOW()`,
+		userID, providerName, oauthUser.ProviderID, oauthUser.Email, accessToken, refreshToken,
+	)
+	if err != nil {
+		logger.Error("Failed to save OAuth provider link", zap.Error(err))
+		// Non-fatal — user can still log in
+	}
+
+	return userID, true
+}
+
+// issueOAuthSession generates and persists JWT tokens for the OAuth user and
+// sets the access/refresh cookies. On failure it writes the HTTP error and
+// returns false.
+func (m *Module) issueOAuthSession(w http.ResponseWriter, r *http.Request, userID uuid.UUID, email string) bool {
 	// Generate JWT tokens
-	accessTokenStr, err := m.tokenService.GenerateAccessToken(r.Context(), userID, oauthUser.Email)
+	accessTokenStr, err := m.tokenService.GenerateAccessToken(r.Context(), userID, email)
 	if err != nil {
 		logger.Error("Failed to generate access token for OAuth user", zap.Error(err))
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to generate token"})
-		return
+		return false
 	}
 
 	refreshTokenStr, err := m.tokenService.GenerateRefreshToken(r.Context(), userID)
 	if err != nil {
 		logger.Error("Failed to generate refresh token for OAuth user", zap.Error(err))
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to generate token"})
-		return
+		return false
 	}
 
 	// Persist refresh token so the rotation flow (POST /auth/refresh) can find it.
@@ -619,7 +643,7 @@ func (m *Module) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	if err := m.refreshTokenRepo.Create(r.Context(), newRefreshToken); err != nil {
 		logger.Error("Failed to store refresh token for OAuth user", zap.Error(err))
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to create session"})
-		return
+		return false
 	}
 
 	// Set cookies
@@ -628,8 +652,12 @@ func (m *Module) handleOAuthCallback(w http.ResponseWriter, r *http.Request) {
 	refreshExpires := time.Now().Add(m.tokenService.GetRefreshTokenExpiration())
 	cookies.SetRefreshTokenCookie(w, r, refreshTokenStr, refreshExpires, m.cookieDomain, m.cookieSecure)
 
-	// Redirect based on membership: new users go to /onboarding, returning
-	// users go straight to their tenant subdomain.
+	return true
+}
+
+// redirectAfterOAuth chooses the post-login redirect: new users go to
+// /onboarding, returning users go straight to their tenant subdomain.
+func (m *Module) redirectAfterOAuth(w http.ResponseWriter, r *http.Request, userID uuid.UUID) {
 	hasMembership, membershipErr := m.membershipChecker.HasAnyMembership(r.Context(), userID)
 	if membershipErr != nil {
 		// Non-fatal: log and fall back to the plain frontend URL so auth still
@@ -914,5 +942,5 @@ func (m *Module) handleOnboarding(w http.ResponseWriter, r *http.Request) {
 func writeJSON(w http.ResponseWriter, status int, v interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v)
+	_ = json.NewEncoder(w).Encode(v)
 }

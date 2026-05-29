@@ -69,7 +69,7 @@ func (r *RolePostgresRepository) GetUserRoles(ctx context.Context, userID uuid.U
 		logger.Error("Failed to get user roles", zap.Error(err))
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var roles []*entities.Role
 	for rows.Next() {
@@ -97,7 +97,7 @@ func (r *RolePostgresRepository) GetRolePermissions(ctx context.Context, roleID 
 		logger.Error("Failed to get role permissions", zap.Error(err))
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var permissions []*entities.Permission
 	for rows.Next() {

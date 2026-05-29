@@ -108,18 +108,18 @@ func (b *RedisInsightBroker) listenLoop() {
 		if err := b.runInsightReceive(pubsub); err != nil {
 			select {
 			case <-b.ctx.Done():
-				pubsub.Close()
+				_ = pubsub.Close()
 				return
 			default:
 			}
-			pubsub.Close()
+			_ = pubsub.Close()
 			time.Sleep(backoff)
 			backoff *= 2
 			if backoff > maxBackoff {
 				backoff = maxBackoff
 			}
 		} else {
-			pubsub.Close()
+			_ = pubsub.Close()
 			return
 		}
 	}

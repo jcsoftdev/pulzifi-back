@@ -157,7 +157,7 @@ func (r *CheckPostgresRepository) ListByPage(ctx context.Context, pageID uuid.UU
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var checks []*entities.Check
 	for rows.Next() {
@@ -212,7 +212,7 @@ func (r *CheckPostgresRepository) ListByPageAndSection(ctx context.Context, page
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var checks []*entities.Check
 	for rows.Next() {
@@ -284,7 +284,7 @@ func (r *CheckPostgresRepository) ListByParentCheckID(ctx context.Context, paren
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var checks []*entities.Check
 	for rows.Next() {
@@ -309,7 +309,7 @@ func (r *CheckPostgresRepository) ListSectionChecksByPage(ctx context.Context, p
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var checks []*entities.Check
 	for rows.Next() {

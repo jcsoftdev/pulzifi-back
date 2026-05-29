@@ -76,49 +76,11 @@ func (h *Handler) Handle(ctx context.Context, req Request) (*Response, error) {
 		return nil, err
 	}
 
-	orgID, err := uuid.Parse(req.OrgID)
-	if err == nil {
-		existing, _ := h.customerRepo.FindByOrgID(ctx, orgID)
-		if existing == nil {
-			if saveErr := h.customerRepo.Save(ctx, &entities.Customer{
-				OrgID:            orgID,
-				StripeCustomerID: customerID,
-			}); saveErr != nil {
-				logger.Warn("create_checkout_session: persist customer linkage failed",
-					zap.String("org_id", req.OrgID),
-					zap.String("customer_id", customerID),
-					zap.Error(saveErr),
-				)
-			} else if h.reconciler != nil {
-				// Fresh link → reconcile in case Stripe has paid subs we missed
-				// (orphan webhooks, guest payments, etc.). Best-effort: log + continue.
-				if recErr := h.reconciler.Reconcile(ctx, orgID, customerID); recErr != nil {
-					logger.Warn("create_checkout_session: reconcile-on-link failed",
-						zap.String("org_id", req.OrgID),
-						zap.String("customer_id", customerID),
-						zap.Error(recErr),
-					)
-				}
-			}
-		}
+	if orgID, parseErr := uuid.Parse(req.OrgID); parseErr == nil {
+		h.linkCustomer(ctx, orgID, req.OrgID, customerID)
 	}
 
-	// Resolve an optional promo code (apply-link path) to its Stripe
-	// promotion code id. Invalid / expired / unknown codes are ignored — the
-	// hosted promo-code field stays available so checkout never breaks on a
-	// bad code.
-	var promotionCodeID string
-	if req.PromotionCode != "" {
-		pc, pcErr := h.gateway.FindPromotionCodeByCode(ctx, req.PromotionCode)
-		if pcErr != nil || !pc.Active {
-			logger.Warn("create_checkout_session: promo code ignored",
-				zap.String("code", req.PromotionCode),
-				zap.Error(pcErr),
-			)
-		} else {
-			promotionCodeID = pc.ID
-		}
-	}
+	promotionCodeID := h.resolvePromotionCode(ctx, req.PromotionCode)
 
 	url, err := h.gateway.CreateCheckoutSession(ctx, services.CheckoutInput{
 		CustomerID:      customerID,
@@ -132,4 +94,57 @@ func (h *Handler) Handle(ctx context.Context, req Request) (*Response, error) {
 	}
 
 	return &Response{CheckoutURL: url}, nil
+}
+
+// linkCustomer persists the org→Stripe-customer mapping when it does not yet
+// exist and, on a fresh link, runs the optional reconcile-on-link hook.
+// Best-effort: all failures are logged and swallowed.
+func (h *Handler) linkCustomer(ctx context.Context, orgID uuid.UUID, orgIDStr, customerID string) {
+	existing, _ := h.customerRepo.FindByOrgID(ctx, orgID)
+	if existing != nil {
+		return
+	}
+
+	if saveErr := h.customerRepo.Save(ctx, &entities.Customer{
+		OrgID:            orgID,
+		StripeCustomerID: customerID,
+	}); saveErr != nil {
+		logger.Warn("create_checkout_session: persist customer linkage failed",
+			zap.String("org_id", orgIDStr),
+			zap.String("customer_id", customerID),
+			zap.Error(saveErr),
+		)
+		return
+	}
+
+	if h.reconciler != nil {
+		// Fresh link → reconcile in case Stripe has paid subs we missed
+		// (orphan webhooks, guest payments, etc.). Best-effort: log + continue.
+		if recErr := h.reconciler.Reconcile(ctx, orgID, customerID); recErr != nil {
+			logger.Warn("create_checkout_session: reconcile-on-link failed",
+				zap.String("org_id", orgIDStr),
+				zap.String("customer_id", customerID),
+				zap.Error(recErr),
+			)
+		}
+	}
+}
+
+// resolvePromotionCode resolves an optional promo code (apply-link path) to its
+// Stripe promotion code id. Invalid / expired / unknown codes are ignored — the
+// hosted promo-code field stays available so checkout never breaks on a bad
+// code. Returns an empty string when no valid code applies.
+func (h *Handler) resolvePromotionCode(ctx context.Context, code string) string {
+	if code == "" {
+		return ""
+	}
+	pc, pcErr := h.gateway.FindPromotionCodeByCode(ctx, code)
+	if pcErr != nil || !pc.Active {
+		logger.Warn("create_checkout_session: promo code ignored",
+			zap.String("code", code),
+			zap.Error(pcErr),
+		)
+		return ""
+	}
+	return pc.ID
 }

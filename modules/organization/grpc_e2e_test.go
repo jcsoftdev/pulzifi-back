@@ -13,7 +13,7 @@ import (
 func dialGRPC(t *testing.T) *grpc.ClientConn {
 	t.Helper()
 	addr := getGRPCAddress()
-	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		t.Fatalf("Failed to connect to gRPC server at %s: %v", addr, err)
 	}

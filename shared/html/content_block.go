@@ -132,145 +132,153 @@ func ExtractContentBlocks(htmlContent string) []ContentBlock {
 		return nil
 	}
 
-	var blocks []ContentBlock
-	var listDepth int
+	w := &blockWalker{}
+	w.walk(doc)
+	return w.blocks
+}
 
-	var walk func(n *html.Node)
-	walk = func(n *html.Node) {
-		if n.Type == html.ElementNode && contentSkipTags[n.Data] {
+// blockWalker carries the mutable state for a single ExtractContentBlocks DOM walk.
+type blockWalker struct {
+	blocks    []ContentBlock
+	listDepth int
+}
+
+// walk performs the recursive DOM traversal, dispatching each element to its
+// emitter. Returns after emitting a block when the element type owns its subtree.
+func (w *blockWalker) walk(n *html.Node) {
+	if n.Type == html.ElementNode && contentSkipTags[n.Data] {
+		return
+	}
+
+	if n.Type == html.ElementNode {
+		if handled := w.emitElement(n); handled {
 			return
-		}
-
-		if n.Type == html.ElementNode {
-			tag := n.Data
-
-			// Headings
-			if lvl := headingLevel(tag); lvl > 0 {
-				text := normalizeText(collectText(n))
-				if text != "" {
-					blocks = append(blocks, ContentBlock{Type: BlockHeading, Level: lvl, Text: text})
-				}
-				return // don't recurse into heading children (already collected)
-			}
-
-			// Paragraphs
-			if tag == "p" {
-				text := normalizeText(collectText(n))
-				if text != "" {
-					blocks = append(blocks, ContentBlock{Type: BlockParagraph, Text: text})
-				}
-				return
-			}
-
-			// Links (standalone — emit block, don't recurse)
-			if tag == "a" {
-				text := normalizeText(collectText(n))
-				href := getAttr(n, "href")
-				if text != "" || href != "" {
-					blocks = append(blocks, ContentBlock{Type: BlockLink, Text: text, Href: href})
-				}
-				return
-			}
-
-			// Images
-			if tag == "img" {
-				src := getAttr(n, "src")
-				alt := getAttr(n, "alt")
-				if src != "" || alt != "" {
-					blocks = append(blocks, ContentBlock{Type: BlockImage, Src: src, Alt: alt})
-				}
-				return
-			}
-
-			// List items — collect own text (excluding nested lists), then recurse for nested lists.
-			if tag == "li" {
-				var ownText strings.Builder
-				hasNestedList := false
-				for c := n.FirstChild; c != nil; c = c.NextSibling {
-					if c.Type == html.ElementNode && (c.Data == "ul" || c.Data == "ol") {
-						hasNestedList = true
-					} else {
-						ownText.WriteString(collectText(c))
-					}
-				}
-				text := normalizeText(ownText.String())
-				if text != "" {
-					blocks = append(blocks, ContentBlock{Type: BlockListItem, Level: listDepth, Text: text})
-				}
-				if hasNestedList {
-					for c := n.FirstChild; c != nil; c = c.NextSibling {
-						if c.Type == html.ElementNode && (c.Data == "ul" || c.Data == "ol") {
-							walk(c)
-						}
-					}
-				}
-				return
-			}
-
-			// Lists — track depth
-			if tag == "ul" || tag == "ol" {
-				listDepth++
-				for c := n.FirstChild; c != nil; c = c.NextSibling {
-					walk(c)
-				}
-				listDepth--
-				return
-			}
-
-			// Table cells
-			if tag == "td" || tag == "th" {
-				text := normalizeText(collectText(n))
-				if text != "" {
-					blocks = append(blocks, ContentBlock{Type: BlockTableCell, Text: text})
-				}
-				return
-			}
-
-			// Code blocks
-			if tag == "pre" || tag == "code" {
-				text := normalizeText(collectText(n))
-				if text != "" {
-					blocks = append(blocks, ContentBlock{Type: BlockCode, Text: text})
-				}
-				return
-			}
-
-			// Blockquotes
-			if tag == "blockquote" {
-				text := normalizeText(collectText(n))
-				if text != "" {
-					blocks = append(blocks, ContentBlock{Type: BlockBlockquote, Text: text})
-				}
-				return
-			}
-		}
-
-		// Transparent containers (div, section, span, etc.) — if they contain only
-		// inline content (no block-level children), emit as a paragraph block so
-		// text in non-semantic markup isn't lost.
-		if n.Type == html.ElementNode && isTransparentContainer(n.Data) && !hasBlockChild(n) {
-			text := normalizeText(collectText(n))
-			if text != "" {
-				blocks = append(blocks, ContentBlock{Type: BlockParagraph, Text: text})
-			}
-			return
-		}
-
-		// For all other nodes, recurse into children.
-		for c := n.FirstChild; c != nil; c = c.NextSibling {
-			walk(c)
 		}
 	}
 
-	walk(doc)
-	return blocks
+	// Transparent containers (div, section, span, etc.) — if they contain only
+	// inline content (no block-level children), emit as a paragraph block so
+	// text in non-semantic markup isn't lost.
+	if n.Type == html.ElementNode && isTransparentContainer(n.Data) && !hasBlockChild(n) {
+		w.appendText(BlockParagraph, normalizeText(collectText(n)))
+		return
+	}
+
+	// For all other nodes, recurse into children.
+	w.walkChildren(n)
+}
+
+// emitElement handles a single element node, returning true when the element
+// type fully owns its subtree (so the caller must not recurse further).
+func (w *blockWalker) emitElement(n *html.Node) bool {
+	tag := n.Data
+
+	// Headings
+	if lvl := headingLevel(tag); lvl > 0 {
+		if text := normalizeText(collectText(n)); text != "" {
+			w.blocks = append(w.blocks, ContentBlock{Type: BlockHeading, Level: lvl, Text: text})
+		}
+		return true // don't recurse into heading children (already collected)
+	}
+
+	switch tag {
+	case "p":
+		w.appendText(BlockParagraph, normalizeText(collectText(n)))
+		return true
+	case "a":
+		w.emitLink(n)
+		return true
+	case "img":
+		w.emitImage(n)
+		return true
+	case "li":
+		w.emitListItem(n)
+		return true
+	case "ul", "ol":
+		w.emitList(n)
+		return true
+	case "td", "th":
+		w.appendText(BlockTableCell, normalizeText(collectText(n)))
+		return true
+	case "pre", "code":
+		w.appendText(BlockCode, normalizeText(collectText(n)))
+		return true
+	case "blockquote":
+		w.appendText(BlockBlockquote, normalizeText(collectText(n)))
+		return true
+	}
+
+	return false
+}
+
+// emitLink emits a standalone link block (does not recurse into children).
+func (w *blockWalker) emitLink(n *html.Node) {
+	text := normalizeText(collectText(n))
+	href := getAttr(n, "href")
+	if text != "" || href != "" {
+		w.blocks = append(w.blocks, ContentBlock{Type: BlockLink, Text: text, Href: href})
+	}
+}
+
+// emitImage emits an image block.
+func (w *blockWalker) emitImage(n *html.Node) {
+	src := getAttr(n, "src")
+	alt := getAttr(n, "alt")
+	if src != "" || alt != "" {
+		w.blocks = append(w.blocks, ContentBlock{Type: BlockImage, Src: src, Alt: alt})
+	}
+}
+
+// emitListItem collects the item's own text (excluding nested lists) then
+// recurses into any nested lists.
+func (w *blockWalker) emitListItem(n *html.Node) {
+	var ownText strings.Builder
+	hasNestedList := false
+	for c := n.FirstChild; c != nil; c = c.NextSibling {
+		if c.Type == html.ElementNode && (c.Data == "ul" || c.Data == "ol") {
+			hasNestedList = true
+		} else {
+			ownText.WriteString(collectText(c))
+		}
+	}
+	if text := normalizeText(ownText.String()); text != "" {
+		w.blocks = append(w.blocks, ContentBlock{Type: BlockListItem, Level: w.listDepth, Text: text})
+	}
+	if hasNestedList {
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			if c.Type == html.ElementNode && (c.Data == "ul" || c.Data == "ol") {
+				w.walk(c)
+			}
+		}
+	}
+}
+
+// emitList walks a list's children while tracking nesting depth.
+func (w *blockWalker) emitList(n *html.Node) {
+	w.listDepth++
+	w.walkChildren(n)
+	w.listDepth--
+}
+
+// walkChildren recurses into all direct children of n.
+func (w *blockWalker) walkChildren(n *html.Node) {
+	for c := n.FirstChild; c != nil; c = c.NextSibling {
+		w.walk(c)
+	}
+}
+
+// appendText appends a block of the given type when text is non-empty.
+func (w *blockWalker) appendText(t BlockType, text string) {
+	if text != "" {
+		w.blocks = append(w.blocks, ContentBlock{Type: t, Text: text})
+	}
 }
 
 // HashContentBlocks computes a deterministic SHA-256 hash of a slice of content blocks.
 func HashContentBlocks(blocks []ContentBlock) string {
 	h := sha256.New()
 	for _, b := range blocks {
-		fmt.Fprintf(h, "%s|%d|%s|%s|%s|%s\n", b.Type, b.Level, b.Text, b.Href, b.Src, b.Alt)
+		_, _ = fmt.Fprintf(h, "%s|%d|%s|%s|%s|%s\n", b.Type, b.Level, b.Text, b.Href, b.Src, b.Alt)
 	}
 	return hex.EncodeToString(h.Sum(nil))
 }

@@ -57,19 +57,9 @@ func (h *GenerateInsightsHandler) Handle(ctx context.Context, req *Request) erro
 	}
 
 	// Pre-flight quota check — short-circuit BEFORE the LLM call when the
-	// tenant has already exhausted their monthly allowance. Skipped when no
-	// reader is wired (test / legacy paths).
-	if h.quotaReader != nil && req.SchemaName != "" {
-		snap, err := h.quotaReader.Read(ctx, req.SchemaName)
-		if err != nil {
-			// Quota check failures must not block insight generation —
-			// fail-open is safer than fail-closed for billing-adjacent reads.
-			logger.Warn("insight quota read failed — proceeding without guard",
-				zap.String("tenant", req.SchemaName),
-				zap.Error(err))
-		} else if !snap.Unlimited && snap.Used >= snap.Allowed {
-			return ErrInsightQuotaExhausted
-		}
+	// tenant has already exhausted their monthly allowance.
+	if h.quotaExhausted(ctx, req.SchemaName) {
+		return ErrInsightQuotaExhausted
 	}
 
 	var insights []*entities.Insight
@@ -87,6 +77,31 @@ func (h *GenerateInsightsHandler) Handle(ctx context.Context, req *Request) erro
 		return nil
 	}
 
+	return h.persistInsights(ctx, req, insights)
+}
+
+// quotaExhausted reports whether the tenant has already used up its monthly AI
+// insight allowance. Skipped (returns false) when no reader is wired (test /
+// legacy paths) or no schema is provided. Quota read failures fail-open
+// (return false) — blocking generation on a billing-adjacent read is riskier
+// than letting it through.
+func (h *GenerateInsightsHandler) quotaExhausted(ctx context.Context, schemaName string) bool {
+	if h.quotaReader == nil || schemaName == "" {
+		return false
+	}
+	snap, err := h.quotaReader.Read(ctx, schemaName)
+	if err != nil {
+		logger.Warn("insight quota read failed — proceeding without guard",
+			zap.String("tenant", schemaName),
+			zap.Error(err))
+		return false
+	}
+	return !snap.Unlimited && snap.Used >= snap.Allowed
+}
+
+// persistInsights stores each generated insight and increments the quota
+// counter, stopping early once the cap is hit mid-batch.
+func (h *GenerateInsightsHandler) persistInsights(ctx context.Context, req *Request, insights []*entities.Insight) error {
 	for _, insight := range insights {
 		insight.ID = uuid.New()
 		insight.PageID = req.PageID

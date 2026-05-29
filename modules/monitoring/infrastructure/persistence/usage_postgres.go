@@ -58,7 +58,7 @@ func (r *UsagePostgresRepository) LogUsage(ctx context.Context, pageID, checkID 
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	qUpdate := `UPDATE usage_tracking
 		SET checks_used = checks_used + 1

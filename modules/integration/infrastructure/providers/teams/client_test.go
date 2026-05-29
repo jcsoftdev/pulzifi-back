@@ -19,15 +19,6 @@ func newClient() *teamsprovider.Client {
 	return teamsprovider.New("test-client-id", "test-client-secret")
 }
 
-func restoreURLs(origAuth, origToken, origGraph, origConsent string) func() {
-	return func() {
-		teamsprovider.AuthorizeURL = origAuth
-		teamsprovider.TokenURL = origToken
-		teamsprovider.GraphBase = origGraph
-		teamsprovider.AdminConsentURLBase = origConsent
-	}
-}
-
 // 1. TestTeams_OAuthAuthorizeURL_IncludesOfflineAccess
 func TestTeams_OAuthAuthorizeURL_IncludesOfflineAccess(t *testing.T) {
 	c := newClient()

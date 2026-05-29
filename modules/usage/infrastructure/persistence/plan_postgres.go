@@ -28,7 +28,7 @@ func (r *PlanPostgresRepository) ListActive(ctx context.Context) ([]*entities.Pl
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var plans []*entities.Plan
 	for rows.Next() {

@@ -47,6 +47,9 @@ export function PlanChangeModal({
       onClick={(e) => {
         if (e.target === e.currentTarget && !isApplying) onCancel()
       }}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape' && !isApplying) onCancel()
+      }}
     >
       <div className="max-w-md w-full rounded-2xl border border-border bg-card p-8 shadow-xl mx-4">
         <h2 id={titleId} className="text-xl font-semibold text-foreground">

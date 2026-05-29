@@ -37,4 +37,3 @@ func (a *registrationWriterAdapter) Create(ctx context.Context, req *authservice
 func (a *registrationWriterAdapter) ExistsPendingBySubdomain(ctx context.Context, subdomain string) (bool, error) {
 	return a.repo.ExistsPendingBySubdomain(ctx, subdomain)
 }
-

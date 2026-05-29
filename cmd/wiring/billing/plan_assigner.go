@@ -124,6 +124,39 @@ func (a *PlanAssigner) Assign(ctx context.Context, in services.AssignInput) erro
 	}
 
 	// 4. Insert new active plan row with Stripe billing fields.
+	periodEnd := periodEndPtr(in.CurrentPeriodEnd)
+	if err = a.insertActivePlan(ctx, tx, orgID, planID, in, periodEnd); err != nil {
+		return err
+	}
+
+	// 5. Sync tenant usage_tracking for the active billing period so the
+	//    in-app quota chip and refill date reflect Stripe's view of the
+	//    subscription (period_end = Stripe's current_period_end). Failure
+	//    here must NOT roll back the public.organization_plans write — the
+	//    user has paid and the next quota query auto-creates a period from
+	//    the active plan when none is found.
+	if err = a.syncUsageWithSavepoint(ctx, tx, orgID, planID, periodEnd); err != nil {
+		return err
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return fmt.Errorf("billing plan assigner: commit: %w", err)
+	}
+	return nil
+}
+
+// periodEndPtr returns a pointer to t, or nil when t is the zero value.
+func periodEndPtr(t time.Time) *time.Time {
+	if t.IsZero() {
+		return nil
+	}
+	return &t
+}
+
+// insertActivePlan inserts the new active organization_plans row with the
+// Stripe billing fields, applying defaults for empty billing/payment status.
+func (a *PlanAssigner) insertActivePlan(ctx context.Context, tx Tx, orgID, planID uuid.UUID, in services.AssignInput, periodEnd *time.Time) error {
 	billingStatus := string(in.BillingStatus)
 	if billingStatus == "" {
 		billingStatus = string(entities.BillingActive)
@@ -133,13 +166,7 @@ func (a *PlanAssigner) Assign(ctx context.Context, in services.AssignInput) erro
 		paymentStatus = "ok"
 	}
 
-	var periodEnd *time.Time
-	if !in.CurrentPeriodEnd.IsZero() {
-		t := in.CurrentPeriodEnd
-		periodEnd = &t
-	}
-
-	_, err = tx.ExecContext(ctx, `
+	_, err := tx.ExecContext(ctx, `
 		INSERT INTO public.organization_plans
 		       (organization_id, plan_id, status, started_at,
 		        stripe_subscription_id, stripe_price_id, billing_status,
@@ -156,21 +183,16 @@ func (a *PlanAssigner) Assign(ctx context.Context, in services.AssignInput) erro
 	if err != nil {
 		return fmt.Errorf("billing plan assigner: insert plan: %w", err)
 	}
+	return nil
+}
 
-	// 5. Sync tenant usage_tracking for the active billing period so the
-	//    in-app quota chip and refill date reflect Stripe's view of the
-	//    subscription (period_end = Stripe's current_period_end). Failure
-	//    here must NOT roll back the public.organization_plans write — the
-	//    user has paid and the next quota query auto-creates a period from
-	//    the active plan when none is found.
-	//
-	//    Wrap the sync in a SAVEPOINT so a tenant schema mismatch (e.g. a
-	//    missing column on legacy tenant DDL) does NOT abort the outer
-	//    transaction. Without the savepoint a single failed statement marks
-	//    the whole tx as aborted and the subsequent Commit() returns
-	//    "current transaction is aborted" even though the org_plans INSERT
-	//    succeeded.
-	if _, err = tx.ExecContext(ctx, "SAVEPOINT sync_usage"); err != nil {
+// syncUsageWithSavepoint runs syncTenantUsagePeriod inside a SAVEPOINT so a
+// tenant schema mismatch (e.g. a missing column on legacy tenant DDL) does NOT
+// abort the outer transaction. Without the savepoint a single failed statement
+// marks the whole tx as aborted and the subsequent Commit() returns "current
+// transaction is aborted" even though the org_plans INSERT succeeded.
+func (a *PlanAssigner) syncUsageWithSavepoint(ctx context.Context, tx Tx, orgID, planID uuid.UUID, periodEnd *time.Time) error {
+	if _, err := tx.ExecContext(ctx, "SAVEPOINT sync_usage"); err != nil {
 		return fmt.Errorf("billing plan assigner: savepoint: %w", err)
 	}
 	if syncErr := a.syncTenantUsagePeriod(ctx, tx, orgID, planID, periodEnd); syncErr != nil {
@@ -178,15 +200,10 @@ func (a *PlanAssigner) Assign(ctx context.Context, in services.AssignInput) erro
 		if _, rbErr := tx.ExecContext(ctx, "ROLLBACK TO SAVEPOINT sync_usage"); rbErr != nil {
 			return fmt.Errorf("billing plan assigner: rollback savepoint: %w", rbErr)
 		}
-	} else {
-		if _, relErr := tx.ExecContext(ctx, "RELEASE SAVEPOINT sync_usage"); relErr != nil {
-			return fmt.Errorf("billing plan assigner: release savepoint: %w", relErr)
-		}
+		return nil
 	}
-
-	err = tx.Commit()
-	if err != nil {
-		return fmt.Errorf("billing plan assigner: commit: %w", err)
+	if _, relErr := tx.ExecContext(ctx, "RELEASE SAVEPOINT sync_usage"); relErr != nil {
+		return fmt.Errorf("billing plan assigner: release savepoint: %w", relErr)
 	}
 	return nil
 }
@@ -202,40 +219,14 @@ func (a *PlanAssigner) syncTenantUsagePeriod(ctx context.Context, tx Tx, orgID, 
 		return nil
 	}
 
-	var schema string
-	row := tx.QueryRowContext(ctx, `SELECT schema_name FROM public.organizations WHERE id = $1`, orgID)
-	if err := row.Scan(&schema); err != nil {
-		return fmt.Errorf("lookup schema_name: %w", err)
-	}
-	if schema == "" {
-		return errors.New("empty schema_name")
-	}
-	for _, c := range schema {
-		if !(c == '_' || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')) {
-			return fmt.Errorf("unsafe schema_name %q", schema)
-		}
+	schema, err := a.lookupTenantSchema(ctx, tx, orgID)
+	if err != nil {
+		return err
 	}
 
-	var checksAllowed, storagePeriodDays int
-	var aiAllowed sql.NullInt64
-	row = tx.QueryRowContext(ctx, `
-		SELECT checks_allowed_monthly,
-		       COALESCE(storage_period_days, 7),
-		       ai_insights_allowed_monthly
-		  FROM public.plans
-		 WHERE id = $1
-	`, planID)
-	if err := row.Scan(&checksAllowed, &storagePeriodDays, &aiAllowed); err != nil {
-		return fmt.Errorf("lookup plan limits: %w", err)
-	}
-
-	// NULL ai_insights_allowed_monthly (Enterprise) → write INT max sentinel
-	// so the SQL comparison "used < allowed" keeps working uniformly without
-	// branching on nullable columns at the application layer.
-	const unlimitedSentinel = int64(2147483647)
-	aiInsightsAllowed := unlimitedSentinel
-	if aiAllowed.Valid {
-		aiInsightsAllowed = aiAllowed.Int64
+	limits, err := a.lookupPlanLimits(ctx, tx, planID)
+	if err != nil {
+		return err
 	}
 
 	// Period start = one billing cycle before the Stripe period_end.
@@ -244,6 +235,64 @@ func (a *PlanAssigner) syncTenantUsagePeriod(ctx context.Context, tx Tx, orgID, 
 	// later; for now monthly is the only paid cycle.
 	periodStart := periodEnd.AddDate(0, -1, 0)
 
+	return a.upsertUsageTracking(ctx, tx, schema, periodStart, *periodEnd, limits)
+}
+
+// planLimits holds the per-plan quota values written into usage_tracking.
+type planLimits struct {
+	checksAllowed     int
+	storagePeriodDays int
+	aiInsightsAllowed int64
+}
+
+// lookupTenantSchema resolves and validates the tenant schema name for an org.
+func (a *PlanAssigner) lookupTenantSchema(ctx context.Context, tx Tx, orgID uuid.UUID) (string, error) {
+	var schema string
+	row := tx.QueryRowContext(ctx, `SELECT schema_name FROM public.organizations WHERE id = $1`, orgID)
+	if err := row.Scan(&schema); err != nil {
+		return "", fmt.Errorf("lookup schema_name: %w", err)
+	}
+	if schema == "" {
+		return "", errors.New("empty schema_name")
+	}
+	for _, c := range schema {
+		if c != '_' && (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9') {
+			return "", fmt.Errorf("unsafe schema_name %q", schema)
+		}
+	}
+	return schema, nil
+}
+
+// lookupPlanLimits reads the quota limits for a plan, mapping a NULL
+// ai_insights_allowed_monthly (Enterprise) to an INT max sentinel so the SQL
+// comparison "used < allowed" keeps working uniformly without branching on
+// nullable columns at the application layer.
+func (a *PlanAssigner) lookupPlanLimits(ctx context.Context, tx Tx, planID uuid.UUID) (planLimits, error) {
+	var limits planLimits
+	var aiAllowed sql.NullInt64
+	row := tx.QueryRowContext(ctx, `
+		SELECT checks_allowed_monthly,
+		       COALESCE(storage_period_days, 7),
+		       ai_insights_allowed_monthly
+		  FROM public.plans
+		 WHERE id = $1
+	`, planID)
+	if err := row.Scan(&limits.checksAllowed, &limits.storagePeriodDays, &aiAllowed); err != nil {
+		return planLimits{}, fmt.Errorf("lookup plan limits: %w", err)
+	}
+
+	const unlimitedSentinel = int64(2147483647)
+	limits.aiInsightsAllowed = unlimitedSentinel
+	if aiAllowed.Valid {
+		limits.aiInsightsAllowed = aiAllowed.Int64
+	}
+	return limits, nil
+}
+
+// upsertUsageTracking inserts (or updates on conflict) the tenant
+// usage_tracking row for the period, falling back to a plain UPDATE on the
+// current row when the table lacks a unique constraint on period_start.
+func (a *PlanAssigner) upsertUsageTracking(ctx context.Context, tx Tx, schema string, periodStart, periodEnd time.Time, limits planLimits) error {
 	upsertSQL := fmt.Sprintf(`
 		INSERT INTO %q.usage_tracking
 		      (period_start, period_end, checks_allowed, checks_used,
@@ -260,7 +309,7 @@ func (a *PlanAssigner) syncTenantUsagePeriod(ctx context.Context, tx Tx, orgID, 
 		       updated_at          = NOW()
 	`, schema)
 
-	if _, err := tx.ExecContext(ctx, upsertSQL, periodStart, *periodEnd, checksAllowed, storagePeriodDays, aiInsightsAllowed); err != nil {
+	if _, err := tx.ExecContext(ctx, upsertSQL, periodStart, periodEnd, limits.checksAllowed, limits.storagePeriodDays, limits.aiInsightsAllowed); err != nil {
 		// Fallback: the table may not have a unique constraint on
 		// period_start; try a plain UPDATE on the current row instead.
 		updateSQL := fmt.Sprintf(`
@@ -275,7 +324,7 @@ func (a *PlanAssigner) syncTenantUsagePeriod(ctx context.Context, tx Tx, orgID, 
 			WHERE  period_start <= CURRENT_DATE
 			  AND  period_end   >= CURRENT_DATE
 		`, schema)
-		if _, err2 := tx.ExecContext(ctx, updateSQL, periodStart, *periodEnd, checksAllowed, storagePeriodDays, aiInsightsAllowed); err2 != nil {
+		if _, err2 := tx.ExecContext(ctx, updateSQL, periodStart, periodEnd, limits.checksAllowed, limits.storagePeriodDays, limits.aiInsightsAllowed); err2 != nil {
 			return fmt.Errorf("upsert usage_tracking: %w (fallback: %v)", err, err2)
 		}
 	}

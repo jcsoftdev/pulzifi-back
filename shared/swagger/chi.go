@@ -34,7 +34,7 @@ func SetupSwaggerForChi(router chi.Router) {
 			}
 		}
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(data)
+		_, _ = w.Write(data)
 	})
 
 	// Redirect /swagger to /swagger/index.html
@@ -45,9 +45,7 @@ func SetupSwaggerForChi(router chi.Router) {
 	// Serve swagger UI and assets
 	router.Get("/swagger/*", func(w http.ResponseWriter, r *http.Request) {
 		// Strip the /swagger prefix
-		if strings.HasPrefix(r.URL.Path, "/swagger") {
-			r.URL.Path = strings.TrimPrefix(r.URL.Path, "/swagger")
-		}
+		r.URL.Path = strings.TrimPrefix(r.URL.Path, "/swagger")
 		if r.URL.Path == "" {
 			r.URL.Path = "/"
 		}

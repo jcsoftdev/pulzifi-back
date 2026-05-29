@@ -83,7 +83,7 @@ func (c *Client) HandleCallback(ctx context.Context, code, redirectURI string) (
 	if err != nil {
 		return nil, fmt.Errorf("gmail: token request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	raw, _ := io.ReadAll(resp.Body)
 
 	var tok struct {
@@ -133,7 +133,7 @@ func (c *Client) fetchUserEmail(ctx context.Context, accessToken string) (string
 	if err != nil {
 		return "", fmt.Errorf("userinfo request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	raw, _ := io.ReadAll(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
@@ -175,7 +175,7 @@ func (c *Client) RefreshAccessToken(ctx context.Context, refreshToken string) (*
 	if err != nil {
 		return nil, fmt.Errorf("gmail: refresh request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	raw, _ := io.ReadAll(resp.Body)
 
 	var tok struct {
@@ -275,7 +275,7 @@ func (c *Client) sendOne(ctx context.Context, accessToken, from, to, subject, ht
 	if err != nil {
 		return fmt.Errorf("request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	raw, _ := io.ReadAll(resp.Body)
 
 	if resp.StatusCode == http.StatusUnauthorized {

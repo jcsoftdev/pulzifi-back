@@ -154,7 +154,7 @@ func (m *Module) handleCreateWorkspace(w http.ResponseWriter, r *http.Request) {
 	if m.db == nil {
 		w.Header().Set(contentTypeHeader, applicationJSON)
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"id":      "550e8400-e29b-41d4-a716-446655440000",
 			"message": "create workspace (mock - db not initialized)",
 		})
@@ -172,13 +172,13 @@ func (m *Module) handleCreateWorkspace(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		w.Header().Set(contentTypeHeader, applicationJSON)
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "invalid request body"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "invalid request body"})
 		return
 	}
 	if req.Name == "" || req.Type == "" {
 		w.Header().Set(contentTypeHeader, applicationJSON)
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "name and type are required"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "name and type are required"})
 		return
 	}
 
@@ -187,7 +187,7 @@ func (m *Module) handleCreateWorkspace(w http.ResponseWriter, r *http.Request) {
 		logger.Error("User ID not found in context")
 		w.Header().Set(contentTypeHeader, applicationJSON)
 		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]string{"error": "unauthorized"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "unauthorized"})
 		return
 	}
 	createdBy, err := uuid.Parse(userIDStr)
@@ -195,7 +195,7 @@ func (m *Module) handleCreateWorkspace(w http.ResponseWriter, r *http.Request) {
 		logger.Error("Invalid user ID", zap.Error(err))
 		w.Header().Set(contentTypeHeader, applicationJSON)
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "invalid user ID"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "invalid user ID"})
 		return
 	}
 
@@ -204,13 +204,13 @@ func (m *Module) handleCreateWorkspace(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.Header().Set(contentTypeHeader, applicationJSON)
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
 		return
 	}
 
 	w.Header().Set(contentTypeHeader, applicationJSON)
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 // handleListWorkspaces lists all workspaces
@@ -228,7 +228,7 @@ func (m *Module) handleListWorkspaces(w http.ResponseWriter, r *http.Request) {
 	if m.db == nil {
 		w.Header().Set(contentTypeHeader, applicationJSON)
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"workspaces": []interface{}{},
 		})
 		return
@@ -246,7 +246,7 @@ func (m *Module) handleListWorkspaces(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.Header().Set(contentTypeHeader, applicationJSON)
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{
+		_ = json.NewEncoder(w).Encode(map[string]string{
 			"error": err.Error(),
 		})
 		return
@@ -264,7 +264,7 @@ func (m *Module) handleListWorkspaces(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set(contentTypeHeader, applicationJSON)
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(response)
+	_ = json.NewEncoder(w).Encode(response)
 }
 
 // handleGetWorkspace gets a workspace by ID
@@ -282,7 +282,7 @@ func (m *Module) handleGetWorkspace(w http.ResponseWriter, r *http.Request) {
 	if m.db == nil {
 		w.Header().Set(contentTypeHeader, applicationJSON)
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]string{
+		_ = json.NewEncoder(w).Encode(map[string]string{
 			"id":      chi.URLParam(r, "id"),
 			"message": "get workspace (mock - db not initialized)",
 		})
@@ -295,7 +295,7 @@ func (m *Module) handleGetWorkspace(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.Header().Set(contentTypeHeader, applicationJSON)
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{
+		_ = json.NewEncoder(w).Encode(map[string]string{
 			"error": errInvalidWorkspaceID,
 		})
 		return
@@ -314,7 +314,7 @@ func (m *Module) handleGetWorkspace(w http.ResponseWriter, r *http.Request) {
 		if err == getworkspace.ErrWorkspaceNotFound {
 			w.Header().Set(contentTypeHeader, applicationJSON)
 			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{
+			_ = json.NewEncoder(w).Encode(map[string]string{
 				"error": errWorkspaceNotFound,
 			})
 			return
@@ -323,7 +323,7 @@ func (m *Module) handleGetWorkspace(w http.ResponseWriter, r *http.Request) {
 		logger.Error("Failed to get workspace", zap.Error(err))
 		w.Header().Set(contentTypeHeader, applicationJSON)
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{
+		_ = json.NewEncoder(w).Encode(map[string]string{
 			"error": errInternalServerError,
 		})
 		return
@@ -331,7 +331,7 @@ func (m *Module) handleGetWorkspace(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set(contentTypeHeader, applicationJSON)
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(response)
+	_ = json.NewEncoder(w).Encode(response)
 }
 
 // handleUpdateWorkspace updates a workspace
@@ -351,7 +351,7 @@ func (m *Module) handleUpdateWorkspace(w http.ResponseWriter, r *http.Request) {
 	if m.db == nil {
 		w.Header().Set(contentTypeHeader, applicationJSON)
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]string{
+		_ = json.NewEncoder(w).Encode(map[string]string{
 			"id":      chi.URLParam(r, "id"),
 			"message": "update workspace",
 		})
@@ -369,7 +369,7 @@ func (m *Module) handleUpdateWorkspace(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		w.Header().Set(contentTypeHeader, applicationJSON)
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "invalid request body"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "invalid request body"})
 		return
 	}
 
@@ -379,7 +379,7 @@ func (m *Module) handleUpdateWorkspace(w http.ResponseWriter, r *http.Request) {
 		logger.Error("Invalid workspace ID", zap.Error(err))
 		w.Header().Set(contentTypeHeader, applicationJSON)
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": errInvalidWorkspaceID})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": errInvalidWorkspaceID})
 		return
 	}
 
@@ -389,13 +389,13 @@ func (m *Module) handleUpdateWorkspace(w http.ResponseWriter, r *http.Request) {
 		logger.Error("Failed to update workspace", zap.Error(err))
 		w.Header().Set(contentTypeHeader, applicationJSON)
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
 		return
 	}
 
 	w.Header().Set(contentTypeHeader, applicationJSON)
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 // handleDeleteWorkspace deletes a workspace
@@ -422,7 +422,7 @@ func (m *Module) handleDeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.Header().Set(contentTypeHeader, applicationJSON)
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{
+		_ = json.NewEncoder(w).Encode(map[string]string{
 			"error": errInvalidWorkspaceID,
 		})
 		return
@@ -436,7 +436,7 @@ func (m *Module) handleDeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 		logger.Error("User ID not found in context")
 		w.Header().Set(contentTypeHeader, applicationJSON)
 		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]string{
+		_ = json.NewEncoder(w).Encode(map[string]string{
 			"error": "unauthorized",
 		})
 		return
@@ -447,7 +447,7 @@ func (m *Module) handleDeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 		logger.Error("Invalid user ID", zap.Error(err))
 		w.Header().Set(contentTypeHeader, applicationJSON)
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{
+		_ = json.NewEncoder(w).Encode(map[string]string{
 			"error": errInvalidUserID,
 		})
 		return
@@ -464,7 +464,7 @@ func (m *Module) handleDeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 		if err == delete_workspace.ErrWorkspaceNotFound {
 			w.Header().Set(contentTypeHeader, applicationJSON)
 			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{
+			_ = json.NewEncoder(w).Encode(map[string]string{
 				"error": errWorkspaceNotFound,
 			})
 			return
@@ -473,7 +473,7 @@ func (m *Module) handleDeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 		if err == delete_workspace.ErrWorkspaceNotOwned {
 			w.Header().Set(contentTypeHeader, applicationJSON)
 			w.WriteHeader(http.StatusForbidden)
-			json.NewEncoder(w).Encode(map[string]string{
+			_ = json.NewEncoder(w).Encode(map[string]string{
 				"error": "you do not own this workspace",
 			})
 			return
@@ -481,7 +481,7 @@ func (m *Module) handleDeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 
 		w.Header().Set(contentTypeHeader, applicationJSON)
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{
+		_ = json.NewEncoder(w).Encode(map[string]string{
 			"error": "failed to delete workspace",
 		})
 		return
@@ -563,7 +563,7 @@ func (m *Module) handleAddWorkspaceMember(w http.ResponseWriter, r *http.Request
 
 	w.Header().Set(contentTypeHeader, applicationJSON)
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 // handleListWorkspaceMembers lists all members of a workspace
@@ -625,7 +625,7 @@ func (m *Module) handleListWorkspaceMembers(w http.ResponseWriter, r *http.Reque
 
 	w.Header().Set(contentTypeHeader, applicationJSON)
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 // handleRemoveWorkspaceMember removes a member from a workspace

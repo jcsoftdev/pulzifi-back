@@ -70,7 +70,7 @@ func (r *PermissionPostgresRepository) GetUserPermissions(ctx context.Context, u
 		logger.Error("Failed to get user permissions", zap.Error(err))
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var permissions []*entities.Permission
 	for rows.Next() {

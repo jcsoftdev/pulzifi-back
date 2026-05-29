@@ -53,7 +53,7 @@ func Connect(cfg *config.Config) (*sql.DB, error) {
 	}
 	if err != nil {
 		logger.Error("Failed to ping database after retries", zap.Error(err), zap.Int("attempts", maxRetries))
-		db.Close()
+		_ = db.Close()
 		return nil, err
 	}
 

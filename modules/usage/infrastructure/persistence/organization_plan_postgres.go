@@ -65,7 +65,7 @@ func (r *OrganizationPlanPostgresRepository) ListOrgsWithPlans(ctx context.Conte
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var result []*repositories.OrgWithPlan
 	for rows.Next() {

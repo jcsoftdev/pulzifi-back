@@ -8,6 +8,12 @@ import (
 
 const TenantKey = "tenant"
 
+// ctxKey is an unexported type for context keys defined in this package,
+// preventing collisions with keys defined in other packages.
+type ctxKey string
+
+const tenantContextKey ctxKey = "tenant"
+
 // TenantInterceptor extracts tenant from gRPC metadata
 func TenantInterceptor(ctx context.Context) (string, error) {
 	md, ok := metadata.FromIncomingContext(ctx)
@@ -25,5 +31,5 @@ func TenantInterceptor(ctx context.Context) (string, error) {
 
 // AddTenantToContext adds tenant to context
 func AddTenantToContext(ctx context.Context, tenant string) context.Context {
-	return context.WithValue(ctx, TenantKey, tenant)
+	return context.WithValue(ctx, tenantContextKey, tenant)
 }

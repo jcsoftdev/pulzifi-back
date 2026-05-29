@@ -149,58 +149,9 @@ func (w *Worker) process(
 
 	// Load integration (optional — destinations without an integration_id are valid,
 	// e.g. email destinations that rely only on Target config).
-	var integ *entities.Integration
-	if dest.IntegrationID != nil {
-		integ, err = w.intRepo.GetByID(ctx, *dest.IntegrationID)
-		if err != nil {
-			markFailedOrDead(ctx, delRepo, d, w.cfg.MaxAttempts,
-				fmt.Errorf("integration load: %w", err), nil)
-			return
-		}
-		if integ == nil || integ.DeletedAt != nil {
-			// Integration has been disconnected; mark dead, no retry.
-			_ = delRepo.MarkDead(ctx, d.ID, "integration disconnected",
-				appendAttempt(d.AttemptHistory, nil, "integration disconnected", w.cfg.MaxAttempts))
-			return
-		}
-
-		// Token refresh check — only when a refresh token is available and
-		// the access token is about to expire.
-		if integ.TokenExpiresAt != nil && integ.RefreshToken != "" &&
-			time.Until(*integ.TokenExpiresAt) < time.Minute {
-
-			client, ok := w.registry.Get(integ.ServiceType)
-			if ok {
-				newTok, refreshErr := client.RefreshAccessToken(ctx, integ.RefreshToken)
-				if refreshErr != nil {
-					integ.Status = entities.IntegrationExpired
-					_ = w.intRepo.Update(ctx, integ)
-					_ = delRepo.MarkDead(ctx, d.ID, "token refresh failed",
-						appendAttempt(d.AttemptHistory, nil, "token refresh failed", w.cfg.MaxAttempts))
-					return
-				}
-				if newTok == nil {
-					// Programmer error: the provider returned (nil, nil) which violates
-					// the RefreshAccessToken contract. This should never happen for
-					// providers that opt-in to refresh (i.e. set TokenExpiresAt).
-					// Defensively mark the integration expired so the issue surfaces.
-					logger.ErrorWithContext(ctx, "refresh contract violation: provider returned (nil, nil)",
-						zap.String("service_type", integ.ServiceType),
-						zap.String("integration_id", integ.ID.String()))
-					integ.Status = entities.IntegrationExpired
-					_ = w.intRepo.Update(ctx, integ)
-					_ = delRepo.MarkDead(ctx, d.ID, "refresh contract violation",
-						appendAttempt(d.AttemptHistory, nil, "refresh contract violation", w.cfg.MaxAttempts))
-					return
-				}
-				integ.AccessToken = newTok.AccessToken
-				if newTok.RefreshToken != "" {
-					integ.RefreshToken = newTok.RefreshToken
-				}
-				integ.TokenExpiresAt = newTok.ExpiresAt
-				_ = w.intRepo.Update(ctx, integ)
-			}
-		}
+	integ, ok := w.loadIntegration(ctx, d, dest, delRepo)
+	if !ok {
+		return
 	}
 
 	// Build notification payload from the stored event data.
@@ -254,6 +205,91 @@ func (w *Worker) process(
 	_ = delRepo.MarkDelivered(ctx, d.ID, code, body)
 }
 
+// loadIntegration loads the destination's integration (if any) and refreshes its
+// access token when it is about to expire. It returns the integration to use and
+// a boolean indicating whether processing should continue. When it returns false,
+// the delivery has already been marked failed/dead and the caller must stop.
+func (w *Worker) loadIntegration(
+	ctx context.Context,
+	d *entities.Delivery,
+	dest *entities.Destination,
+	delRepo repositories.DeliveryRepository,
+) (*entities.Integration, bool) {
+	// Destinations without an integration_id are valid (e.g. email destinations
+	// that rely only on Target config).
+	if dest.IntegrationID == nil {
+		return nil, true
+	}
+
+	integ, err := w.intRepo.GetByID(ctx, *dest.IntegrationID)
+	if err != nil {
+		markFailedOrDead(ctx, delRepo, d, w.cfg.MaxAttempts,
+			fmt.Errorf("integration load: %w", err), nil)
+		return nil, false
+	}
+	if integ == nil || integ.DeletedAt != nil {
+		// Integration has been disconnected; mark dead, no retry.
+		_ = delRepo.MarkDead(ctx, d.ID, "integration disconnected",
+			appendAttempt(d.AttemptHistory, nil, "integration disconnected", w.cfg.MaxAttempts))
+		return nil, false
+	}
+
+	if !w.refreshTokenIfNeeded(ctx, d, integ, delRepo) {
+		return nil, false
+	}
+	return integ, true
+}
+
+// refreshTokenIfNeeded refreshes the integration's access token when a refresh
+// token is available and the access token is about to expire. It returns false
+// (after marking the delivery dead) when the refresh fails or violates contract.
+func (w *Worker) refreshTokenIfNeeded(
+	ctx context.Context,
+	d *entities.Delivery,
+	integ *entities.Integration,
+	delRepo repositories.DeliveryRepository,
+) bool {
+	if integ.TokenExpiresAt == nil || integ.RefreshToken == "" ||
+		time.Until(*integ.TokenExpiresAt) >= time.Minute {
+		return true
+	}
+
+	client, ok := w.registry.Get(integ.ServiceType)
+	if !ok {
+		return true
+	}
+
+	newTok, refreshErr := client.RefreshAccessToken(ctx, integ.RefreshToken)
+	if refreshErr != nil {
+		integ.Status = entities.IntegrationExpired
+		_ = w.intRepo.Update(ctx, integ)
+		_ = delRepo.MarkDead(ctx, d.ID, "token refresh failed",
+			appendAttempt(d.AttemptHistory, nil, "token refresh failed", w.cfg.MaxAttempts))
+		return false
+	}
+	if newTok == nil {
+		// Programmer error: the provider returned (nil, nil) which violates
+		// the RefreshAccessToken contract. This should never happen for
+		// providers that opt-in to refresh (i.e. set TokenExpiresAt).
+		// Defensively mark the integration expired so the issue surfaces.
+		logger.ErrorWithContext(ctx, "refresh contract violation: provider returned (nil, nil)",
+			zap.String("service_type", integ.ServiceType),
+			zap.String("integration_id", integ.ID.String()))
+		integ.Status = entities.IntegrationExpired
+		_ = w.intRepo.Update(ctx, integ)
+		_ = delRepo.MarkDead(ctx, d.ID, "refresh contract violation",
+			appendAttempt(d.AttemptHistory, nil, "refresh contract violation", w.cfg.MaxAttempts))
+		return false
+	}
+	integ.AccessToken = newTok.AccessToken
+	if newTok.RefreshToken != "" {
+		integ.RefreshToken = newTok.RefreshToken
+	}
+	integ.TokenExpiresAt = newTok.ExpiresAt
+	_ = w.intRepo.Update(ctx, integ)
+	return true
+}
+
 // listTenants returns active tenant schema names from public.organizations
 // that actually exist in information_schema.schemata. Orphan org rows whose
 // schema was never provisioned (or was dropped) are skipped to avoid querying
@@ -267,7 +303,7 @@ func (w *Worker) listTenants(ctx context.Context) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []string
 	for rows.Next() {
 		var s string
@@ -283,11 +319,11 @@ func (w *Worker) listTenants(ctx context.Context) ([]string, error) {
 // trimmed to the most recent maxLen entries (oldest dropped).
 // Phase 2: caps unbounded growth on misconfigured destinations.
 func appendAttempt(history []entities.Attempt, code *int, errMsg string, maxLen int) []entities.Attempt {
-	next := append(history, entities.Attempt{At: time.Now().UTC(), Code: code, Error: errMsg})
-	if maxLen > 0 && len(next) > maxLen {
-		next = next[len(next)-maxLen:]
+	history = append(history, entities.Attempt{At: time.Now().UTC(), Code: code, Error: errMsg})
+	if maxLen > 0 && len(history) > maxLen {
+		history = history[len(history)-maxLen:]
 	}
-	return next
+	return history
 }
 
 // markFailedOrDead reschedules a delivery for retry or marks it dead when max attempts is reached.

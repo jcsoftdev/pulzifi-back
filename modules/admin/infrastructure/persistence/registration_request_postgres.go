@@ -83,7 +83,7 @@ func (r *RegistrationRequestPostgresRepository) ListPending(ctx context.Context,
 		logger.Error("Failed to list pending registration requests", zap.Error(err))
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var requests []*entities.RegistrationRequest
 	for rows.Next() {

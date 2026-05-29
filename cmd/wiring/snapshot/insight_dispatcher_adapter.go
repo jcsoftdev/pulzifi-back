@@ -5,9 +5,9 @@ import (
 	"database/sql"
 
 	generateinsights "github.com/jcsoftdev/pulzifi-back/modules/insight/application/generate_insights"
+	"github.com/jcsoftdev/pulzifi-back/modules/insight/domain/services"
 	insightAI "github.com/jcsoftdev/pulzifi-back/modules/insight/infrastructure/ai"
 	insightpersistence "github.com/jcsoftdev/pulzifi-back/modules/insight/infrastructure/persistence"
-	"github.com/jcsoftdev/pulzifi-back/modules/insight/domain/services"
 	snapServices "github.com/jcsoftdev/pulzifi-back/modules/snapshot/domain/services"
 	sharedAI "github.com/jcsoftdev/pulzifi-back/shared/ai"
 	"github.com/jcsoftdev/pulzifi-back/shared/config"

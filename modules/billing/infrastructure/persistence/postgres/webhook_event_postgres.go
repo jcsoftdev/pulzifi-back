@@ -85,7 +85,7 @@ func (r *WebhookEventPostgresRepository) FindDeferredByCustomer(ctx context.Cont
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var out []*entities.WebhookEvent
 	for rows.Next() {

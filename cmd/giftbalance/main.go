@@ -11,8 +11,9 @@
 //  3. Credits the customer's balance with the coupon's amount_off.
 //
 // Usage:
-//   go run ./cmd/giftbalance -sub=<sub_...> [-env=production]
-//   go run ./cmd/giftbalance -sub=<sub_...> -force   # migrate any discount, not just gifts
+//
+//	go run ./cmd/giftbalance -sub=<sub_...> [-env=production]
+//	go run ./cmd/giftbalance -sub=<sub_...> -force   # migrate any discount, not just gifts
 //
 // Idempotency: if the subscription has no discount, it exits 0 with a no-op.
 package main
@@ -23,9 +24,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/joho/godotenv"
 	billingstripe "github.com/jcsoftdev/pulzifi-back/modules/billing/infrastructure/stripe"
 	"github.com/jcsoftdev/pulzifi-back/shared/config"
+	"github.com/joho/godotenv"
 )
 
 func main() {

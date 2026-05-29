@@ -131,6 +131,9 @@ func TestVerify_RejectsBadSignature(t *testing.T) {
 	}
 
 	dot := strings.Index(token, ".")
+	if dot < 0 {
+		t.Fatalf("signed token has no '.' separator: %q", token)
+	}
 	head := token[:dot]
 	fakeSig := base64.RawURLEncoding.EncodeToString(bytes.Repeat([]byte{0x00}, 32))
 	tampered := head + "." + fakeSig

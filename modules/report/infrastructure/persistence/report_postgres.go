@@ -108,7 +108,7 @@ func (r *ReportPostgresRepository) scanRows(ctx context.Context, q string, args 
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var reports []*entities.Report
 	for rows.Next() {

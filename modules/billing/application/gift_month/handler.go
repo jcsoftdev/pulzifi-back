@@ -148,52 +148,72 @@ func (h *Handler) Handle(ctx context.Context, orgID uuid.UUID, planCode, orgEmai
 	// Upgrade-gift: existing paid sub AND gifted plan is a higher tier → use the
 	// gifted plan free for a cycle (schedule), then revert to the current plan.
 	if hasActiveSub && planTier(planCode) > planTier(sub.PlanCode) {
-		currentSub, err := h.gateway.RetrieveSubscription(ctx, sub.StripeSubscriptionID)
-		if err != nil {
-			return nil, fmt.Errorf("retrieve current sub: %w", err)
-		}
-		if currentSub.PriceID == "" {
-			return nil, fmt.Errorf("billing: current subscription has no price to revert to")
-		}
-		revertAt, err := h.gateway.GiftPlanSchedule(ctx, sub.StripeSubscriptionID, giftPriceID, currentSub.PriceID, planCode, sub.PlanCode)
-		if err != nil {
-			return nil, fmt.Errorf("schedule plan gift: %w", err)
-		}
-		// Reflect the gifted plan immediately (trialing during the free phase).
-		h.syncPlan(ctx, orgID, sub.StripeSubscriptionID, giftPriceID, sub.StripeCustomerID, "trialing", revertAt)
-		return &Response{
-			OrgID:        orgID.String(),
-			CustomerID:   sub.StripeCustomerID,
-			GiftPlanCode: planCode,
-			Mode:         ModePlanGift,
-			AmountCents:  monthlyCents,
-			Currency:     currency,
-			RevertAt:     revertAt,
-			Message:      fmt.Sprintf("gifted one free month of %s — active now, reverts to %s when it ends", planCode, sub.PlanCode),
-		}, nil
+		return h.giftUpgradePlan(ctx, orgID, sub, planCode, giftPriceID, monthlyCents, currency)
 	}
 
 	// Bank-gift: existing paid sub, gifted plan same/lower tier → keep the
 	// higher plan, credit the balance so the next invoice is prorated.
 	if hasActiveSub {
-		description := fmt.Sprintf("Gift: one month of %s plan (banked credit)", planCode)
-		if err := h.gateway.CreditCustomerBalance(ctx, sub.StripeCustomerID, monthlyCents, currency, description); err != nil {
-			return nil, fmt.Errorf("credit gift balance: %w", err)
-		}
-		return &Response{
-			OrgID:        orgID.String(),
-			CustomerID:   sub.StripeCustomerID,
-			GiftPlanCode: planCode,
-			Mode:         ModeBalanceCredit,
-			AmountCents:  monthlyCents,
-			Currency:     currency,
-			Message:      fmt.Sprintf("gifted one month of %s — banked as credit, applied to upcoming invoices", planCode),
-		}, nil
+		return h.giftBankCredit(ctx, orgID, sub, planCode, monthlyCents, currency)
 	}
 
-	// New-user gift: no active subscription (trial / freshly invited org). Make
-	// sure the org has a Stripe customer, then start a FREE one-month trial of
-	// the gifted plan that auto-cancels at the end (no payment method).
+	// New-user gift: no active subscription (trial / freshly invited org).
+	return h.giftNewUser(ctx, orgID, planCode, orgEmail, orgName, giftPriceID, monthlyCents, currency)
+}
+
+// giftUpgradePlan applies an upgrade-gift: the recipient uses the higher-tier
+// gifted plan free for one cycle (Stripe schedule), then auto-reverts to their
+// current plan.
+func (h *Handler) giftUpgradePlan(ctx context.Context, orgID uuid.UUID, sub *entities.Subscription, planCode, giftPriceID string, monthlyCents int64, currency string) (*Response, error) {
+	currentSub, err := h.gateway.RetrieveSubscription(ctx, sub.StripeSubscriptionID)
+	if err != nil {
+		return nil, fmt.Errorf("retrieve current sub: %w", err)
+	}
+	if currentSub.PriceID == "" {
+		return nil, fmt.Errorf("billing: current subscription has no price to revert to")
+	}
+	revertAt, err := h.gateway.GiftPlanSchedule(ctx, sub.StripeSubscriptionID, giftPriceID, currentSub.PriceID, planCode, sub.PlanCode)
+	if err != nil {
+		return nil, fmt.Errorf("schedule plan gift: %w", err)
+	}
+	// Reflect the gifted plan immediately (trialing during the free phase).
+	h.syncPlan(ctx, orgID, sub.StripeSubscriptionID, giftPriceID, sub.StripeCustomerID, "trialing", revertAt)
+	return &Response{
+		OrgID:        orgID.String(),
+		CustomerID:   sub.StripeCustomerID,
+		GiftPlanCode: planCode,
+		Mode:         ModePlanGift,
+		AmountCents:  monthlyCents,
+		Currency:     currency,
+		RevertAt:     revertAt,
+		Message:      fmt.Sprintf("gifted one free month of %s — active now, reverts to %s when it ends", planCode, sub.PlanCode),
+	}, nil
+}
+
+// giftBankCredit banks the gift as a Stripe customer balance credit, keeping the
+// recipient's existing (higher/equal tier) plan; the credit auto-applies to
+// upcoming invoices.
+func (h *Handler) giftBankCredit(ctx context.Context, orgID uuid.UUID, sub *entities.Subscription, planCode string, monthlyCents int64, currency string) (*Response, error) {
+	description := fmt.Sprintf("Gift: one month of %s plan (banked credit)", planCode)
+	if err := h.gateway.CreditCustomerBalance(ctx, sub.StripeCustomerID, monthlyCents, currency, description); err != nil {
+		return nil, fmt.Errorf("credit gift balance: %w", err)
+	}
+	return &Response{
+		OrgID:        orgID.String(),
+		CustomerID:   sub.StripeCustomerID,
+		GiftPlanCode: planCode,
+		Mode:         ModeBalanceCredit,
+		AmountCents:  monthlyCents,
+		Currency:     currency,
+		Message:      fmt.Sprintf("gifted one month of %s — banked as credit, applied to upcoming invoices", planCode),
+	}, nil
+}
+
+// giftNewUser handles a gift for an org with no active subscription (trial /
+// freshly invited): ensure a Stripe customer exists, then start a FREE
+// one-month trial of the gifted plan that auto-cancels at the end (no payment
+// method).
+func (h *Handler) giftNewUser(ctx context.Context, orgID uuid.UUID, planCode, orgEmail, orgName, giftPriceID string, monthlyCents int64, currency string) (*Response, error) {
 	customerID, err := h.gateway.EnsureCustomer(ctx, orgID.String(), orgEmail, orgName)
 	if err != nil {
 		return nil, fmt.Errorf("ensure customer for gift: %w", err)

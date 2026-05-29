@@ -26,21 +26,21 @@ type schemaProvisioner func(db *sql.DB, schemaName string) error
 // trialProvisioner implements authservices.TrialProvisioner.
 //
 // It runs a single transaction that:
-//   1. Inserts the organization (status implicit via row creation).
-//   2. Adds the user as the owner member.
-//   3. Assigns the ADMIN role.
-//   4. Creates the active organization_plans row for the trial plan with
-//      trial_ends_at = now() + trial_days.
+//  1. Inserts the organization (status implicit via row creation).
+//  2. Adds the user as the owner member.
+//  3. Assigns the ADMIN role.
+//  4. Creates the active organization_plans row for the trial plan with
+//     trial_ends_at = now() + trial_days.
 //
 // After the transaction commits, the tenant schema is provisioned (DDL must
 // run outside the transaction). usage_tracking is seeded by the tenant
 // migration 000004_seed_usage_tracking_from_plan which reads the active plan
 // row — so the plan row MUST exist before ProvisionTenantSchema runs.
 type trialProvisioner struct {
-	db          *sql.DB
-	orgService  *orgservices.OrganizationService
-	provision   schemaProvisioner
-	nowFn       func() time.Time
+	db         *sql.DB
+	orgService *orgservices.OrganizationService
+	provision  schemaProvisioner
+	nowFn      func() time.Time
 }
 
 // NewTrialProvisioner constructs the production TrialProvisioner that issues

@@ -88,6 +88,7 @@ func TestCreateOrganizationRESTAPI(t *testing.T) {
 	}
 
 	resp, respBody := makeRESTRequest(t, "POST", "/api/organizations", req)
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusCreated {
 		t.Errorf("Expected status 201, got %d", resp.StatusCode)
@@ -122,6 +123,7 @@ func TestGetOrganizationRESTAPI(t *testing.T) {
 	}
 
 	resp1, respBody1 := makeRESTRequest(t, "POST", "/api/organizations", createReq)
+	defer func() { _ = resp1.Body.Close() }()
 	if resp1.StatusCode != http.StatusCreated {
 		t.Fatalf("Failed to create organization: %d", resp1.StatusCode)
 	}
@@ -132,6 +134,7 @@ func TestGetOrganizationRESTAPI(t *testing.T) {
 	}
 
 	resp2, respBody2 := makeRESTRequest(t, "GET", "/api/organizations/"+createResp.ID, nil)
+	defer func() { _ = resp2.Body.Close() }()
 
 	if resp2.StatusCode != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", resp2.StatusCode)
@@ -193,12 +196,14 @@ func TestCreateWithDuplicateSubdomainRESTAPI(t *testing.T) {
 
 	req1 := CreateOrgRequest{Name: "First REST Org", Subdomain: subdomain}
 	resp1, _ := makeRESTRequest(t, "POST", "/api/organizations", req1)
+	defer func() { _ = resp1.Body.Close() }()
 	if resp1.StatusCode != http.StatusCreated {
 		t.Fatalf("Failed to create first organization: %d", resp1.StatusCode)
 	}
 
 	req2 := CreateOrgRequest{Name: "Second REST Org", Subdomain: subdomain}
 	resp2, respBody2 := makeRESTRequest(t, "POST", "/api/organizations", req2)
+	defer func() { _ = resp2.Body.Close() }()
 
 	if resp2.StatusCode != http.StatusConflict {
 		t.Errorf("Expected status 409 Conflict, got %d", resp2.StatusCode)
@@ -212,6 +217,7 @@ func TestGetNonExistentOrganizationRESTAPI(t *testing.T) {
 
 	fakeID := "550e8400-e29b-41d4-a716-446655440099"
 	resp, _ := makeRESTRequest(t, "GET", "/api/organizations/"+fakeID, nil)
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusNotFound {
 		t.Errorf("Expected status 404 Not Found, got %d", resp.StatusCode)
@@ -286,6 +292,7 @@ func TestInvalidUUIDFormatRESTAPI(t *testing.T) {
 	skipUnlessE2E(t)
 
 	resp, _ := makeRESTRequest(t, "GET", "/api/organizations/not-a-uuid", nil)
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("Expected status 400 Bad Request, got %d", resp.StatusCode)

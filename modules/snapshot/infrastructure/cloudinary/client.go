@@ -73,35 +73,8 @@ func (c *Client) Upload(ctx context.Context, objectName string, reader io.Reader
 		resourceType = "image"
 	}
 
-	body := &bytes.Buffer{}
-	writer := multipart.NewWriter(body)
-
-	filePart, err := writer.CreateFormFile("file", path.Base(objectName))
+	body, contentTypeHeader, err := c.buildUploadBody(objectName, publicID, signature, params["timestamp"], reader)
 	if err != nil {
-		return "", err
-	}
-	if _, err := io.Copy(filePart, reader); err != nil {
-		return "", err
-	}
-
-	if err := writer.WriteField("api_key", c.apiKey); err != nil {
-		return "", err
-	}
-	if err := writer.WriteField("timestamp", params["timestamp"]); err != nil {
-		return "", err
-	}
-	if err := writer.WriteField("signature", signature); err != nil {
-		return "", err
-	}
-	if err := writer.WriteField("public_id", publicID); err != nil {
-		return "", err
-	}
-	if c.folder != "" {
-		if err := writer.WriteField("folder", c.folder); err != nil {
-			return "", err
-		}
-	}
-	if err := writer.Close(); err != nil {
 		return "", err
 	}
 
@@ -110,24 +83,65 @@ func (c *Client) Upload(ctx context.Context, objectName string, reader io.Reader
 	if err != nil {
 		return "", err
 	}
-	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("Content-Type", contentTypeHeader)
 
 	resp, err := c.http.Do(req)
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var uploadRes uploadResponse
 	if err := json.NewDecoder(resp.Body).Decode(&uploadRes); err != nil {
 		return "", err
 	}
 
-	if resp.StatusCode >= 300 {
+	return parseUploadResponse(uploadRes, resp.StatusCode)
+}
+
+// buildUploadBody assembles the multipart form body for a Cloudinary upload and
+// returns the body buffer together with the multipart Content-Type header value.
+func (c *Client) buildUploadBody(objectName, publicID, signature, timestamp string, reader io.Reader) (*bytes.Buffer, string, error) {
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+
+	filePart, err := writer.CreateFormFile("file", path.Base(objectName))
+	if err != nil {
+		return nil, "", err
+	}
+	if _, err := io.Copy(filePart, reader); err != nil {
+		return nil, "", err
+	}
+
+	fields := map[string]string{
+		"api_key":   c.apiKey,
+		"timestamp": timestamp,
+		"signature": signature,
+		"public_id": publicID,
+	}
+	if c.folder != "" {
+		fields["folder"] = c.folder
+	}
+	for name, value := range fields {
+		if err := writer.WriteField(name, value); err != nil {
+			return nil, "", err
+		}
+	}
+
+	if err := writer.Close(); err != nil {
+		return nil, "", err
+	}
+	return body, writer.FormDataContentType(), nil
+}
+
+// parseUploadResponse maps a decoded Cloudinary response and HTTP status to the
+// resulting URL or an error.
+func parseUploadResponse(uploadRes uploadResponse, statusCode int) (string, error) {
+	if statusCode >= 300 {
 		if uploadRes.Error != nil && uploadRes.Error.Message != "" {
 			return "", fmt.Errorf("cloudinary upload failed: %s", uploadRes.Error.Message)
 		}
-		return "", fmt.Errorf("cloudinary upload failed with status %d", resp.StatusCode)
+		return "", fmt.Errorf("cloudinary upload failed with status %d", statusCode)
 	}
 
 	if uploadRes.SecureURL != "" {
@@ -152,7 +166,7 @@ func (c *Client) Download(ctx context.Context, objectURL string) ([]byte, error)
 	if err != nil {
 		return nil, fmt.Errorf("download failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode >= 300 {
 		return nil, fmt.Errorf("download returned status %d", resp.StatusCode)

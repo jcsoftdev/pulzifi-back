@@ -9,8 +9,8 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	_ "github.com/lib/pq"
 	authwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/auth"
+	_ "github.com/lib/pq"
 )
 
 // ── helpers ───────────────────────────────────────────────────────────────────

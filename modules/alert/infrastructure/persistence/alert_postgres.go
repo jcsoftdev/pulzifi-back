@@ -87,7 +87,7 @@ func (r *AlertPostgresRepository) ListByWorkspace(ctx context.Context, workspace
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var alerts []*entities.Alert
 	for rows.Next() {
 		var a entities.Alert
@@ -135,7 +135,7 @@ func (r *AlertPostgresRepository) ListAll(ctx context.Context, limit int) ([]*en
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var alerts []*entities.AlertWithPage
 	for rows.Next() {
 		var a entities.AlertWithPage

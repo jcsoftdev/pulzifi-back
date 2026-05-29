@@ -79,15 +79,9 @@ func (h *Handler) Handle(ctx context.Context, req Request) (*Response, error) {
 		return nil, ErrNoActiveSubscription
 	}
 
-	newPriceID, err := h.planRepo.FindStripePriceID(ctx, req.PlanID, req.BillingCycle)
+	newPriceID, err := h.resolveNewPriceID(ctx, req)
 	if err != nil {
-		if errors.Is(err, repositories.ErrPlanNotFound) {
-			return nil, ErrPlanNotFound
-		}
 		return nil, err
-	}
-	if newPriceID == "" {
-		return nil, ErrMissingPriceID
 	}
 
 	sub, err := h.subRepo.FindByOrgID(ctx, orgID)
@@ -98,20 +92,57 @@ func (h *Handler) Handle(ctx context.Context, req Request) (*Response, error) {
 		return nil, ErrNoActiveSubscription
 	}
 
+	resp, snap, err := h.computeProration(ctx, req, orgID, sub, newPriceID)
+	if err != nil {
+		return nil, err
+	}
+
+	if req.Preview {
+		return resp, nil
+	}
+
+	if err := h.applyPlanChange(ctx, orgID, sub, newPriceID, resp, snap); err != nil {
+		return nil, err
+	}
+
+	resp.Preview = false
+	return resp, nil
+}
+
+// resolveNewPriceID resolves the target Stripe price id for the requested plan
+// and billing cycle, mapping repository errors to the use case sentinels.
+func (h *Handler) resolveNewPriceID(ctx context.Context, req Request) (string, error) {
+	newPriceID, err := h.planRepo.FindStripePriceID(ctx, req.PlanID, req.BillingCycle)
+	if err != nil {
+		if errors.Is(err, repositories.ErrPlanNotFound) {
+			return "", ErrPlanNotFound
+		}
+		return "", err
+	}
+	if newPriceID == "" {
+		return "", ErrMissingPriceID
+	}
+	return newPriceID, nil
+}
+
+// computeProration gathers Stripe prices, usage, and account credit to build the
+// preview Response (usage-based Model B). It also returns the usage snapshot so
+// the apply path can reuse the remaining-checks figures without re-reading.
+func (h *Handler) computeProration(ctx context.Context, req Request, orgID uuid.UUID, sub *entities.Subscription, newPriceID string) (*Response, services.UsageSnapshot, error) {
 	// Resolve current price id from Stripe (the Subscription entity does not
 	// carry it). Use this to look up the current unit amount for the credit
 	// calculation.
 	currentSub, err := h.gateway.RetrieveSubscription(ctx, sub.StripeSubscriptionID)
 	if err != nil {
-		return nil, fmt.Errorf("retrieve current sub: %w", err)
+		return nil, services.UsageSnapshot{}, fmt.Errorf("retrieve current sub: %w", err)
 	}
 	oldPriceCents, currency, err := h.gateway.RetrievePriceAmount(ctx, currentSub.PriceID)
 	if err != nil {
-		return nil, fmt.Errorf("retrieve old price: %w", err)
+		return nil, services.UsageSnapshot{}, fmt.Errorf("retrieve old price: %w", err)
 	}
 	newPriceCents, newCurrency, err := h.gateway.RetrievePriceAmount(ctx, newPriceID)
 	if err != nil {
-		return nil, fmt.Errorf("retrieve new price: %w", err)
+		return nil, services.UsageSnapshot{}, fmt.Errorf("retrieve new price: %w", err)
 	}
 	if newCurrency != "" {
 		currency = newCurrency
@@ -120,7 +151,7 @@ func (h *Handler) Handle(ctx context.Context, req Request) (*Response, error) {
 	// Usage credit — based on remaining checks of the current plan period.
 	snap, err := h.usageReader.ReadActiveUsage(ctx, orgID)
 	if err != nil {
-		return nil, fmt.Errorf("read usage: %w", err)
+		return nil, services.UsageSnapshot{}, fmt.Errorf("read usage: %w", err)
 	}
 	usageCredit := int64(float64(oldPriceCents) * snap.RemainingRatio())
 	if usageCredit < 0 {
@@ -163,26 +194,28 @@ func (h *Handler) Handle(ctx context.Context, req Request) (*Response, error) {
 		ChecksAllowed:      snap.ChecksAllowed,
 		Preview:            req.Preview,
 	}
+	return resp, snap, nil
+}
 
-	if req.Preview {
-		return resp, nil
-	}
-
+// applyPlanChange performs the live Stripe mutation: post the usage credit,
+// update the subscription with a fresh billing-cycle anchor, then sync the plan
+// locally so the next read reflects the new plan immediately.
+func (h *Handler) applyPlanChange(ctx context.Context, orgID uuid.UUID, sub *entities.Subscription, newPriceID string, resp *Response, snap services.UsageSnapshot) error {
 	// Apply: create the refund invoice item BEFORE updating the subscription
 	// so the negative line is on the next invoice Stripe finalises.
-	if usageCredit > 0 {
+	if resp.UsageCreditCents > 0 {
 		description := fmt.Sprintf(
 			"Usage-based credit on plan change (%d / %d checks remaining)",
-			checksRemaining, snap.ChecksAllowed,
+			resp.ChecksRemaining, snap.ChecksAllowed,
 		)
-		if err := h.gateway.CreateRefundCreditInvoiceItem(ctx, sub.StripeCustomerID, usageCredit, currency, description); err != nil {
-			return nil, fmt.Errorf("apply usage credit: %w", err)
+		if err := h.gateway.CreateRefundCreditInvoiceItem(ctx, sub.StripeCustomerID, resp.UsageCreditCents, resp.Currency, description); err != nil {
+			return fmt.Errorf("apply usage credit: %w", err)
 		}
 	}
 
 	updated, err := h.gateway.UpdateSubscriptionAnchorNow(ctx, sub.StripeSubscriptionID, newPriceID)
 	if err != nil {
-		return nil, fmt.Errorf("update subscription: %w", err)
+		return fmt.Errorf("update subscription: %w", err)
 	}
 
 	// Persist locally so the client's next read of /billing/subscription
@@ -203,6 +236,5 @@ func (h *Handler) Handle(ctx context.Context, req Request) (*Response, error) {
 		fmt.Printf("update_subscription: sync plan assign failed (org=%s): %v\n", orgID, assignErr)
 	}
 
-	resp.Preview = false
-	return resp, nil
+	return nil
 }

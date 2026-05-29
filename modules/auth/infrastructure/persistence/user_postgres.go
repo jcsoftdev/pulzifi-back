@@ -277,7 +277,7 @@ func (r *UserPostgresRepository) ListByStatus(ctx context.Context, status string
 		logger.Error("Failed to list users by status", zap.Error(err))
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var users []*entities.User
 	for rows.Next() {

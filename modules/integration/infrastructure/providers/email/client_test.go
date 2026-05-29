@@ -108,10 +108,8 @@ func TestEmailClient(t *testing.T) {
 				if !strings.Contains(err.Error(), tc.wantErr) {
 					t.Fatalf("expected error %q, got %q", tc.wantErr, err.Error())
 				}
-			} else {
-				if err != nil {
-					t.Fatalf("unexpected error: %v", err)
-				}
+			} else if err != nil {
+				t.Fatalf("unexpected error: %v", err)
 			}
 
 			// Send not called assertions

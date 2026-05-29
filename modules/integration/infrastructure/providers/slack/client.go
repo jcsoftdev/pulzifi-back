@@ -77,7 +77,7 @@ func (c *Client) HandleCallback(ctx context.Context, code, redirectURI string) (
 	if err != nil {
 		return nil, fmt.Errorf("slack: token request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	raw, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -142,7 +142,7 @@ func (c *Client) ListTargets(ctx context.Context, integ *entities.Integration) (
 			return nil, fmt.Errorf("slack: channels request: %w", err)
 		}
 		raw, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		if err != nil {
 			return nil, fmt.Errorf("slack: read channels response: %w", err)
 		}
@@ -207,7 +207,7 @@ func (c *Client) Send(ctx context.Context, integ *entities.Integration, dest *en
 	if err != nil {
 		return nil, fmt.Errorf("slack: post message: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	raw, err := io.ReadAll(resp.Body)
 	if err != nil {

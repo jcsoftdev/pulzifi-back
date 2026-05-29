@@ -78,7 +78,7 @@ func (c *OpenRouterClient) Complete(ctx context.Context, messages []Message) (st
 	if err != nil {
 		return "", fmt.Errorf("openrouter: do request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		var errBody map[string]interface{}
@@ -129,7 +129,7 @@ func (c *OpenRouterClient) CompleteMultimodal(ctx context.Context, messages []Mu
 	if err != nil {
 		return "", fmt.Errorf("openrouter: do request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		var errBody map[string]interface{}

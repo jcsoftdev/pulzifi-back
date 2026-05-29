@@ -105,7 +105,7 @@ func (r *DeliveryPostgresRepository) ClaimPending(ctx context.Context, limit int
 	if err != nil {
 		return nil, fmt.Errorf("delivery repo: claim pending: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var result []*entities.Delivery
 	for rows.Next() {
@@ -209,7 +209,7 @@ func (r *DeliveryPostgresRepository) ListByDestination(ctx context.Context, dest
 	if err != nil {
 		return nil, fmt.Errorf("delivery repo: list by destination: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var result []*entities.Delivery
 	for rows.Next() {

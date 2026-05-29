@@ -3,8 +3,8 @@ package snapshotwiring
 import (
 	"context"
 
-	snapinfraextractor "github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/extractor"
 	snapServices "github.com/jcsoftdev/pulzifi-back/modules/snapshot/domain/services"
+	snapinfraextractor "github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/extractor"
 )
 
 // extractorClientAdapter implements snapshot's ExtractorClient port by

@@ -59,7 +59,7 @@ func (r *DashboardPostgresRepository) GetStats(ctx context.Context) (*entities.D
 	if err != nil {
 		return nil, err
 	}
-	defer changesRows.Close()
+	defer func() { _ = changesRows.Close() }()
 
 	for changesRows.Next() {
 		var wc entities.WorkspaceChanges
@@ -81,7 +81,7 @@ func (r *DashboardPostgresRepository) GetStats(ctx context.Context) (*entities.D
 	if err != nil {
 		return nil, err
 	}
-	defer alertRows.Close()
+	defer func() { _ = alertRows.Close() }()
 
 	for alertRows.Next() {
 		var a entities.RecentAlert
@@ -103,7 +103,7 @@ func (r *DashboardPostgresRepository) GetStats(ctx context.Context) (*entities.D
 	if err != nil {
 		return nil, err
 	}
-	defer insightRows.Close()
+	defer func() { _ = insightRows.Close() }()
 
 	for insightRows.Next() {
 		var ins entities.RecentInsight

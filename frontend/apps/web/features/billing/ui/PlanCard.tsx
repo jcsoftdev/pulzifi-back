@@ -129,7 +129,7 @@ export function PlanCard({
                   className="mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary"
                   aria-hidden
                 >
-                  <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+                  <svg width="10" height="10" viewBox="0 0 12 12" fill="none" aria-hidden="true">
                     <path
                       d="M2 6.5L5 9.5L10 3.5"
                       stroke="currentColor"
@@ -144,7 +144,7 @@ export function PlanCard({
                   className="mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground/70"
                   aria-hidden
                 >
-                  <svg width="8" height="8" viewBox="0 0 12 12" fill="none">
+                  <svg width="8" height="8" viewBox="0 0 12 12" fill="none" aria-hidden="true">
                     <path
                       d="M3 3L9 9M9 3L3 9"
                       stroke="currentColor"

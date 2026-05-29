@@ -79,7 +79,7 @@ func (m *Module) handleCreateAlert(w http.ResponseWriter, r *http.Request) {
 	if m.db == nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"id":      "550e8400-e29b-41d4-a716-446655440000",
 			"message": "create alert (mock - db not initialized)",
 		})
@@ -125,7 +125,7 @@ func (m *Module) handleCreateAlert(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 // handleListAlerts lists all alerts for the current workspace
@@ -143,7 +143,7 @@ func (m *Module) handleListAlerts(w http.ResponseWriter, r *http.Request) {
 	// If db is not available, return mock response
 	if m.db == nil {
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"data":    []interface{}{},
 			"message": "list alerts (mock - db not initialized)",
 		})
@@ -155,7 +155,7 @@ func (m *Module) handleListAlerts(w http.ResponseWriter, r *http.Request) {
 	workspaceIDStr := r.URL.Query().Get("workspace_id")
 	if workspaceIDStr == "" {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{
+		_ = json.NewEncoder(w).Encode(map[string]string{
 			"error": "workspace_id query parameter is required",
 		})
 		return
@@ -164,7 +164,7 @@ func (m *Module) handleListAlerts(w http.ResponseWriter, r *http.Request) {
 	workspaceID, err := uuid.Parse(workspaceIDStr)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{
+		_ = json.NewEncoder(w).Encode(map[string]string{
 			"error": "invalid workspace_id format",
 		})
 		return
@@ -174,14 +174,14 @@ func (m *Module) handleListAlerts(w http.ResponseWriter, r *http.Request) {
 	alerts, err := repo.ListByWorkspace(r.Context(), workspaceID)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{
+		_ = json.NewEncoder(w).Encode(map[string]string{
 			"error": "failed to list alerts",
 		})
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"data":  alerts,
 		"count": len(alerts),
 	})
@@ -203,7 +203,7 @@ func (m *Module) handleGetAlert(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "invalid alert id"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "invalid alert id"})
 		return
 	}
 
@@ -213,17 +213,17 @@ func (m *Module) handleGetAlert(w http.ResponseWriter, r *http.Request) {
 	alert, err := repo.GetByID(r.Context(), id)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "failed to get alert"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "failed to get alert"})
 		return
 	}
 	if alert == nil {
 		w.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(w).Encode(map[string]string{"error": "alert not found"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "alert not found"})
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(alert)
+	_ = json.NewEncoder(w).Encode(alert)
 }
 
 // handleUpdateAlert marks an alert as read
@@ -242,7 +242,7 @@ func (m *Module) handleUpdateAlert(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "invalid alert id"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "invalid alert id"})
 		return
 	}
 
@@ -251,19 +251,19 @@ func (m *Module) handleUpdateAlert(w http.ResponseWriter, r *http.Request) {
 
 	if err := repo.MarkAsRead(r.Context(), id); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "failed to update alert"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "failed to update alert"})
 		return
 	}
 
 	alert, err := repo.GetByID(r.Context(), id)
 	if err != nil || alert == nil {
 		w.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(w).Encode(map[string]string{"error": "alert not found"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "alert not found"})
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(alert)
+	_ = json.NewEncoder(w).Encode(alert)
 }
 
 // handleDeleteAlert deletes an alert
@@ -279,7 +279,7 @@ func (m *Module) handleDeleteAlert(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "invalid alert id"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "invalid alert id"})
 		return
 	}
 
@@ -289,7 +289,7 @@ func (m *Module) handleDeleteAlert(w http.ResponseWriter, r *http.Request) {
 	if err := repo.Delete(r.Context(), id); err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "failed to delete alert"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "failed to delete alert"})
 		return
 	}
 
@@ -304,11 +304,11 @@ func (m *Module) handleCountUnread(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "failed to count unread alerts"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "failed to count unread alerts"})
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 func (m *Module) handleListAllAlerts(w http.ResponseWriter, r *http.Request) {
@@ -319,11 +319,11 @@ func (m *Module) handleListAllAlerts(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "failed to list alerts"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "failed to list alerts"})
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 func (m *Module) handleMarkAllRead(w http.ResponseWriter, r *http.Request) {
@@ -333,9 +333,9 @@ func (m *Module) handleMarkAllRead(w http.ResponseWriter, r *http.Request) {
 	if err := handler.Handle(r.Context()); err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "failed to mark alerts as read"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "failed to mark alerts as read"})
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"message": "all alerts marked as read"})
+	_ = json.NewEncoder(w).Encode(map[string]string{"message": "all alerts marked as read"})
 }

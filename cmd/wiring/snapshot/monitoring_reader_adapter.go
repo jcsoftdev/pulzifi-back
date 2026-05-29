@@ -143,4 +143,3 @@ func (a *monitoringReaderAdapter) UpdatePageSnapshotMetadata(ctx context.Context
 	_, err := a.db.ExecContext(ctx, q, thumbnailURL, changeDetected, pageID)
 	return err
 }
-

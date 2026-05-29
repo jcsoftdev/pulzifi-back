@@ -100,7 +100,7 @@ func (c *Client) tokenExchange(ctx context.Context, body url.Values, requireToke
 	if err != nil {
 		return nil, fmt.Errorf("teams token: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	raw, _ := io.ReadAll(resp.Body)
 
 	if resp.StatusCode >= 400 {
@@ -211,7 +211,7 @@ func (c *Client) fetchIDName(ctx context.Context, token, u string) ([]idName, st
 	if err != nil {
 		return nil, "", err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	raw, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != 200 {
 		return nil, "", fmt.Errorf("status=%d body=%s", resp.StatusCode, string(raw))
@@ -258,7 +258,7 @@ func (c *Client) Send(ctx context.Context, integ *entities.Integration, dest *en
 	if err != nil {
 		return nil, fmt.Errorf("teams send: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	raw, _ := io.ReadAll(resp.Body)
 
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {

@@ -116,25 +116,13 @@ func compareNRGBA(a, b *image.NRGBA, diffThreshold float64) *ImageCompareResult 
 	totalArea := max(totalAreaA, totalAreaB)
 	nonOverlapping := totalArea - overlapPixels
 
-	// Determine band count
-	numBands := runtime.NumCPU()
-	if numBands > 16 {
-		numBands = 16
-	}
-	minBandHeight := 64
-	if h/numBands < minBandHeight {
-		numBands = h / minBandHeight
-		if numBands < 1 {
-			numBands = 1
-		}
-	}
+	numBands := computeBandCount(h)
 
 	maxAllowedDiffs := int64(math.Ceil(diffThreshold * float64(totalArea)))
 	var globalDiffCount int64
 	var terminated int32 // 1 = early termination triggered
 
 	type bandResult struct {
-		diffs     int64
 		diffLines []int
 	}
 
@@ -154,60 +142,9 @@ func compareNRGBA(a, b *image.NRGBA, diffThreshold float64) *ImageCompareResult 
 
 		go func() {
 			defer wg.Done()
-			var localDiffs int64
-			var localDiffLines []int
-
-			for y := startY; y < endY; y++ {
-				if atomic.LoadInt32(&terminated) != 0 {
-					break
-				}
-
-				rowHasDiff := false
-				for x := minX; x < maxX; x++ {
-					r1, g1, b1, a1 := pixelAt(a, x, y)
-					r2, g2, b2, a2 := pixelAt(b, x, y)
-
-					// Fast path: identical bytes
-					if r1 == r2 && g1 == g2 && b1 == b2 && a1 == a2 {
-						continue
-					}
-
-					delta := colorDelta(r1, g1, b1, a1, r2, g2, b2, a2, false)
-					if delta <= 0.1 { // per-pixel threshold (matches pixelmatch default)
-						continue
-					}
-
-					// Check anti-aliasing in both images
-					if isAntialiased(a, x, y, w, h, minX, minY, b) ||
-						isAntialiased(b, x, y, w, h, minX, minY, a) {
-						continue
-					}
-
-					localDiffs++
-					rowHasDiff = true
-				}
-
-				if rowHasDiff {
-					localDiffLines = append(localDiffLines, y)
-				}
-
-				// Check early termination at row boundaries
-				current := atomic.AddInt64(&globalDiffCount, localDiffs)
-				localDiffs = 0
-				if current+int64(nonOverlapping) > maxAllowedDiffs {
-					atomic.StoreInt32(&terminated, 1)
-					break
-				}
-			}
-
-			// Flush any remaining local diffs
-			if localDiffs > 0 {
-				atomic.AddInt64(&globalDiffCount, localDiffs)
-			}
-
-			bandResults[band] = bandResult{
-				diffLines: localDiffLines,
-			}
+			diffLines := compareBand(a, b, startY, endY, minX, maxX, w, h, minX, minY,
+				nonOverlapping, maxAllowedDiffs, &globalDiffCount, &terminated)
+			bandResults[band] = bandResult{diffLines: diffLines}
 		}()
 	}
 
@@ -233,6 +170,83 @@ func compareNRGBA(a, b *image.NRGBA, diffThreshold float64) *ImageCompareResult 
 		TotalPixels: totalArea,
 		DiffLines:   allDiffLines,
 	}
+}
+
+// computeBandCount derives the number of parallel bands for a comparison area
+// of height h: capped at NumCPU (max 16) with a minimum band height of 64 rows.
+func computeBandCount(h int) int {
+	numBands := runtime.NumCPU()
+	if numBands > 16 {
+		numBands = 16
+	}
+	minBandHeight := 64
+	if h/numBands < minBandHeight {
+		numBands = h / minBandHeight
+		if numBands < 1 {
+			numBands = 1
+		}
+	}
+	return numBands
+}
+
+// compareBand scans rows [startY, endY) of the overlap region, counting
+// perceptually-significant non-anti-aliased pixel diffs. It accumulates into
+// globalDiffCount and flips terminated when the early-termination threshold is
+// crossed. Returns the row indices that contained at least one diff.
+func compareBand(a, b *image.NRGBA, startY, endY, minX, maxX, w, h, offsetX, offsetY int,
+	nonOverlapping int, maxAllowedDiffs int64, globalDiffCount *int64, terminated *int32) []int {
+	var localDiffs int64
+	var localDiffLines []int
+
+	for y := startY; y < endY; y++ {
+		if atomic.LoadInt32(terminated) != 0 {
+			break
+		}
+
+		rowHasDiff := false
+		for x := minX; x < maxX; x++ {
+			r1, g1, b1, a1 := pixelAt(a, x, y)
+			r2, g2, b2, a2 := pixelAt(b, x, y)
+
+			// Fast path: identical bytes
+			if r1 == r2 && g1 == g2 && b1 == b2 && a1 == a2 {
+				continue
+			}
+
+			delta := colorDelta(r1, g1, b1, a1, r2, g2, b2, a2, false)
+			if delta <= 0.1 { // per-pixel threshold (matches pixelmatch default)
+				continue
+			}
+
+			// Check anti-aliasing in both images
+			if isAntialiased(a, x, y, w, h, offsetX, offsetY, b) ||
+				isAntialiased(b, x, y, w, h, offsetX, offsetY, a) {
+				continue
+			}
+
+			localDiffs++
+			rowHasDiff = true
+		}
+
+		if rowHasDiff {
+			localDiffLines = append(localDiffLines, y)
+		}
+
+		// Check early termination at row boundaries
+		current := atomic.AddInt64(globalDiffCount, localDiffs)
+		localDiffs = 0
+		if current+int64(nonOverlapping) > maxAllowedDiffs {
+			atomic.StoreInt32(terminated, 1)
+			break
+		}
+	}
+
+	// Flush any remaining local diffs
+	if localDiffs > 0 {
+		atomic.AddInt64(globalDiffCount, localDiffs)
+	}
+
+	return localDiffLines
 }
 
 // colorDelta computes the YIQ NTSC perceptual color distance between two pixels.
@@ -294,15 +308,37 @@ func isAntialiased(img *image.NRGBA, x, y, w, h, offsetX, offsetY int, other *im
 	imgW := img.Bounds().Dx()
 	imgH := img.Bounds().Dy()
 
-	// Initialize min/max to 0 (matching pixelmatch): if all neighbor deltas are
-	// on the same side of zero, the unset variable stays 0 → "no gradient" exit.
-	var (
-		zeroes              int
-		minDelta, maxDelta  float64
-		minX, minY2        int
-		maxX2, maxY2       int
-	)
+	ext, flat := scanNeighborGradient(img, x, y, imgW, imgH)
+	if flat {
+		return false // flat region, not anti-aliased
+	}
 
+	// No gradient (one side stayed at 0) → not anti-aliased
+	if ext.minDelta == 0 || ext.maxDelta == 0 {
+		return false
+	}
+
+	// Check if darkest/brightest neighbor has many siblings in both images
+	return (hasManySiblings(img, ext.minX, ext.minY, imgW, imgH) && hasManySiblings(other, ext.minX, ext.minY, other.Bounds().Dx(), other.Bounds().Dy())) ||
+		(hasManySiblings(img, ext.maxX, ext.maxY, imgW, imgH) && hasManySiblings(other, ext.maxX, ext.maxY, other.Bounds().Dx(), other.Bounds().Dy()))
+}
+
+// gradientExtremes records the darkest and brightest neighbor of a pixel along
+// with their coordinates, as found during anti-aliasing gradient analysis.
+type gradientExtremes struct {
+	minDelta, maxDelta float64
+	minX, minY         int
+	maxX, maxY         int
+}
+
+// scanNeighborGradient examines the 8 neighbors of (x, y), tracking the
+// darkest and brightest brightness deltas. It returns flat=true when at least
+// 3 neighbors have an identical brightness (a flat region that is not an
+// anti-aliased edge).
+func scanNeighborGradient(img *image.NRGBA, x, y, imgW, imgH int) (ext gradientExtremes, flat bool) {
+	// minDelta/maxDelta start at 0 (matching pixelmatch): if all neighbor deltas
+	// are on the same side of zero, the unset variable stays 0 → "no gradient".
+	var zeroes int
 	r0, g0, b0, a0 := pixelAt(img, x, y)
 
 	for dy := -1; dy <= 1; dy++ {
@@ -321,31 +357,25 @@ func isAntialiased(img *image.NRGBA, x, y, w, h, offsetX, offsetY int, other *im
 			// Brightness-only delta
 			delta := colorDelta(r0, g0, b0, a0, r1, g1, b1, a1, true)
 
-			if delta == 0 {
+			switch {
+			case delta == 0:
 				zeroes++
 				if zeroes >= 3 {
-					return false // flat region, not anti-aliased
+					return ext, true
 				}
-			} else if delta < minDelta {
-				minDelta = delta
-				minX = nx
-				minY2 = ny
-			} else if delta > maxDelta {
-				maxDelta = delta
-				maxX2 = nx
-				maxY2 = ny
+			case delta < ext.minDelta:
+				ext.minDelta = delta
+				ext.minX = nx
+				ext.minY = ny
+			case delta > ext.maxDelta:
+				ext.maxDelta = delta
+				ext.maxX = nx
+				ext.maxY = ny
 			}
 		}
 	}
 
-	// No gradient (one side stayed at 0) → not anti-aliased
-	if minDelta == 0 || maxDelta == 0 {
-		return false
-	}
-
-	// Check if darkest/brightest neighbor has many siblings in both images
-	return (hasManySiblings(img, minX, minY2, imgW, imgH) && hasManySiblings(other, minX, minY2, other.Bounds().Dx(), other.Bounds().Dy())) ||
-		(hasManySiblings(img, maxX2, maxY2, imgW, imgH) && hasManySiblings(other, maxX2, maxY2, other.Bounds().Dx(), other.Bounds().Dy()))
+	return ext, false
 }
 
 // hasManySiblings checks if a pixel has >= 3 neighbors with the same color,
@@ -410,24 +440,8 @@ func pixelUint32At(img *image.NRGBA, x, y int) uint32 {
 // Uses the same YIQ perceptual comparison and anti-aliasing detection as CompareScreenshots.
 // Returns nil if the images are identical or on decode error.
 func GenerateDiffImage(prevBytes, currBytes []byte) []byte {
-	var (
-		prevImg, currImg image.Image
-		prevErr, currErr error
-		wg               sync.WaitGroup
-	)
-
-	wg.Add(2)
-	go func() {
-		defer wg.Done()
-		prevImg, _, prevErr = image.Decode(bytes.NewReader(prevBytes))
-	}()
-	go func() {
-		defer wg.Done()
-		currImg, _, currErr = image.Decode(bytes.NewReader(currBytes))
-	}()
-	wg.Wait()
-
-	if prevErr != nil || currErr != nil {
+	prevImg, currImg, ok := decodeImagePair(prevBytes, currBytes)
+	if !ok {
 		return nil
 	}
 
@@ -453,19 +467,10 @@ func GenerateDiffImage(prevBytes, currBytes []byte) []byte {
 	copy(out.Pix, b.Pix)
 
 	// Parallel band processing (same pattern as compareNRGBA)
-	numBands := runtime.NumCPU()
-	if numBands > 16 {
-		numBands = 16
-	}
-	minBandHeight := 64
-	if h/numBands < minBandHeight {
-		numBands = h / minBandHeight
-		if numBands < 1 {
-			numBands = 1
-		}
-	}
+	numBands := computeBandCount(h)
 
 	bandHeight := h / numBands
+	var wg sync.WaitGroup
 	wg.Add(numBands)
 	for band := 0; band < numBands; band++ {
 		band := band
@@ -477,37 +482,7 @@ func GenerateDiffImage(prevBytes, currBytes []byte) []byte {
 
 		go func() {
 			defer wg.Done()
-			for y := startY; y < endY; y++ {
-				for x := minX; x < maxX; x++ {
-					r1, g1, b1, a1 := pixelAt(a, x, y)
-					r2, g2, b2, a2 := pixelAt(b, x, y)
-
-					if r1 == r2 && g1 == g2 && b1 == b2 && a1 == a2 {
-						continue
-					}
-
-					delta := colorDelta(r1, g1, b1, a1, r2, g2, b2, a2, false)
-					if delta <= 0.1 {
-						continue
-					}
-
-					if isAntialiased(a, x, y, w, h, minX, minY, b) ||
-						isAntialiased(b, x, y, w, h, minX, minY, a) {
-						continue
-					}
-
-					// Paint semi-transparent red (alpha blend over current pixel)
-					offset := (y-out.Rect.Min.Y)*out.Stride + (x-out.Rect.Min.X)*4
-					origR := float64(out.Pix[offset])
-					origG := float64(out.Pix[offset+1])
-					origB := float64(out.Pix[offset+2])
-					const overlayAlpha = 0.4
-					out.Pix[offset] = uint8(origR*(1-overlayAlpha) + 255*overlayAlpha)
-					out.Pix[offset+1] = uint8(origG * (1 - overlayAlpha))
-					out.Pix[offset+2] = uint8(origB * (1 - overlayAlpha))
-					out.Pix[offset+3] = 255
-				}
-			}
+			paintDiffBand(out, a, b, startY, endY, minX, maxX, w, h, minX, minY)
 		}()
 	}
 	wg.Wait()
@@ -517,6 +492,67 @@ func GenerateDiffImage(prevBytes, currBytes []byte) []byte {
 		return nil
 	}
 	return buf.Bytes()
+}
+
+// decodeImagePair concurrently decodes two image byte slices, returning ok=false
+// if either decode fails.
+func decodeImagePair(prevBytes, currBytes []byte) (prevImg, currImg image.Image, ok bool) {
+	var (
+		prevErr, currErr error
+		wg               sync.WaitGroup
+	)
+
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		prevImg, _, prevErr = image.Decode(bytes.NewReader(prevBytes))
+	}()
+	go func() {
+		defer wg.Done()
+		currImg, _, currErr = image.Decode(bytes.NewReader(currBytes))
+	}()
+	wg.Wait()
+
+	if prevErr != nil || currErr != nil {
+		return nil, nil, false
+	}
+	return prevImg, currImg, true
+}
+
+// paintDiffBand overlays semi-transparent red on rows [startY, endY) of out for
+// every pixel that perceptually differs (non-anti-aliased) between a and b.
+func paintDiffBand(out, a, b *image.NRGBA, startY, endY, minX, maxX, w, h, offsetX, offsetY int) {
+	for y := startY; y < endY; y++ {
+		for x := minX; x < maxX; x++ {
+			r1, g1, b1, a1 := pixelAt(a, x, y)
+			r2, g2, b2, a2 := pixelAt(b, x, y)
+
+			if r1 == r2 && g1 == g2 && b1 == b2 && a1 == a2 {
+				continue
+			}
+
+			delta := colorDelta(r1, g1, b1, a1, r2, g2, b2, a2, false)
+			if delta <= 0.1 {
+				continue
+			}
+
+			if isAntialiased(a, x, y, w, h, offsetX, offsetY, b) ||
+				isAntialiased(b, x, y, w, h, offsetX, offsetY, a) {
+				continue
+			}
+
+			// Paint semi-transparent red (alpha blend over current pixel)
+			offset := (y-out.Rect.Min.Y)*out.Stride + (x-out.Rect.Min.X)*4
+			origR := float64(out.Pix[offset])
+			origG := float64(out.Pix[offset+1])
+			origB := float64(out.Pix[offset+2])
+			const overlayAlpha = 0.4
+			out.Pix[offset] = uint8(origR*(1-overlayAlpha) + 255*overlayAlpha)
+			out.Pix[offset+1] = uint8(origG * (1 - overlayAlpha))
+			out.Pix[offset+2] = uint8(origB * (1 - overlayAlpha))
+			out.Pix[offset+3] = 255
+		}
+	}
 }
 
 // CropSectionImage crops a full-page PNG screenshot to the given viewport-relative rectangle.

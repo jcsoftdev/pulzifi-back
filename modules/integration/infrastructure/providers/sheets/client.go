@@ -90,7 +90,7 @@ func (c *Client) tokenExchange(ctx context.Context, body url.Values, requireRefr
 	if err != nil {
 		return nil, fmt.Errorf("sheets token: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	raw, _ := io.ReadAll(resp.Body)
 
 	if resp.StatusCode >= 400 {
@@ -153,7 +153,7 @@ func (c *Client) ListTargets(ctx context.Context, integ *entities.Integration) (
 			return nil, fmt.Errorf("sheets list_targets: %w", err)
 		}
 		body, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 
 		if resp.StatusCode == 401 || resp.StatusCode == 403 {
 			return nil, fmt.Errorf("sheets list_targets: auth failure: status=%d", resp.StatusCode)
@@ -215,7 +215,7 @@ func (c *Client) Send(ctx context.Context, integ *entities.Integration, dest *en
 	if err != nil {
 		return nil, fmt.Errorf("sheets send: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	raw, _ := io.ReadAll(resp.Body)
 
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {

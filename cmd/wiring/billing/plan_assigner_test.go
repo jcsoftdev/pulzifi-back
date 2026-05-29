@@ -19,8 +19,8 @@ import (
 // needs from *sql.DB.  This lets us unit-test the adapter without Postgres.
 
 type fakeTxDB struct {
-	tx     *fakeTx
-	txErr  error
+	tx    *fakeTx
+	txErr error
 }
 
 func (f *fakeTxDB) BeginTx(ctx context.Context, opts *sql.TxOptions) (billingwiring.Tx, error) {
@@ -34,10 +34,10 @@ func (f *fakeTxDB) BeginTx(ctx context.Context, opts *sql.TxOptions) (billingwir
 
 type fakeTx struct {
 	// Expectations for QueryRow calls (in order)
-	rows      []*fakeRow
-	rowIdx    int
-	execErr   error
-	commitErr error
+	rows       []*fakeRow
+	rowIdx     int
+	execErr    error
+	commitErr  error
 	rolledBack bool
 	committed  bool
 }
@@ -89,13 +89,12 @@ func (r *fakeRow) Scan(dest ...any) error {
 type fakeResult struct{}
 
 func (fakeResult) LastInsertId() (int64, error) { return 0, nil }
-func (fakeResult) RowsAffected() (int64, error)  { return 1, nil }
+func (fakeResult) RowsAffected() (int64, error) { return 1, nil }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 func uuidRow(id uuid.UUID) *fakeRow { return &fakeRow{val: id.String()} }
 func noRow() *fakeRow               { return &fakeRow{err: sql.ErrNoRows} }
-func errRow(err error) *fakeRow     { return &fakeRow{err: err} }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 

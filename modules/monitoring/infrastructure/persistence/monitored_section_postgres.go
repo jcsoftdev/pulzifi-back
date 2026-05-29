@@ -101,7 +101,7 @@ func (r *MonitoredSectionPostgresRepository) ListByPageID(ctx context.Context, p
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var sections []*entities.MonitoredSection
 	for rows.Next() {
 		var s entities.MonitoredSection
@@ -149,7 +149,7 @@ func (r *MonitoredSectionPostgresRepository) ReplaceAll(ctx context.Context, pag
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	// Delete existing sections for this page
 	if _, err := tx.ExecContext(ctx, `DELETE FROM monitored_sections WHERE page_id = $1`, pageID); err != nil {

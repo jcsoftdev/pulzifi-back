@@ -81,7 +81,7 @@ func (c *Client) Download(ctx context.Context, objectURL string) ([]byte, error)
 	if err != nil {
 		return nil, fmt.Errorf("minio GetObject failed: %w", err)
 	}
-	defer obj.Close()
+	defer func() { _ = obj.Close() }()
 
 	data, err := io.ReadAll(obj)
 	if err != nil {

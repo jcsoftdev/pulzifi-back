@@ -146,11 +146,11 @@ func (m *AuthMiddleware) ValidateTokenFromRequest(r *http.Request) (uuid.UUID, e
 func (m *AuthMiddleware) unauthorized(w http.ResponseWriter, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusUnauthorized)
-	json.NewEncoder(w).Encode(map[string]string{"error": message})
+	_ = json.NewEncoder(w).Encode(map[string]string{"error": message})
 }
 
 func (m *AuthMiddleware) forbidden(w http.ResponseWriter, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusForbidden)
-	json.NewEncoder(w).Encode(map[string]string{"error": message})
+	_ = json.NewEncoder(w).Encode(map[string]string{"error": message})
 }

@@ -110,11 +110,11 @@ func (b *RedisCheckBroker) listenLoop() {
 		if err := b.runReceive(pubsub); err != nil {
 			select {
 			case <-b.ctx.Done():
-				pubsub.Close()
+				_ = pubsub.Close()
 				return
 			default:
 			}
-			pubsub.Close()
+			_ = pubsub.Close()
 			// Exponential backoff before reconnect.
 			time.Sleep(backoff)
 			backoff *= 2
@@ -122,7 +122,7 @@ func (b *RedisCheckBroker) listenLoop() {
 				backoff = maxBackoff
 			}
 		} else {
-			pubsub.Close()
+			_ = pubsub.Close()
 			return
 		}
 	}

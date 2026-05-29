@@ -477,10 +477,8 @@ func TestHandleWebhookHandler_Handle(t *testing.T) {
 				if tc.LastOrgID == uuid.Nil {
 					t.Errorf("expected non-Nil orgID passed to TrialConverter, got Nil")
 				}
-			} else {
-				if tc.ConvertCalls != 0 {
-					t.Errorf("expected 0 TrialConverter.Convert calls, got %d", tc.ConvertCalls)
-				}
+			} else if tc.ConvertCalls != 0 {
+				t.Errorf("expected 0 TrialConverter.Convert calls, got %d", tc.ConvertCalls)
 			}
 			if tt.assertFn != nil {
 				tt.assertFn(t, pa, tt.webhookRepo)

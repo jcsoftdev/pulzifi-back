@@ -44,7 +44,7 @@ func (r *teamMemberPostgresRepository) ListByOrganization(ctx context.Context, o
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var members []*entities.TeamMember
 	for rows.Next() {

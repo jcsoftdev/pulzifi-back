@@ -75,7 +75,7 @@ func (m *Module) RegisterHTTPRoutes(router chi.Router) {
 func (m *Module) handleCreateOrganization(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", contentTypeJSON)
 	w.WriteHeader(http.StatusNotImplemented)
-	json.NewEncoder(w).Encode(map[string]string{"error": "use the registration/approval flow to create organizations"})
+	_ = json.NewEncoder(w).Encode(map[string]string{"error": "use the registration/approval flow to create organizations"})
 }
 
 // handleListOrganizations lists all organizations for the current user
@@ -93,13 +93,13 @@ func (m *Module) handleListOrganizations(w http.ResponseWriter, r *http.Request)
 	userIDStr, ok := r.Context().Value(contextkeys.UserIDKey).(string)
 	if !ok || userIDStr == "" {
 		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]string{"error": "unauthorized"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "unauthorized"})
 		return
 	}
 	userID, err := uuid.Parse(userIDStr)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "invalid user id"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "invalid user id"})
 		return
 	}
 
@@ -107,7 +107,7 @@ func (m *Module) handleListOrganizations(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		logger.Error("Failed to list organizations", zap.Error(err))
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "failed to list organizations"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "failed to list organizations"})
 		return
 	}
 	if orgs == nil {
@@ -115,7 +115,7 @@ func (m *Module) handleListOrganizations(w http.ResponseWriter, r *http.Request)
 	}
 
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]interface{}{"organizations": orgs})
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"organizations": orgs})
 }
 
 // handleGetOrganization gets a specific organization by ID
@@ -134,7 +134,7 @@ func (m *Module) handleGetOrganization(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "invalid organization id"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "invalid organization id"})
 		return
 	}
 
@@ -142,17 +142,17 @@ func (m *Module) handleGetOrganization(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		logger.Error("Failed to get organization", zap.Error(err))
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "failed to get organization"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "failed to get organization"})
 		return
 	}
 	if org == nil || org.IsDeleted() {
 		w.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(w).Encode(map[string]string{"error": "organization not found"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "organization not found"})
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(org)
+	_ = json.NewEncoder(w).Encode(org)
 }
 
 // handleUpdateOrganization updates an organization's name
@@ -173,7 +173,7 @@ func (m *Module) handleUpdateOrganization(w http.ResponseWriter, r *http.Request
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "invalid organization id"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "invalid organization id"})
 		return
 	}
 
@@ -182,14 +182,14 @@ func (m *Module) handleUpdateOrganization(w http.ResponseWriter, r *http.Request
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Name == "" {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "name is required"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "name is required"})
 		return
 	}
 
 	org, err := m.orgRepo.GetByID(r.Context(), id)
 	if err != nil || org == nil || org.IsDeleted() {
 		w.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(w).Encode(map[string]string{"error": "organization not found"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "organization not found"})
 		return
 	}
 
@@ -198,12 +198,12 @@ func (m *Module) handleUpdateOrganization(w http.ResponseWriter, r *http.Request
 	if err := m.orgRepo.Update(r.Context(), org); err != nil {
 		logger.Error("Failed to update organization", zap.Error(err))
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "failed to update organization"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "failed to update organization"})
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(org)
+	_ = json.NewEncoder(w).Encode(org)
 }
 
 // handleDeleteOrganization soft-deletes an organization
@@ -221,7 +221,7 @@ func (m *Module) handleDeleteOrganization(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		w.Header().Set("Content-Type", contentTypeJSON)
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "invalid organization id"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "invalid organization id"})
 		return
 	}
 
@@ -229,7 +229,7 @@ func (m *Module) handleDeleteOrganization(w http.ResponseWriter, r *http.Request
 		w.Header().Set("Content-Type", contentTypeJSON)
 		logger.Error("Failed to delete organization", zap.Error(err))
 		w.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(w).Encode(map[string]string{"error": "organization not found"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "organization not found"})
 		return
 	}
 
@@ -252,7 +252,7 @@ func (m *Module) handleGetCurrentOrganization(w http.ResponseWriter, r *http.Req
 	if subdomain == "" {
 		w.Header().Set("Content-Type", contentTypeJSON)
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{
+		_ = json.NewEncoder(w).Encode(map[string]string{
 			"error": "Subdomain is required",
 		})
 		return
@@ -264,7 +264,7 @@ func (m *Module) handleGetCurrentOrganization(w http.ResponseWriter, r *http.Req
 		logger.Error("Failed to get current organization", zap.Error(err))
 		w.Header().Set("Content-Type", contentTypeJSON)
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{
+		_ = json.NewEncoder(w).Encode(map[string]string{
 			"error": "Failed to get organization",
 		})
 		return
@@ -273,7 +273,7 @@ func (m *Module) handleGetCurrentOrganization(w http.ResponseWriter, r *http.Req
 	if response == nil {
 		w.Header().Set("Content-Type", contentTypeJSON)
 		w.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(w).Encode(map[string]string{
+		_ = json.NewEncoder(w).Encode(map[string]string{
 			"error": "Organization not found",
 		})
 		return
@@ -281,5 +281,5 @@ func (m *Module) handleGetCurrentOrganization(w http.ResponseWriter, r *http.Req
 
 	w.Header().Set("Content-Type", contentTypeJSON)
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(response)
+	_ = json.NewEncoder(w).Encode(response)
 }

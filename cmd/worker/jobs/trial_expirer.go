@@ -67,12 +67,12 @@ func (e *TrialExpirer) Run(ctx context.Context) error {
 
 // expiredMember is one user member of an expired trial org.
 type expiredMember struct {
-	UserID     uuid.UUID
-	OrgID      uuid.UUID
+	UserID       uuid.UUID
+	OrgID        uuid.UUID
 	OrgSubdomain string
-	Email      string
-	FirstName  string
-	UserStatus string
+	Email        string
+	FirstName    string
+	UserStatus   string
 }
 
 // runOnce performs one expiry sweep. Exported as a method for tests.
@@ -115,7 +115,7 @@ func (e *TrialExpirer) findExpiredMembers(ctx context.Context) ([]expiredMember,
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var out []expiredMember
 	for rows.Next() {

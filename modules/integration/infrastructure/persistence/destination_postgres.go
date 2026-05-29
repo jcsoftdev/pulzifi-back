@@ -158,7 +158,7 @@ func (r *DestinationPostgresRepository) ListByScope(ctx context.Context, scope e
 	if err != nil {
 		return nil, fmt.Errorf("destination repo: list by scope: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var result []*entities.Destination
 	for rows.Next() {
@@ -202,7 +202,6 @@ func (r *DestinationPostgresRepository) ResolveForEvent(
 	if pageID != nil {
 		scopeClauses = append(scopeClauses, fmt.Sprintf(`(scope_type = 'page' AND scope_id = $%d)`, argIdx))
 		args = append(args, *pageID)
-		argIdx++
 	}
 
 	scopeFilter := strings.Join(scopeClauses, " OR ")
@@ -237,7 +236,7 @@ WHERE NOT EXISTS (
 	if err != nil {
 		return nil, fmt.Errorf("destination repo: resolve for event: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var result []*entities.Destination
 	for rows.Next() {

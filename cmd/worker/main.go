@@ -2,13 +2,18 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"encoding/hex"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	intwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/integration"
+	monitoringwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/monitoring"
 	workerjobs "github.com/jcsoftdev/pulzifi-back/cmd/worker/jobs"
+	emailproviders "github.com/jcsoftdev/pulzifi-back/modules/email/infrastructure/providers"
+	"github.com/jcsoftdev/pulzifi-back/modules/integration/domain/services"
 	intpersistence "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/persistence"
 	intproviders "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers"
 	discordprovider "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers/discord"
@@ -21,10 +26,6 @@ import (
 	twilioprovider "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers/twilio"
 	deliveryworker "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/worker"
 	monitoring "github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/http"
-	monitoringwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/monitoring"
-	intwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/integration"
-	emailproviders "github.com/jcsoftdev/pulzifi-back/modules/email/infrastructure/providers"
-	"github.com/jcsoftdev/pulzifi-back/modules/integration/domain/services"
 	"github.com/jcsoftdev/pulzifi-back/shared/config"
 	"github.com/jcsoftdev/pulzifi-back/shared/crypto"
 	"github.com/jcsoftdev/pulzifi-back/shared/database"
@@ -44,12 +45,48 @@ func main() {
 		logger.Error("Failed to connect to database", zap.Error(err))
 		os.Exit(1)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
+
+	emailProvider := emailproviders.NewResendProvider(cfg.ResendAPIKey, cfg.EmailFromAddress, cfg.EmailFromName)
+
+	// Monitoring background processes
+	startMonitoring(db, cfg, emailProvider)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Integration delivery worker
+	delWorker := buildDeliveryWorker(db, cfg, emailProvider)
+	go func() {
+		if err := delWorker.Run(ctx); err != nil && err != context.Canceled {
+			logger.Logger.Fatal("delivery worker stopped", zap.Error(err))
+		}
+	}()
 
 	// ---------------------------------------------------------------------------
-	// Monitoring background processes
+	// Trial expirer cron job
 	// ---------------------------------------------------------------------------
-	emailProvider := emailproviders.NewResendProvider(cfg.ResendAPIKey, cfg.EmailFromAddress, cfg.EmailFromName)
+	trialExpirer := workerjobs.NewTrialExpirer(db, emailProvider, cfg.FrontendURL, time.Hour)
+	go func() {
+		if err := trialExpirer.Run(ctx); err != nil && err != context.Canceled {
+			logger.Warn("trial expirer stopped", zap.Error(err))
+		}
+	}()
+
+	logger.Info("Worker Service is running...")
+
+	// Wait for shutdown signal
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	<-sigChan
+
+	logger.Info("Shutdown signal received, shutting down worker...")
+	cancel()
+}
+
+// startMonitoring builds the snapshot worker and starts the monitoring module's
+// background processes.
+func startMonitoring(db *sql.DB, cfg *config.Config, emailProvider *emailproviders.ResendProvider) {
 	snapshotWorker, err := monitoringwiring.NewSnapshotWorker(monitoringwiring.SnapshotWorkerDeps{
 		DB:            db,
 		EventBus:      eventbus.GetInstance(),
@@ -66,10 +103,11 @@ func main() {
 		SnapshotExecutor: snapshotWorker,
 	})
 	monitoringMod.StartBackgroundProcesses()
+}
 
-	// ---------------------------------------------------------------------------
-	// Integration delivery worker
-	// ---------------------------------------------------------------------------
+// buildIntegrationKey resolves and validates the integration token key,
+// falling back to an insecure dev default outside production.
+func buildIntegrationKey(cfg *config.Config) []byte {
 	intKeyHex := cfg.IntegrationTokenKey
 	if intKeyHex == "" {
 		if cfg.Environment == "production" {
@@ -82,13 +120,11 @@ func main() {
 	if err != nil || len(intKey) != 32 {
 		logger.Logger.Fatal("invalid INTEGRATION_TOKEN_KEY", zap.Error(err))
 	}
-	intEnc, err := crypto.NewAESGCM(intKey)
-	if err != nil {
-		logger.Logger.Fatal("crypto init failed", zap.Error(err))
-	}
+	return intKey
+}
 
-	intRepo := intpersistence.NewIntegrationPostgresRepository(db, intEnc)
-
+// buildProviderRegistry assembles the provider clients enabled by config.
+func buildProviderRegistry(db *sql.DB, cfg *config.Config, emailProvider *emailproviders.ResendProvider) services.ProviderRegistry {
 	slackClient := slackprovider.New(cfg.SlackClientID, cfg.SlackClientSecret)
 	intEmailClient := emailprovider.New(intwiring.NewEmailAdapter(emailProvider))
 	discordClient := discordprovider.New(cfg.DiscordClientID, cfg.DiscordClientSecret)
@@ -115,49 +151,31 @@ func main() {
 	if cfg.MicrosoftClientID != "" && cfg.MicrosoftClientSecret != "" {
 		workerProviders = append(workerProviders, outlookprovider.New(cfg.MicrosoftClientID, cfg.MicrosoftClientSecret, cfg.IntegrationOAuthRedirectBase))
 	}
-	intRegistry := intproviders.NewRegistry(workerProviders...)
+	return intproviders.NewRegistry(workerProviders...)
+}
 
+// buildDeliveryWorker wires the integration delivery worker from config.
+func buildDeliveryWorker(db *sql.DB, cfg *config.Config, emailProvider *emailproviders.ResendProvider) *deliveryworker.Worker {
+	intKey := buildIntegrationKey(cfg)
+	intEnc, err := crypto.NewAESGCM(intKey)
+	if err != nil {
+		logger.Logger.Fatal("crypto init failed", zap.Error(err))
+	}
+
+	intRepo := intpersistence.NewIntegrationPostgresRepository(db, intEnc)
+	intRegistry := buildProviderRegistry(db, cfg, emailProvider)
 	intRepoFactory := intwiring.NewTenantRepoFactory(db)
 
-	delWorker := deliveryworker.New(
+	return deliveryworker.New(
 		db,
 		intRepoFactory,
 		intRepo,
 		intRegistry,
 		services.NewPayloadBuilder(),
 		deliveryworker.Config{
-			PollInterval:   cfg.DeliveryPollInterval,
-			PoolSize:       cfg.DeliveryWorkerPoolSize,
-			MaxAttempts:    cfg.DeliveryMaxAttempts,
+			PollInterval: cfg.DeliveryPollInterval,
+			PoolSize:     cfg.DeliveryWorkerPoolSize,
+			MaxAttempts:  cfg.DeliveryMaxAttempts,
 		},
 	)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	go func() {
-		if err := delWorker.Run(ctx); err != nil && err != context.Canceled {
-			logger.Logger.Fatal("delivery worker stopped", zap.Error(err))
-		}
-	}()
-
-	// ---------------------------------------------------------------------------
-	// Trial expirer cron job
-	// ---------------------------------------------------------------------------
-	trialExpirer := workerjobs.NewTrialExpirer(db, emailProvider, cfg.FrontendURL, time.Hour)
-	go func() {
-		if err := trialExpirer.Run(ctx); err != nil && err != context.Canceled {
-			logger.Warn("trial expirer stopped", zap.Error(err))
-		}
-	}()
-
-	logger.Info("Worker Service is running...")
-
-	// Wait for shutdown signal
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-	<-sigChan
-
-	logger.Info("Shutdown signal received, shutting down worker...")
-	cancel()
 }

@@ -170,7 +170,7 @@ func (s *Subscriber) findUserOrganizations(ctx context.Context, userID uuid.UUID
 	if err != nil {
 		return nil, fmt.Errorf("query organization_members: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var orgIDs []uuid.UUID
 	for rows.Next() {

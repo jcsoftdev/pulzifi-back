@@ -188,7 +188,7 @@ func (m *WorkspaceAuthorizationMiddleware) hasMinimumRole(userRole, requiredRole
 func (m *WorkspaceAuthorizationMiddleware) unauthorized(w http.ResponseWriter, message string) {
 	w.Header().Set(contentTypeHeader, applicationJSON)
 	w.WriteHeader(http.StatusUnauthorized)
-	json.NewEncoder(w).Encode(map[string]string{
+	_ = json.NewEncoder(w).Encode(map[string]string{
 		"error": message,
 	})
 }
@@ -196,7 +196,7 @@ func (m *WorkspaceAuthorizationMiddleware) unauthorized(w http.ResponseWriter, m
 func (m *WorkspaceAuthorizationMiddleware) forbidden(w http.ResponseWriter, message string) {
 	w.Header().Set(contentTypeHeader, applicationJSON)
 	w.WriteHeader(http.StatusForbidden)
-	json.NewEncoder(w).Encode(map[string]string{
+	_ = json.NewEncoder(w).Encode(map[string]string{
 		"error": message,
 	})
 }
@@ -204,7 +204,7 @@ func (m *WorkspaceAuthorizationMiddleware) forbidden(w http.ResponseWriter, mess
 func (m *WorkspaceAuthorizationMiddleware) badRequest(w http.ResponseWriter, message string) {
 	w.Header().Set(contentTypeHeader, applicationJSON)
 	w.WriteHeader(http.StatusBadRequest)
-	json.NewEncoder(w).Encode(map[string]string{
+	_ = json.NewEncoder(w).Encode(map[string]string{
 		"error": message,
 	})
 }
@@ -212,7 +212,7 @@ func (m *WorkspaceAuthorizationMiddleware) badRequest(w http.ResponseWriter, mes
 func (m *WorkspaceAuthorizationMiddleware) internalError(w http.ResponseWriter, message string) {
 	w.Header().Set(contentTypeHeader, applicationJSON)
 	w.WriteHeader(http.StatusInternalServerError)
-	json.NewEncoder(w).Encode(map[string]string{
+	_ = json.NewEncoder(w).Encode(map[string]string{
 		"error": message,
 	})
 }

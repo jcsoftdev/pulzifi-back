@@ -64,13 +64,13 @@ func main() {
 		logger.Error("Failed to connect to database", zap.Error(err))
 		os.Exit(1)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	// Initialize Redis for caching (Optional for MVP)
 	if err := cache.InitRedis(cfg); err != nil {
 		logger.Warn("Failed to initialize Redis - Caching disabled", zap.Error(err))
 	} else {
-		defer cache.CloseRedis()
+		defer func() { _ = cache.CloseRedis() }()
 		logger.Info("Redis initialized successfully")
 	}
 
@@ -131,11 +131,12 @@ func main() {
 				// Wildcard subdomain matching: http://*.example.com matches http://foo.example.com
 				if strings.HasPrefix(allowed, "http://*.") || strings.HasPrefix(allowed, "https://*.") {
 					// Split at *. to get the suffix (e.g., "http://*.pulzifi.com" → suffix ".pulzifi.com")
-					idx := strings.Index(allowed, "*.")
-					prefix := allowed[:idx]  // "http://" or "https://"
-					suffix := allowed[idx+1:] // ".pulzifi.com" or ".pulzifi.com:3000"
-					if strings.HasPrefix(origin, prefix) && strings.HasSuffix(origin, suffix) {
-						return true
+					if idx := strings.Index(allowed, "*."); idx >= 0 {
+						prefix := allowed[:idx]   // "http://" or "https://"
+						suffix := allowed[idx+1:] // ".pulzifi.com" or ".pulzifi.com:3000"
+						if strings.HasPrefix(origin, prefix) && strings.HasSuffix(origin, suffix) {
+							return true
+						}
 					}
 				}
 			}
@@ -167,7 +168,7 @@ func main() {
 	httpRouter.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"healthy","service":"pulzifi-backend-monolith","time":` +
+		_, _ = w.Write([]byte(`{"status":"healthy","service":"pulzifi-backend-monolith","time":` +
 			strconv.FormatInt(time.Now().Unix(), 10) + `}`))
 	})
 
@@ -175,8 +176,8 @@ func main() {
 	// If Redis is available, use Redis-backed implementations for multi-instance support.
 	// Otherwise fall back to in-memory (single-instance only).
 	var (
-		nonceStoreImpl  noncestore.NonceStore
-		checkBrokerImpl pubsub.CheckBroker
+		nonceStoreImpl    noncestore.NonceStore
+		checkBrokerImpl   pubsub.CheckBroker
 		insightBrokerImpl pubsub.InsightBroker
 	)
 	if rdb := cache.GetRedisClient(); rdb != nil {
@@ -268,8 +269,8 @@ func main() {
 // startHTTPServer starts the HTTP server and listens for context cancellation
 func startHTTPServer(ctx context.Context, router chi.Router, port string) {
 	server := &http.Server{
-		Addr:        ":" + port,
-		Handler:     router,
+		Addr:              ":" + port,
+		Handler:           router,
 		ReadHeaderTimeout: 15 * time.Second,
 		// ReadTimeout is intentionally not set: it applies a deadline on the
 		// underlying connection that cancels r.Context() during handler

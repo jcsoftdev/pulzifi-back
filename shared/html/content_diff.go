@@ -38,6 +38,21 @@ func DiffContentBlocks(prev, curr []ContentBlock) *ContentDiff {
 	}
 
 	// Pass 1: Compute LCS to find unchanged blocks.
+	unmatchedPrev, unmatchedCurr := collectUnmatched(prev, curr)
+
+	// Pass 2: Greedy type-matching on unmatched blocks.
+	diffs := matchUnmatched(unmatchedPrev, unmatchedCurr)
+
+	return &ContentDiff{
+		HasChanges:   len(diffs) > 0,
+		TotalChanges: len(diffs),
+		Diffs:        diffs,
+	}
+}
+
+// collectUnmatched computes the LCS of prev and curr, then returns the blocks
+// from each side that are not part of the longest common subsequence.
+func collectUnmatched(prev, curr []ContentBlock) (unmatchedPrev, unmatchedCurr []indexedBlock) {
 	lcsTable := computeLCS(prev, curr)
 	prevMatched := make([]bool, len(prev))
 	currMatched := make([]bool, len(curr))
@@ -45,21 +60,19 @@ func DiffContentBlocks(prev, curr []ContentBlock) *ContentDiff {
 	// Backtrack LCS to mark matched positions.
 	i, j := len(prev), len(curr)
 	for i > 0 && j > 0 {
-		if blocksEqual(prev[i-1], curr[j-1]) {
+		switch {
+		case blocksEqual(prev[i-1], curr[j-1]):
 			prevMatched[i-1] = true
 			currMatched[j-1] = true
 			i--
 			j--
-		} else if lcsTable[i-1][j] >= lcsTable[i][j-1] {
+		case lcsTable[i-1][j] >= lcsTable[i][j-1]:
 			i--
-		} else {
+		default:
 			j--
 		}
 	}
 
-	// Collect unmatched blocks from prev and curr.
-	var unmatchedPrev []indexedBlock
-	var unmatchedCurr []indexedBlock
 	for idx, b := range prev {
 		if !prevMatched[idx] {
 			unmatchedPrev = append(unmatchedPrev, indexedBlock{idx: idx, block: b})
@@ -70,8 +83,12 @@ func DiffContentBlocks(prev, curr []ContentBlock) *ContentDiff {
 			unmatchedCurr = append(unmatchedCurr, indexedBlock{idx: idx, block: b})
 		}
 	}
+	return unmatchedPrev, unmatchedCurr
+}
 
-	// Pass 2: Greedy type-matching on unmatched blocks.
+// matchUnmatched greedily pairs unmatched prev/curr blocks of the same type and
+// level into "changed" diffs, emitting the leftovers as removed/added.
+func matchUnmatched(unmatchedPrev, unmatchedCurr []indexedBlock) []BlockDiff {
 	var diffs []BlockDiff
 	currUsed := make([]bool, len(unmatchedCurr))
 
@@ -112,11 +129,7 @@ func DiffContentBlocks(prev, curr []ContentBlock) *ContentDiff {
 		}
 	}
 
-	return &ContentDiff{
-		HasChanges:   len(diffs) > 0,
-		TotalChanges: len(diffs),
-		Diffs:        diffs,
-	}
+	return diffs
 }
 
 type indexedBlock struct {
@@ -143,11 +156,12 @@ func computeLCS(prev, curr []ContentBlock) [][]int {
 	}
 	for i := 1; i <= m; i++ {
 		for j := 1; j <= n; j++ {
-			if blocksEqual(prev[i-1], curr[j-1]) {
+			switch {
+			case blocksEqual(prev[i-1], curr[j-1]):
 				table[i][j] = table[i-1][j-1] + 1
-			} else if table[i-1][j] >= table[i][j-1] {
+			case table[i-1][j] >= table[i][j-1]:
 				table[i][j] = table[i-1][j]
-			} else {
+			default:
 				table[i][j] = table[i][j-1]
 			}
 		}
@@ -169,41 +183,43 @@ func FormatDiffForAI(diff *ContentDiff) string {
 	for _, d := range diff.Diffs {
 		switch d.Op {
 		case DiffAdded:
-			sb.WriteString(fmt.Sprintf("[ADDED] %s: %q\n", formatBlockLabel(d.Block), truncateDiff(d.Block.Text, maxDiffTextLen)))
-			if d.Block.Href != "" {
-				sb.WriteString(fmt.Sprintf("  (href: %s)\n", d.Block.Href))
-			}
-			if d.Block.Src != "" {
-				sb.WriteString(fmt.Sprintf("  (src: %s)\n", d.Block.Src))
-			}
-
+			writeAddedRemoved(&sb, "ADDED", d.Block)
 		case DiffRemoved:
-			sb.WriteString(fmt.Sprintf("[REMOVED] %s: %q\n", formatBlockLabel(d.Block), truncateDiff(d.Block.Text, maxDiffTextLen)))
-			if d.Block.Href != "" {
-				sb.WriteString(fmt.Sprintf("  (href: %s)\n", d.Block.Href))
-			}
-			if d.Block.Src != "" {
-				sb.WriteString(fmt.Sprintf("  (src: %s)\n", d.Block.Src))
-			}
-
+			writeAddedRemoved(&sb, "REMOVED", d.Block)
 		case DiffChanged:
-			oldText := ""
-			if d.OldBlock != nil {
-				oldText = truncateDiff(d.OldBlock.Text, maxDiffTextLen)
-			}
-			newText := truncateDiff(d.Block.Text, maxDiffTextLen)
-			sb.WriteString(fmt.Sprintf("[CHANGED] %s: %q → %q\n", formatBlockLabel(d.Block), oldText, newText))
-			if d.Block.Href != "" && (d.OldBlock == nil || d.OldBlock.Href != d.Block.Href) {
-				oldHref := ""
-				if d.OldBlock != nil {
-					oldHref = d.OldBlock.Href
-				}
-				sb.WriteString(fmt.Sprintf("  (href: %s → %s)\n", oldHref, d.Block.Href))
-			}
+			writeChanged(&sb, d)
 		}
 	}
 
 	return sb.String()
+}
+
+// writeAddedRemoved formats an added or removed block (label is "ADDED" or "REMOVED").
+func writeAddedRemoved(sb *strings.Builder, label string, b ContentBlock) {
+	_, _ = fmt.Fprintf(sb, "[%s] %s: %q\n", label, formatBlockLabel(b), truncateDiff(b.Text, maxDiffTextLen))
+	if b.Href != "" {
+		_, _ = fmt.Fprintf(sb, "  (href: %s)\n", b.Href)
+	}
+	if b.Src != "" {
+		_, _ = fmt.Fprintf(sb, "  (src: %s)\n", b.Src)
+	}
+}
+
+// writeChanged formats a changed block, including an href transition line when relevant.
+func writeChanged(sb *strings.Builder, d BlockDiff) {
+	oldText := ""
+	if d.OldBlock != nil {
+		oldText = truncateDiff(d.OldBlock.Text, maxDiffTextLen)
+	}
+	newText := truncateDiff(d.Block.Text, maxDiffTextLen)
+	_, _ = fmt.Fprintf(sb, "[CHANGED] %s: %q → %q\n", formatBlockLabel(d.Block), oldText, newText)
+	if d.Block.Href != "" && (d.OldBlock == nil || d.OldBlock.Href != d.Block.Href) {
+		oldHref := ""
+		if d.OldBlock != nil {
+			oldHref = d.OldBlock.Href
+		}
+		_, _ = fmt.Fprintf(sb, "  (href: %s → %s)\n", oldHref, d.Block.Href)
+	}
 }
 
 // formatBlockLabel returns a human-readable label for a content block type.

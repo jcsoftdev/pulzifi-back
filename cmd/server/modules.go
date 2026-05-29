@@ -150,98 +150,8 @@ func registerAllModulesInternal(
 	middleware.SetAuthMiddleware(authMiddleware)
 	middleware.SetOrganizationMiddleware(middleware.NewOrganizationMiddleware(db))
 
-	// ---------------------------------------------------------------------------
-	// Integration module wiring
-	// ---------------------------------------------------------------------------
-	intKeyHex := cfg.IntegrationTokenKey
-	if intKeyHex == "" {
-		if cfg.Environment == "production" {
-			logger.Logger.Fatal("INTEGRATION_TOKEN_KEY required in production")
-		}
-		logger.Warn("INTEGRATION_TOKEN_KEY not set — using insecure dev default")
-		intKeyHex = "00000000000000000000000000000000000000000000000000000000000000ff"
-	}
-	intKey, err := hex.DecodeString(intKeyHex)
-	if err != nil || len(intKey) != 32 {
-		logger.Logger.Fatal("invalid INTEGRATION_TOKEN_KEY", zap.Error(err))
-	}
-	intEnc, err := crypto.NewAESGCM(intKey)
-	if err != nil {
-		logger.Logger.Fatal("crypto init failed", zap.Error(err))
-	}
-
-	intRepo := intpersistence.NewIntegrationPostgresRepository(db, intEnc)
-	intStateSigner := intoauth.NewStateSignerAdapter(intoauth.NewStateSigner(intKey, 10*time.Minute))
-
-	// Provider registry — Slack + email (via adapter wrapping the existing email module).
-	slackClient := slackprovider.New(cfg.SlackClientID, cfg.SlackClientSecret)
-	intEmailClient := emailprovider.New(intwiring.NewEmailAdapter(emailProvider))
-
-	// ---------------------------------------------------------------------------
-	// Phase 2 integration providers
-	// ---------------------------------------------------------------------------
-	flagsReader := featureflags.NewReader(db)
-
-	discordClient := discordprovider.New(cfg.DiscordClientID, cfg.DiscordClientSecret)
-
-	twilioPlanLookup := intwiring.NewOrgPlanLookup(db)
-
-	// Phase 3 additions
-	sheetsClient := sheetsprovider.New(cfg.SheetsClientID, cfg.SheetsClientSecret)
-	teamsClient := teamsprovider.New(cfg.MicrosoftClientID, cfg.MicrosoftClientSecret)
-
-	quotaTracker := integrationusage.NewTracker(db)
-	twilioAllowedFor := intwiring.TwilioAllowedFor(twilioPlanLookup, cfg.TwilioPaidPlans, cfg.TwilioQuotaPaidPerMonth)
-	twilioQuotaAdapter := intwiring.NewTwilioQuotaAdapter(quotaTracker, twilioAllowedFor)
-
-	twilioClient := twilioprovider.New(twilioprovider.Config{
-		PaidPlans:          cfg.TwilioPaidPlans,
-		PlatformAccountSID: cfg.TwilioAccountSID,
-		PlatformAuthToken:  cfg.TwilioAuthToken,
-		PlatformFromNumber: cfg.TwilioFromNumber,
-	}, twilioPlanLookup, twilioQuotaAdapter)
-	twilioValidator := twilioprovider.NewValidator()
-
-	baseProviders := []intdomainservices.ProviderClient{slackClient, intEmailClient, discordClient, twilioClient, sheetsClient, teamsClient}
-	if cfg.GmailIntegrationEnabled && cfg.GoogleClientID != "" && cfg.GoogleClientSecret != "" {
-		baseProviders = append(baseProviders, gmailprovider.New(cfg.GoogleClientID, cfg.GoogleClientSecret, cfg.IntegrationOAuthRedirectBase))
-	}
-	if cfg.MicrosoftClientID != "" && cfg.MicrosoftClientSecret != "" {
-		baseProviders = append(baseProviders, outlookprovider.New(cfg.MicrosoftClientID, cfg.MicrosoftClientSecret, cfg.IntegrationOAuthRedirectBase))
-	}
-	intRegistry := intproviders.NewRegistry(baseProviders...)
-
-	intRepoFactory := intwiring.NewTenantRepoFactory(db)
-	intOrgGuard := intwiring.NewOrgGuard(orgRepo)
-	intDispatcher := dispatchevent.NewHandler(intRepoFactory, intOrgGuard)
-
-	// Subscribe dispatcher to domain events.
-	if err := eventbus.SubscribeDomainEvent(eventBus, eventbus.TopicChangeDetected, func(ev eventbus.DomainEvent) {
-		if err := intDispatcher.Handle(context.Background(), ev); err != nil {
-			logger.Error("integration dispatch failed", zap.Error(err), zap.String("event_type", ev.Type))
-		}
-	}); err != nil {
-		logger.Error("subscribe TopicChangeDetected", zap.Error(err))
-	}
-	if err := eventbus.SubscribeDomainEvent(eventBus, eventbus.TopicAlertCreated, func(ev eventbus.DomainEvent) {
-		if err := intDispatcher.Handle(context.Background(), ev); err != nil {
-			logger.Error("integration dispatch failed", zap.Error(err), zap.String("event_type", ev.Type))
-		}
-	}); err != nil {
-		logger.Error("subscribe TopicAlertCreated", zap.Error(err))
-	}
-
-	integrationMod := integration.NewModule(integration.Deps{
-		DB:                db,
-		IntRepo:           intRepo,
-		Registry:          intRegistry,
-		StateSigner:       intStateSigner,
-		OAuthRedirectBase: cfg.IntegrationOAuthRedirectBase,
-		Flags:             flagsReader,
-		Validator:         twilioValidator,
-		PlanLookup:        twilioPlanLookup,
-		TwilioPaidPlans:   cfg.TwilioPaidPlans,
-	})
+	// Integration module wiring (providers, crypto, event subscriptions).
+	integrationMod := buildIntegrationModule(db, cfg, eventBus, emailProvider, orgRepo)
 
 	moduleInstances := []struct {
 		name   string
@@ -261,47 +171,12 @@ func registerAllModulesInternal(
 		{"Organization", organization.NewModule(orgRepo)},
 		{"Workspace", workspace.NewModuleWithDB(db)},
 		{"Page", page.NewModuleWithExtractor(db, pagewiring.NewExtractorPreviewStreamerAdapter(snapshotextractor.NewHTTPClientWithKey(cfg.ExtractorURL, cfg.ExtractorAPIKey)))},
-		{"Alert", func() router.ModuleRegisterer {
-			m := alert.NewModuleWithDB(db)
-			if am, ok := m.(*alert.Module); ok {
-				am.SetEventBus(eventBus)
-			}
-			return m
-		}()},
-		{"Monitoring", func() router.ModuleRegisterer {
-			snapshotWorker, err := monitoringwiring.NewSnapshotWorker(monitoringwiring.SnapshotWorkerDeps{
-				DB:            db,
-				EventBus:      eventBus,
-				EmailProvider: emailProvider,
-				FrontendURL:   cfg.FrontendURL,
-				Cfg:           cfg,
-			})
-			if err != nil {
-				logger.Error("Failed to build snapshot worker, monitoring will run without snapshot execution", zap.Error(err))
-			}
-			return monitoring.NewModuleWithDeps(monitoring.Deps{
-				DB:               db,
-				EventBus:         eventBus,
-				SnapshotExecutor: snapshotWorker,
-				CheckBroker:      checkBroker,
-			})
-		}()},
+		{"Alert", buildAlertModule(db, eventBus)},
+		{"Monitoring", buildMonitoringModule(db, eventBus, emailProvider, checkBroker, cfg)},
 		{"Integration", integrationMod},
-		{"Insight", insight.NewModuleWithDeps(
-			db,
-			insightBroker,
-			func(tenant string) insightservices.CheckReader {
-				return insightwiring.NewCheckReaderAdapter(db, tenant)
-			},
-			func(tenant string) insightservices.PageConfigReader {
-				return insightwiring.NewPageConfigReaderAdapter(db, tenant)
-			},
-		)},
+		{"Insight", buildInsightModule(db, insightBroker)},
 		{"Report", report.NewModuleWithDB(db)},
-		{"Usage", func() router.ModuleRegisterer {
-			trialReader := usagepersistence.NewTrialPlanPostgresReader(db)
-			return usage.NewModuleWithTrial(db, trialstatus.NewHandler(trialReader))
-		}()},
+		{"Usage", buildUsageModule(db)},
 		{"Dashboard", dashboard.NewModuleWithDB(db)},
 		{"Team", team.NewModuleWithDB(
 			db,
@@ -316,52 +191,10 @@ func registerAllModulesInternal(
 	// Billing module wiring (gated behind BILLING_ENABLED)
 	// ---------------------------------------------------------------------------
 	if cfg.BillingEnabled {
-		stripeGateway := billingstripe.NewGateway(cfg.StripeSecretKey, cfg.StripeWebhookSecret)
-		planAssigner := billingwiring.NewPlanAssigner(db)
-
-		subscriptionRepo := billingpostgres.NewSubscriptionPostgresRepository(db)
-		webhookRepo := billingpostgres.NewWebhookEventPostgresRepository(db)
-		customerRepo := billingpostgres.NewCustomerPostgresRepository(db)
-		planRepo := billingpostgres.NewPlanPostgresRepository(db)
-
-		reconcileHandler := reconcilesubscription.NewHandler(stripeGateway, planAssigner, webhookRepo)
-
-		checkoutHandler := createcheckoutsession.
-			NewHandler(stripeGateway, customerRepo, planRepo).
-			WithReconciler(reconcileHandler)
-		portalHandler := createportalsession.NewHandler(stripeGateway, customerRepo)
-		subscriptionHandler := getsubscription.NewHandler(subscriptionRepo).WithStripeGateway(stripeGateway)
-		usageReader := billingwiring.NewUsageReader(db)
-		updateSubHandler := updatesubscription.NewHandler(stripeGateway, planRepo, subscriptionRepo, usageReader, planAssigner)
-		couponHandler := managecoupons.NewHandler(stripeGateway, planRepo, cfg.FrontendURL)
-		giftHandler := billinggiftmonth.NewHandler(stripeGateway, subscriptionRepo, planRepo, planAssigner)
-		cancelHandler := billingcancel.NewHandler(stripeGateway, subscriptionRepo)
-		trialConverter := billingwiring.NewTrialConverter(db)
-		webhookHandler := handlewebhook.NewHandler(
-			stripeGateway,
-			cfg.StripeWebhookSecret,
-			planAssigner,
-			customerRepo,
-			webhookRepo,
-			subscriptionRepo,
-		).WithTrialConverter(trialConverter)
-
-		billingMod := billing.NewModule(billing.Deps{
-			DB:                  db,
-			CheckoutHandler:     checkoutHandler,
-			PortalHandler:       portalHandler,
-			SubscriptionHandler: subscriptionHandler,
-			WebhookHandler:      webhookHandler,
-			UpdateSubHandler:    updateSubHandler,
-			CouponHandler:       couponHandler,
-			GiftHandler:         giftHandler,
-			CancelHandler:       cancelHandler,
-		})
-
 		moduleInstances = append(moduleInstances, struct {
 			name   string
 			module router.ModuleRegisterer
-		}{"Billing", billingMod})
+		}{"Billing", buildBillingModule(db, cfg)})
 
 		logger.Info("Billing module enabled", zap.String("module", "Billing"))
 	}
@@ -403,4 +236,208 @@ func registerAllModulesInternal(
 	})
 
 	return bffHandler, integrationMod
+}
+
+// buildIntegrationModule wires the integration module: token crypto, the
+// provider registry (Slack, email, Discord, Twilio, Sheets, Teams, optional
+// Gmail/Outlook), and the domain-event subscriptions that drive dispatch.
+func buildIntegrationModule(
+	db *sql.DB,
+	cfg *config.Config,
+	eventBus *eventbus.EventBus,
+	emailProvider emailservices.EmailProvider,
+	orgRepo *orgpersistence.OrganizationPostgresRepository,
+) *integration.Module {
+	intKeyHex := cfg.IntegrationTokenKey
+	if intKeyHex == "" {
+		if cfg.Environment == "production" {
+			logger.Logger.Fatal("INTEGRATION_TOKEN_KEY required in production")
+		}
+		logger.Warn("INTEGRATION_TOKEN_KEY not set — using insecure dev default")
+		intKeyHex = "00000000000000000000000000000000000000000000000000000000000000ff"
+	}
+	intKey, err := hex.DecodeString(intKeyHex)
+	if err != nil || len(intKey) != 32 {
+		logger.Logger.Fatal("invalid INTEGRATION_TOKEN_KEY", zap.Error(err))
+	}
+	intEnc, err := crypto.NewAESGCM(intKey)
+	if err != nil {
+		logger.Logger.Fatal("crypto init failed", zap.Error(err))
+	}
+
+	intRepo := intpersistence.NewIntegrationPostgresRepository(db, intEnc)
+	intStateSigner := intoauth.NewStateSignerAdapter(intoauth.NewStateSigner(intKey, 10*time.Minute))
+
+	flagsReader := featureflags.NewReader(db)
+	twilioPlanLookup := intwiring.NewOrgPlanLookup(db)
+	twilioValidator := twilioprovider.NewValidator()
+	intRegistry := buildIntegrationProviders(db, cfg, emailProvider, twilioPlanLookup)
+
+	intRepoFactory := intwiring.NewTenantRepoFactory(db)
+	intOrgGuard := intwiring.NewOrgGuard(orgRepo)
+	intDispatcher := dispatchevent.NewHandler(intRepoFactory, intOrgGuard)
+
+	subscribeIntegrationEvents(eventBus, intDispatcher)
+
+	return integration.NewModule(integration.Deps{
+		DB:                db,
+		IntRepo:           intRepo,
+		Registry:          intRegistry,
+		StateSigner:       intStateSigner,
+		OAuthRedirectBase: cfg.IntegrationOAuthRedirectBase,
+		Flags:             flagsReader,
+		Validator:         twilioValidator,
+		PlanLookup:        twilioPlanLookup,
+		TwilioPaidPlans:   cfg.TwilioPaidPlans,
+	})
+}
+
+// buildIntegrationProviders assembles the integration provider registry,
+// appending Gmail/Outlook when their OAuth credentials are configured.
+func buildIntegrationProviders(
+	db *sql.DB,
+	cfg *config.Config,
+	emailProvider emailservices.EmailProvider,
+	twilioPlanLookup *intwiring.OrgPlanLookup,
+) intdomainservices.ProviderRegistry {
+	slackClient := slackprovider.New(cfg.SlackClientID, cfg.SlackClientSecret)
+	intEmailClient := emailprovider.New(intwiring.NewEmailAdapter(emailProvider))
+	discordClient := discordprovider.New(cfg.DiscordClientID, cfg.DiscordClientSecret)
+	sheetsClient := sheetsprovider.New(cfg.SheetsClientID, cfg.SheetsClientSecret)
+	teamsClient := teamsprovider.New(cfg.MicrosoftClientID, cfg.MicrosoftClientSecret)
+
+	quotaTracker := integrationusage.NewTracker(db)
+	twilioAllowedFor := intwiring.TwilioAllowedFor(twilioPlanLookup, cfg.TwilioPaidPlans, cfg.TwilioQuotaPaidPerMonth)
+	twilioQuotaAdapter := intwiring.NewTwilioQuotaAdapter(quotaTracker, twilioAllowedFor)
+
+	twilioClient := twilioprovider.New(twilioprovider.Config{
+		PaidPlans:          cfg.TwilioPaidPlans,
+		PlatformAccountSID: cfg.TwilioAccountSID,
+		PlatformAuthToken:  cfg.TwilioAuthToken,
+		PlatformFromNumber: cfg.TwilioFromNumber,
+	}, twilioPlanLookup, twilioQuotaAdapter)
+
+	baseProviders := []intdomainservices.ProviderClient{slackClient, intEmailClient, discordClient, twilioClient, sheetsClient, teamsClient}
+	if cfg.GmailIntegrationEnabled && cfg.GoogleClientID != "" && cfg.GoogleClientSecret != "" {
+		baseProviders = append(baseProviders, gmailprovider.New(cfg.GoogleClientID, cfg.GoogleClientSecret, cfg.IntegrationOAuthRedirectBase))
+	}
+	if cfg.MicrosoftClientID != "" && cfg.MicrosoftClientSecret != "" {
+		baseProviders = append(baseProviders, outlookprovider.New(cfg.MicrosoftClientID, cfg.MicrosoftClientSecret, cfg.IntegrationOAuthRedirectBase))
+	}
+	return intproviders.NewRegistry(baseProviders...)
+}
+
+// subscribeIntegrationEvents wires the integration dispatcher to the
+// change-detected and alert-created domain events.
+func subscribeIntegrationEvents(eventBus *eventbus.EventBus, intDispatcher *dispatchevent.Handler) {
+	handle := func(ev eventbus.DomainEvent) {
+		if err := intDispatcher.Handle(context.Background(), ev); err != nil {
+			logger.Error("integration dispatch failed", zap.Error(err), zap.String("event_type", ev.Type))
+		}
+	}
+	if err := eventbus.SubscribeDomainEvent(eventBus, eventbus.TopicChangeDetected, handle); err != nil {
+		logger.Error("subscribe TopicChangeDetected", zap.Error(err))
+	}
+	if err := eventbus.SubscribeDomainEvent(eventBus, eventbus.TopicAlertCreated, handle); err != nil {
+		logger.Error("subscribe TopicAlertCreated", zap.Error(err))
+	}
+}
+
+// buildAlertModule constructs the alert module and wires its event bus.
+func buildAlertModule(db *sql.DB, eventBus *eventbus.EventBus) router.ModuleRegisterer {
+	m := alert.NewModuleWithDB(db)
+	if am, ok := m.(*alert.Module); ok {
+		am.SetEventBus(eventBus)
+	}
+	return m
+}
+
+// buildMonitoringModule constructs the monitoring module, building its snapshot
+// worker. On snapshot-worker failure the module still runs, just without
+// snapshot execution.
+func buildMonitoringModule(db *sql.DB, eventBus *eventbus.EventBus, emailProvider emailservices.EmailProvider, checkBroker pubsub.CheckBroker, cfg *config.Config) router.ModuleRegisterer {
+	snapshotWorker, err := monitoringwiring.NewSnapshotWorker(monitoringwiring.SnapshotWorkerDeps{
+		DB:            db,
+		EventBus:      eventBus,
+		EmailProvider: emailProvider,
+		FrontendURL:   cfg.FrontendURL,
+		Cfg:           cfg,
+	})
+	if err != nil {
+		logger.Error("Failed to build snapshot worker, monitoring will run without snapshot execution", zap.Error(err))
+	}
+	return monitoring.NewModuleWithDeps(monitoring.Deps{
+		DB:               db,
+		EventBus:         eventBus,
+		SnapshotExecutor: snapshotWorker,
+		CheckBroker:      checkBroker,
+	})
+}
+
+// buildInsightModule constructs the insight module with its per-tenant reader
+// adapters.
+func buildInsightModule(db *sql.DB, insightBroker pubsub.InsightBroker) router.ModuleRegisterer {
+	return insight.NewModuleWithDeps(
+		db,
+		insightBroker,
+		func(tenant string) insightservices.CheckReader {
+			return insightwiring.NewCheckReaderAdapter(db, tenant)
+		},
+		func(tenant string) insightservices.PageConfigReader {
+			return insightwiring.NewPageConfigReaderAdapter(db, tenant)
+		},
+	)
+}
+
+// buildUsageModule constructs the usage module with its trial-status handler.
+func buildUsageModule(db *sql.DB) router.ModuleRegisterer {
+	trialReader := usagepersistence.NewTrialPlanPostgresReader(db)
+	return usage.NewModuleWithTrial(db, trialstatus.NewHandler(trialReader))
+}
+
+// buildBillingModule wires the Stripe-backed billing module: gateway, repos,
+// plan assigner, and all use-case handlers. Gated behind BILLING_ENABLED by the
+// caller.
+func buildBillingModule(db *sql.DB, cfg *config.Config) router.ModuleRegisterer {
+	stripeGateway := billingstripe.NewGateway(cfg.StripeSecretKey, cfg.StripeWebhookSecret)
+	planAssigner := billingwiring.NewPlanAssigner(db)
+
+	subscriptionRepo := billingpostgres.NewSubscriptionPostgresRepository(db)
+	webhookRepo := billingpostgres.NewWebhookEventPostgresRepository(db)
+	customerRepo := billingpostgres.NewCustomerPostgresRepository(db)
+	planRepo := billingpostgres.NewPlanPostgresRepository(db)
+
+	reconcileHandler := reconcilesubscription.NewHandler(stripeGateway, planAssigner, webhookRepo)
+
+	checkoutHandler := createcheckoutsession.
+		NewHandler(stripeGateway, customerRepo, planRepo).
+		WithReconciler(reconcileHandler)
+	portalHandler := createportalsession.NewHandler(stripeGateway, customerRepo)
+	subscriptionHandler := getsubscription.NewHandler(subscriptionRepo).WithStripeGateway(stripeGateway)
+	usageReader := billingwiring.NewUsageReader(db)
+	updateSubHandler := updatesubscription.NewHandler(stripeGateway, planRepo, subscriptionRepo, usageReader, planAssigner)
+	couponHandler := managecoupons.NewHandler(stripeGateway, planRepo, cfg.FrontendURL)
+	giftHandler := billinggiftmonth.NewHandler(stripeGateway, subscriptionRepo, planRepo, planAssigner)
+	cancelHandler := billingcancel.NewHandler(stripeGateway, subscriptionRepo)
+	trialConverter := billingwiring.NewTrialConverter(db)
+	webhookHandler := handlewebhook.NewHandler(
+		stripeGateway,
+		cfg.StripeWebhookSecret,
+		planAssigner,
+		customerRepo,
+		webhookRepo,
+		subscriptionRepo,
+	).WithTrialConverter(trialConverter)
+
+	return billing.NewModule(billing.Deps{
+		DB:                  db,
+		CheckoutHandler:     checkoutHandler,
+		PortalHandler:       portalHandler,
+		SubscriptionHandler: subscriptionHandler,
+		WebhookHandler:      webhookHandler,
+		UpdateSubHandler:    updateSubHandler,
+		CouponHandler:       couponHandler,
+		GiftHandler:         giftHandler,
+		CancelHandler:       cancelHandler,
+	})
 }

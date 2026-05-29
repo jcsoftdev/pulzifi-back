@@ -52,7 +52,7 @@ func (v *Validator) Validate(ctx context.Context, provider string, creds map[str
 	if err != nil {
 		return fmt.Errorf("twilio validate: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	body, _ := io.ReadAll(resp.Body)
 
 	if resp.StatusCode == http.StatusOK {

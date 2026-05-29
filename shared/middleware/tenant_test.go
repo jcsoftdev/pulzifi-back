@@ -42,11 +42,9 @@ func TestGetSetSearchPathSQL(t *testing.T) {
 				if !strings.HasPrefix(got, "SET search_path TO") {
 					t.Errorf("GetSetSearchPathSQL(%q) should start with SET search_path TO, got %q", tt.tenant, got)
 				}
-			} else {
+			} else if got != "SELECT 1" {
 				// Should return the safe no-op
-				if got != "SELECT 1" {
-					t.Errorf("GetSetSearchPathSQL(%q) = %q, want %q (safe no-op)", tt.tenant, got, "SELECT 1")
-				}
+				t.Errorf("GetSetSearchPathSQL(%q) = %q, want %q (safe no-op)", tt.tenant, got, "SELECT 1")
 			}
 		})
 	}
@@ -107,9 +105,7 @@ func TestGetTenantFromContext(t *testing.T) {
 		},
 		{
 			name: "tenant not in context",
-			setup: func() context.Context {
-				return context.Background()
-			},
+			setup: context.Background,
 			want: "",
 		},
 		{
@@ -154,9 +150,7 @@ func TestGetSubdomainFromContext(t *testing.T) {
 		},
 		{
 			name: "subdomain not in context",
-			setup: func() context.Context {
-				return context.Background()
-			},
+			setup: context.Background,
 			want: "",
 		},
 		{
@@ -203,9 +197,7 @@ func TestGetTenantFromContextOrError(t *testing.T) {
 		},
 		{
 			name: "tenant missing",
-			setup: func() context.Context {
-				return context.Background()
-			},
+			setup: context.Background,
 			want:    "",
 			wantErr: true,
 		},

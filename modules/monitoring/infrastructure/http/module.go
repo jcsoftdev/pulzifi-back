@@ -135,6 +135,7 @@ func NewModuleWithDeps(deps Deps) *Module {
 }
 
 // NewModuleWithDB creates a new instance with database connection.
+//
 // Deprecated: use NewModuleWithDeps for clean dependency injection.
 // Kept for the cmd/worker entry point which does not need snapshot/email/insight.
 func NewModuleWithDB(db *sql.DB, eventBus *eventbus.EventBus) router.ModuleRegisterer {
@@ -220,7 +221,7 @@ func (m *Module) handleCreateCheck(w http.ResponseWriter, r *http.Request) {
 	if m.db == nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"id":      "550e8400-e29b-41d4-a716-446655440000",
 			"message": "create check (mock - db not initialized)",
 		})
@@ -253,7 +254,7 @@ func (m *Module) handleCreateCheck(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 // handleListChecks lists monitoring checks for a page
@@ -272,13 +273,13 @@ func (m *Module) handleListChecks(w http.ResponseWriter, r *http.Request) {
 	pageIDStr := r.URL.Query().Get("page_id")
 	if pageIDStr == "" {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "page_id query parameter is required"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "page_id query parameter is required"})
 		return
 	}
 	pageID, err := uuid.Parse(pageIDStr)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "invalid page_id format"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "invalid page_id format"})
 		return
 	}
 
@@ -289,12 +290,12 @@ func (m *Module) handleListChecks(w http.ResponseWriter, r *http.Request) {
 	resp, err := handler.Handle(r.Context(), pageID)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "failed to list checks"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "failed to list checks"})
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 // handleListChecksByPage lists monitoring checks for a specific page
@@ -349,7 +350,7 @@ func (m *Module) handleListChecksByPage(w http.ResponseWriter, r *http.Request) 
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 // handleRunNow triggers an immediate monitoring check for a page
@@ -372,7 +373,7 @@ func (m *Module) handleRunNow(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "invalid pageId"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "invalid pageId"})
 		return
 	}
 
@@ -382,16 +383,16 @@ func (m *Module) handleRunNow(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if errors.Is(err, orchestrator.ErrPageNotFound) {
 			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{"error": "page not found"})
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "page not found"})
 			return
 		}
 		if errors.Is(err, orchestrator.ErrQuotaExceeded) {
 			w.WriteHeader(http.StatusPaymentRequired)
-			json.NewEncoder(w).Encode(map[string]string{"error": "monthly check quota exceeded"})
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "monthly check quota exceeded"})
 			return
 		}
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "failed to trigger check"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "failed to trigger check"})
 		return
 	}
 
@@ -414,7 +415,7 @@ func (m *Module) handleGetCheck(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "invalid check id"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "invalid check id"})
 		return
 	}
 
@@ -424,12 +425,12 @@ func (m *Module) handleGetCheck(w http.ResponseWriter, r *http.Request) {
 	check, err := repo.GetByID(r.Context(), id)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "failed to get check"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "failed to get check"})
 		return
 	}
 	if check == nil {
 		w.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(w).Encode(map[string]string{"error": "check not found"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "check not found"})
 		return
 	}
 
@@ -471,7 +472,7 @@ func (m *Module) handleGetCheck(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 // handleCreateMonitoringConfig creates a new monitoring config
@@ -489,7 +490,7 @@ func (m *Module) handleCreateMonitoringConfig(w http.ResponseWriter, r *http.Req
 	if m.db == nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"id":      "550e8400-e29b-41d4-a716-446655440000",
 			"message": "create monitoring config (mock - db not initialized)",
 		})
@@ -518,7 +519,7 @@ func (m *Module) handleCreateMonitoringConfig(w http.ResponseWriter, r *http.Req
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 // handleGetMonitoringConfig gets a monitoring config by page ID
@@ -534,7 +535,7 @@ func (m *Module) handleGetMonitoringConfig(w http.ResponseWriter, r *http.Reques
 	if m.db == nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]string{
+		_ = json.NewEncoder(w).Encode(map[string]string{
 			"page_id": chi.URLParam(r, "pageId"),
 			"message": "get monitoring config (mock - db not initialized)",
 		})
@@ -564,7 +565,7 @@ func (m *Module) handleGetMonitoringConfig(w http.ResponseWriter, r *http.Reques
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 // handleUpdateMonitoringConfig updates or creates a monitoring config by page ID
@@ -583,7 +584,7 @@ func (m *Module) handleUpdateMonitoringConfig(w http.ResponseWriter, r *http.Req
 	if m.db == nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"id":      "550e8400-e29b-41d4-a716-446655440000",
 			"message": "update monitoring config (mock - db not initialized)",
 		})
@@ -617,7 +618,7 @@ func (m *Module) handleUpdateMonitoringConfig(w http.ResponseWriter, r *http.Req
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(response)
+	_ = json.NewEncoder(w).Encode(response)
 }
 
 // handleBulkUpdateMonitoringConfig updates check frequency for multiple pages at once
@@ -687,7 +688,7 @@ func (m *Module) handleCreateNotificationPreference(w http.ResponseWriter, r *ht
 	if m.db == nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"id":      "550e8400-e29b-41d4-a716-446655440000",
 			"message": "create notification preference (mock - db not initialized)",
 		})
@@ -720,7 +721,7 @@ func (m *Module) handleCreateNotificationPreference(w http.ResponseWriter, r *ht
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 // handleGetNotificationPreference gets a notification preference by ID
@@ -739,7 +740,7 @@ func (m *Module) handleGetNotificationPreference(w http.ResponseWriter, r *http.
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "invalid preference id"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "invalid preference id"})
 		return
 	}
 
@@ -749,17 +750,17 @@ func (m *Module) handleGetNotificationPreference(w http.ResponseWriter, r *http.
 	pref, err := repo.GetByID(r.Context(), id)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "failed to get notification preference"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "failed to get notification preference"})
 		return
 	}
 	if pref == nil {
 		w.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(w).Encode(map[string]string{"error": "notification preference not found"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "notification preference not found"})
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(pref)
+	_ = json.NewEncoder(w).Encode(pref)
 }
 
 // handleListSections returns all monitored sections for a page
@@ -796,7 +797,7 @@ func (m *Module) handleListSections(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 // handleSaveSections replaces all monitored sections for a page
@@ -841,7 +842,7 @@ func (m *Module) handleSaveSections(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 // handleDeleteSection deletes a single monitored section
@@ -928,7 +929,7 @@ func (m *Module) handleCheckSSE(w http.ResponseWriter, r *http.Request) {
 			if !ok {
 				return
 			}
-			fmt.Fprintf(w, "event: check:updated\ndata: %s\n\n", payload)
+			_, _ = fmt.Fprintf(w, "event: check:updated\ndata: %s\n\n", payload)
 			if err := rc.Flush(); err != nil {
 				return
 			}

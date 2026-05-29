@@ -17,8 +17,6 @@ func (f *fakeReader) ActivePlanBySubdomain(_ context.Context, _ string) (*PlanSn
 	return f.snap, f.err
 }
 
-func ptr[T any](v T) *T { return &v }
-
 func TestHandler_Handle(t *testing.T) {
 	now := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
 	in7d := now.Add(7 * 24 * time.Hour)

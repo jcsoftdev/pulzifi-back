@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from '@workspace/ui/components/atoms'
 import { Copy } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useId, useState } from 'react'
 
 async function copyToClipboard(text: string): Promise<boolean> {
   try {
@@ -53,6 +53,10 @@ export function CouponManagement() {
   const [maxRedemptions, setMaxRedemptions] = useState('')
   const [creating, setCreating] = useState(false)
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const planId = useId()
+  const cycleId = useId()
+  const codeId = useId()
+  const maxRedemptionsId = useId()
 
   const handleCopy = async (id: string, url: string) => {
     const ok = await copyToClipboard(url)
@@ -128,9 +132,11 @@ export function CouponManagement() {
 
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
             <div>
-              <label className="block text-sm font-medium text-foreground mb-2">Plan</label>
+              <label htmlFor={planId} className="block text-sm font-medium text-foreground mb-2">
+                Plan
+              </label>
               <Select value={planCode} onValueChange={setPlanCode} disabled={creating}>
-                <SelectTrigger>
+                <SelectTrigger id={planId}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -141,9 +147,11 @@ export function CouponManagement() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-foreground mb-2">Cycle</label>
+              <label htmlFor={cycleId} className="block text-sm font-medium text-foreground mb-2">
+                Cycle
+              </label>
               <Select value={cycle} onValueChange={setCycle} disabled={creating}>
-                <SelectTrigger>
+                <SelectTrigger id={cycleId}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -154,8 +162,11 @@ export function CouponManagement() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-foreground mb-2">Code (optional)</label>
+              <label htmlFor={codeId} className="block text-sm font-medium text-foreground mb-2">
+                Code (optional)
+              </label>
               <Input
+                id={codeId}
                 placeholder="TRY1PRO"
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
@@ -165,8 +176,14 @@ export function CouponManagement() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-foreground mb-2">Max redemptions</label>
+              <label
+                htmlFor={maxRedemptionsId}
+                className="block text-sm font-medium text-foreground mb-2"
+              >
+                Max redemptions
+              </label>
               <Input
+                id={maxRedemptionsId}
                 placeholder="∞"
                 value={maxRedemptions}
                 onChange={(e) => setMaxRedemptions(e.target.value)}

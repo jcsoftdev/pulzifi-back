@@ -203,7 +203,7 @@ func (r *MonitoringConfigPostgresRepository) GetDueSnapshotTasks(ctx context.Con
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var tasks []entities.SnapshotTask
 	for rows.Next() {

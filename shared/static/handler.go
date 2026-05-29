@@ -109,9 +109,44 @@ func setupProxyNotFound(router chi.Router, frontendURL string, db *sql.DB, logge
 
 	proxy := httputil.NewSingleHostReverseProxy(target)
 	proxy.FlushInterval = -1 // SSE + HMR streaming
+	proxy.Director = proxyDirector(proxy.Director)
+	proxy.ErrorHandler = proxyErrorHandler(frontendURL, logger)
 
-	originalDirector := proxy.Director
-	proxy.Director = func(req *http.Request) {
+	logger.Info("Proxying unmatched routes to Next.js", zap.String("url", frontendURL))
+
+	router.NotFound(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Reserved Go API namespaces — anything else under /api/* (e.g. Payload CMS
+		// REST endpoints at /api/users, /api/media, /api/globals/*) is proxied
+		// through to Next.js where Payload mounts its handlers.
+		if isReservedGoRoute(r.URL.Path) {
+			http.NotFound(w, r)
+			return
+		}
+
+		// Invalid-subdomain guard: if the host has a subdomain that doesn't
+		// resolve to any org, redirect to the root domain so users land on
+		// the marketing site instead of an orphan tenant URL. Exempt paths
+		// (onboarding, login, etc.) must remain reachable from any host.
+		if redirectInvalidSubdomain(w, r, db) {
+			return
+		}
+
+		proxy.ServeHTTP(w, r)
+	}))
+}
+
+// isReservedGoRoute reports whether the path belongs to a Go-handled namespace
+// that should return 404 rather than being proxied to Next.js.
+func isReservedGoRoute(path string) bool {
+	return strings.HasPrefix(path, "/api/v1/") ||
+		strings.HasPrefix(path, "/api/auth/") ||
+		strings.HasPrefix(path, "/swagger")
+}
+
+// proxyDirector wraps the default reverse-proxy director to forward host headers
+// and inject the X-Tenant header derived from the request subdomain.
+func proxyDirector(originalDirector func(*http.Request)) func(*http.Request) {
+	return func(req *http.Request) {
 		// Capture original host BEFORE the default director rewrites the URL
 		origHost := req.Host
 
@@ -138,55 +173,43 @@ func setupProxyNotFound(router chi.Router, frontendURL string, db *sql.DB, logge
 			}
 		}
 	}
+}
 
-	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
+// proxyErrorHandler returns the reverse-proxy error handler. Client cancellations
+// are logged at debug; everything else is logged as an error and returns 502.
+func proxyErrorHandler(frontendURL string, logger *zap.Logger) func(http.ResponseWriter, *http.Request, error) {
+	return func(w http.ResponseWriter, r *http.Request, err error) {
 		if errors.Is(err, context.Canceled) {
 			logger.Debug("Proxy request cancelled by client", zap.String("path", r.URL.Path))
 			return
 		}
 		logger.Error("Proxy error", zap.Error(err), zap.String("url", frontendURL), zap.String("path", r.URL.Path))
 		w.WriteHeader(http.StatusBadGateway)
-		w.Write([]byte("Frontend server unavailable"))
+		_, _ = w.Write([]byte("Frontend server unavailable"))
 	}
+}
 
-	logger.Info("Proxying unmatched routes to Next.js", zap.String("url", frontendURL))
-
-	router.NotFound(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Reserved Go API namespaces — anything else under /api/* (e.g. Payload CMS
-		// REST endpoints at /api/users, /api/media, /api/globals/*) is proxied
-		// through to Next.js where Payload mounts its handlers.
-		if strings.HasPrefix(r.URL.Path, "/api/v1/") || strings.HasPrefix(r.URL.Path, "/api/auth/") {
-			http.NotFound(w, r)
-			return
+// redirectInvalidSubdomain redirects to the root domain when the request host has
+// a subdomain that doesn't resolve to any org. Returns true if a redirect was written.
+func redirectInvalidSubdomain(w http.ResponseWriter, r *http.Request, db *sql.DB) bool {
+	if isSubdomainExempt(r.URL.Path) {
+		return false
+	}
+	subdomain, base := splitHostSubdomain(r.Host)
+	if subdomain == "" || orgExistsForSubdomain(r.Context(), db, subdomain) {
+		return false
+	}
+	proto := r.Header.Get("X-Forwarded-Proto")
+	if proto == "" {
+		if r.TLS != nil {
+			proto = "https"
+		} else {
+			proto = "http"
 		}
-		if strings.HasPrefix(r.URL.Path, "/swagger") {
-			http.NotFound(w, r)
-			return
-		}
-
-		// Invalid-subdomain guard: if the host has a subdomain that doesn't
-		// resolve to any org, redirect to the root domain so users land on
-		// the marketing site instead of an orphan tenant URL. Exempt paths
-		// (onboarding, login, etc.) must remain reachable from any host.
-		if !isSubdomainExempt(r.URL.Path) {
-			subdomain, base := splitHostSubdomain(r.Host)
-			if subdomain != "" && !orgExistsForSubdomain(r.Context(), db, subdomain) {
-				proto := r.Header.Get("X-Forwarded-Proto")
-				if proto == "" {
-					if r.TLS != nil {
-						proto = "https"
-					} else {
-						proto = "http"
-					}
-				}
-				target := proto + "://" + base + r.URL.RequestURI()
-				http.Redirect(w, r, target, http.StatusTemporaryRedirect)
-				return
-			}
-		}
-
-		proxy.ServeHTTP(w, r)
-	}))
+	}
+	target := proto + "://" + base + r.URL.RequestURI()
+	http.Redirect(w, r, target, http.StatusTemporaryRedirect)
+	return true
 }
 
 // setupStaticNotFound configura archivos estáticos para rutas no encontradas
@@ -213,68 +236,4 @@ func setupStaticNotFound(router chi.Router, staticDir string, logger *zap.Logger
 		}
 		fileServer.ServeHTTP(w, r)
 	}))
-}
-
-// setupProxy DEPRECATED - usa setupProxyNotFound en su lugar
-func setupProxy(router chi.Router, frontendURL string, logger *zap.Logger) {
-	target, err := url.Parse(frontendURL)
-	if err != nil {
-		logger.Error("Invalid frontend URL", zap.Error(err))
-		return
-	}
-
-	proxy := httputil.NewSingleHostReverseProxy(target)
-
-	// Modificar Director para preservar headers importantes
-	originalDirector := proxy.Director
-	proxy.Director = func(req *http.Request) {
-		originalDirector(req)
-		// Preservar headers originales
-		req.Header.Set("X-Forwarded-For", req.RemoteAddr)
-		req.Header.Set("X-Forwarded-Proto", "http")
-	}
-
-	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
-		logger.Error("Proxy error", zap.Error(err), zap.String("url", frontendURL), zap.String("path", r.URL.Path))
-		w.WriteHeader(http.StatusBadGateway)
-		w.Write([]byte("Frontend server unavailable"))
-	}
-
-	logger.Info("Proxying to frontend dev server", zap.String("url", frontendURL))
-
-	router.Get("/*", func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, "/api") {
-			http.NotFound(w, r)
-			return
-		}
-		logger.Debug("Proxying request", zap.String("path", r.URL.Path), zap.String("method", r.Method))
-		proxy.ServeHTTP(w, r)
-	})
-}
-
-// setupStatic configura el servidor de archivos estáticos (producción)
-func setupStatic(router chi.Router, staticDir string, logger *zap.Logger) {
-	if _, err := os.Stat(staticDir); os.IsNotExist(err) {
-		logger.Warn("Static directory not found", zap.String("dir", staticDir))
-		return
-	}
-
-	logger.Info("Serving static files", zap.String("dir", staticDir))
-	fileServer := http.FileServer(http.Dir(staticDir))
-
-	router.Get("/*", func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, "/api") {
-			http.NotFound(w, r)
-			return
-		}
-
-		fullPath := filepath.Join(staticDir, r.URL.Path)
-		if _, err := os.Stat(fullPath); os.IsNotExist(err) {
-			// Archivo no existe, servir index.html (SPA)
-			http.ServeFile(w, r, filepath.Join(staticDir, "index.html"))
-			return
-		}
-
-		fileServer.ServeHTTP(w, r)
-	})
 }

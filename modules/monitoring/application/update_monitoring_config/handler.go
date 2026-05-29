@@ -41,194 +41,18 @@ func (h *UpdateMonitoringConfigHandler) Handle(ctx context.Context, pageID uuid.
 		return nil, err
 	}
 
-	shouldDispatch := false
 	quotaExceeded := false
 
 	// If config doesn't exist, create a new one with default values
 	if config == nil {
-		logger.Info("UpdateMonitoringConfigHandler: Config not found, creating new one")
-		// Set defaults for new config
-		checkFrequency := "Off"
-		scheduleType := "all_time"
-		timezone := "UTC"
-		blockAdsCookies := true
-
-		// Override defaults with provided values
-		if req.CheckFrequency != nil {
-			checkFrequency = normalizeCheckFrequency(*req.CheckFrequency)
-		}
-		if req.ScheduleType != nil {
-			scheduleType = *req.ScheduleType
-		}
-		if req.Timezone != nil {
-			timezone = *req.Timezone
-		}
-		if req.BlockAdsCookies != nil {
-			blockAdsCookies = *req.BlockAdsCookies
-		}
-
-		enabledInsightTypes := []string{"marketing", "market_analysis"}
-		if len(req.EnabledInsightTypes) > 0 {
-			enabledInsightTypes = req.EnabledInsightTypes
-		}
-		enabledAlertConditions := []string{"any_changes"}
-		if len(req.EnabledAlertConditions) > 0 {
-			enabledAlertConditions = req.EnabledAlertConditions
-		}
-		customAlertCondition := ""
-		if req.CustomAlertCondition != nil {
-			customAlertCondition = *req.CustomAlertCondition
-		}
-
-		selectorType := "full_page"
-		if req.SelectorType != nil {
-			selectorType = *req.SelectorType
-		}
-		cssSelector := ""
-		if req.CSSSelector != nil {
-			cssSelector = *req.CSSSelector
-		}
-		xpathSelector := ""
-		if req.XPathSelector != nil {
-			xpathSelector = *req.XPathSelector
-		}
-		var selectorOffsets *entities.SelectorOffsets
-		if req.SelectorOffsets != nil {
-			selectorOffsets = &entities.SelectorOffsets{
-				Top:    req.SelectorOffsets.Top,
-				Right:  req.SelectorOffsets.Right,
-				Bottom: req.SelectorOffsets.Bottom,
-				Left:   req.SelectorOffsets.Left,
-			}
-		}
-
-		// Create new config using the constructor from entities
-		config = &entities.MonitoringConfig{
-			ID:                     uuid.New(),
-			PageID:                 pageID,
-			CheckFrequency:         checkFrequency,
-			ScheduleType:           scheduleType,
-			Timezone:               timezone,
-			BlockAdsCookies:        blockAdsCookies,
-			EnabledInsightTypes:    enabledInsightTypes,
-			EnabledAlertConditions: enabledAlertConditions,
-			CustomAlertCondition:   customAlertCondition,
-			SelectorType:           selectorType,
-			CSSSelector:            cssSelector,
-			XPathSelector:          xpathSelector,
-			SelectorOffsets:        selectorOffsets,
-			IgnoreSelectors:        req.IgnoreSelectors,
-			CreatedAt:              time.Now(),
-			UpdatedAt:              time.Now(),
-		}
-
-		// Create in database — the scheduler will pick up the page on its
-		// next tick (last_checked_at is NULL, so it is immediately "due").
-		if err := h.repo.Create(ctx, config); err != nil {
+		config, err = h.createConfig(ctx, pageID, req)
+		if err != nil {
 			return nil, err
-		}
-
-		if config.CheckFrequency != "Off" {
-			// Wake the scheduler so it re-evaluates next run time and picks
-			// up this newly created config promptly.
-			if h.scheduler != nil {
-				h.scheduler.WakeUp()
-			}
 		}
 	} else {
-		// Config exists, update only provided fields
-		logger.Info("UpdateMonitoringConfigHandler: Config found, updating", zap.Any("current_config", config))
-		if req.CheckFrequency != nil {
-			normalizedFrequency := normalizeCheckFrequency(*req.CheckFrequency)
-			logger.Info("UpdateMonitoringConfigHandler: Updating CheckFrequency", zap.String("new_frequency", normalizedFrequency))
-			config.CheckFrequency = normalizedFrequency
-			if config.CheckFrequency != "Off" {
-				// Only dispatch immediately if the page is overdue under the new frequency.
-				// If the user increased the interval (e.g. 5m -> 1h) and the last check
-				// was recent, skip the immediate check and let the scheduler handle it.
-				shouldDispatch = h.isPageDueForCheck(ctx, pageID, normalizedFrequency)
-			}
-		} else {
-			logger.Info("UpdateMonitoringConfigHandler: CheckFrequency not provided in request")
-		}
-
-		if req.ScheduleType != nil {
-			config.ScheduleType = *req.ScheduleType
-		}
-
-		if req.Timezone != nil {
-			config.Timezone = *req.Timezone
-		}
-
-		if req.BlockAdsCookies != nil {
-			config.BlockAdsCookies = *req.BlockAdsCookies
-		}
-
-		if len(req.EnabledInsightTypes) > 0 {
-			config.EnabledInsightTypes = req.EnabledInsightTypes
-		}
-		if len(req.EnabledAlertConditions) > 0 {
-			config.EnabledAlertConditions = req.EnabledAlertConditions
-		}
-		if req.CustomAlertCondition != nil {
-			config.CustomAlertCondition = *req.CustomAlertCondition
-		}
-
-		if req.SelectorType != nil {
-			config.SelectorType = *req.SelectorType
-		}
-		if req.CSSSelector != nil {
-			config.CSSSelector = *req.CSSSelector
-		}
-		if req.XPathSelector != nil {
-			config.XPathSelector = *req.XPathSelector
-		}
-		if req.SelectorOffsets != nil {
-			config.SelectorOffsets = &entities.SelectorOffsets{
-				Top:    req.SelectorOffsets.Top,
-				Right:  req.SelectorOffsets.Right,
-				Bottom: req.SelectorOffsets.Bottom,
-				Left:   req.SelectorOffsets.Left,
-			}
-		}
-		if req.IgnoreSelectors != nil {
-			config.IgnoreSelectors = req.IgnoreSelectors
-		}
-
-		config.UpdatedAt = time.Now()
-
-		// Pre-claim: set last_checked_at = NOW() BEFORE saving the config so the
-		// scheduler cannot see the page as "due" during the gap between config
-		// save and TriggerPageCheck dispatch.
-		if shouldDispatch {
-			if err := h.repo.UpdateLastCheckedAt(ctx, pageID); err != nil {
-				logger.Error("UpdateMonitoringConfigHandler: Failed to pre-claim page", zap.String("page_id", pageID.String()), zap.Error(err))
-			}
-		}
-
-		// Save the config. TriggerPageCheck queries check_frequency != 'Off',
-		// so the config must be persisted before dispatch.
-		if err := h.repo.Update(ctx, config); err != nil {
+		quotaExceeded, err = h.applyUpdates(ctx, pageID, config, req)
+		if err != nil {
 			return nil, err
-		}
-
-		// Dispatch the immediate check. The page is already claimed (last_checked_at = NOW)
-		// so the scheduler's GetDueSnapshotTasks will skip it.
-		if shouldDispatch {
-			if h.scheduler != nil {
-				if err := h.scheduler.TriggerPageCheck(ctx, h.tenant, pageID); err != nil {
-					if errors.Is(err, orchestrator.ErrQuotaExceeded) {
-						quotaExceeded = true
-						logger.Warn("UpdateMonitoringConfigHandler: Quota exceeded", zap.String("page_id", pageID.String()))
-					} else {
-						logger.Error("UpdateMonitoringConfigHandler: Failed to trigger immediate check", zap.String("page_id", pageID.String()), zap.Error(err))
-					}
-				}
-			} else {
-				if err := h.repo.MarkPageDueNow(ctx, pageID); err != nil {
-					logger.Error("UpdateMonitoringConfigHandler: Failed to mark page due now", zap.String("page_id", pageID.String()), zap.Error(err))
-				}
-			}
 		}
 	}
 
@@ -262,6 +86,219 @@ func (h *UpdateMonitoringConfigHandler) Handle(ctx context.Context, pageID uuid.
 		UpdatedAt:              config.UpdatedAt,
 		QuotaExceeded:          quotaExceeded,
 	}, nil
+}
+
+// createConfig builds and persists a brand-new monitoring config, applying the
+// provided request fields over the defaults, then wakes the scheduler when the
+// new config is active.
+func (h *UpdateMonitoringConfigHandler) createConfig(ctx context.Context, pageID uuid.UUID, req *UpdateMonitoringConfigRequest) (*entities.MonitoringConfig, error) {
+	logger.Info("UpdateMonitoringConfigHandler: Config not found, creating new one")
+	// Set defaults for new config
+	checkFrequency := "Off"
+	scheduleType := "all_time"
+	timezone := "UTC"
+	blockAdsCookies := true
+
+	// Override defaults with provided values
+	if req.CheckFrequency != nil {
+		checkFrequency = normalizeCheckFrequency(*req.CheckFrequency)
+	}
+	if req.ScheduleType != nil {
+		scheduleType = *req.ScheduleType
+	}
+	if req.Timezone != nil {
+		timezone = *req.Timezone
+	}
+	if req.BlockAdsCookies != nil {
+		blockAdsCookies = *req.BlockAdsCookies
+	}
+
+	enabledInsightTypes := []string{"marketing", "market_analysis"}
+	if len(req.EnabledInsightTypes) > 0 {
+		enabledInsightTypes = req.EnabledInsightTypes
+	}
+	enabledAlertConditions := []string{"any_changes"}
+	if len(req.EnabledAlertConditions) > 0 {
+		enabledAlertConditions = req.EnabledAlertConditions
+	}
+	customAlertCondition := ""
+	if req.CustomAlertCondition != nil {
+		customAlertCondition = *req.CustomAlertCondition
+	}
+
+	selectorType := "full_page"
+	if req.SelectorType != nil {
+		selectorType = *req.SelectorType
+	}
+	cssSelector := ""
+	if req.CSSSelector != nil {
+		cssSelector = *req.CSSSelector
+	}
+	xpathSelector := ""
+	if req.XPathSelector != nil {
+		xpathSelector = *req.XPathSelector
+	}
+	var selectorOffsets *entities.SelectorOffsets
+	if req.SelectorOffsets != nil {
+		selectorOffsets = &entities.SelectorOffsets{
+			Top:    req.SelectorOffsets.Top,
+			Right:  req.SelectorOffsets.Right,
+			Bottom: req.SelectorOffsets.Bottom,
+			Left:   req.SelectorOffsets.Left,
+		}
+	}
+
+	// Create new config using the constructor from entities
+	config := &entities.MonitoringConfig{
+		ID:                     uuid.New(),
+		PageID:                 pageID,
+		CheckFrequency:         checkFrequency,
+		ScheduleType:           scheduleType,
+		Timezone:               timezone,
+		BlockAdsCookies:        blockAdsCookies,
+		EnabledInsightTypes:    enabledInsightTypes,
+		EnabledAlertConditions: enabledAlertConditions,
+		CustomAlertCondition:   customAlertCondition,
+		SelectorType:           selectorType,
+		CSSSelector:            cssSelector,
+		XPathSelector:          xpathSelector,
+		SelectorOffsets:        selectorOffsets,
+		IgnoreSelectors:        req.IgnoreSelectors,
+		CreatedAt:              time.Now(),
+		UpdatedAt:              time.Now(),
+	}
+
+	// Create in database — the scheduler will pick up the page on its
+	// next tick (last_checked_at is NULL, so it is immediately "due").
+	if err := h.repo.Create(ctx, config); err != nil {
+		return nil, err
+	}
+
+	if config.CheckFrequency != "Off" {
+		// Wake the scheduler so it re-evaluates next run time and picks
+		// up this newly created config promptly.
+		if h.scheduler != nil {
+			h.scheduler.WakeUp()
+		}
+	}
+
+	return config, nil
+}
+
+// mergeConfigFields copies the provided (non-nil) request fields onto the
+// existing config in place. It returns whether an immediate check should be
+// dispatched — true only when a new active frequency makes the page overdue.
+func (h *UpdateMonitoringConfigHandler) mergeConfigFields(ctx context.Context, pageID uuid.UUID, config *entities.MonitoringConfig, req *UpdateMonitoringConfigRequest) bool {
+	shouldDispatch := false
+
+	if req.CheckFrequency != nil {
+		normalizedFrequency := normalizeCheckFrequency(*req.CheckFrequency)
+		logger.Info("UpdateMonitoringConfigHandler: Updating CheckFrequency", zap.String("new_frequency", normalizedFrequency))
+		config.CheckFrequency = normalizedFrequency
+		if config.CheckFrequency != "Off" {
+			// Only dispatch immediately if the page is overdue under the new frequency.
+			// If the user increased the interval (e.g. 5m -> 1h) and the last check
+			// was recent, skip the immediate check and let the scheduler handle it.
+			shouldDispatch = h.isPageDueForCheck(ctx, pageID, normalizedFrequency)
+		}
+	} else {
+		logger.Info("UpdateMonitoringConfigHandler: CheckFrequency not provided in request")
+	}
+
+	if req.ScheduleType != nil {
+		config.ScheduleType = *req.ScheduleType
+	}
+
+	if req.Timezone != nil {
+		config.Timezone = *req.Timezone
+	}
+
+	if req.BlockAdsCookies != nil {
+		config.BlockAdsCookies = *req.BlockAdsCookies
+	}
+
+	if len(req.EnabledInsightTypes) > 0 {
+		config.EnabledInsightTypes = req.EnabledInsightTypes
+	}
+	if len(req.EnabledAlertConditions) > 0 {
+		config.EnabledAlertConditions = req.EnabledAlertConditions
+	}
+	if req.CustomAlertCondition != nil {
+		config.CustomAlertCondition = *req.CustomAlertCondition
+	}
+
+	if req.SelectorType != nil {
+		config.SelectorType = *req.SelectorType
+	}
+	if req.CSSSelector != nil {
+		config.CSSSelector = *req.CSSSelector
+	}
+	if req.XPathSelector != nil {
+		config.XPathSelector = *req.XPathSelector
+	}
+	if req.SelectorOffsets != nil {
+		config.SelectorOffsets = &entities.SelectorOffsets{
+			Top:    req.SelectorOffsets.Top,
+			Right:  req.SelectorOffsets.Right,
+			Bottom: req.SelectorOffsets.Bottom,
+			Left:   req.SelectorOffsets.Left,
+		}
+	}
+	if req.IgnoreSelectors != nil {
+		config.IgnoreSelectors = req.IgnoreSelectors
+	}
+
+	return shouldDispatch
+}
+
+// applyUpdates mutates an existing config with the provided request fields,
+// persists it, and dispatches an immediate check when the page is overdue under
+// a newly set frequency. Returns whether the immediate check hit the quota cap.
+func (h *UpdateMonitoringConfigHandler) applyUpdates(ctx context.Context, pageID uuid.UUID, config *entities.MonitoringConfig, req *UpdateMonitoringConfigRequest) (bool, error) {
+	quotaExceeded := false
+
+	// Config exists, update only provided fields
+	logger.Info("UpdateMonitoringConfigHandler: Config found, updating", zap.Any("current_config", config))
+
+	shouldDispatch := h.mergeConfigFields(ctx, pageID, config, req)
+
+	config.UpdatedAt = time.Now()
+
+	// Pre-claim: set last_checked_at = NOW() BEFORE saving the config so the
+	// scheduler cannot see the page as "due" during the gap between config
+	// save and TriggerPageCheck dispatch.
+	if shouldDispatch {
+		if err := h.repo.UpdateLastCheckedAt(ctx, pageID); err != nil {
+			logger.Error("UpdateMonitoringConfigHandler: Failed to pre-claim page", zap.String("page_id", pageID.String()), zap.Error(err))
+		}
+	}
+
+	// Save the config. TriggerPageCheck queries check_frequency != 'Off',
+	// so the config must be persisted before dispatch.
+	if err := h.repo.Update(ctx, config); err != nil {
+		return false, err
+	}
+
+	// Dispatch the immediate check. The page is already claimed (last_checked_at = NOW)
+	// so the scheduler's GetDueSnapshotTasks will skip it.
+	if shouldDispatch {
+		if h.scheduler != nil {
+			if err := h.scheduler.TriggerPageCheck(ctx, h.tenant, pageID); err != nil {
+				if errors.Is(err, orchestrator.ErrQuotaExceeded) {
+					quotaExceeded = true
+					logger.Warn("UpdateMonitoringConfigHandler: Quota exceeded", zap.String("page_id", pageID.String()))
+				} else {
+					logger.Error("UpdateMonitoringConfigHandler: Failed to trigger immediate check", zap.String("page_id", pageID.String()), zap.Error(err))
+				}
+			}
+		} else {
+			if err := h.repo.MarkPageDueNow(ctx, pageID); err != nil {
+				logger.Error("UpdateMonitoringConfigHandler: Failed to mark page due now", zap.String("page_id", pageID.String()), zap.Error(err))
+			}
+		}
+	}
+
+	return quotaExceeded, nil
 }
 
 // isPageDueForCheck returns true only if the page has been checked before AND

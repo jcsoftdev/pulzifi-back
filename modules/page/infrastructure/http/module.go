@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"io"
@@ -104,7 +105,7 @@ func (m *Module) handlePreviewPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to preview page", http.StatusInternalServerError)
 		return
 	}
-	defer body.Close()
+	defer func() { _ = body.Close() }()
 
 	// Set SSE headers and proxy the stream
 	w.Header().Set("Content-Type", "text/event-stream")
@@ -119,20 +120,23 @@ func (m *Module) handlePreviewPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Stream the extractor response to the client, flushing after each chunk.
-	// A keepalive ticker sends SSE comments every 15s to prevent intermediate
-	// proxies (Railway, Cloudflare, etc.) from killing idle connections.
+	m.streamPreview(r.Context(), w, rc, body)
+}
+
+// previewReadResult delivers chunks read from the extractor body in a goroutine
+// so the proxy loop can select between data arriving and the keepalive ticker.
+type previewReadResult struct {
+	data []byte
+	err  error
+}
+
+// streamPreview proxies the extractor SSE body to the client, flushing after each
+// chunk and emitting keepalive comments every 15s to keep idle connections alive.
+func (m *Module) streamPreview(ctx context.Context, w http.ResponseWriter, rc *http.ResponseController, body io.Reader) {
 	keepalive := time.NewTicker(15 * time.Second)
 	defer keepalive.Stop()
 
-	// readCh delivers chunks from the extractor body in a goroutine so we can
-	// select between data arriving and the keepalive ticker firing.
-	type readResult struct {
-		data []byte
-		err  error
-	}
-	readCh := make(chan readResult, 1)
-
+	readCh := make(chan previewReadResult, 1)
 	go func() {
 		buf := make([]byte, 4096)
 		for {
@@ -140,10 +144,10 @@ func (m *Module) handlePreviewPage(w http.ResponseWriter, r *http.Request) {
 			if n > 0 {
 				chunk := make([]byte, n)
 				copy(chunk, buf[:n])
-				readCh <- readResult{data: chunk}
+				readCh <- previewReadResult{data: chunk}
 			}
 			if rErr != nil {
-				readCh <- readResult{err: rErr}
+				readCh <- previewReadResult{err: rErr}
 				return
 			}
 		}
@@ -152,18 +156,7 @@ func (m *Module) handlePreviewPage(w http.ResponseWriter, r *http.Request) {
 	for {
 		select {
 		case rr := <-readCh:
-			if rr.data != nil {
-				if _, writeErr := w.Write(rr.data); writeErr != nil {
-					return
-				}
-				if flushErr := rc.Flush(); flushErr != nil {
-					return
-				}
-			}
-			if rr.err != nil {
-				if rr.err != io.EOF {
-					logger.Error("Error reading preview stream", zap.Error(rr.err))
-				}
+			if !m.writePreviewChunk(w, rc, rr) {
 				return
 			}
 		case <-keepalive.C:
@@ -173,10 +166,30 @@ func (m *Module) handlePreviewPage(w http.ResponseWriter, r *http.Request) {
 			if flushErr := rc.Flush(); flushErr != nil {
 				return
 			}
-		case <-r.Context().Done():
+		case <-ctx.Done():
 			return
 		}
 	}
+}
+
+// writePreviewChunk writes one read result to the client. It returns false when
+// the proxy loop must stop (write error, flush error, or end of the stream).
+func (m *Module) writePreviewChunk(w http.ResponseWriter, rc *http.ResponseController, rr previewReadResult) bool {
+	if rr.data != nil {
+		if _, writeErr := w.Write(rr.data); writeErr != nil {
+			return false
+		}
+		if flushErr := rc.Flush(); flushErr != nil {
+			return false
+		}
+	}
+	if rr.err != nil {
+		if rr.err != io.EOF {
+			logger.Error("Error reading preview stream", zap.Error(rr.err))
+		}
+		return false
+	}
+	return true
 }
 
 // handleCreatePage creates a new page
@@ -194,7 +207,7 @@ func (m *Module) handleCreatePage(w http.ResponseWriter, r *http.Request) {
 	if m.db == nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"id":      "550e8400-e29b-41d4-a716-446655440000",
 			"message": "create page (mock - db not initialized)",
 		})
@@ -237,7 +250,7 @@ func (m *Module) handleCreatePage(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 // handleListPages lists all pages
@@ -254,7 +267,7 @@ func (m *Module) handleListPages(w http.ResponseWriter, r *http.Request) {
 	if m.db == nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"pages":   []interface{}{},
 			"message": "list pages (mock - db not initialized)",
 		})
@@ -293,7 +306,7 @@ func (m *Module) handleListPages(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(response)
+	_ = json.NewEncoder(w).Encode(response)
 }
 
 // handleGetPage gets a page by ID
@@ -335,7 +348,7 @@ func (m *Module) handleGetPage(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 // handleUpdatePage updates a page
@@ -385,7 +398,7 @@ func (m *Module) handleUpdatePage(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 // handleDeletePage deletes a page

@@ -126,7 +126,7 @@ func (r *OrganizationPostgresRepository) List(ctx context.Context, userID uuid.U
 		logger.Error("Failed to list organizations", zap.Error(err))
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var organizations []*entities.Organization
 	for rows.Next() {

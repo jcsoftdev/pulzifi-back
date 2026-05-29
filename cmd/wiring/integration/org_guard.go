@@ -10,7 +10,9 @@ import (
 
 // OrgGuard satisfies dispatch_event.OrgGuard.
 // IsActive returns true if the org exists and is not soft-deleted.
-type OrgGuard struct{ repo orgrepos.OrganizationRepository }
+type OrgGuard struct {
+	repo orgrepos.OrganizationRepository
+}
 
 // NewOrgGuard constructs an OrgGuard backed by the given OrganizationRepository.
 func NewOrgGuard(repo orgrepos.OrganizationRepository) *OrgGuard {

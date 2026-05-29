@@ -67,7 +67,7 @@ func (c *Client) HandleCallback(ctx context.Context, code, redirect string) (*en
 	if err != nil {
 		return nil, fmt.Errorf("discord callback: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	raw, _ := io.ReadAll(resp.Body)
 
 	var r struct {
@@ -152,7 +152,7 @@ func (c *Client) Send(ctx context.Context, integ *entities.Integration, dest *en
 	if err != nil {
 		return nil, fmt.Errorf("discord send: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	raw, _ := io.ReadAll(resp.Body)
 
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {

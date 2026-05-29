@@ -147,7 +147,7 @@ func (r *IntegrationPostgresRepository) ListByOrg(ctx context.Context, orgID uui
 	if err != nil {
 		return nil, fmt.Errorf("integration repo: list by org: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var result []*entities.Integration
 	for rows.Next() {

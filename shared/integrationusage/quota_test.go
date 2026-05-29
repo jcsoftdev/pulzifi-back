@@ -226,11 +226,12 @@ func TestTracker_ConcurrentCallsRaceSafe(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			err := tracker.CheckAndIncrement(context.Background(), orgID, "webhook", fixedAllowed(limit))
-			if err == nil {
+			switch {
+			case err == nil:
 				successes.Add(1)
-			} else if errors.Is(err, integrationusage.ErrQuotaExceeded) {
+			case errors.Is(err, integrationusage.ErrQuotaExceeded):
 				exceeded.Add(1)
-			} else {
+			default:
 				t.Errorf("unexpected error: %v", err)
 			}
 		}()

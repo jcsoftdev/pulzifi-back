@@ -3,6 +3,7 @@ package adminwiring
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -36,7 +37,7 @@ func (p *approvalProvisioner) Provision(ctx context.Context, input adminservices
 		logger.Error("Failed to begin approval transaction", zap.Error(err))
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	// 1. Update user status to approved
 	_, err = tx.ExecContext(ctx,
@@ -68,7 +69,8 @@ func (p *approvalProvisioner) Provision(ctx context.Context, input adminservices
 		input.OrganizationSubdomain,
 	).Scan(&orgID, &schemaName)
 
-	if err == sql.ErrNoRows {
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
 		// Org doesn't exist yet — create it
 		org := orgentities.NewOrganization(input.OrganizationName, input.OrganizationSubdomain, schemaName, input.UserID)
 		orgID = org.ID
@@ -80,10 +82,10 @@ func (p *approvalProvisioner) Provision(ctx context.Context, input adminservices
 			logger.Error("Failed to create organization", zap.Error(err))
 			return fmt.Errorf("failed to create organization: %w", err)
 		}
-	} else if err != nil {
+	case err != nil:
 		logger.Error("Failed to check for existing organization", zap.Error(err))
 		return fmt.Errorf("failed to check organization: %w", err)
-	} else {
+	default:
 		orgAlreadyExisted = true
 		logger.Info("Organization already exists, adding user as member",
 			zap.String("subdomain", input.OrganizationSubdomain),

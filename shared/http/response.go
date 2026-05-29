@@ -123,18 +123,11 @@ func (rh *ResponseHelper) RespondNotImplemented(w http.ResponseWriter, message s
 
 // Package-level convenience functions (for backwards compatibility)
 
-var defaultHelper *ResponseHelper
-
-// SetDefaultLogger sets the logger for package-level functions
-func SetDefaultLogger(logger *zap.Logger) {
-	defaultHelper = NewResponseHelper(logger)
-}
-
 // RespondJSON is a package-level convenience function
 func RespondJSON(w http.ResponseWriter, statusCode int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
-	json.NewEncoder(w).Encode(data)
+	_ = json.NewEncoder(w).Encode(data)
 }
 
 // RespondError is a package-level convenience function

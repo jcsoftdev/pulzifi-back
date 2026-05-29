@@ -78,7 +78,7 @@ func (r *RefreshTokenPostgresRepository) FindByUserID(ctx context.Context, userI
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var tokens []*entities.RefreshToken
 	for rows.Next() {

@@ -13,9 +13,9 @@ import (
 	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 
+	billingwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/billing"
 	"github.com/jcsoftdev/pulzifi-back/modules/billing/domain/entities"
 	"github.com/jcsoftdev/pulzifi-back/modules/billing/domain/services"
-	billingwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/billing"
 )
 
 // openPlanAssignerTestDB returns a connected *sql.DB or calls t.Skip when

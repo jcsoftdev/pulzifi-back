@@ -123,7 +123,7 @@ func (r *WorkspacePostgresRepository) List(ctx context.Context) ([]*entities.Wor
 		logger.Error("Failed to list workspaces", zap.Error(err))
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var workspaces []*entities.Workspace
 	for rows.Next() {
@@ -174,7 +174,7 @@ func (r *WorkspacePostgresRepository) ListByCreator(ctx context.Context, created
 		logger.Error("Failed to list workspaces", zap.Error(err))
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var workspaces []*entities.Workspace
 	for rows.Next() {
@@ -371,7 +371,7 @@ func (r *WorkspacePostgresRepository) ListMembers(ctx context.Context, workspace
 		logger.Error("Failed to list workspace members", zap.Error(err))
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var members []*entities.WorkspaceMember
 	for rows.Next() {
@@ -431,7 +431,7 @@ func (r *WorkspacePostgresRepository) ListByMember(ctx context.Context, userID u
 		logger.Error("Failed to list workspaces by member", zap.Error(err))
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var workspaces []*entities.Workspace
 	for rows.Next() {

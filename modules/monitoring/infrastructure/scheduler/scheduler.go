@@ -28,7 +28,7 @@ func listExistingTenantSchemas(ctx context.Context, db *sql.DB) ([]string, error
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []string
 	for rows.Next() {
 		var s string

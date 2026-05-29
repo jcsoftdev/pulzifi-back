@@ -53,7 +53,7 @@ func (r *UsageReader) ReadActiveUsage(ctx context.Context, orgID uuid.UUID) (ser
 	// Defense-in-depth — schema names are admin-controlled identifiers but we
 	// validate here too since we will interpolate it into the query.
 	for _, c := range schemaName {
-		if !(c == '_' || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')) {
+		if c != '_' && (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9') {
 			return services.UsageSnapshot{}, fmt.Errorf("usage reader: unsafe schema_name %q", schemaName)
 		}
 	}

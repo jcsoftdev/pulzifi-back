@@ -14,7 +14,6 @@ linters:
     - ineffassign
     - unused
     - gocritic
-    - gosimple
     - revive
     - gocyclo
     - misspell
@@ -25,26 +24,24 @@ linters:
       min-complexity: 15
     revive:
       severity: warning
-
-issues:
-  exclude-dirs:
-    - modules/organization/infrastructure/grpc/proto
-  exclude-rules:
-    - path: _test\.go$
-      linters:
-        - gocyclo
-        - errcheck
-    - path: modules/organization/infrastructure/grpc/proto/
-      linters:
-        - govet
-        - staticcheck
-        - errcheck
-        - ineffassign
-        - unused
-        - gocritic
-        - gosimple
-        - revive
-        - gocyclo
-        - misspell
-        - bodyclose
-        - unconvert
+  exclusions:
+    paths:
+      - modules/organization/infrastructure/grpc/proto
+    rules:
+      - path: _test\.go$
+        linters:
+          - gocyclo
+          - errcheck
+      - path: modules/organization/infrastructure/grpc/proto/
+        linters:
+          - govet
+          - staticcheck
+          - errcheck
+          - ineffassign
+          - unused
+          - gocritic
+          - revive
+          - gocyclo
+          - misspell
+          - bodyclose
+          - unconvert

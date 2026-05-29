@@ -132,29 +132,9 @@ func (c *Client) Send(ctx context.Context, integ *entities.Integration, dest *en
 		return nil, fmt.Errorf("twilio: tier lookup: %w", err)
 	}
 
-	var sid, token, from string
-	switch t {
-	case TierFree:
-		return nil, errors.New("twilio: SMS not available on free plan")
-	case TierPaid:
-		if c.quotas != nil {
-			if err := c.quotas.CheckAndIncrement(ctx, dest.ScopeID, "twilio"); err != nil {
-				// Map shared package's ErrQuotaExceeded (string-match avoids importing it here)
-				if strings.Contains(err.Error(), "quota exceeded") {
-					return nil, ErrQuotaExceeded
-				}
-				return nil, fmt.Errorf("twilio quota: %w", err)
-			}
-		}
-		sid, token, from = c.cfg.PlatformAccountSID, c.cfg.PlatformAuthToken, c.cfg.PlatformFromNumber
-		if sid == "" || token == "" || from == "" {
-			return nil, errors.New("twilio: platform credentials not configured")
-		}
-	case TierEnterprise:
-		sid, token, from = credsFromIntegration(integ)
-		if sid == "" || token == "" || from == "" {
-			return nil, errors.New("twilio: enterprise integration missing required fields")
-		}
+	sid, token, from, err := c.resolveCreds(ctx, t, integ, dest)
+	if err != nil {
+		return nil, err
 	}
 
 	rawNums, _ := dest.Target["phone_numbers"].([]any)
@@ -178,6 +158,34 @@ func (c *Client) Send(ctx context.Context, integ *entities.Integration, dest *en
 	return last, nil
 }
 
+// resolveCreds determines the Twilio credentials to use based on the billing tier.
+func (c *Client) resolveCreds(ctx context.Context, t tier, integ *entities.Integration, dest *entities.Destination) (sid, token, from string, err error) {
+	switch t {
+	case TierFree:
+		return "", "", "", errors.New("twilio: SMS not available on free plan")
+	case TierPaid:
+		if c.quotas != nil {
+			if qerr := c.quotas.CheckAndIncrement(ctx, dest.ScopeID, "twilio"); qerr != nil {
+				// Map shared package's ErrQuotaExceeded (string-match avoids importing it here)
+				if strings.Contains(qerr.Error(), "quota exceeded") {
+					return "", "", "", ErrQuotaExceeded
+				}
+				return "", "", "", fmt.Errorf("twilio quota: %w", qerr)
+			}
+		}
+		sid, token, from = c.cfg.PlatformAccountSID, c.cfg.PlatformAuthToken, c.cfg.PlatformFromNumber
+		if sid == "" || token == "" || from == "" {
+			return "", "", "", errors.New("twilio: platform credentials not configured")
+		}
+	case TierEnterprise:
+		sid, token, from = credsFromIntegration(integ)
+		if sid == "" || token == "" || from == "" {
+			return "", "", "", errors.New("twilio: enterprise integration missing required fields")
+		}
+	}
+	return sid, token, from, nil
+}
+
 func (c *Client) sendOne(ctx context.Context, sid, token, from, to, body string) (*entities.DeliveryResult, error) {
 	form := url.Values{}
 	form.Set("From", from)
@@ -196,7 +204,7 @@ func (c *Client) sendOne(ctx context.Context, sid, token, from, to, body string)
 	if err != nil {
 		return nil, fmt.Errorf("twilio send: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	raw, _ := io.ReadAll(resp.Body)
 
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {

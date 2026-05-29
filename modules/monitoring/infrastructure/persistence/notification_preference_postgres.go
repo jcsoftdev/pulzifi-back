@@ -124,7 +124,7 @@ func (r *NotificationPreferencePostgresRepository) GetEmailEnabledByPage(ctx con
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var prefs []*entities.NotificationPreference
 	for rows.Next() {

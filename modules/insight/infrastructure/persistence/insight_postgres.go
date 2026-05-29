@@ -44,7 +44,7 @@ func (r *InsightPostgresRepository) ListByPageID(ctx context.Context, pageID uui
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var insights []*entities.Insight
 	for rows.Next() {
@@ -66,7 +66,7 @@ func (r *InsightPostgresRepository) ListByCheckID(ctx context.Context, checkID u
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var insights []*entities.Insight
 	for rows.Next() {

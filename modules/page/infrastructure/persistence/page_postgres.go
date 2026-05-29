@@ -31,7 +31,7 @@ func (r *PagePostgresRepository) Create(ctx context.Context, page *entities.Page
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	q := `INSERT INTO ` + r.table("pages") + ` (id, workspace_id, name, url, check_count, created_by, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
 	if _, err := tx.ExecContext(ctx, q, page.ID, page.WorkspaceID, page.Name, page.URL, page.CheckCount, page.CreatedBy, page.CreatedAt, page.UpdatedAt); err != nil {
@@ -107,7 +107,7 @@ func (r *PagePostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (*en
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	p.Tags = []string{}
 	for rows.Next() {
@@ -142,7 +142,7 @@ func (r *PagePostgresRepository) ListByWorkspace(ctx context.Context, workspaceI
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var pages []*entities.Page
 	for rows.Next() {
@@ -187,12 +187,12 @@ func (r *PagePostgresRepository) ListByWorkspace(ctx context.Context, workspaceI
 		for tagRows.Next() {
 			var tag string
 			if err := tagRows.Scan(&tag); err != nil {
-				tagRows.Close()
+				_ = tagRows.Close()
 				return nil, err
 			}
 			p.Tags = append(p.Tags, tag)
 		}
-		tagRows.Close()
+		_ = tagRows.Close()
 
 		pages = append(pages, &p)
 	}
@@ -205,7 +205,7 @@ func (r *PagePostgresRepository) Update(ctx context.Context, page *entities.Page
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	page.UpdatedAt = time.Now()
 	q := `UPDATE ` + r.table("pages") + ` SET name = $1, url = $2, check_count = $3, updated_at = $4 WHERE id = $5`

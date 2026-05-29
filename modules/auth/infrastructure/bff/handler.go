@@ -267,5 +267,5 @@ func clearTenantHintCookie(w http.ResponseWriter, r *http.Request, staticDomain 
 func writeJSON(w http.ResponseWriter, status int, v interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v)
+	_ = json.NewEncoder(w).Encode(v)
 }

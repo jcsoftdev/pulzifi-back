@@ -3,9 +3,9 @@ package authwiring
 import (
 	"context"
 
+	authservices "github.com/jcsoftdev/pulzifi-back/modules/auth/domain/services"
 	orgrepos "github.com/jcsoftdev/pulzifi-back/modules/organization/domain/repositories"
 	orgservices "github.com/jcsoftdev/pulzifi-back/modules/organization/domain/services"
-	authservices "github.com/jcsoftdev/pulzifi-back/modules/auth/domain/services"
 )
 
 // organizationDirectoryAdapter implements authservices.OrganizationDirectory by

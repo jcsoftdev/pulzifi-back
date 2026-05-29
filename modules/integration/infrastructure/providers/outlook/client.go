@@ -82,7 +82,7 @@ func (c *Client) HandleCallback(ctx context.Context, code, redirectURI string) (
 	if err != nil {
 		return nil, fmt.Errorf("outlook: token request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	raw, _ := io.ReadAll(resp.Body)
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
@@ -138,7 +138,7 @@ func (c *Client) fetchUserEmail(ctx context.Context, accessToken string) (string
 	if err != nil {
 		return "", fmt.Errorf("me request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	raw, _ := io.ReadAll(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
@@ -182,7 +182,7 @@ func (c *Client) RefreshAccessToken(ctx context.Context, refreshToken string) (*
 	if err != nil {
 		return nil, fmt.Errorf("outlook: refresh request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	raw, _ := io.ReadAll(resp.Body)
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
@@ -300,7 +300,7 @@ func (c *Client) sendOne(ctx context.Context, accessToken, from, to, subject, ht
 	if err != nil {
 		return fmt.Errorf("request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	raw, _ := io.ReadAll(resp.Body)
 
 	if resp.StatusCode == http.StatusUnauthorized {

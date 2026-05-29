@@ -132,11 +132,11 @@ func (m *Module) handleInsightSSE(w http.ResponseWriter, r *http.Request) {
 	select {
 	case payload, ok := <-ch:
 		if ok {
-			fmt.Fprintf(w, "data: %s\n\n", payload)
+			_, _ = fmt.Fprintf(w, "data: %s\n\n", payload)
 			rc.Flush() //nolint:errcheck
 		}
 	case <-ctx.Done():
-		fmt.Fprintf(w, "data: {\"timeout\":true}\n\n")
+		_, _ = fmt.Fprintf(w, "data: {\"timeout\":true}\n\n")
 		rc.Flush() //nolint:errcheck
 	}
 }
@@ -154,51 +154,21 @@ func (m *Module) handleInsightSSE(w http.ResponseWriter, r *http.Request) {
 func (m *Module) handleGenerateInsight(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	if m.db == nil {
-		http.Error(w, "insight generation not available", http.StatusServiceUnavailable)
-		return
-	}
-
 	cfg := config.Load()
-	if cfg.OpenRouterAPIKey == "" {
+	if m.db == nil || cfg.OpenRouterAPIKey == "" {
 		http.Error(w, "insight generation not available", http.StatusServiceUnavailable)
 		return
 	}
 
-	var req struct {
-		PageID  string `json:"page_id"`
-		CheckID string `json:"check_id"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
-		return
-	}
-
-	pageID, err := uuid.Parse(req.PageID)
-	if err != nil {
-		http.Error(w, "invalid page_id", http.StatusBadRequest)
-		return
-	}
-	checkID, err := uuid.Parse(req.CheckID)
-	if err != nil {
-		http.Error(w, "invalid check_id", http.StatusBadRequest)
+	pageID, checkID, ok := m.parseGenerateInsightRequest(w, r)
+	if !ok {
 		return
 	}
 
 	tenant := middleware.GetTenantFromContext(r.Context())
 
-	// Build per-request infrastructure using interfaces (no cross-module imports here).
-	var checkReader insightservices.CheckReader
-	var pageConfigReader insightservices.PageConfigReader
-	if m.checkReaderFactory != nil {
-		checkReader = m.checkReaderFactory(tenant)
-	}
-	if m.pageConfigFactory != nil {
-		pageConfigReader = m.pageConfigFactory(tenant)
-	}
-
-	if checkReader == nil || pageConfigReader == nil {
-		http.Error(w, "insight generation not configured", http.StatusServiceUnavailable)
+	checkReader, pageConfigReader, ok := m.buildInsightReaders(w, tenant)
+	if !ok {
 		return
 	}
 
@@ -211,69 +181,123 @@ func (m *Module) handleGenerateInsight(w http.ResponseWriter, r *http.Request) {
 
 	// Return 202 immediately — generation runs in the background.
 	w.WriteHeader(http.StatusAccepted)
-	json.NewEncoder(w).Encode(map[string]string{"status": "generating"})
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "generating"})
 
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
-		defer cancel()
+	go m.runInsightGeneration(cfg, tenant, pageID, checkID, check.HTMLSnapshotURL, checkReader, pageConfigReader)
+}
 
-		allChecks, err := checkReader.ListByPage(ctx, pageID)
-		if err != nil {
-			logger.Error("Failed to list checks for insight generation", zap.Error(err))
-			return
+// parseGenerateInsightRequest decodes and validates the generate-insight request body.
+// On failure it writes the appropriate HTTP error and returns ok=false.
+func (m *Module) parseGenerateInsightRequest(w http.ResponseWriter, r *http.Request) (pageID, checkID uuid.UUID, ok bool) {
+	var req struct {
+		PageID  string `json:"page_id"`
+		CheckID string `json:"check_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return uuid.Nil, uuid.Nil, false
+	}
+
+	pageID, err := uuid.Parse(req.PageID)
+	if err != nil {
+		http.Error(w, "invalid page_id", http.StatusBadRequest)
+		return uuid.Nil, uuid.Nil, false
+	}
+	checkID, err = uuid.Parse(req.CheckID)
+	if err != nil {
+		http.Error(w, "invalid check_id", http.StatusBadRequest)
+		return uuid.Nil, uuid.Nil, false
+	}
+	return pageID, checkID, true
+}
+
+// buildInsightReaders builds per-request readers using interfaces (no cross-module imports here).
+// On failure it writes the appropriate HTTP error and returns ok=false.
+func (m *Module) buildInsightReaders(w http.ResponseWriter, tenant string) (insightservices.CheckReader, insightservices.PageConfigReader, bool) {
+	var checkReader insightservices.CheckReader
+	var pageConfigReader insightservices.PageConfigReader
+	if m.checkReaderFactory != nil {
+		checkReader = m.checkReaderFactory(tenant)
+	}
+	if m.pageConfigFactory != nil {
+		pageConfigReader = m.pageConfigFactory(tenant)
+	}
+
+	if checkReader == nil || pageConfigReader == nil {
+		http.Error(w, "insight generation not configured", http.StatusServiceUnavailable)
+		return nil, nil, false
+	}
+	return checkReader, pageConfigReader, true
+}
+
+// runInsightGeneration performs the background insight generation for a check.
+func (m *Module) runInsightGeneration(
+	cfg *config.Config,
+	tenant string,
+	pageID, checkID uuid.UUID,
+	newHTMLURL string,
+	checkReader insightservices.CheckReader,
+	pageConfigReader insightservices.PageConfigReader,
+) {
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+
+	allChecks, err := checkReader.ListByPage(ctx, pageID)
+	if err != nil {
+		logger.Error("Failed to list checks for insight generation", zap.Error(err))
+		return
+	}
+	var prevHTMLURL string
+	for _, c := range allChecks {
+		if c.ID != checkID && c.Status == "success" {
+			prevHTMLURL = c.HTMLSnapshotURL
+			break
 		}
-		var prevHTMLURL string
-		for _, c := range allChecks {
-			if c.ID != checkID && c.Status == "success" {
-				prevHTMLURL = c.HTMLSnapshotURL
-				break
-			}
+	}
+
+	newText := fetchHTMLText(newHTMLURL)
+	prevText := fetchHTMLText(prevHTMLURL)
+
+	enabledTypes := []string{"marketing", "market_analysis"}
+	pageCfg, _ := pageConfigReader.GetInsightConfig(ctx, pageID)
+	if pageCfg != nil && len(pageCfg.EnabledInsightTypes) > 0 {
+		enabledTypes = pageCfg.EnabledInsightTypes
+	}
+
+	pageURL, _ := pageConfigReader.GetPageURL(ctx, pageID)
+
+	// Build the handler per-request (uses per-tenant insight repo).
+	insightRepo := persistence.NewInsightPostgresRepository(m.db, tenant)
+	openRouterClient := sharedAI.NewOpenRouterClient(cfg.OpenRouterAPIKey, cfg.OpenRouterModel)
+	generator := insightAI.NewOpenRouterGenerator(openRouterClient)
+	quotaReader := persistence.NewQuotaPostgresRepository(m.db)
+	insightHandler := generateinsights.NewGenerateInsightsHandler(generator, insightRepo, quotaReader)
+
+	if err := insightHandler.Handle(ctx, &generateinsights.Request{
+		PageID:              pageID,
+		CheckID:             checkID,
+		PageURL:             pageURL,
+		PrevText:            prevText,
+		NewText:             newText,
+		SchemaName:          tenant,
+		EnabledInsightTypes: enabledTypes,
+	}); err != nil {
+		logger.Error("Failed to generate insights on demand", zap.Error(err))
+		return
+	}
+
+	// Publish generated insights to any SSE subscriber waiting on this check.
+	if m.broker != nil {
+		repo := persistence.NewInsightPostgresRepository(m.db, tenant)
+		handler := listinsights.NewListInsightsHandler(repo)
+		resp, err := handler.HandleByCheckID(ctx, checkID)
+		if err == nil {
+			payload, _ := json.Marshal(resp)
+			m.broker.Publish(checkID.String(), payload)
 		}
+	}
 
-		newText := fetchHTMLText(check.HTMLSnapshotURL)
-		prevText := fetchHTMLText(prevHTMLURL)
-
-		enabledTypes := []string{"marketing", "market_analysis"}
-		pageCfg, _ := pageConfigReader.GetInsightConfig(ctx, pageID)
-		if pageCfg != nil && len(pageCfg.EnabledInsightTypes) > 0 {
-			enabledTypes = pageCfg.EnabledInsightTypes
-		}
-
-		pageURL, _ := pageConfigReader.GetPageURL(ctx, pageID)
-
-		// Build the handler per-request (uses per-tenant insight repo).
-		insightRepo := persistence.NewInsightPostgresRepository(m.db, tenant)
-		openRouterClient := sharedAI.NewOpenRouterClient(cfg.OpenRouterAPIKey, cfg.OpenRouterModel)
-		generator := insightAI.NewOpenRouterGenerator(openRouterClient)
-		quotaReader := persistence.NewQuotaPostgresRepository(m.db)
-		insightHandler := generateinsights.NewGenerateInsightsHandler(generator, insightRepo, quotaReader)
-
-		if err := insightHandler.Handle(ctx, &generateinsights.Request{
-			PageID:              pageID,
-			CheckID:             checkID,
-			PageURL:             pageURL,
-			PrevText:            prevText,
-			NewText:             newText,
-			SchemaName:          tenant,
-			EnabledInsightTypes: enabledTypes,
-		}); err != nil {
-			logger.Error("Failed to generate insights on demand", zap.Error(err))
-			return
-		}
-
-		// Publish generated insights to any SSE subscriber waiting on this check.
-		if m.broker != nil {
-			repo := persistence.NewInsightPostgresRepository(m.db, tenant)
-			handler := listinsights.NewListInsightsHandler(repo)
-			resp, err := handler.HandleByCheckID(ctx, checkID)
-			if err == nil {
-				payload, _ := json.Marshal(resp)
-				m.broker.Publish(checkID.String(), payload)
-			}
-		}
-
-		logger.Info("On-demand insight generation completed", zap.String("check_id", checkID.String()))
-	}()
+	logger.Info("On-demand insight generation completed", zap.String("check_id", checkID.String()))
 }
 
 // fetchHTMLText downloads HTML from url and extracts plain text.
@@ -286,7 +310,7 @@ func fetchHTMLText(url string) string {
 		logger.Error("Failed to fetch HTML for text extraction", zap.String("url", url), zap.Error(err))
 		return ""
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	content, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return ""
@@ -306,7 +330,7 @@ func (m *Module) handleListInsights(w http.ResponseWriter, r *http.Request) {
 	if m.db == nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"insights": []interface{}{},
 			"message":  "list insights (mock - db not initialized)",
 		})
@@ -332,7 +356,7 @@ func (m *Module) handleListInsights(w http.ResponseWriter, r *http.Request) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(resp)
+		_ = json.NewEncoder(w).Encode(resp)
 		return
 	}
 
@@ -353,7 +377,7 @@ func (m *Module) handleListInsights(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 // handleGetInsight gets an insight by ID
@@ -372,7 +396,7 @@ func (m *Module) handleGetInsight(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "invalid insight id"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "invalid insight id"})
 		return
 	}
 
@@ -383,15 +407,15 @@ func (m *Module) handleGetInsight(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		logger.Error("Failed to get insight", zap.Error(err))
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "failed to get insight"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "failed to get insight"})
 		return
 	}
 	if insight == nil {
 		w.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(w).Encode(map[string]string{"error": "insight not found"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "insight not found"})
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(insight)
+	_ = json.NewEncoder(w).Encode(insight)
 }

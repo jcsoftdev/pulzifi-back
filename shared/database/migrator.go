@@ -36,7 +36,7 @@ func ProvisionTenantSchema(db *sql.DB, schemaName string) error {
 	if err != nil {
 		return fmt.Errorf("failed to get db connection: %w", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	if _, err := conn.ExecContext(context.Background(),
 		fmt.Sprintf("SET search_path TO %s, public", pq.QuoteIdentifier(schemaName)),
