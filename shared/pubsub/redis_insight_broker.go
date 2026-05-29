@@ -43,7 +43,12 @@ func NewRedisInsightBroker(ctx context.Context, rdb *redis.Client) *RedisInsight
 		ctx:       ctx,
 		listeners: make(map[string][]chan []byte),
 	}
-	go b.listenLoop()
+	// Establish the PSUBSCRIBE synchronously and wait for the subscription
+	// confirmation so a Publish issued immediately after construction is not
+	// lost before the background subscription becomes active (cold-start race).
+	pubsub := rdb.PSubscribe(ctx, insightChannelKey+"*")
+	_, _ = pubsub.Receive(ctx)
+	go b.listenLoop(pubsub)
 	return b
 }
 
@@ -93,35 +98,40 @@ func (b *RedisInsightBroker) Publish(checkID string, payload []byte) {
 
 // listenLoop maintains the Redis PSUBSCRIBE connection. Reconnects with
 // exponential backoff on error.
-func (b *RedisInsightBroker) listenLoop() {
+func (b *RedisInsightBroker) listenLoop(pubsub *redis.PubSub) {
 	backoff := time.Second
 	const maxBackoff = 30 * time.Second
 
 	for {
 		select {
 		case <-b.ctx.Done():
+			_ = pubsub.Close()
 			return
 		default:
 		}
 
-		pubsub := b.rdb.PSubscribe(b.ctx, insightChannelKey+"*")
-		if err := b.runInsightReceive(pubsub); err != nil {
-			select {
-			case <-b.ctx.Done():
-				_ = pubsub.Close()
-				return
-			default:
-			}
-			_ = pubsub.Close()
-			time.Sleep(backoff)
-			backoff *= 2
-			if backoff > maxBackoff {
-				backoff = maxBackoff
-			}
-		} else {
-			_ = pubsub.Close()
+		err := b.runInsightReceive(pubsub)
+		_ = pubsub.Close()
+		if err == nil {
 			return
 		}
+
+		select {
+		case <-b.ctx.Done():
+			return
+		default:
+		}
+
+		time.Sleep(backoff)
+		backoff *= 2
+		if backoff > maxBackoff {
+			backoff = maxBackoff
+		}
+
+		// Re-establish the subscription for the next iteration, waiting for
+		// confirmation so no message is lost during the reconnect window.
+		pubsub = b.rdb.PSubscribe(b.ctx, insightChannelKey+"*")
+		_, _ = pubsub.Receive(b.ctx)
 	}
 }
 
