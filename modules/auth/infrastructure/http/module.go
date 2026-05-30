@@ -64,7 +64,7 @@ type Module struct {
 	membershipChecker        services.OrganizationMembershipChecker
 	oauthProviders           map[string]oauthproviders.Provider
 	refreshTokenRepo         repositories.RefreshTokenRepository
-	eventBus                 *eventbus.EventBus
+	eventBus                 eventbus.MessageBus
 	cookieDomain             string
 	cookieSecure             bool
 	frontendURL              string
@@ -87,7 +87,7 @@ type ModuleDeps struct {
 	CookieSecure      bool
 	FrontendURL       string
 	Notifier          services.RegistrationNotifier
-	EventBus          *eventbus.EventBus
+	EventBus          eventbus.MessageBus
 	DB                *sql.DB
 	OrgContextLookup  services.OrgContextLookup // optional; nil → org omitted from /me
 }
@@ -127,7 +127,7 @@ func NewModule(deps ModuleDeps) router.ModuleRegisterer {
 		logoutHandler:            logout.NewHandler(deps.RefreshTokenRepo),
 		refreshHandler:           refreshapp.NewHandler(deps.RefreshTokenRepo, deps.UserRepo, deps.TokenService),
 		getCurrentUserHandler:    getCurrentUserHandler,
-		forgotPasswordHandler:    forgotpassword.NewHandler(deps.UserRepo, passwordResetRepo, deps.Notifier),
+		forgotPasswordHandler:    forgotpassword.NewHandler(deps.UserRepo, passwordResetRepo, deps.Notifier).WithTTL(cfg.ResetTokenTTL),
 		resetPasswordHandler:     resetpassword.NewHandler(passwordResetRepo, deps.AuthService),
 		updateCurrentUserHandler: updatecurrentuser.NewHandler(deps.UserRepo, getCurrentUserHandler),
 		changePasswordHandler:    changepassword.NewHandler(deps.UserRepo, deps.AuthService),

@@ -14,11 +14,11 @@ import (
 // Handler handles the delete_current_user use case.
 type Handler struct {
 	userRepo repositories.UserRepository
-	eventBus *eventbus.EventBus
+	eventBus eventbus.MessageBus
 }
 
 // NewHandler creates a new delete current user handler.
-func NewHandler(userRepo repositories.UserRepository, eventBus *eventbus.EventBus) *Handler {
+func NewHandler(userRepo repositories.UserRepository, eventBus eventbus.MessageBus) *Handler {
 	return &Handler{userRepo: userRepo, eventBus: eventBus}
 }
 
