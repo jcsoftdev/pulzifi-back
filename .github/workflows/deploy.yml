@@ -74,42 +74,19 @@ jobs:
     name: Deploy
     needs: changes
     runs-on: ubuntu-latest
-    env:
-      DOKPLOY_URL: ${{ secrets.DOKPLOY_URL }}
-      DOKPLOY_TOKEN: ${{ secrets.DOKPLOY_TOKEN }}
     steps:
       - name: Deploy API
         if: needs.changes.outputs.go == 'true'
-        run: |
-          curl -fsSL -X POST \
-            -H "Content-Type: application/json" \
-            -H "Authorization: Bearer ${DOKPLOY_TOKEN}" \
-            -d "{\"applicationId\":\"${{ secrets.DOKPLOY_APP_ID_API }}\"}" \
-            "${DOKPLOY_URL}/api/application.deploy"
+        run: curl -fsSL -X POST "${{ secrets.DOKPLOY_WEBHOOK_API }}"
 
       - name: Deploy Worker
         if: needs.changes.outputs.go == 'true'
-        run: |
-          curl -fsSL -X POST \
-            -H "Content-Type: application/json" \
-            -H "Authorization: Bearer ${DOKPLOY_TOKEN}" \
-            -d "{\"applicationId\":\"${{ secrets.DOKPLOY_APP_ID_WORKER }}\"}" \
-            "${DOKPLOY_URL}/api/application.deploy"
+        run: curl -fsSL -X POST "${{ secrets.DOKPLOY_WEBHOOK_WORKER }}"
 
       - name: Deploy Scraper
         if: needs.changes.outputs.scraper == 'true'
-        run: |
-          curl -fsSL -X POST \
-            -H "Content-Type: application/json" \
-            -H "Authorization: Bearer ${DOKPLOY_TOKEN}" \
-            -d "{\"applicationId\":\"${{ secrets.DOKPLOY_APP_ID_SCRAPER }}\"}" \
-            "${DOKPLOY_URL}/api/application.deploy"
+        run: curl -fsSL -X POST "${{ secrets.DOKPLOY_WEBHOOK_SCRAPER }}"
 
       - name: Deploy Frontend
         if: needs.changes.outputs.frontend == 'true'
-        run: |
-          curl -fsSL -X POST \
-            -H "Content-Type: application/json" \
-            -H "Authorization: Bearer ${DOKPLOY_TOKEN}" \
-            -d "{\"applicationId\":\"${{ secrets.DOKPLOY_APP_ID_FRONTEND }}\"}" \
-            "${DOKPLOY_URL}/api/application.deploy"
+        run: curl -fsSL -X POST "${{ secrets.DOKPLOY_WEBHOOK_FRONTEND }}"
