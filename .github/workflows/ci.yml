@@ -20,8 +20,8 @@ jobs:
     name: Go vet
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
           cache: true
@@ -32,12 +32,12 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true  # v1 warn-only; flip to false after lint cleanup (see tasks)
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
           cache: true
-      - uses: golangci/golangci-lint-action@v8
+      - uses: golangci/golangci-lint-action@v9
         with:
           version: latest
           args: --timeout=5m
@@ -46,8 +46,8 @@ jobs:
     name: Hexagonal architecture
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.x'
       - run: bash tools/scripts/check-architecture.sh
@@ -56,8 +56,8 @@ jobs:
     name: Tests + coverage gate
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
           cache: true
@@ -69,7 +69,7 @@ jobs:
         run: bash tools/scripts/coverage-gate.sh coverage.out
       - name: Upload coverage artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: coverage-out
           path: coverage.out
@@ -82,19 +82,19 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
       - name: Cache bun deps
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: frontend/node_modules
           key: ${{ runner.os }}-bun-${{ hashFiles('frontend/bun.lockb') }}
           restore-keys: |
             ${{ runner.os }}-bun-
       - name: Cache turbo
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: frontend/.turbo
           key: ${{ runner.os }}-turbo-${{ hashFiles('frontend/**/*.{ts,tsx,json}') }}
