@@ -11,7 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jcsoftdev/pulzifi-back/modules/integration/domain/entities"
 	"github.com/jcsoftdev/pulzifi-back/modules/integration/domain/repositories"
-	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
+	"github.com/jcsoftdev/pulzifi-back/shared/database"
 	"github.com/lib/pq"
 )
 
@@ -31,10 +31,6 @@ func NewDestinationPostgresRepository(db *sql.DB, tenant string) repositories.De
 
 // Create inserts a new destination. created_at / updated_at are server-side NOW().
 func (r *DestinationPostgresRepository) Create(ctx context.Context, d *entities.Destination) error {
-	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
-		return fmt.Errorf("destination repo: set search path: %w", err)
-	}
-
 	targetJSON, err := json.Marshal(d.Target)
 	if err != nil {
 		return fmt.Errorf("destination repo: marshal target: %w", err)
@@ -44,28 +40,26 @@ func (r *DestinationPostgresRepository) Create(ctx context.Context, d *entities.
 		(id, integration_id, service_type, scope_type, scope_id, target, events, enabled, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())`
 
-	_, err = r.db.ExecContext(ctx, q,
-		d.ID,
-		nullUUID(d.IntegrationID),
-		d.ServiceType,
-		string(d.ScopeType),
-		d.ScopeID,
-		targetJSON,
-		pq.Array(d.Events),
-		d.Enabled,
-	)
-	if err != nil {
-		return fmt.Errorf("destination repo: create: %w", err)
-	}
-	return nil
+	return database.WithTenant(ctx, r.db, r.tenant, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, q,
+			d.ID,
+			nullUUID(d.IntegrationID),
+			d.ServiceType,
+			string(d.ScopeType),
+			d.ScopeID,
+			targetJSON,
+			pq.Array(d.Events),
+			d.Enabled,
+		)
+		if err != nil {
+			return fmt.Errorf("destination repo: create: %w", err)
+		}
+		return nil
+	})
 }
 
 // Update modifies an existing destination. updated_at is server-side NOW().
 func (r *DestinationPostgresRepository) Update(ctx context.Context, d *entities.Destination) error {
-	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
-		return fmt.Errorf("destination repo: set search path: %w", err)
-	}
-
 	targetJSON, err := json.Marshal(d.Target)
 	if err != nil {
 		return fmt.Errorf("destination repo: marshal target: %w", err)
@@ -82,57 +76,61 @@ func (r *DestinationPostgresRepository) Update(ctx context.Context, d *entities.
 		    updated_at     = NOW()
 		WHERE id = $8`
 
-	_, err = r.db.ExecContext(ctx, q,
-		nullUUID(d.IntegrationID),
-		d.ServiceType,
-		string(d.ScopeType),
-		d.ScopeID,
-		targetJSON,
-		pq.Array(d.Events),
-		d.Enabled,
-		d.ID,
-	)
-	if err != nil {
-		return fmt.Errorf("destination repo: update: %w", err)
-	}
-	return nil
+	return database.WithTenant(ctx, r.db, r.tenant, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, q,
+			nullUUID(d.IntegrationID),
+			d.ServiceType,
+			string(d.ScopeType),
+			d.ScopeID,
+			targetJSON,
+			pq.Array(d.Events),
+			d.Enabled,
+			d.ID,
+		)
+		if err != nil {
+			return fmt.Errorf("destination repo: update: %w", err)
+		}
+		return nil
+	})
 }
 
 // GetByID fetches a destination by primary key. Returns nil, nil when not found.
 func (r *DestinationPostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (*entities.Destination, error) {
-	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
-		return nil, fmt.Errorf("destination repo: set search path: %w", err)
-	}
-
 	q := `SELECT id, integration_id, service_type, scope_type, scope_id,
 		         target, events, enabled, created_at, updated_at
 		  FROM integration_destinations
 		  WHERE id = $1
 		  LIMIT 1`
 
-	row := r.db.QueryRowContext(ctx, q, id)
-	d, err := r.scanRow(row)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
+	var result *entities.Destination
+	err := database.WithTenant(ctx, r.db, r.tenant, func(tx *sql.Tx) error {
+		row := tx.QueryRowContext(ctx, q, id)
+		d, err := r.scanRow(row)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return nil
+			}
+			return fmt.Errorf("destination repo: get by id: %w", err)
 		}
-		return nil, fmt.Errorf("destination repo: get by id: %w", err)
+		result = d
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
-	return d, nil
+	return result, nil
 }
 
 // Delete hard-deletes a destination by primary key.
 func (r *DestinationPostgresRepository) Delete(ctx context.Context, id uuid.UUID) error {
-	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
-		return fmt.Errorf("destination repo: set search path: %w", err)
-	}
-
 	q := `DELETE FROM integration_destinations WHERE id = $1`
-	_, err := r.db.ExecContext(ctx, q, id)
-	if err != nil {
-		return fmt.Errorf("destination repo: delete: %w", err)
-	}
-	return nil
+	return database.WithTenant(ctx, r.db, r.tenant, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, q, id)
+		if err != nil {
+			return fmt.Errorf("destination repo: delete: %w", err)
+		}
+		return nil
+	})
 }
 
 // ListByScope returns all destinations (enabled and disabled) for a given scope.
@@ -140,10 +138,6 @@ func (r *DestinationPostgresRepository) Delete(ctx context.Context, id uuid.UUID
 // via LEFT JOINs so callers can display human-readable scope labels without an
 // extra round-trip.
 func (r *DestinationPostgresRepository) ListByScope(ctx context.Context, scope entities.ScopeType, scopeID uuid.UUID) ([]*entities.Destination, error) {
-	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
-		return nil, fmt.Errorf("destination repo: set search path: %w", err)
-	}
-
 	q := `SELECT d.id, d.integration_id, d.service_type, d.scope_type, d.scope_id,
 		         d.target, d.events, d.enabled, d.created_at, d.updated_at,
 		         COALESCE(w.name, '') AS workspace_name,
@@ -154,22 +148,28 @@ func (r *DestinationPostgresRepository) ListByScope(ctx context.Context, scope e
 		  WHERE d.scope_type = $1 AND d.scope_id = $2
 		  ORDER BY d.created_at ASC`
 
-	rows, err := r.db.QueryContext(ctx, q, string(scope), scopeID)
-	if err != nil {
-		return nil, fmt.Errorf("destination repo: list by scope: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-
 	var result []*entities.Destination
-	for rows.Next() {
-		d, err := r.scanRowWithNames(rows)
+	err := database.WithTenant(ctx, r.db, r.tenant, func(tx *sql.Tx) error {
+		rows, err := tx.QueryContext(ctx, q, string(scope), scopeID)
 		if err != nil {
-			return nil, fmt.Errorf("destination repo: list by scope scan: %w", err)
+			return fmt.Errorf("destination repo: list by scope: %w", err)
 		}
-		result = append(result, d)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("destination repo: list by scope rows: %w", err)
+		defer func() { _ = rows.Close() }()
+
+		for rows.Next() {
+			d, err := r.scanRowWithNames(rows)
+			if err != nil {
+				return fmt.Errorf("destination repo: list by scope scan: %w", err)
+			}
+			result = append(result, d)
+		}
+		if err := rows.Err(); err != nil {
+			return fmt.Errorf("destination repo: list by scope rows: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 	return result, nil
 }
@@ -184,10 +184,6 @@ func (r *DestinationPostgresRepository) ResolveForEvent(
 	orgID uuid.UUID,
 	workspaceID, pageID *uuid.UUID,
 ) ([]*entities.Destination, error) {
-	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
-		return nil, fmt.Errorf("destination repo: set search path: %w", err)
-	}
-
 	// Build the scope filter and args dynamically based on which IDs are provided.
 	// Always include org; optionally include workspace and page.
 	scopeClauses := []string{`(scope_type = 'org' AND scope_id = $2)`}
@@ -232,41 +228,45 @@ WHERE NOT EXISTS (
     AND r2.specificity > r1.specificity
 )`, scopeFilter)
 
-	rows, err := r.db.QueryContext(ctx, q, args...)
-	if err != nil {
-		return nil, fmt.Errorf("destination repo: resolve for event: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-
 	var result []*entities.Destination
-	for rows.Next() {
-		d, err := r.scanRow(rows)
+	err := database.WithTenant(ctx, r.db, r.tenant, func(tx *sql.Tx) error {
+		rows, err := tx.QueryContext(ctx, q, args...)
 		if err != nil {
-			return nil, fmt.Errorf("destination repo: resolve for event scan: %w", err)
+			return fmt.Errorf("destination repo: resolve for event: %w", err)
 		}
-		result = append(result, d)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("destination repo: resolve for event rows: %w", err)
+		defer func() { _ = rows.Close() }()
+
+		for rows.Next() {
+			d, err := r.scanRow(rows)
+			if err != nil {
+				return fmt.Errorf("destination repo: resolve for event scan: %w", err)
+			}
+			result = append(result, d)
+		}
+		if err := rows.Err(); err != nil {
+			return fmt.Errorf("destination repo: resolve for event rows: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 	return result, nil
 }
 
 // DisableByIntegrationID sets enabled = FALSE for all destinations linked to an integration.
 func (r *DestinationPostgresRepository) DisableByIntegrationID(ctx context.Context, integrationID uuid.UUID) error {
-	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
-		return fmt.Errorf("destination repo: set search path: %w", err)
-	}
-
 	q := `UPDATE integration_destinations
 		SET enabled = FALSE, updated_at = NOW()
 		WHERE integration_id = $1`
 
-	_, err := r.db.ExecContext(ctx, q, integrationID)
-	if err != nil {
-		return fmt.Errorf("destination repo: disable by integration id: %w", err)
-	}
-	return nil
+	return database.WithTenant(ctx, r.db, r.tenant, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, q, integrationID)
+		if err != nil {
+			return fmt.Errorf("destination repo: disable by integration id: %w", err)
+		}
+		return nil
+	})
 }
 
 // --- internal helpers ---

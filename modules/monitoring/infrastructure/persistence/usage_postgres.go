@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
+	"github.com/jcsoftdev/pulzifi-back/shared/database"
 )
 
 type UsagePostgresRepository struct {
@@ -23,22 +23,19 @@ func NewUsagePostgresRepository(db *sql.DB, tenant string) *UsagePostgresReposit
 }
 
 func (r *UsagePostgresRepository) HasQuota(ctx context.Context) (bool, error) {
-	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
-		return false, err
-	}
-
-	if err := r.ensureCurrentPeriod(ctx); err != nil {
-		return false, fmt.Errorf("ensure billing period: %w", err)
-	}
-
-	q := `SELECT EXISTS (
-		SELECT 1 FROM usage_tracking
-		WHERE period_start <= $1 AND period_end >= $1
-		AND checks_used < checks_allowed
-	)`
-
 	var hasQuota bool
-	err := r.db.QueryRowContext(ctx, q, time.Now()).Scan(&hasQuota)
+	err := database.WithTenant(ctx, r.db, r.tenant, func(tx *sql.Tx) error {
+		if err := r.ensureCurrentPeriodTx(ctx, tx); err != nil {
+			return fmt.Errorf("ensure billing period: %w", err)
+		}
+
+		q := `SELECT EXISTS (
+			SELECT 1 FROM usage_tracking
+			WHERE period_start <= $1 AND period_end >= $1
+			AND checks_used < checks_allowed
+		)`
+		return tx.QueryRowContext(ctx, q, time.Now()).Scan(&hasQuota)
+	})
 	if err != nil {
 		return false, err
 	}
@@ -46,43 +43,33 @@ func (r *UsagePostgresRepository) HasQuota(ctx context.Context) (bool, error) {
 }
 
 func (r *UsagePostgresRepository) LogUsage(ctx context.Context, pageID, checkID uuid.UUID) error {
-	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
+	return database.WithTenant(ctx, r.db, r.tenant, func(tx *sql.Tx) error {
+		if err := r.ensureCurrentPeriodTx(ctx, tx); err != nil {
+			return fmt.Errorf("ensure billing period: %w", err)
+		}
+
+		qUpdate := `UPDATE usage_tracking
+			SET checks_used = checks_used + 1
+			WHERE period_start <= $1 AND period_end >= $1`
+		if _, err := tx.ExecContext(ctx, qUpdate, time.Now()); err != nil {
+			return err
+		}
+
+		qInsert := `INSERT INTO usage_logs (page_id, check_id, checks_consumed) VALUES ($1, $2, 1)`
+		_, err := tx.ExecContext(ctx, qInsert, pageID, checkID)
 		return err
-	}
-
-	if err := r.ensureCurrentPeriod(ctx); err != nil {
-		return fmt.Errorf("ensure billing period: %w", err)
-	}
-
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback() }()
-
-	qUpdate := `UPDATE usage_tracking
-		SET checks_used = checks_used + 1
-		WHERE period_start <= $1 AND period_end >= $1`
-	if _, err := tx.ExecContext(ctx, qUpdate, time.Now()); err != nil {
-		return err
-	}
-
-	qInsert := `INSERT INTO usage_logs (page_id, check_id, checks_consumed) VALUES ($1, $2, 1)`
-	if _, err := tx.ExecContext(ctx, qInsert, pageID, checkID); err != nil {
-		return err
-	}
-
-	return tx.Commit()
+	})
 }
 
-// ensureCurrentPeriod checks if a usage_tracking row exists for the current billing period.
+// ensureCurrentPeriodTx checks if a usage_tracking row exists for the current billing period.
 // If not, it creates one based on the org's plan and the plan's started_at anchor day.
-func (r *UsagePostgresRepository) ensureCurrentPeriod(ctx context.Context) error {
+// Must be called inside a WithTenant transaction.
+func (r *UsagePostgresRepository) ensureCurrentPeriodTx(ctx context.Context, tx *sql.Tx) error {
 	now := time.Now()
 
 	// Check if a row already exists for today
 	var exists bool
-	err := r.db.QueryRowContext(ctx, `SELECT EXISTS (
+	err := tx.QueryRowContext(ctx, `SELECT EXISTS (
 		SELECT 1 FROM usage_tracking WHERE period_start <= $1::date AND period_end >= $1::date
 	)`, now).Scan(&exists)
 	if err != nil {
@@ -92,7 +79,7 @@ func (r *UsagePostgresRepository) ensureCurrentPeriod(ctx context.Context) error
 		return nil
 	}
 
-	// Look up plan info
+	// Look up plan info (public schema is always reachable from tenant search_path)
 	planQuery := `
 		SELECT p.checks_allowed_monthly, p.ai_insights_allowed_monthly, op.started_at
 		FROM public.organizations o
@@ -106,7 +93,7 @@ func (r *UsagePostgresRepository) ensureCurrentPeriod(ctx context.Context) error
 	var checksAllowed int
 	var aiAllowed sql.NullInt64
 	var startedAt time.Time
-	if err := r.db.QueryRowContext(ctx, planQuery, r.tenant).Scan(&checksAllowed, &aiAllowed, &startedAt); err != nil {
+	if err := tx.QueryRowContext(ctx, planQuery, r.tenant).Scan(&checksAllowed, &aiAllowed, &startedAt); err != nil {
 		if err == sql.ErrNoRows {
 			return nil // no plan, nothing to create
 		}
@@ -128,7 +115,7 @@ func (r *UsagePostgresRepository) ensureCurrentPeriod(ctx context.Context) error
 		VALUES ($1, $2, $3, 0, $5, 0, NOW(), $4, NOW(), NOW())
 		ON CONFLICT DO NOTHING
 	`
-	_, err = r.db.ExecContext(ctx, insertQ, periodStart, periodEnd, checksAllowed, nextRefill, aiInsightsAllowed)
+	_, err = tx.ExecContext(ctx, insertQ, periodStart, periodEnd, checksAllowed, nextRefill, aiInsightsAllowed)
 	return err
 }
 

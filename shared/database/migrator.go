@@ -26,19 +26,40 @@ func ProvisionTenantSchema(db *sql.DB, schemaName string) error {
 		return fmt.Errorf("invalid schema name: %q", schemaName)
 	}
 
-	// Create schema if not already created (PG trigger may have done this, but ensure it)
-	if _, err := db.Exec(fmt.Sprintf("CREATE SCHEMA IF NOT EXISTS %s", pq.QuoteIdentifier(schemaName))); err != nil {
-		return fmt.Errorf("failed to create schema %q: %w", schemaName, err)
-	}
+	ctx := context.Background()
 
-	// Acquire a dedicated connection and set search_path for the tenant
-	conn, err := db.Conn(context.Background())
+	// Acquire a dedicated connection: the advisory lock, CREATE SCHEMA, search_path,
+	// and migrations must all run on the SAME backend connection so the lock actually
+	// serializes the provisioning sequence (a pool may otherwise scatter these across
+	// connections).
+	conn, err := db.Conn(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get db connection: %w", err)
 	}
 	defer func() { _ = conn.Close() }()
 
-	if _, err := conn.ExecContext(context.Background(),
+	// Serialize concurrent provisioning of the SAME schema. Two callers racing to
+	// create + migrate the same tenant would otherwise interleave CREATE SCHEMA and
+	// migration steps, leaving a dirty/partial schema_migrations state. hashtext maps
+	// the schema name to an int key, so different tenants take different locks and
+	// still provision in parallel. Session-level lock (not xact) because golang-migrate
+	// manages its own per-migration transactions on this conn; it auto-releases when the
+	// pinned conn is closed, and we release explicitly below.
+	if _, err := conn.ExecContext(ctx, "SELECT pg_advisory_lock(hashtext($1))", schemaName); err != nil {
+		return fmt.Errorf("failed to acquire provisioning lock for tenant %q: %w", schemaName, err)
+	}
+	defer func() {
+		if _, err := conn.ExecContext(ctx, "SELECT pg_advisory_unlock(hashtext($1))", schemaName); err != nil {
+			logger.Warn("failed to release tenant provisioning lock", zap.String("schema", schemaName), zap.Error(err))
+		}
+	}()
+
+	// Create schema if not already created (PG trigger may have done this, but ensure it)
+	if _, err := conn.ExecContext(ctx, fmt.Sprintf("CREATE SCHEMA IF NOT EXISTS %s", pq.QuoteIdentifier(schemaName))); err != nil {
+		return fmt.Errorf("failed to create schema %q: %w", schemaName, err)
+	}
+
+	if _, err := conn.ExecContext(ctx,
 		fmt.Sprintf("SET search_path TO %s, public", pq.QuoteIdentifier(schemaName)),
 	); err != nil {
 		return fmt.Errorf("failed to set search_path for tenant %q: %w", schemaName, err)

@@ -5,7 +5,7 @@ import (
 	"database/sql"
 
 	"github.com/google/uuid"
-	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
+	"github.com/jcsoftdev/pulzifi-back/shared/database"
 )
 
 type MonitoringPagePostgresRepository struct {
@@ -21,11 +21,9 @@ func NewMonitoringPagePostgresRepository(db *sql.DB, tenant string) *MonitoringP
 }
 
 func (r *MonitoringPagePostgresRepository) UpdateLastChecked(ctx context.Context, pageID uuid.UUID) error {
-	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
-		return err
-	}
-
 	q := `UPDATE pages SET last_checked_at = NOW() WHERE id = $1`
-	_, err := r.db.ExecContext(ctx, q, pageID)
-	return err
+	return database.WithTenant(ctx, r.db, r.tenant, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, q, pageID)
+		return err
+	})
 }
