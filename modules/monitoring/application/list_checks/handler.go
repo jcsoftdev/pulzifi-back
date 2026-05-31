@@ -2,6 +2,7 @@ package listchecks
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/domain/entities"
@@ -9,11 +10,26 @@ import (
 )
 
 type ListChecksHandler struct {
-	repo repositories.CheckRepository
+	repo          repositories.CheckRepository
+	mediationCfg  URLMediationConfig
 }
 
 func NewListChecksHandler(repo repositories.CheckRepository) *ListChecksHandler {
 	return &ListChecksHandler{repo: repo}
+}
+
+// NewListChecksHandlerWithMediation creates a handler that applies URL ownership
+// checks and optional presigning when building check responses.
+func NewListChecksHandlerWithMediation(repo repositories.CheckRepository, tenant string, presigner SnapshotURLPresigner, bucketPrivate bool, presignTTL time.Duration) *ListChecksHandler {
+	return &ListChecksHandler{
+		repo: repo,
+		mediationCfg: URLMediationConfig{
+			Tenant:        tenant,
+			BucketPrivate: bucketPrivate,
+			PresignTTL:    presignTTL,
+			Presigner:     presigner,
+		},
+	}
 }
 
 func (h *ListChecksHandler) Handle(ctx context.Context, pageID uuid.UUID) (*ListChecksResponse, error) {
@@ -36,7 +52,7 @@ func (h *ListChecksHandler) Handle(ctx context.Context, pageID uuid.UUID) (*List
 		}
 	}
 
-	return buildResponseWithSections(parentChecks, sectionsByParent), nil
+	return buildResponseWithSections(ctx, parentChecks, sectionsByParent, h.mediationCfg), nil
 }
 
 // HandleBySection returns checks filtered by section. sectionID nil means full-page checks only.
@@ -46,48 +62,48 @@ func (h *ListChecksHandler) HandleBySection(ctx context.Context, pageID uuid.UUI
 		return nil, err
 	}
 
-	return buildResponse(checks), nil
+	return buildResponse(ctx, checks, h.mediationCfg), nil
 }
 
-func toCheckResponse(check *entities.Check) *CheckResponse {
+func toCheckResponse(ctx context.Context, check *entities.Check, cfg URLMediationConfig) *CheckResponse {
 	resp := &CheckResponse{
 		ID:              check.ID,
 		PageID:          check.PageID,
 		SectionID:       check.SectionID,
 		ParentCheckID:   check.ParentCheckID,
 		Status:          check.Status,
-		ScreenshotURL:   check.ScreenshotURL,
-		HTMLSnapshotURL: check.HTMLSnapshotURL,
+		ScreenshotURL:   mediateURL(ctx, check.ScreenshotURL, cfg),
+		HTMLSnapshotURL: mediateURL(ctx, check.HTMLSnapshotURL, cfg),
 		ChangeDetected:  check.ChangeDetected,
 		ChangeType:      check.ChangeType,
 		ErrorMessage:    check.ErrorMessage,
 		ContentDiff:     check.ContentDiffJSON,
-		DiffImageURL:    check.DiffImageURL,
+		DiffImageURL:    mediateURL(ctx, check.DiffImageURL, cfg),
 		CheckedAt:       check.CheckedAt,
 	}
 	return resp
 }
 
-func buildResponse(checks []*entities.Check) *ListChecksResponse {
+func buildResponse(ctx context.Context, checks []*entities.Check, cfg URLMediationConfig) *ListChecksResponse {
 	response := &ListChecksResponse{
 		Checks: make([]*CheckResponse, len(checks)),
 	}
 	for i, check := range checks {
-		response.Checks[i] = toCheckResponse(check)
+		response.Checks[i] = toCheckResponse(ctx, check, cfg)
 	}
 	return response
 }
 
-func buildResponseWithSections(parentChecks []*entities.Check, sectionsByParent map[uuid.UUID][]*entities.Check) *ListChecksResponse {
+func buildResponseWithSections(ctx context.Context, parentChecks []*entities.Check, sectionsByParent map[uuid.UUID][]*entities.Check, cfg URLMediationConfig) *ListChecksResponse {
 	response := &ListChecksResponse{
 		Checks: make([]*CheckResponse, len(parentChecks)),
 	}
 	for i, check := range parentChecks {
-		cr := toCheckResponse(check)
+		cr := toCheckResponse(ctx, check, cfg)
 		if sections, ok := sectionsByParent[check.ID]; ok {
 			cr.Sections = make([]*CheckResponse, len(sections))
 			for j, sc := range sections {
-				cr.Sections[j] = toCheckResponse(sc)
+				cr.Sections[j] = toCheckResponse(ctx, sc, cfg)
 			}
 		}
 		response.Checks[i] = cr

@@ -20,11 +20,12 @@ import (
 )
 
 type Client struct {
-	cloudName string
-	apiKey    string
-	apiSecret string
-	folder    string
-	http      *http.Client
+	cloudName      string
+	apiKey         string
+	apiSecret      string
+	folder         string
+	bucketPrivate  bool
+	http           *http.Client
 }
 
 type uploadResponse struct {
@@ -41,10 +42,11 @@ func NewClient(cfg *config.Config) (*Client, error) {
 	}
 
 	return &Client{
-		cloudName: cfg.CloudinaryCloudName,
-		apiKey:    cfg.CloudinaryAPIKey,
-		apiSecret: cfg.CloudinaryAPISecret,
-		folder:    strings.TrimSpace(cfg.CloudinaryFolder),
+		cloudName:     cfg.CloudinaryCloudName,
+		apiKey:        cfg.CloudinaryAPIKey,
+		apiSecret:     cfg.CloudinaryAPISecret,
+		folder:        strings.TrimSpace(cfg.CloudinaryFolder),
+		bucketPrivate: cfg.SnapshotBucketPrivate,
 		http: &http.Client{
 			Timeout: 30 * time.Second,
 		},
@@ -154,6 +156,73 @@ func parseUploadResponse(uploadRes uploadResponse, statusCode int) (string, erro
 	return "", fmt.Errorf("cloudinary upload did not return a URL")
 }
 
+// Delete removes an asset from Cloudinary by its public_id (object name without extension).
+// A 404 response is treated as success (idempotent).
+func (c *Client) Delete(ctx context.Context, objectName string) error {
+	// Derive resource type from extension: images use "image", everything else "raw".
+	resourceType := "raw"
+	ext := strings.ToLower(path.Ext(objectName))
+	switch ext {
+	case ".png", ".jpg", ".jpeg", ".gif", ".webp":
+		resourceType = "image"
+	}
+
+	// publicID is the objectName without extension, with optional folder prefix.
+	publicID := strings.TrimSuffix(objectName, path.Ext(objectName))
+	if c.folder != "" {
+		publicID = c.folder + "/" + publicID
+	}
+
+	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
+	params := map[string]string{
+		"public_id":     publicID,
+		"timestamp":     timestamp,
+		"resource_type": resourceType,
+	}
+	signature := c.sign(params)
+
+	form := fmt.Sprintf("public_id=%s&timestamp=%s&api_key=%s&signature=%s",
+		publicID, timestamp, c.apiKey, signature)
+
+	destroyURL := fmt.Sprintf("https://api.cloudinary.com/v1_1/%s/%s/destroy",
+		c.cloudName, resourceType)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, destroyURL,
+		strings.NewReader(form))
+	if err != nil {
+		return fmt.Errorf("cloudinary delete: create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return fmt.Errorf("cloudinary delete: request failed: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil // already deleted
+	}
+
+	var result struct {
+		Result string `json:"result"`
+		Error  *struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return fmt.Errorf("cloudinary delete: decode response: %w", err)
+	}
+	if result.Error != nil && result.Error.Message != "" {
+		return fmt.Errorf("cloudinary delete failed: %s", result.Error.Message)
+	}
+	// "not found" result is also idempotent success
+	if result.Result != "ok" && result.Result != "not found" {
+		return fmt.Errorf("cloudinary delete: unexpected result %q", result.Result)
+	}
+	return nil
+}
+
 // Download retrieves an object by fetching its public URL via HTTP.
 // Cloudinary URLs are always publicly accessible CDN endpoints.
 func (c *Client) Download(ctx context.Context, objectURL string) ([]byte, error) {
@@ -178,6 +247,124 @@ func (c *Client) Download(ctx context.Context, objectURL string) ([]byte, error)
 	}
 
 	return data, nil
+}
+
+// ObjectNameFromURL implements repositories.ObjectStorage.
+// Cloudinary URLs have the shape:
+//
+//	https://res.cloudinary.com/<cloud>/<resource_type>/upload[/v<ts>]/<public_id>.<ext>
+//
+// The original objectName is the public_id with its extension re-added, minus any
+// folder prefix that the client prepends during Upload. Returns "" when the URL
+// cannot be parsed; callers must skip Delete for empty results.
+func (c *Client) ObjectNameFromURL(storedURL string) string {
+	// Find the "/upload/" marker in the URL.
+	const uploadMarker = "/upload/"
+	idx := strings.Index(storedURL, uploadMarker)
+	if idx < 0 {
+		return ""
+	}
+	rest := storedURL[idx+len(uploadMarker):]
+
+	// Strip optional version segment (e.g. "v1234567890/").
+	if len(rest) > 1 && rest[0] == 'v' {
+		if slashIdx := strings.Index(rest, "/"); slashIdx > 1 {
+			// Only strip if what follows the 'v' and before the slash looks like digits.
+			candidate := rest[1:slashIdx]
+			allDigits := true
+			for _, ch := range candidate {
+				if ch < '0' || ch > '9' {
+					allDigits = false
+					break
+				}
+			}
+			if allDigits {
+				rest = rest[slashIdx+1:]
+			}
+		}
+	}
+
+	if rest == "" {
+		return ""
+	}
+
+	// Strip the folder prefix that the client prepends during Upload.
+	if c.folder != "" {
+		prefix := c.folder + "/"
+		rest = strings.TrimPrefix(rest, prefix)
+	}
+
+	return rest
+}
+
+// PresignedGetURL returns a time-limited signed delivery URL for private Cloudinary
+// assets (type=authenticated). For public assets (no "/authenticated/" segment in
+// the URL) it returns storedURL unchanged. An empty storedURL is returned as-is.
+//
+// The signed URL follows Cloudinary's SHA-1 signed URL pattern:
+// https://cloudinary.com/documentation/advanced_url_delivery_options#generating_delivery_url_signatures
+func (c *Client) PresignedGetURL(_ context.Context, storedURL string, ttl time.Duration) (string, error) {
+	if storedURL == "" {
+		return "", nil
+	}
+
+	// Public assets: pass-through.
+	if !strings.Contains(storedURL, "/authenticated/") {
+		return storedURL, nil
+	}
+
+	// Build expiry timestamp.
+	if ttl <= 0 {
+		ttl = 15 * time.Minute
+	}
+	expiry := time.Now().Add(ttl).Unix()
+	timestamp := strconv.FormatInt(expiry, 10)
+
+	// Extract the public_id from the URL (everything after "/authenticated/[v<ts>/]").
+	const authMarker = "/authenticated/"
+	idx := strings.Index(storedURL, authMarker)
+	rest := storedURL[idx+len(authMarker):]
+
+	// Strip optional version segment.
+	if len(rest) > 1 && rest[0] == 'v' {
+		if slashIdx := strings.Index(rest, "/"); slashIdx > 1 {
+			candidate := rest[1:slashIdx]
+			allDigits := true
+			for _, ch := range candidate {
+				if ch < '0' || ch > '9' {
+					allDigits = false
+					break
+				}
+			}
+			if allDigits {
+				rest = rest[slashIdx+1:]
+			}
+		}
+	}
+
+	// public_id is the path without extension.
+	publicID := strings.TrimSuffix(rest, path.Ext(rest))
+
+	// Determine resource type from the URL path.
+	resourceType := "image"
+	if strings.Contains(storedURL, "/raw/") {
+		resourceType = "raw"
+	}
+
+	// Sign: public_id=<id>&timestamp=<ts><apiSecret>
+	params := map[string]string{
+		"public_id": publicID,
+		"timestamp": timestamp,
+	}
+	signature := c.sign(params)
+
+	// Construct the signed delivery URL.
+	signedURL := fmt.Sprintf(
+		"https://res.cloudinary.com/%s/%s/authenticated/%s?timestamp=%s&signature=%s&api_key=%s",
+		c.cloudName, resourceType, rest, timestamp, signature, c.apiKey,
+	)
+
+	return signedURL, nil
 }
 
 func (c *Client) sign(params map[string]string) string {
