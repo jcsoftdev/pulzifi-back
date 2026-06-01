@@ -2,8 +2,12 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	adminwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/admin"
@@ -87,7 +91,7 @@ func createEmailProvider(cfg *config.Config) emailservices.EmailProvider {
 func registerAllModulesInternal(
 	registry *router.Registry,
 	db *sql.DB,
-	eventBus *eventbus.EventBus,
+	eventBus eventbus.MessageBus,
 	enableWorkers bool,
 	nonceStore noncestore.NonceStore,
 	checkBroker pubsub.CheckBroker,
@@ -238,13 +242,52 @@ func registerAllModulesInternal(
 	return bffHandler, integrationMod
 }
 
+// devKeyFile is the gitignored file that persists the generated dev integration key.
+// Keeping it stable across restarts lets existing dev DB rows remain decryptable.
+const devKeyFile = ".dev-integration-key"
+
+// loadOrGenerateDevIntegrationKey returns a stable 32-byte hex key for dev.
+// On first call it generates a random key, persists it to devKeyFile, and logs it.
+// On subsequent calls it loads the file. If the file is unreadable for any reason
+// a fresh random key is generated for the current process (not persisted).
+//
+// IMPORTANT: devKeyFile is gitignored — never commit it.
+func loadOrGenerateDevIntegrationKey() string {
+	// Try to load from the persistent dev file first.
+	if data, err := os.ReadFile(devKeyFile); err == nil {
+		candidate := strings.TrimSpace(string(data))
+		if len(candidate) == 64 {
+			logger.Info("Loaded dev INTEGRATION_TOKEN_KEY from " + devKeyFile + " (gitignored)")
+			return candidate
+		}
+	}
+
+	// Generate a fresh random 32-byte key.
+	keyBytes := make([]byte, 32)
+	if _, err := rand.Read(keyBytes); err != nil {
+		logger.Logger.Fatal("failed to generate random dev integration key", zap.Error(err))
+	}
+	keyHex := hex.EncodeToString(keyBytes)
+
+	// Persist to the dev file so future restarts stay consistent.
+	abs, _ := filepath.Abs(devKeyFile)
+	if err := os.WriteFile(devKeyFile, []byte(keyHex+"\n"), 0600); err != nil {
+		logger.Warn("Could not persist dev integration key to "+devKeyFile+" — key will change on restart", zap.Error(err))
+	} else {
+		logger.Warn("Generated new dev INTEGRATION_TOKEN_KEY and saved to " + abs +
+			" (gitignored). Set INTEGRATION_TOKEN_KEY env var to a stable value if you need cross-restart consistency.")
+	}
+
+	return keyHex
+}
+
 // buildIntegrationModule wires the integration module: token crypto, the
 // provider registry (Slack, email, Discord, Twilio, Sheets, Teams, optional
 // Gmail/Outlook), and the domain-event subscriptions that drive dispatch.
 func buildIntegrationModule(
 	db *sql.DB,
 	cfg *config.Config,
-	eventBus *eventbus.EventBus,
+	eventBus eventbus.MessageBus,
 	emailProvider emailservices.EmailProvider,
 	orgRepo *orgpersistence.OrganizationPostgresRepository,
 ) *integration.Module {
@@ -253,8 +296,7 @@ func buildIntegrationModule(
 		if cfg.Environment == "production" {
 			logger.Logger.Fatal("INTEGRATION_TOKEN_KEY required in production")
 		}
-		logger.Warn("INTEGRATION_TOKEN_KEY not set — using insecure dev default")
-		intKeyHex = "00000000000000000000000000000000000000000000000000000000000000ff"
+		intKeyHex = loadOrGenerateDevIntegrationKey()
 	}
 	intKey, err := hex.DecodeString(intKeyHex)
 	if err != nil || len(intKey) != 32 {
@@ -329,7 +371,7 @@ func buildIntegrationProviders(
 
 // subscribeIntegrationEvents wires the integration dispatcher to the
 // change-detected and alert-created domain events.
-func subscribeIntegrationEvents(eventBus *eventbus.EventBus, intDispatcher *dispatchevent.Handler) {
+func subscribeIntegrationEvents(eventBus eventbus.MessageBus, intDispatcher *dispatchevent.Handler) {
 	handle := func(ev eventbus.DomainEvent) {
 		if err := intDispatcher.Handle(context.Background(), ev); err != nil {
 			logger.Error("integration dispatch failed", zap.Error(err), zap.String("event_type", ev.Type))
@@ -344,7 +386,7 @@ func subscribeIntegrationEvents(eventBus *eventbus.EventBus, intDispatcher *disp
 }
 
 // buildAlertModule constructs the alert module and wires its event bus.
-func buildAlertModule(db *sql.DB, eventBus *eventbus.EventBus) router.ModuleRegisterer {
+func buildAlertModule(db *sql.DB, eventBus eventbus.MessageBus) router.ModuleRegisterer {
 	m := alert.NewModuleWithDB(db)
 	if am, ok := m.(*alert.Module); ok {
 		am.SetEventBus(eventBus)
@@ -355,7 +397,7 @@ func buildAlertModule(db *sql.DB, eventBus *eventbus.EventBus) router.ModuleRegi
 // buildMonitoringModule constructs the monitoring module, building its snapshot
 // worker. On snapshot-worker failure the module still runs, just without
 // snapshot execution.
-func buildMonitoringModule(db *sql.DB, eventBus *eventbus.EventBus, emailProvider emailservices.EmailProvider, checkBroker pubsub.CheckBroker, cfg *config.Config) router.ModuleRegisterer {
+func buildMonitoringModule(db *sql.DB, eventBus eventbus.MessageBus, emailProvider emailservices.EmailProvider, checkBroker pubsub.CheckBroker, cfg *config.Config) router.ModuleRegisterer {
 	snapshotWorker, err := monitoringwiring.NewSnapshotWorker(monitoringwiring.SnapshotWorkerDeps{
 		DB:            db,
 		EventBus:      eventBus,
@@ -366,11 +408,21 @@ func buildMonitoringModule(db *sql.DB, eventBus *eventbus.EventBus, emailProvide
 	if err != nil {
 		logger.Error("Failed to build snapshot worker, monitoring will run without snapshot execution", zap.Error(err))
 	}
+
+	// Build a presigner for browser-facing URL mediation.
+	// Uses the same object storage provider as the snapshot worker.
+	// On failure, mediation runs in pass-through mode (safe public default).
+	presigner := monitoringwiring.NewSnapshotPresigner(cfg)
+
 	return monitoring.NewModuleWithDeps(monitoring.Deps{
-		DB:               db,
-		EventBus:         eventBus,
-		SnapshotExecutor: snapshotWorker,
-		CheckBroker:      checkBroker,
+		DB:                    db,
+		EventBus:              eventBus,
+		SnapshotExecutor:      snapshotWorker,
+		CheckBroker:           checkBroker,
+		SnapshotPresigner:     presigner,
+		SnapshotBucketPrivate: cfg.SnapshotBucketPrivate,
+		SnapshotPresignTTL:    cfg.SnapshotPresignTTL,
+		SchedulerMode:         cfg.SchedulerMode,
 	})
 }
 

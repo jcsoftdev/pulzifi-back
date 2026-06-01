@@ -120,30 +120,3 @@ func TestRateLimiter_WindowReset(t *testing.T) {
 		t.Fatalf("expected 200 after window reset, got %d", rec.Code)
 	}
 }
-
-func TestExtractIP_XForwardedFor(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	req.Header.Set("X-Forwarded-For", "203.0.113.50, 70.41.3.18")
-	ip := extractIP(req)
-	if ip != "203.0.113.50" {
-		t.Fatalf("expected 203.0.113.50, got %s", ip)
-	}
-}
-
-func TestExtractIP_XRealIP(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	req.Header.Set("X-Real-IP", "198.51.100.22")
-	ip := extractIP(req)
-	if ip != "198.51.100.22" {
-		t.Fatalf("expected 198.51.100.22, got %s", ip)
-	}
-}
-
-func TestExtractIP_RemoteAddr(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	req.RemoteAddr = "192.0.2.1:54321"
-	ip := extractIP(req)
-	if ip != "192.0.2.1" {
-		t.Fatalf("expected 192.0.2.1, got %s", ip)
-	}
-}

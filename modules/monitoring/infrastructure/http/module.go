@@ -39,18 +39,34 @@ import (
 // the SnapshotExecutor port, constructed by cmd/wiring/monitoring.
 type Deps struct {
 	DB               *sql.DB
-	EventBus         *eventbus.EventBus
+	EventBus         eventbus.MessageBus
 	SnapshotExecutor monitoringservices.SnapshotExecutor
 	CheckBroker      pubsub.CheckBroker // optional; defaults to MemoryCheckBroker if nil
+
+	// Snapshot URL mediation: applied to browser-facing check responses.
+	// When nil / false, read mediation is a no-op (safe public mode).
+	SnapshotPresigner   listchecks.SnapshotURLPresigner // optional
+	SnapshotBucketPrivate bool
+	SnapshotPresignTTL  time.Duration
+
+	// SchedulerMode selects the scheduler claim strategy: "poll" (default,
+	// legacy cross-schema scan) or "queue" (indexed next_run_at). Empty = poll.
+	SchedulerMode string
 }
 
 // Module implements the router.ModuleRegisterer interface for the Monitoring module
 type Module struct {
 	db          *sql.DB
-	eventBus    *eventbus.EventBus
+	eventBus    eventbus.MessageBus
 	scheduler   *scheduler.Scheduler
 	workerPool  *workers.WorkerPool
 	checkBroker pubsub.CheckBroker
+	schedulerMode string
+
+	// URL mediation config for browser-facing check endpoints.
+	snapshotPresigner     listchecks.SnapshotURLPresigner
+	snapshotBucketPrivate bool
+	snapshotPresignTTL    time.Duration
 }
 
 // NewModule creates a new instance of the Monitoring module
@@ -61,9 +77,17 @@ func NewModule() router.ModuleRegisterer {
 // NewModuleWithDeps creates a new instance with all dependencies injected.
 // Cross-module concerns (snapshot, insight, email) are provided via deps.SnapshotExecutor.
 func NewModuleWithDeps(deps Deps) *Module {
+	presignTTL := deps.SnapshotPresignTTL
+	if presignTTL <= 0 {
+		presignTTL = 15 * time.Minute
+	}
 	m := &Module{
-		db:       deps.DB,
-		eventBus: deps.EventBus,
+		db:                    deps.DB,
+		eventBus:              deps.EventBus,
+		snapshotPresigner:     deps.SnapshotPresigner,
+		snapshotBucketPrivate: deps.SnapshotBucketPrivate,
+		snapshotPresignTTL:    presignTTL,
+		schedulerMode:         deps.SchedulerMode,
 	}
 
 	// Use injected CheckBroker if provided; otherwise fall back to in-memory.
@@ -128,8 +152,9 @@ func NewModuleWithDeps(deps Deps) *Module {
 		m.checkBroker.Publish(pageID.String(), checkJSON)
 	})
 
-	// Create Scheduler instance
-	m.scheduler = scheduler.NewScheduler(m.db, orch)
+	// Create Scheduler instance. SchedulerMode defaults to "poll" (legacy scan)
+	// when empty, so existing wiring is unaffected.
+	m.scheduler = scheduler.NewSchedulerWithMode(m.db, orch, m.schedulerMode)
 
 	return m
 }
@@ -138,7 +163,7 @@ func NewModuleWithDeps(deps Deps) *Module {
 //
 // Deprecated: use NewModuleWithDeps for clean dependency injection.
 // Kept for the cmd/worker entry point which does not need snapshot/email/insight.
-func NewModuleWithDB(db *sql.DB, eventBus *eventbus.EventBus) router.ModuleRegisterer {
+func NewModuleWithDB(db *sql.DB, eventBus eventbus.MessageBus) router.ModuleRegisterer {
 	return NewModuleWithDeps(Deps{
 		DB:               db,
 		EventBus:         eventBus,
@@ -285,7 +310,7 @@ func (m *Module) handleListChecks(w http.ResponseWriter, r *http.Request) {
 
 	tenant := middleware.GetTenantFromContext(r.Context())
 	repo := persistence.NewCheckPostgresRepository(m.db, tenant)
-	handler := listchecks.NewListChecksHandler(repo)
+	handler := listchecks.NewListChecksHandlerWithMediation(repo, tenant, m.snapshotPresigner, m.snapshotBucketPrivate, m.snapshotPresignTTL)
 
 	resp, err := handler.Handle(r.Context(), pageID)
 	if err != nil {
@@ -322,7 +347,7 @@ func (m *Module) handleListChecksByPage(w http.ResponseWriter, r *http.Request) 
 
 	tenant := middleware.GetTenantFromContext(r.Context())
 	repo := persistence.NewCheckPostgresRepository(m.db, tenant)
-	handler := listchecks.NewListChecksHandler(repo)
+	handler := listchecks.NewListChecksHandlerWithMediation(repo, tenant, m.snapshotPresigner, m.snapshotBucketPrivate, m.snapshotPresignTTL)
 
 	// Optional section_id filter
 	var resp *listchecks.ListChecksResponse
@@ -434,17 +459,25 @@ func (m *Module) handleGetCheck(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	mediationCfg := listchecks.URLMediationConfig{
+		Tenant:        tenant,
+		BucketPrivate: m.snapshotBucketPrivate,
+		PresignTTL:    m.snapshotPresignTTL,
+		Presigner:     m.snapshotPresigner,
+	}
+
 	resp := listchecks.CheckResponse{
 		ID:              check.ID,
 		PageID:          check.PageID,
 		SectionID:       check.SectionID,
 		ParentCheckID:   check.ParentCheckID,
 		Status:          check.Status,
-		ScreenshotURL:   check.ScreenshotURL,
-		HTMLSnapshotURL: check.HTMLSnapshotURL,
+		ScreenshotURL:   listchecks.MediateURLExported(r.Context(), check.ScreenshotURL, mediationCfg),
+		HTMLSnapshotURL: listchecks.MediateURLExported(r.Context(), check.HTMLSnapshotURL, mediationCfg),
 		ChangeDetected:  check.ChangeDetected,
 		ChangeType:      check.ChangeType,
 		ErrorMessage:    check.ErrorMessage,
+		DiffImageURL:    listchecks.MediateURLExported(r.Context(), check.DiffImageURL, mediationCfg),
 		CheckedAt:       check.CheckedAt,
 	}
 
@@ -460,11 +493,12 @@ func (m *Module) handleGetCheck(w http.ResponseWriter, r *http.Request) {
 					SectionID:       sc.SectionID,
 					ParentCheckID:   sc.ParentCheckID,
 					Status:          sc.Status,
-					ScreenshotURL:   sc.ScreenshotURL,
-					HTMLSnapshotURL: sc.HTMLSnapshotURL,
+					ScreenshotURL:   listchecks.MediateURLExported(r.Context(), sc.ScreenshotURL, mediationCfg),
+					HTMLSnapshotURL: listchecks.MediateURLExported(r.Context(), sc.HTMLSnapshotURL, mediationCfg),
 					ChangeDetected:  sc.ChangeDetected,
 					ChangeType:      sc.ChangeType,
 					ErrorMessage:    sc.ErrorMessage,
+					DiffImageURL:    listchecks.MediateURLExported(r.Context(), sc.DiffImageURL, mediationCfg),
 					CheckedAt:       sc.CheckedAt,
 				}
 			}

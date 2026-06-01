@@ -66,17 +66,33 @@ func main() {
 	}
 	defer func() { _ = db.Close() }()
 
-	// Initialize Redis for caching (Optional for MVP)
+	// Initialize Redis for caching.
+	// In single mode this is optional (warn + continue).
+	// In HA mode Redis is required — fatal if unreachable.
 	if err := cache.InitRedis(cfg); err != nil {
+		if cfg.InstanceMode == "ha" {
+			logger.Logger.Fatal("HA mode requires Redis but connection failed — refusing to start",
+				zap.Error(err),
+				zap.String("instance_mode", cfg.InstanceMode),
+			)
+		}
 		logger.Warn("Failed to initialize Redis - Caching disabled", zap.Error(err))
 	} else {
 		defer func() { _ = cache.CloseRedis() }()
 		logger.Info("Redis initialized successfully")
 	}
 
-	// Initialize Event Bus (for MVP)
-	eventBus := eventbus.GetInstance()
-	logger.Info("Event Bus initialized")
+	// Initialize Event Bus — provider is "memory" by default, so this is
+	// backward-compatible. Flip EVENT_BUS_PROVIDER=outbox to enable the
+	// transactional outbox. Note: the relay is started by the worker process,
+	// not the API server.
+	eventBus, err := eventbus.NewFromConfig(cfg.EventBusProvider, cfg.OutboxBatchSize, cfg.OutboxMaxAttempts, db)
+	if err != nil {
+		logger.Error("Failed to initialize event bus", zap.Error(err))
+		os.Exit(1)
+	}
+	defer eventBus.Close()
+	logger.Info("Event Bus initialized", zap.String("provider", cfg.EventBusProvider))
 
 	// Check if we should run in "All-in-One" mode or just "API" mode
 	// Default to true for backward compatibility unless explicitly disabled
@@ -150,11 +166,25 @@ func main() {
 	})
 	httpRouter.Use(corsHandler)
 
-	// Rate limiting middleware — API paths only; skip Next.js static assets
-	rateLimiter := middlewarex.NewRateLimiter(cfg.RateLimitRequests, cfg.RateLimitWindow)
-	defer rateLimiter.Stop()
+	// Rate limiting middleware — API paths only; skip Next.js static assets.
+	// Backend is selected via RATELIMIT_BACKEND (or derived from INSTANCE_MODE).
+	var globalLimiter middlewarex.Limiter
+	switch cfg.ResolveBackend(cfg.RateLimitBackend) {
+	case "redis":
+		if rdb := cache.GetRedisClient(); rdb != nil {
+			globalLimiter = middlewarex.NewRedisRateLimiter(rdb, cfg.RateLimitRequests, cfg.RateLimitWindow, cfg.TrustedProxyCIDRs)
+			logger.Info("Rate limiter: Redis backend")
+		} else {
+			logger.Warn("Rate limiter: Redis backend requested but client nil — falling back to memory")
+			globalLimiter = middlewarex.NewRateLimiterWithTrustedProxies(cfg.RateLimitRequests, cfg.RateLimitWindow, cfg.TrustedProxyCIDRs)
+		}
+	default:
+		globalLimiter = middlewarex.NewRateLimiterWithTrustedProxies(cfg.RateLimitRequests, cfg.RateLimitWindow, cfg.TrustedProxyCIDRs)
+		logger.Info("Rate limiter: memory backend")
+	}
+	defer globalLimiter.Stop()
 	httpRouter.Use(func(next http.Handler) http.Handler {
-		limited := rateLimiter.Handler(next)
+		limited := globalLimiter.Handler(next)
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if strings.HasPrefix(r.URL.Path, "/api") {
 				limited.ServeHTTP(w, r)
@@ -163,6 +193,22 @@ func main() {
 			}
 		})
 	})
+
+	// Auth-specific rate limiter — applied per route to /login and /forgot-password.
+	// Uses the same backend as the global rate limiter.
+	var authLimiterBackend middlewarex.Limiter
+	switch cfg.ResolveBackend(cfg.RateLimitBackend) {
+	case "redis":
+		if rdb := cache.GetRedisClient(); rdb != nil {
+			authLimiterBackend = middlewarex.NewRedisRateLimiter(rdb, cfg.AuthRateLimitRequests, cfg.AuthRateLimitWindow, cfg.TrustedProxyCIDRs)
+		} else {
+			authLimiterBackend = middlewarex.NewRateLimiterWithTrustedProxies(cfg.AuthRateLimitRequests, cfg.AuthRateLimitWindow, cfg.TrustedProxyCIDRs)
+		}
+	default:
+		authLimiterBackend = middlewarex.NewRateLimiterWithTrustedProxies(cfg.AuthRateLimitRequests, cfg.AuthRateLimitWindow, cfg.TrustedProxyCIDRs)
+	}
+	defer authLimiterBackend.Stop()
+	authLimiter := middlewarex.NewAuthLimiter(authLimiterBackend, cfg.TrustedProxyCIDRs)
 
 	// Health endpoint
 	httpRouter.Get("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -173,23 +219,44 @@ func main() {
 	})
 
 	// Build backend-agnostic nonce store and pub/sub brokers.
-	// If Redis is available, use Redis-backed implementations for multi-instance support.
-	// Otherwise fall back to in-memory (single-instance only).
+	// Backend is resolved from NONCE_BACKEND / BROKER_BACKEND (or INSTANCE_MODE).
+	// In HA mode Redis is already guaranteed by the fail-fast above.
 	var (
 		nonceStoreImpl    noncestore.NonceStore
 		checkBrokerImpl   pubsub.CheckBroker
 		insightBrokerImpl pubsub.InsightBroker
 	)
-	if rdb := cache.GetRedisClient(); rdb != nil {
-		logger.Info("Using Redis-backed nonce store / brokers")
-		nonceStoreImpl = noncestore.NewRedisStore(rdb)
-		checkBrokerImpl = pubsub.NewRedisCheckBroker(ctx, rdb)
-		insightBrokerImpl = pubsub.NewRedisInsightBroker(ctx, rdb)
+	rdb := cache.GetRedisClient()
+
+	nonceBackend := cfg.ResolveBackend(cfg.NonceBackend)
+	if nonceBackend == "redis" {
+		if rdb != nil {
+			nonceStoreImpl = noncestore.NewRedisStore(rdb)
+			logger.Info("Nonce store: Redis backend")
+		} else {
+			logger.Warn("Nonce store: Redis requested but client nil — falling back to memory")
+			nonceStoreImpl = noncestore.New()
+		}
 	} else {
-		logger.Warn("WARN: Using in-memory nonce store / brokers — single-instance mode only")
 		nonceStoreImpl = noncestore.New()
+		logger.Info("Nonce store: memory backend")
+	}
+
+	brokerBackend := cfg.ResolveBackend(cfg.BrokerBackend)
+	if brokerBackend == "redis" {
+		if rdb != nil {
+			checkBrokerImpl = pubsub.NewRedisCheckBroker(ctx, rdb)
+			insightBrokerImpl = pubsub.NewRedisInsightBroker(ctx, rdb)
+			logger.Info("Pub/sub brokers: Redis backend")
+		} else {
+			logger.Warn("Pub/sub brokers: Redis requested but client nil — falling back to memory")
+			checkBrokerImpl = pubsub.NewCheckBroker()
+			insightBrokerImpl = pubsub.NewInsightBroker()
+		}
+	} else {
 		checkBrokerImpl = pubsub.NewCheckBroker()
 		insightBrokerImpl = pubsub.NewInsightBroker()
+		logger.Info("Pub/sub brokers: memory backend")
 	}
 
 	// Create module registry and register all modules
@@ -197,10 +264,14 @@ func main() {
 	registry := router.NewRegistry(logger.Logger)
 	bffHandler, integrationMod := registerAllModulesInternal(registry, db, eventBus, enableWorkers, nonceStoreImpl, checkBrokerImpl, insightBrokerImpl)
 
-	// Mount BFF auth routes BEFORE /api/v1 (these handle cookies/nonces)
+	// Mount BFF auth routes BEFORE /api/v1 (these handle cookies/nonces).
+	// The /login route additionally gets the per-user auth rate limiter.
 	logger.Info("Registering BFF auth handler at /api/auth")
 	httpRouter.Route("/api/auth", func(r chi.Router) {
-		bffHandler.RegisterRoutes(r)
+		// Apply auth-specific rate limiter to /login only (before other BFF routes).
+		r.With(authLimiter.KeyedHandler("login")).Post("/login", bffHandler.HandleLogin)
+		// Remaining BFF routes without the per-user limiter.
+		bffHandler.RegisterRoutesExceptLogin(r)
 	})
 	logger.Info("BFF auth handler registered successfully")
 
@@ -227,7 +298,24 @@ func main() {
 	trialGuard := middlewarex.NewTrialGuard(middlewarex.NewPostgresTrialPlanReader(db))
 	v1Router.Use(trialGuard.Handler)
 
-	// Setup Swagger UI on v1 router (bypassed by isPublicPath)
+	// Apply auth-specific rate limiter to /auth/forgot-password.
+	// Chi does not support per-route middleware post-registration, so we use a
+	// path-matching inline middleware applied to the v1Router before module registration.
+	forgotPasswordLimiter := authLimiter.KeyedHandler("forgot-password")
+	v1Router.Use(func(next http.Handler) http.Handler {
+		forgotLimited := forgotPasswordLimiter(next)
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodPost && r.URL.Path == "/auth/forgot-password" {
+				forgotLimited.ServeHTTP(w, r)
+			} else {
+				next.ServeHTTP(w, r)
+			}
+		})
+	})
+
+	// Setup Swagger UI on v1 router (bypassed by isPublicPath). MUST come after all
+	// v1Router.Use(...) calls: chi panics if middleware is registered after any route,
+	// and SetupSwaggerForChi registers the /swagger/doc.json route.
 	swagger.SetupSwaggerForChi(v1Router)
 
 	registry.RegisterAll(v1Router)

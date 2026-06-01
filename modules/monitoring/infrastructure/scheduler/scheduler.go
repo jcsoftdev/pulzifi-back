@@ -62,18 +62,80 @@ func buildFrequencySQLCases() string {
 	return cases
 }
 
+// buildTriggerNextRunAtCases generates the CASE fragment that computes
+// NOW() + the page's configured frequency interval. Used by TriggerPageCheck
+// so a manual "Run Now" advances next_run_at by the REAL frequency (a daily
+// page must not re-fire in 5 minutes once queue mode is active).
+func buildTriggerNextRunAtCases() string {
+	allKeys := entities.AllFrequencyKeys()
+	var cases string
+	for canonical, keys := range allKeys {
+		pgInterval := entities.FrequencyToPostgresInterval[canonical]
+		for _, k := range keys {
+			cases += fmt.Sprintf(
+				"\n\t\t\t\t\t\tWHEN mc.check_frequency = '%s' THEN NOW() + INTERVAL '%s'",
+				k, pgInterval)
+		}
+	}
+	return cases
+}
+
 type Scheduler struct {
-	db           *sql.DB
-	orchestrator *orchestrator.Orchestrator
-	wakeUp       chan struct{}
+	db            *sql.DB
+	orchestrator  *orchestrator.Orchestrator
+	wakeUp        chan struct{}
+	schedulerMode string // "poll" (default) | "queue"
 }
 
 func NewScheduler(db *sql.DB, orchestrator *orchestrator.Orchestrator) *Scheduler {
 	return &Scheduler{
-		db:           db,
-		orchestrator: orchestrator,
-		wakeUp:       make(chan struct{}, 1),
+		db:            db,
+		orchestrator:  orchestrator,
+		wakeUp:        make(chan struct{}, 1),
+		schedulerMode: "poll",
 	}
+}
+
+// NewSchedulerWithMode creates a Scheduler with an explicit mode.
+// mode must be "poll" or "queue"; any other value defaults to "poll".
+func NewSchedulerWithMode(db *sql.DB, o *orchestrator.Orchestrator, mode string) *Scheduler {
+	if mode != "queue" {
+		mode = "poll"
+	}
+	return &Scheduler{
+		db:            db,
+		orchestrator:  o,
+		wakeUp:        make(chan struct{}, 1),
+		schedulerMode: mode,
+	}
+}
+
+// minNextRunAtQueue iterates all tenant schemas and returns the global
+// MIN(next_run_at) across all non-deleted, scheduled pages.  Used by queue
+// mode instead of the O(n×freq-CASE) getNextRunTime scan.
+func (s *Scheduler) minNextRunAtQueue(ctx context.Context) time.Time {
+	schemas, err := listExistingTenantSchemas(ctx, s.db)
+	if err != nil {
+		return time.Now().Add(1 * time.Minute)
+	}
+
+	var minT time.Time
+	for _, schema := range schemas {
+		qSchema := pq.QuoteIdentifier(schema)
+		q := fmt.Sprintf(`
+			SELECT MIN(next_run_at)
+			FROM %s.pages
+			WHERE deleted_at IS NULL AND next_run_at IS NOT NULL
+		`, qSchema)
+
+		var t sql.NullTime
+		if err := s.db.QueryRowContext(ctx, q).Scan(&t); err == nil && t.Valid {
+			if minT.IsZero() || t.Time.Before(minT) {
+				minT = t.Time
+			}
+		}
+	}
+	return minT
 }
 
 // WakeUp signals the scheduler to check for tasks immediately
@@ -90,7 +152,12 @@ func (s *Scheduler) WakeUp() {
 func (s *Scheduler) Start(ctx context.Context) {
 	go func() {
 		for {
-			nextRun := s.getNextRunTime(ctx)
+			var nextRun time.Time
+			if s.schedulerMode == "queue" {
+				nextRun = s.minNextRunAtQueue(ctx)
+			} else {
+				nextRun = s.getNextRunTime(ctx)
+			}
 			now := time.Now()
 
 			var waitDuration time.Duration
@@ -214,16 +281,44 @@ func (s *Scheduler) TriggerPageCheck(ctx context.Context, schema string, pageID 
 		return orchestrator.ErrQuotaExceeded
 	}
 
-	// Atomically claim the page so the scheduler loop doesn't also pick it up.
-	// Uses a schema-qualified query in a single statement to avoid connection-pool
-	// issues with SET search_path (two separate ExecContext calls can land on
-	// different connections, causing the UPDATE to silently affect 0 rows).
-	claimQ := fmt.Sprintf(
-		`UPDATE %s.pages SET last_checked_at = NOW() WHERE id = $1 AND deleted_at IS NULL`,
-		qSchema,
-	)
-	if _, err := s.db.ExecContext(ctx, claimQ, pageID); err != nil {
-		logger.Error("TriggerPageCheck: failed to pre-update last_checked_at", zap.String("page_id", pageID.String()), zap.Error(err))
+	// Atomically claim the page with a debounce guard: only succeed if the page
+	// was not already claimed within the last 5 seconds.  This makes concurrent
+	// "Run Now" requests idempotent — the second caller gets 0 rows affected and
+	// returns without scheduling a duplicate check.
+	//
+	// next_run_at is advanced at claim time so queue mode stays consistent even
+	// for manual triggers.  It is set from the page's REAL configured frequency
+	// (via a correlated subquery) — NOT a fixed interval — so queue mode does not
+	// re-fire a daily page minutes after a manual "Run Now".  In poll mode the
+	// column is present but unused.
+	claimQ := fmt.Sprintf(`
+		UPDATE %[1]s.pages p
+		SET last_checked_at = NOW(),
+		    next_run_at = (
+		        SELECT CASE %[2]s
+		            ELSE NULL
+		        END
+		        FROM %[1]s.monitoring_configs mc
+		        WHERE mc.page_id = p.id AND mc.deleted_at IS NULL AND mc.check_frequency <> 'Off'
+		        LIMIT 1
+		    )
+		WHERE p.id = $1
+		  AND p.deleted_at IS NULL
+		  AND (p.last_checked_at IS NULL OR p.last_checked_at < NOW() - INTERVAL '5 seconds')
+		RETURNING p.id
+	`, qSchema, buildTriggerNextRunAtCases())
+	var claimedID uuid.UUID
+	claimErr := s.db.QueryRowContext(ctx, claimQ, pageID).Scan(&claimedID)
+	if claimErr != nil {
+		if errors.Is(claimErr, sql.ErrNoRows) {
+			// Another instance (or a concurrent Run Now) already claimed this page
+			// within the 5-second debounce window — treat as idempotent success.
+			logger.Info("TriggerPageCheck: page already claimed within debounce window, skipping",
+				zap.String("page_id", pageID.String()))
+			return nil
+		}
+		logger.Error("TriggerPageCheck: failed to claim page", zap.String("page_id", pageID.String()), zap.Error(claimErr))
+		// Non-fatal: proceed to schedule even if the claim UPDATE failed.
 	}
 
 	job := orchestrator.CheckJob{
@@ -246,10 +341,15 @@ func (s *Scheduler) TriggerPageCheck(ctx context.Context, schema string, pageID 
 }
 
 func (s *Scheduler) processTenant(ctx context.Context, schema string) {
-	// Scheduler logic: Calculate next_run_at (Find due tasks)
-	// We use the existing repository logic to find due tasks
 	repo := persistence.NewMonitoringConfigPostgresRepository(s.db, schema)
-	tasks, err := repo.GetDueSnapshotTasks(ctx)
+
+	var tasks []entities.SnapshotTask
+	var err error
+	if s.schedulerMode == "queue" {
+		tasks, err = repo.GetDueSnapshotTasksQueue(ctx)
+	} else {
+		tasks, err = repo.GetDueSnapshotTasks(ctx)
+	}
 	if err != nil {
 		logger.Error("Failed to get due tasks", zap.String("tenant", schema), zap.Error(err))
 		return

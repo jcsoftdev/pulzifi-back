@@ -19,4 +19,15 @@ type MonitoringConfigRepository interface {
 	UpdateLastCheckedAt(ctx context.Context, pageID uuid.UUID) error
 	MarkPageDueNow(ctx context.Context, pageID uuid.UUID) error
 	GetLastCheckedAt(ctx context.Context, pageID uuid.UUID) (*time.Time, error)
+
+	// Queue-mode methods (SCHEDULER_MODE=queue only; dormant in poll mode).
+
+	// GetDueSnapshotTasksQueue claims pages WHERE next_run_at <= NOW() using
+	// FOR UPDATE SKIP LOCKED and in the same UPDATE atomically advances
+	// next_run_at = NOW() + interval so concurrent instances never double-claim.
+	GetDueSnapshotTasksQueue(ctx context.Context) ([]entities.SnapshotTask, error)
+
+	// UpdateNextRunAt sets next_run_at for a page based on its current
+	// check_frequency (used after a check completes in queue mode).
+	UpdateNextRunAt(ctx context.Context, pageID uuid.UUID) error
 }

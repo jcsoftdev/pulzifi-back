@@ -57,11 +57,22 @@ func NewHandler(deps HandlerDeps) *Handler {
 // RegisterRoutes mounts the BFF auth routes on the given router.
 func (h *Handler) RegisterRoutes(r chi.Router) {
 	r.Post("/login", h.handleLogin)
+	h.RegisterRoutesExceptLogin(r)
+}
+
+// RegisterRoutesExceptLogin mounts all BFF auth routes except POST /login.
+// Use this when the caller wants to apply custom middleware to /login separately.
+func (h *Handler) RegisterRoutesExceptLogin(r chi.Router) {
 	r.Post("/refresh", h.handleRefresh)
 	r.Post("/logout", h.handleLogoutPost)
 	r.Get("/logout", h.handleLogoutGet)
 	r.Get("/callback", h.handleCallback)
 	r.Get("/set-base-session", h.handleSetBaseSession)
+}
+
+// HandleLogin is the exported BFF login handler, suitable for per-route middleware wiring.
+func (h *Handler) HandleLogin(w http.ResponseWriter, r *http.Request) {
+	h.handleLogin(w, r)
 }
 
 // POST /api/auth/login

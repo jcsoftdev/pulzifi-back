@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"strconv"
 	"strings"
@@ -10,6 +11,10 @@ import (
 
 	"github.com/joho/godotenv"
 )
+
+// fatalFunc is the function used to abort startup on misconfiguration.
+// Overridable in tests via testFatal.
+var fatalFunc = func(msg string) { log.Fatal(msg) }
 
 type Config struct {
 	// Database
@@ -33,6 +38,7 @@ type Config struct {
 	JWTSecret            string
 	JWTExpiration        time.Duration
 	JWTRefreshExpiration time.Duration
+	ResetTokenTTL        time.Duration // RESET_TOKEN_TTL — password-reset token lifetime (default 1h)
 	CookieDomain         string
 
 	// Frontend
@@ -129,6 +135,47 @@ type Config struct {
 	TrialDays           int    // TRIAL_DAYS — number of days the no-card trial lasts
 	TrialChecksPerMonth int    // TRIAL_CHECKS_PER_MONTH — monthly checks allowed during trial
 	TrialExpiryCron     string // TRIAL_EXPIRY_CRON — cron expression for the daily trial-expirer job
+
+	// Snapshot retention
+	RetentionJobInterval time.Duration // RETENTION_JOB_INTERVAL — how often the retention sweep runs (default 24h)
+	DefaultRetentionDays int           // DEFAULT_RETENTION_DAYS — fallback when tenant has no storage_period_days set (default 7)
+
+	// Snapshot storage isolation
+	SnapshotBucketPrivate bool          // SNAPSHOT_BUCKET_PRIVATE — when true, EnsureBucket skips public-read policy and reads use presigned URLs (default false)
+	SnapshotPresignTTL    time.Duration // SNAPSHOT_PRESIGN_TTL — lifetime of presigned GET URLs (default 15m)
+
+	// Durable EventBus (transactional outbox)
+	EventBusProvider      string        // EVENT_BUS_PROVIDER — memory|outbox (default: memory)
+	OutboxPollInterval    time.Duration // OUTBOX_POLL_INTERVAL — relay poll cadence (default 1s)
+	OutboxBatchSize       int           // OUTBOX_BATCH_SIZE — rows claimed per relay tick (default 100)
+	OutboxMaxAttempts     int           // OUTBOX_MAX_ATTEMPTS — attempts before DLQ (default 8)
+	OutboxStaleThreshold  time.Duration // OUTBOX_STALE_THRESHOLD — stuck-in-publishing recovery window (default 30s)
+
+	// HA / multi-instance
+	// InstanceMode controls whether the server runs in single-instance or HA mode.
+	// Accepted values: "single" (default) | "ha".
+	// In "ha" mode Redis is required; if not reachable the server will fatal at startup.
+	InstanceMode string // INSTANCE_MODE — single|ha (default: single)
+
+	// Per-subsystem backend overrides. Empty string means "derive from InstanceMode":
+	//   single → "memory", ha → "redis".
+	// Explicit "redis" or "memory" overrides InstanceMode derivation.
+	NonceBackend     string // NONCE_BACKEND — redis|memory|"" (default: "")
+	BrokerBackend    string // BROKER_BACKEND — redis|memory|"" (default: "")
+	RateLimitBackend string // RATELIMIT_BACKEND — redis|memory|"" (default: "")
+
+	// SchedulerMode selects the distributed lock mechanism for the monitoring scheduler.
+	// Accepted values: "poll" (default) | "redis-lock" (requires redis).
+	SchedulerMode string // SCHEDULER_MODE — poll|redis-lock (default: poll)
+
+	// TrustedProxyCIDRs is the list of CIDR ranges whose X-Forwarded-For header
+	// entries are trusted for real-IP extraction. Empty slice = no trusted proxies
+	// (RemoteAddr is used directly). Invalid CIDRs are logged and skipped.
+	TrustedProxyCIDRs []net.IPNet // TRUSTED_PROXY_CIDRS — CSV of CIDRs (default: empty)
+
+	// Auth-specific rate limiting (applied per route to /login and /forgot-password).
+	AuthRateLimitRequests int           // AUTH_RATE_LIMIT_REQUESTS — default 5
+	AuthRateLimitWindow   time.Duration // AUTH_RATE_LIMIT_WINDOW — default 15m
 }
 
 func Load() *Config {
@@ -136,13 +183,25 @@ func Load() *Config {
 	_ = godotenv.Load()
 
 	env := getEnv("ENVIRONMENT", "development")
+	isProd := env == "production"
+
 	jwtSecret := getEnv("JWT_SECRET", "")
 	if jwtSecret == "" {
-		if env == "production" {
-			log.Fatal("FATAL: JWT_SECRET must be set in production — refusing to start with insecure default")
+		if isProd {
+			fatalFunc("FATAL: JWT_SECRET must be set in production — refusing to start with insecure default")
 		}
 		log.Println("WARNING: JWT_SECRET is not set — using insecure default 'secret'. Set JWT_SECRET before deploying to production.")
 		jwtSecret = "secret"
+	} else if isProd && len(jwtSecret) < 32 {
+		fatalFunc("FATAL: JWT_SECRET must be at least 32 bytes in production — refusing to start with a weak secret")
+	}
+
+	extractorAPIKey := getEnv("EXTRACTOR_API_KEY", "")
+	if extractorAPIKey == "" {
+		if isProd {
+			fatalFunc("FATAL: EXTRACTOR_API_KEY must be set in production — refusing to start without scraper authentication")
+		}
+		log.Println("WARNING: EXTRACTOR_API_KEY is not set — scraper endpoints are unauthenticated. Set this variable before deploying to production.")
 	}
 
 	return &Config{
@@ -162,6 +221,7 @@ func Load() *Config {
 		JWTSecret:             jwtSecret,
 		JWTExpiration:         getEnvDurationSeconds("JWT_EXPIRATION", 900),            // Default 15 minutes
 		JWTRefreshExpiration:  getEnvDurationSeconds("JWT_REFRESH_EXPIRATION", 604800), // Default 7 days
+		ResetTokenTTL:         getEnvDuration("RESET_TOKEN_TTL", 1*time.Hour),          // Default 1 hour
 		CookieDomain:          getEnv("COOKIE_DOMAIN", ""),
 		FrontendURL:           getEnv("FRONTEND_URL", ""),
 		NextJSURL:             getEnv("NEXTJS_URL", "http://localhost:3001"),
@@ -182,7 +242,7 @@ func Load() *Config {
 		CloudinaryAPISecret:   getEnv("CLOUDINARY_API_SECRET", ""),
 		CloudinaryFolder:      getEnv("CLOUDINARY_FOLDER", ""),
 		ExtractorURL:          mustGetEnv("EXTRACTOR_URL"),
-		ExtractorAPIKey:       getEnv("EXTRACTOR_API_KEY", ""),
+		ExtractorAPIKey:       extractorAPIKey,
 		OpenRouterAPIKey:       getEnv("OPENROUTER_API_KEY", ""),
 		OpenRouterModel:        getEnv("OPENROUTER_MODEL", "mistralai/mistral-7b-instruct:free"),
 		OpenRouterVisionModel:  getEnv("OPENROUTER_VISION_MODEL", ""),
@@ -229,7 +289,71 @@ func Load() *Config {
 		TrialDays:           getEnvInt("TRIAL_DAYS", 14),
 		TrialChecksPerMonth: getEnvInt("TRIAL_CHECKS_PER_MONTH", 500),
 		TrialExpiryCron:     getEnv("TRIAL_EXPIRY_CRON", "0 0 * * *"),
+
+		RetentionJobInterval: getEnvDuration("RETENTION_JOB_INTERVAL", 24*time.Hour),
+		DefaultRetentionDays: getEnvInt("DEFAULT_RETENTION_DAYS", 7),
+
+		SnapshotBucketPrivate: getEnvBool("SNAPSHOT_BUCKET_PRIVATE", false),
+		SnapshotPresignTTL:    getEnvDuration("SNAPSHOT_PRESIGN_TTL", 15*time.Minute),
+
+		EventBusProvider:     getEnv("EVENT_BUS_PROVIDER", "memory"),
+		OutboxPollInterval:   getEnvDuration("OUTBOX_POLL_INTERVAL", 1*time.Second),
+		OutboxBatchSize:      getEnvInt("OUTBOX_BATCH_SIZE", 100),
+		OutboxMaxAttempts:    getEnvInt("OUTBOX_MAX_ATTEMPTS", 8),
+		OutboxStaleThreshold: getEnvDuration("OUTBOX_STALE_THRESHOLD", 30*time.Second),
+
+		InstanceMode:          getEnv("INSTANCE_MODE", "single"),
+		NonceBackend:          getEnv("NONCE_BACKEND", ""),
+		BrokerBackend:         getEnv("BROKER_BACKEND", ""),
+		RateLimitBackend:      getEnv("RATELIMIT_BACKEND", ""),
+		SchedulerMode:         getEnv("SCHEDULER_MODE", "poll"),
+		TrustedProxyCIDRs:     parseTrustedProxyCIDRs(getEnv("TRUSTED_PROXY_CIDRS", "")),
+		AuthRateLimitRequests: getEnvInt("AUTH_RATE_LIMIT_REQUESTS", 5),
+		AuthRateLimitWindow:   getEnvDuration("AUTH_RATE_LIMIT_WINDOW", 15*time.Minute),
 	}
+}
+
+// ResolveBackend resolves the effective backend for a subsystem.
+// If explicit is "redis" or "memory", it is returned as-is.
+// Otherwise the backend is derived from InstanceMode:
+//
+//	"ha"     → "redis"
+//	"single" → "memory"
+func (c *Config) ResolveBackend(explicit string) string {
+	if explicit == "redis" || explicit == "memory" {
+		return explicit
+	}
+	if c.InstanceMode == "ha" {
+		return "redis"
+	}
+	return "memory"
+}
+
+// parseTrustedProxyCIDRs parses a comma-separated list of CIDR strings.
+// Invalid entries are logged and skipped; the remainder is returned.
+// An empty input returns nil.
+func parseTrustedProxyCIDRs(csv string) []net.IPNet {
+	if csv == "" {
+		return nil
+	}
+	parts := strings.Split(csv, ",")
+	out := make([]net.IPNet, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		_, ipNet, err := net.ParseCIDR(p)
+		if err != nil {
+			log.Printf("WARNING: TRUSTED_PROXY_CIDRS: invalid CIDR %q — skipping: %v", p, err)
+			continue
+		}
+		out = append(out, *ipNet)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func splitCSV(s string) []string {
@@ -257,7 +381,7 @@ func getEnv(key, defaultValue string) string {
 func mustGetEnv(key string) string {
 	value, exists := os.LookupEnv(key)
 	if !exists || value == "" {
-		log.Fatalf("FATAL: required environment variable %q is not set — refusing to start", key)
+		fatalFunc(fmt.Sprintf("FATAL: required environment variable %q is not set — refusing to start", key))
 	}
 	return value
 }
