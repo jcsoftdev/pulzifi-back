@@ -22,6 +22,15 @@ export function createApp(
 ): Hono {
   const app = new Hono();
 
+  // SSRF allowlist — comma-separated hostnames permitted to bypass private-IP blocking.
+  // Empty/unset in production. Set only by the E2E compose (SSRF_HOST_ALLOWLIST=e2e-fixture).
+  const ssrfAllowlist = new Set(
+    (process.env.SSRF_HOST_ALLOWLIST ?? "")
+      .split(",")
+      .map((h) => h.trim().toLowerCase())
+      .filter((h) => h.length > 0),
+  );
+
   // Health check — no auth required
   app.get("/health", (c) => {
     const result = healthHandler.handle();
@@ -48,7 +57,7 @@ export function createApp(
 
     // SSRF protection
     try {
-      await validateUrl(body.url);
+      await validateUrl(body.url, undefined, ssrfAllowlist);
     } catch (err) {
       if (err instanceof UrlValidationError) {
         log("http", "extract request blocked: forbidden URL", { reqId, url: body.url });
@@ -103,7 +112,7 @@ export function createApp(
 
     // SSRF protection
     try {
-      await validateUrl(body.url);
+      await validateUrl(body.url, undefined, ssrfAllowlist);
     } catch (err) {
       if (err instanceof UrlValidationError) {
         log("http", "preview request blocked: forbidden URL", { reqId, url: body.url });

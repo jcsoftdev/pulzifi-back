@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	forgotpassword "github.com/jcsoftdev/pulzifi-back/modules/auth/application/forgot_password"
@@ -66,6 +67,67 @@ func TestForgotPasswordHandler_Handle(t *testing.T) {
 			}
 			if resp.Message == "" {
 				t.Error("expected non-empty message")
+			}
+		})
+	}
+}
+
+// TestForgotPasswordHandler_UsesConfiguredTTL verifies that the handler stores
+// the reset token with an expiry matching the provided TTL, not a hardcoded value.
+func TestForgotPasswordHandler_UsesConfiguredTTL(t *testing.T) {
+	existingUser := &entities.User{ID: uuid.New(), Email: "alice@example.com", FirstName: "Alice"}
+
+	tests := []struct {
+		name    string
+		ttl     time.Duration
+		wantTTL time.Duration
+	}{
+		{
+			name:    "default 1h TTL",
+			ttl:     1 * time.Hour,
+			wantTTL: 1 * time.Hour,
+		},
+		{
+			name:    "short 30m TTL",
+			ttl:     30 * time.Minute,
+			wantTTL: 30 * time.Minute,
+		},
+		{
+			name:    "custom 2h TTL",
+			ttl:     2 * time.Hour,
+			wantTTL: 2 * time.Hour,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			userRepo := &repomocks.MockUserRepository{GetByEmailUser: existingUser}
+			passwordResetRepo := &repomocks.MockPasswordResetRepository{}
+			notifier := &svcmocks.MockNotifier{}
+
+			before := time.Now()
+			h := forgotpassword.NewHandler(userRepo, passwordResetRepo, notifier).WithTTL(tt.ttl)
+			_, err := h.Handle(context.Background(), &forgotpassword.Request{
+				Email:       existingUser.Email,
+				FrontendURL: "https://app.example.com",
+			})
+			after := time.Now()
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			storedExpiry := passwordResetRepo.StoredExpiresAt
+			if storedExpiry.IsZero() {
+				t.Fatal("Store was not called — expires_at not captured")
+			}
+
+			minExpected := before.Add(tt.wantTTL)
+			maxExpected := after.Add(tt.wantTTL)
+
+			if storedExpiry.Before(minExpected) || storedExpiry.After(maxExpected) {
+				t.Errorf("stored expiry %v not within expected range [%v, %v] for TTL %v",
+					storedExpiry, minExpected, maxExpected, tt.wantTTL)
 			}
 		})
 	}

@@ -22,10 +22,25 @@ function safeEqual(a: string, b: string): boolean {
 }
 
 /**
+ * Detects whether the process is running in production.
+ * Checks NODE_ENV and ENVIRONMENT env vars (either triggers production mode).
+ */
+function isProduction(): boolean {
+  return (
+    process.env.NODE_ENV === "production" ||
+    process.env.ENVIRONMENT === "production"
+  );
+}
+
+/**
  * Middleware that validates the X-API-Key header against a known secret.
  *
- * If `apiKey` is empty/undefined (development mode), the middleware logs a
- * WARNING at boot time and allows all requests through.
+ * Production (NODE_ENV=production or ENVIRONMENT=production):
+ *   If SCRAPER_API_KEY is unset or empty → process exits with a fatal error.
+ *   All requests without a valid key → 401 Unauthorized.
+ *
+ * Development (default):
+ *   If SCRAPER_API_KEY is unset → logs a WARNING and allows all requests through.
  *
  * Returns 401 if the header is missing or does not match.
  */
@@ -33,6 +48,13 @@ export function apiKeyAuthMiddleware(apiKey: string | undefined): MiddlewareHand
   const keyIsSet = typeof apiKey === "string" && apiKey.length > 0;
 
   if (!keyIsSet) {
+    if (isProduction()) {
+      console.error(
+        "[security] FATAL: SCRAPER_API_KEY is not set in production. " +
+        "Refusing to start without scraper authentication.",
+      );
+      process.exit(1);
+    }
     console.warn(
       "[security] WARNING: SCRAPER_API_KEY is not set. " +
       "All requests are allowed. Set this variable in production.",

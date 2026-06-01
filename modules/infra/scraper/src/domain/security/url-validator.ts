@@ -96,10 +96,14 @@ const BLOCKED_HOSTNAMES = new Set(["localhost", "broadcasthost"]);
  *
  * @param rawUrl    The URL string submitted by the caller
  * @param resolver  Optional custom DNS resolver (used in tests)
+ * @param allowlist Optional set of hostnames (lowercased) permitted to bypass
+ *                  private-IP blocking. Empty by default (secure-by-default).
+ *                  Used exclusively by the E2E stack via SSRF_HOST_ALLOWLIST.
  */
 export async function validateUrl(
   rawUrl: string,
   resolver: DnsResolver = defaultResolver,
+  allowlist: Set<string> = new Set(),
 ): Promise<void> {
   let parsed: URL;
   try {
@@ -117,6 +121,12 @@ export async function validateUrl(
   }
 
   const hostname = parsed.hostname.replace(/^\[|\]$/g, ""); // strip IPv6 brackets
+
+  // Allowlist short-circuit (secure-by-default: empty allowlist = no effect).
+  // Used only by the E2E stack via SSRF_HOST_ALLOWLIST to reach a controlled fixture.
+  if (allowlist.has(hostname.toLowerCase())) {
+    return;
+  }
 
   // 2. Block known private hostnames
   if (BLOCKED_HOSTNAMES.has(hostname.toLowerCase())) {
