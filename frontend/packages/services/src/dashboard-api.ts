@@ -60,7 +60,7 @@ export interface DashboardStats {
   recentInsights: RecentInsight[]
 }
 
-function transformDashboardStats(backend: DashboardStatsBackendDto): DashboardStats {
+export function transformDashboardStats(backend: DashboardStatsBackendDto): DashboardStats {
   return {
     workspacesCount: backend.workspaces_count,
     pagesCount: backend.pages_count,

@@ -13,7 +13,7 @@ permissions:
   contents: read
 
 env:
-  COVERAGE_FLOOR: "15"
+  COVERAGE_FLOOR: "20"
 
 jobs:
   vet:
@@ -30,7 +30,6 @@ jobs:
   lint:
     name: golangci-lint
     runs-on: ubuntu-latest
-    continue-on-error: true  # v1 warn-only; flip to false after lint cleanup (see tasks)
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v6
@@ -39,7 +38,7 @@ jobs:
           cache: true
       - uses: golangci/golangci-lint-action@v9
         with:
-          version: latest
+          version: v2.12.2  # pinned to match local validation; bump deliberately
           args: --timeout=5m
 
   arch:
@@ -76,7 +75,7 @@ jobs:
           retention-days: 14
 
   frontend:
-    name: Frontend lint + types
+    name: Frontend lint + types + tests
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -103,3 +102,4 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run lint
       - run: bun run type-check
+      - run: bun test

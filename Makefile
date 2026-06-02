@@ -2,7 +2,7 @@
 # Makefile for Pulzifi Backend
 # ============================================================
 
-.PHONY: help dev dev-web down logs build swagger clean migrate cms-migrate test test-integration test-billing-integration test-db-reset check-arch
+.PHONY: help dev dev-web down logs build swagger clean migrate cms-migrate test test-integration test-billing-integration test-db-reset check-arch backup
 
 .DEFAULT_GOAL := help
 
@@ -38,6 +38,9 @@ help: ## Show this help message
 	@echo "  $(YELLOW)make build$(NC)    - Build API binary locally"
 	@echo "  $(YELLOW)make swagger$(NC)  - Regenerate Swagger docs"
 	@echo "  $(YELLOW)make clean$(NC)    - Stop containers and prune Docker resources"
+	@echo ""
+	@echo "$(GREEN)OPS:$(NC)"
+	@echo "  $(YELLOW)make backup$(NC)   - Run a manual PostgreSQL backup (pg_dump → gzip → MinIO/S3)"
 
 check-env:
 	@if [ ! -f $(ENV_FILE) ]; then \
@@ -192,3 +195,10 @@ clean: ## Stop all containers and prune Docker resources
 	@docker-compose down -v 2>/dev/null || true
 	@docker system prune -f --volumes 2>/dev/null || true
 	@echo "$(GREEN)✓ Cleanup completed$(NC)"
+
+# ============================================================
+# OPS
+# ============================================================
+
+backup: check-env ## Run a manual PostgreSQL backup (pg_dump → gzip → MinIO/S3)
+	@export $$(grep -v '^#' $(ENV_FILE) | xargs) && ./tools/scripts/pg-backup.sh

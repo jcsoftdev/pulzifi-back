@@ -44,7 +44,7 @@ COVERAGE_FLOOR=15 ./tools/scripts/coverage-gate.sh c.out       # Check coverage 
 
 Coverage ratchet plan (edit `COVERAGE_FLOOR` in `.github/workflows/ci.yml`): **15 → 20 → 30 → 50 → 70**
 
-Lint is warn-only (`continue-on-error: true`) in v1. Flip to `false` after triage + cleanup.
+Lint is **blocking** in CI (triage done, 0 issues). Action pinned to `golangci-lint v2.12.2`; bump deliberately.
 
 ### Frontend (from `frontend/` directory)
 ```bash
