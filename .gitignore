@@ -87,6 +87,8 @@ coverage.html
 tmp
 
 /docs/superpowers/*
+/docs/analisis/*
+/docs/ops/*
 
 /.trae
 
