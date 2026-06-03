@@ -237,6 +237,69 @@ func TestHashContentBlocks_DiffersOnChange(t *testing.T) {
 	}
 }
 
+func TestExtractContentBlocks_NestedAndOutsideSections(t *testing.T) {
+	htmlContent := `<html><body>
+		<p>Outside paragraph</p>
+		<section>
+			<article>
+				<p>Nested paragraph</p>
+			</article>
+		</section>
+		<section>
+			<p>Sibling paragraph</p>
+		</section>
+	</body></html>`
+
+	blocks := ExtractContentBlocks(htmlContent)
+
+	find := func(text string) *ContentBlock {
+		for i := range blocks {
+			if blocks[i].Text == text {
+				return &blocks[i]
+			}
+		}
+		return nil
+	}
+
+	outside := find("Outside paragraph")
+	if outside == nil {
+		t.Fatalf("block 'Outside paragraph' not found; all blocks: %+v", blocks)
+	}
+	if outside.SectionIndex != 0 {
+		t.Errorf("outside block: SectionIndex = %d, want 0", outside.SectionIndex)
+	}
+	if outside.SectionTag != "" {
+		t.Errorf("outside block: SectionTag = %q, want empty", outside.SectionTag)
+	}
+
+	nested := find("Nested paragraph")
+	if nested == nil {
+		t.Fatalf("block 'Nested paragraph' not found; all blocks: %+v", blocks)
+	}
+	if nested.SectionTag != "article" {
+		t.Errorf("nested block: SectionTag = %q, want \"article\" (innermost section)", nested.SectionTag)
+	}
+
+	sibling := find("Sibling paragraph")
+	if sibling == nil {
+		t.Fatalf("block 'Sibling paragraph' not found; all blocks: %+v", blocks)
+	}
+
+	// The two top-level <section> elements must get distinct SectionIndex values.
+	// nested.SectionIndex reflects the inner <article>; sibling.SectionIndex reflects
+	// the second <section>. All three must be non-zero and mutually distinct.
+	if nested.SectionIndex == 0 {
+		t.Errorf("nested block: SectionIndex = 0, want > 0")
+	}
+	if sibling.SectionIndex == 0 {
+		t.Errorf("sibling block: SectionIndex = 0, want > 0")
+	}
+	if nested.SectionIndex == sibling.SectionIndex {
+		t.Errorf("nested and sibling blocks share SectionIndex %d; want distinct values",
+			nested.SectionIndex)
+	}
+}
+
 func TestHashContentBlocks_Empty(t *testing.T) {
 	h := HashContentBlocks(nil)
 	if h == "" {

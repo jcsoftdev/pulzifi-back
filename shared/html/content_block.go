@@ -168,7 +168,9 @@ type blockWalker struct {
 	blocks       []ContentBlock
 	listDepth    int
 	sectionStack []sectionMeta
-	sectionSeq   int
+	// sectionSeq starts at 0 and is incremented BEFORE each push, so index 0
+	// means "no section" — a real section never gets index 0.
+	sectionSeq int
 }
 
 // curSection returns the current top-of-stack section metadata (zero value when
@@ -226,6 +228,10 @@ func (w *blockWalker) walk(n *html.Node) {
 	// Transparent containers (div, section, span, etc.) — if they contain only
 	// inline content (no block-level children), emit as a paragraph block so
 	// text in non-semantic markup isn't lost.
+	// Note: section-boundary tags (section, article, header, etc.) also appear in
+	// transparentContainers. When we reach this branch for them, the section push
+	// above has already run, so tagBlock stamps the correct section metadata onto the
+	// emitted paragraph before the early return.
 	if n.Type == html.ElementNode && isTransparentContainer(n.Data) && !hasBlockChild(n) {
 		w.appendText(BlockParagraph, normalizeText(collectText(n)))
 		return
