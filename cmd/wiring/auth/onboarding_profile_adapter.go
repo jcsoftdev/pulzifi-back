@@ -36,7 +36,7 @@ func (a *OnboardingProfileAdapter) GetUserOrgID(ctx context.Context, userID uuid
 		  JOIN public.organizations o ON o.id = om.organization_id
 		 WHERE om.user_id = $1
 		   AND o.deleted_at IS NULL
-		 ORDER BY om.created_at ASC
+		 ORDER BY om.joined_at ASC
 		 LIMIT 1
 	`, userID).Scan(&orgID)
 

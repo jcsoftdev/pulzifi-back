@@ -2,35 +2,10 @@
 
 import { AuthApi } from '@workspace/services'
 import { useCallback, useRef, useState } from 'react'
+import { performTenantHandoff } from './tenant-session-handoff'
 import type { RegisterData } from '../domain/types'
 
 export type SubdomainStatus = 'idle' | 'checking' | 'available' | 'unavailable'
-
-function buildTenantOnboardingUrl(subdomain: string): string {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_BASE_URL
-  if (baseUrl) {
-    const base = new URL(baseUrl)
-    const portSuffix = base.port ? `:${base.port}` : ''
-    return `${base.protocol}//${subdomain}.${base.hostname}${portSuffix}/onboarding`
-  }
-
-  const appDomain = process.env.NEXT_PUBLIC_APP_DOMAIN
-  if (appDomain) {
-    return `https://${subdomain}.${appDomain}/onboarding`
-  }
-
-  const { protocol, hostname, port } = window.location
-  const hostWithoutPort = hostname
-  let baseDomain: string
-  if (hostWithoutPort === 'localhost' || hostWithoutPort === '127.0.0.1') {
-    baseDomain = 'localhost'
-  } else {
-    const parts = hostWithoutPort.split('.')
-    baseDomain = parts.length >= 2 ? parts.slice(-2).join('.') : hostWithoutPort
-  }
-  const portSuffix = port ? `:${port}` : ''
-  return `${protocol}//${subdomain}.${baseDomain}${portSuffix}/onboarding`
-}
 
 export function useRegister() {
   const [isLoading, setIsLoading] = useState(false)
@@ -65,8 +40,11 @@ export function useRegister() {
     setIsLoading(true)
     setError(undefined)
     try {
-      const result = await AuthApi.register(data)
-      window.location.assign(buildTenantOnboardingUrl(result.organizationSubdomain))
+      await AuthApi.register(data)
+      const loginResponse = await AuthApi.login({ email: data.email, password: data.password })
+      performTenantHandoff(loginResponse, '/onboarding', () => {
+        window.location.assign('/onboarding')
+      })
     } catch (err: unknown) {
       const apiError = err as {
         response?: {
