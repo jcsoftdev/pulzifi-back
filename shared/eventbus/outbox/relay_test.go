@@ -19,7 +19,6 @@ type fakeStore struct {
 	rows   map[uuid.UUID]*Row
 
 	resetStaleCalled int
-	failDispatch     bool // when true handlers return an error via panicHandler
 }
 
 func newFakeStore() *fakeStore {

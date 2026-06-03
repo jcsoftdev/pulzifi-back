@@ -49,7 +49,7 @@ import (
 // @in header
 // @name Authorization
 // @description Enter "Bearer" followed by a space and your JWT access token
-func main() {
+func main() { //nolint:gocyclo // startup orchestration: complexity is inherent
 	// Load configuration
 	cfg := config.Load()
 	logger.Info("Starting Pulzifi Backend - Unified Monolith",
@@ -89,7 +89,7 @@ func main() {
 	eventBus, err := eventbus.NewFromConfig(cfg.EventBusProvider, cfg.OutboxBatchSize, cfg.OutboxMaxAttempts, db)
 	if err != nil {
 		logger.Error("Failed to initialize event bus", zap.Error(err))
-		os.Exit(1)
+		os.Exit(1) //nolint:gocritic // fatal startup error; OS reclaims db connection
 	}
 	defer eventBus.Close()
 	logger.Info("Event Bus initialized", zap.String("provider", cfg.EventBusProvider))

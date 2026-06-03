@@ -66,12 +66,6 @@ func NewRelay(store Store, cfg Config) *Relay {
 	}
 }
 
-// withClock replaces the clock for testing.
-func (r *Relay) withClock(c Clock) { r.clock = c }
-
-// withRand replaces the random source for testing.
-func (r *Relay) withRand(rng RandSource) { r.rng = rng }
-
 // Subscribe registers a handler for a topic. Thread-safe.
 func (r *Relay) Subscribe(topic string, h Handler) {
 	r.mu.Lock()

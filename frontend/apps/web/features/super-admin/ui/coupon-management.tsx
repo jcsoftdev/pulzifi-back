@@ -64,7 +64,7 @@ export function CouponManagement() {
       setCopiedId(id)
       setTimeout(() => setCopiedId((cur) => (cur === id ? null : cur)), 2000)
     } else {
-      setError('Could not copy link. Copy it manually: ' + url)
+      setError(`Could not copy link. Copy it manually: ${url}`)
     }
   }
 

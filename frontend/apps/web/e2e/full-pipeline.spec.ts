@@ -20,17 +20,19 @@ const EMAIL = "ajcarlos032@gmail.com";
 const PASSWORD = "Asdfgh@1";
 const H = { "X-Tenant": TENANT } as const;
 
+type Check = { status: string } & Record<string, unknown>;
+
 async function pollLatestCheck(
   api: APIRequestContext,
   pageId: string,
-  predicate: (c: any) => boolean,
+  predicate: (c: Check) => boolean,
   timeoutMs = 120_000,
-): Promise<any> {
+): Promise<Check> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const res = await api.get(`${BASE}/api/v1/monitoring/checks/page/${pageId}`, { headers: H });
     if (res.ok()) {
-      const checks: any[] = (await res.json()).checks ?? [];
+      const checks: Check[] = (await res.json()).checks ?? [];
       const latest = checks[0]; // list endpoint returns newest-first
       if (latest && predicate(latest)) return latest;
     }
@@ -90,7 +92,8 @@ test("full pipeline (API): login → workspace → page → scraper → detect c
   // 7. Assert the content_change alert was created for this page.
   const alertsRes = await api.get(`${BASE}/api/v1/alerts/all`, { headers: H });
   expect(alertsRes.ok(), "list alerts").toBeTruthy();
-  const alerts: any[] = (await alertsRes.json()).data ?? [];
+  type Alert = { page_id: string; type: string } & Record<string, unknown>;
+  const alerts: Alert[] = (await alertsRes.json()).data ?? [];
   const alert = alerts.find((a) => a.page_id === pageId && a.type === "content_change");
   expect(alert, "content_change alert exists for the page").toBeTruthy();
 

@@ -68,7 +68,7 @@ func main() {
 	bus, err := eventbus.NewFromConfig(cfg.EventBusProvider, cfg.OutboxBatchSize, cfg.OutboxMaxAttempts, db)
 	if err != nil {
 		logger.Error("Failed to initialize event bus", zap.Error(err))
-		os.Exit(1)
+		os.Exit(1) //nolint:gocritic // fatal startup error; OS reclaims db connection
 	}
 	defer bus.Close()
 
