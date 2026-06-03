@@ -160,3 +160,15 @@ func (r *AdminUserPostgresRepository) SetRole(ctx context.Context, userID, orgID
 	}
 	return err
 }
+
+// RemoveMembership soft-deletes an org membership by setting deleted_at = NOW().
+// Implements removemembership.Remover.
+func (r *AdminUserPostgresRepository) RemoveMembership(ctx context.Context, userID, orgID uuid.UUID) error {
+	const q = `UPDATE public.organization_members SET deleted_at = NOW()
+	           WHERE user_id = $1 AND organization_id = $2 AND deleted_at IS NULL`
+	_, err := r.db.ExecContext(ctx, q, userID, orgID)
+	if err != nil {
+		logger.Error("AdminUserRepo: remove membership failed", zap.Error(err))
+	}
+	return err
+}
