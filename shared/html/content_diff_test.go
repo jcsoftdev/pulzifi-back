@@ -237,6 +237,45 @@ func TestFormatDiffForAI_NoChanges(t *testing.T) {
 	}
 }
 
+func TestEnrichSections_GroupsAndNames(t *testing.T) {
+	diff := &ContentDiff{
+		HasChanges:   true,
+		TotalChanges: 4,
+		Diffs: []BlockDiff{
+			{Op: DiffChanged, Block: ContentBlock{Type: BlockHeading, Level: 1, Text: "New", SectionTag: "header"}, OldBlock: &ContentBlock{Type: BlockHeading, Level: 1, Text: "Old", SectionTag: "header"}},
+			{Op: DiffRemoved, Block: ContentBlock{Type: BlockParagraph, Text: "+$900K", SectionTag: "section", SectionClass: "stats"}},
+			{Op: DiffRemoved, Block: ContentBlock{Type: BlockParagraph, Text: "137.000", SectionTag: "section", SectionClass: "stats"}},
+			{Op: DiffRemoved, Block: ContentBlock{Type: BlockParagraph, Text: "40", SectionTag: "section", SectionClass: "stats"}},
+		},
+	}
+
+	EnrichSections(diff, nil) // nil namer → heuristic + fallback only
+
+	if diff.Diffs[0].SectionName != "Hero" || diff.Diffs[0].SectionOrder != 0 {
+		t.Errorf("diff[0] = %q/%d, want Hero/0", diff.Diffs[0].SectionName, diff.Diffs[0].SectionOrder)
+	}
+	if diff.Diffs[1].SectionOrder != 1 || diff.Diffs[2].SectionOrder != 1 || diff.Diffs[3].SectionOrder != 1 {
+		t.Errorf("stats blocks not grouped: %d, %d, %d", diff.Diffs[1].SectionOrder, diff.Diffs[2].SectionOrder, diff.Diffs[3].SectionOrder)
+	}
+	if diff.Diffs[1].SectionName != "Estadísticas" {
+		t.Errorf("stats name = %q, want Estadísticas", diff.Diffs[1].SectionName)
+	}
+}
+
+func TestEnrichSections_UnknownFallsBackToSeccionN(t *testing.T) {
+	diff := &ContentDiff{
+		HasChanges:   true,
+		TotalChanges: 1,
+		Diffs: []BlockDiff{
+			{Op: DiffRemoved, Block: ContentBlock{Type: BlockParagraph, Text: "blah", SectionTag: "section", SectionClass: "weird"}},
+		},
+	}
+	EnrichSections(diff, nil)
+	if diff.Diffs[0].SectionName != "Sección 1" {
+		t.Errorf("unknown section name = %q, want Sección 1", diff.Diffs[0].SectionName)
+	}
+}
+
 func TestFormatDiffForAI_Truncation(t *testing.T) {
 	longText := strings.Repeat("a", 300)
 	diff := &ContentDiff{
