@@ -115,7 +115,7 @@ export function CouponManagement() {
   }
 
   return (
-    <div className="flex-1 p-8 max-w-7xl mx-auto w-full">
+    <div className="w-full">
       <Card>
         <CardHeader>
           <CardTitle>Discount coupons</CardTitle>

@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from '@workspace/ui/components/atoms'
 import { ChevronLeft, ChevronRight, Loader2, ShieldCheck } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { UserDetailSheet } from './user-detail-sheet'
 
@@ -27,6 +28,7 @@ interface UserManagementProps {
 }
 
 export function UserManagement({ initialOrgId = '' }: UserManagementProps) {
+  const router = useRouter()
   const [users, setUsers] = useState<AdminUser[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -38,6 +40,12 @@ export function UserManagement({ initialOrgId = '' }: UserManagementProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const searchId = useId()
+
+  // Sync org filter when the parent propagates a new ?org= URL param
+  useEffect(() => {
+    setOrgId(initialOrgId)
+    setPage(1)
+  }, [initialOrgId])
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
@@ -131,6 +139,7 @@ export function UserManagement({ initialOrgId = '' }: UserManagementProps) {
                 onClick={() => {
                   setOrgId('')
                   setPage(1)
+                  router.replace('/admin?tab=users')
                 }}
               >
                 Clear org filter
