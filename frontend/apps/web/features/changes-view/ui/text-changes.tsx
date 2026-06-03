@@ -169,12 +169,12 @@ export function TextChanges({ sections = [] }: Readonly<TextChangesProps>) {
         {sections.map((section, si) => {
           if (section.changes.length === 0 && !section.changeDetected) return null
           return (
-            <div key={si}>
-              {section.sectionName && (
-                <h4 className="text-sm font-medium text-muted-foreground mb-2">
-                  {section.sectionName}
-                </h4>
-              )}
+            <details key={si} open className="group">
+              <summary className="flex items-center gap-2 cursor-pointer list-none text-sm font-medium text-muted-foreground mb-2 select-none">
+                <span className="transition-transform group-open:rotate-90">&#9658;</span>
+                {section.sectionName ?? 'Cambios'}
+                <span className="ml-auto text-xs text-foreground/40">{section.changes.length}</span>
+              </summary>
               {section.changes.length > 0 ? (
                 <SectionDiffGroups changes={section.changes} />
               ) : (
@@ -182,7 +182,7 @@ export function TextChanges({ sections = [] }: Readonly<TextChangesProps>) {
                   Visual change only — no text differences
                 </p>
               )}
-            </div>
+            </details>
           )
         })}
       </div>
