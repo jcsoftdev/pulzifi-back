@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { DM_Sans, DM_Serif_Display, Geist, Geist_Mono, Outfit, Syne } from 'next/font/google'
 
 import '@workspace/ui/globals.css'
+import { JsonLd } from '@/components/json-ld'
 import { Providers } from '@/components/providers'
 import { NotificationProvider } from '@/lib/notification'
 
@@ -99,6 +100,35 @@ const fontBody = DM_Sans({
   display: 'swap',
 })
 
+const siteUrl = process.env.NEXT_PUBLIC_APP_BASE_URL || 'https://pulzifi.com'
+
+const organizationJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'Organization',
+  '@id': `${siteUrl}/#organization`,
+  name: 'Pulzifi',
+  url: siteUrl,
+  logo: {
+    '@type': 'ImageObject',
+    url: `${siteUrl}/icon.png`,
+  },
+  description:
+    'AI-powered website change monitoring and competitive intelligence platform. Track competitor moves, pricing changes, and market shifts — automatically, 24/7.',
+  // Add real social profile URLs here when available
+  sameAs: [] as string[],
+}
+
+const websiteJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  '@id': `${siteUrl}/#website`,
+  name: 'Pulzifi',
+  url: siteUrl,
+  publisher: {
+    '@id': `${siteUrl}/#organization`,
+  },
+}
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -110,6 +140,8 @@ export default function RootLayout({
         className={`${fontSans.variable} ${fontMono.variable} ${fontHeading.variable} ${fontLogo.variable} ${fontDisplay.variable} ${fontBody.variable} font-sans antialiased`}
         suppressHydrationWarning
       >
+        <JsonLd data={organizationJsonLd} />
+        <JsonLd data={websiteJsonLd} />
         <Providers>{children}</Providers>
         <NotificationProvider />
       </body>

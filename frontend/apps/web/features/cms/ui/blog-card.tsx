@@ -13,22 +13,45 @@ export function BlogCard({ title, slug, excerpt, heroImageUrl, publishedAt, cate
   return (
     <Link
       href={`/blog/${slug}`}
-      className="group block rounded-2xl bg-white p-6 shadow-sm transition hover:shadow-md"
+      className="group flex flex-col rounded-2xl bg-[var(--pz-card-bg)] shadow-[var(--pz-card-shadow-rest)] ring-1 ring-[var(--pz-card-border)] transition-all duration-200 hover:shadow-[var(--pz-card-shadow-hover)] hover:ring-[var(--pz-accent-line)]"
     >
-      {heroImageUrl && (
+      {heroImageUrl ? (
         // biome-ignore lint/performance/noImgElement: external CMS image, dimensions unknown at build time
-        <img src={heroImageUrl} alt={title} className="mb-4 h-48 w-full rounded-xl object-cover" />
+        <img
+          src={heroImageUrl}
+          alt={title}
+          className="h-48 w-full rounded-t-2xl object-cover"
+        />
+      ) : (
+        <div className="h-2 w-full rounded-t-2xl bg-[var(--pz-accent-tint)]" />
       )}
-      {category && (
-        <span className="mb-2 inline-block rounded-full bg-purple-100 px-3 py-1 text-xs font-medium text-purple-700">
-          {category}
-        </span>
-      )}
-      <h2 className="mb-2 text-xl font-bold text-gray-900 group-hover:text-purple-700">{title}</h2>
-      {excerpt && <p className="text-sm text-gray-500">{excerpt}</p>}
-      {publishedAt && (
-        <p className="mt-3 text-xs text-gray-400">{new Date(publishedAt).toLocaleDateString()}</p>
-      )}
+      <div className="flex flex-1 flex-col p-6">
+        {category && (
+          <span className="mb-3 inline-block self-start rounded-full bg-[var(--pz-accent-tint)] px-3 py-1 text-xs font-medium text-[var(--pz-accent)]">
+            {category}
+          </span>
+        )}
+        <h2 className="mb-2 text-xl font-bold leading-snug text-[var(--pz-ink)] transition-colors group-hover:text-[var(--pz-accent)]">
+          {title}
+        </h2>
+        {excerpt && (
+          <p className="line-clamp-3 flex-1 text-sm leading-relaxed text-[var(--pz-ink-2)]">
+            {excerpt}
+          </p>
+        )}
+        {publishedAt && (
+          <time
+            dateTime={publishedAt}
+            className="mt-4 text-xs text-[var(--pz-ink-2)] opacity-60"
+          >
+            {new Date(publishedAt).toLocaleDateString('en-US', {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric',
+            })}
+          </time>
+        )}
+      </div>
     </Link>
   )
 }

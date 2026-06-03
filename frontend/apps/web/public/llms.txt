@@ -1,0 +1,26 @@
+# Pulzifi
+
+> AI-powered website change monitoring and competitive intelligence platform. Pulzifi automatically tracks any website for changes and delivers strategic, AI-generated insights — so you always know what competitors, partners, or market signals are doing before it impacts your business.
+
+## What Pulzifi Does
+
+Pulzifi monitors websites 24/7 using a headless browser and detects visual and content changes. When a change is detected, an AI model analyzes the diff and produces a plain-language strategic insight (e.g. "Competitor dropped pricing by 15% on their enterprise tier"). Teams receive alerts via Slack, Discord, email, or webhooks.
+
+## Key Pages
+
+- [Home](https://pulzifi.com/) — Product overview, pricing, and sign-up
+- [Pricing](https://pulzifi.com/pricing) — Starter ($20/mo) and Professional ($62/mo) plans
+- [Blog](https://pulzifi.com/blog) — Insights, guides, and product updates from the Pulzifi team
+
+## Who It's For
+
+- Product teams tracking competitor feature releases
+- Marketing teams monitoring competitor messaging and campaigns
+- Business analysts watching regulatory, pricing, or supply-chain pages
+- Agencies managing brand and competitive landscape for clients
+
+## Technology
+
+Backend: Go 1.25 monolith with hexagonal architecture, PostgreSQL (schema-per-tenant multi-tenancy), Redis, Playwright-based scraper.
+Frontend: Next.js 16 App Router, React 19, Tailwind CSS v4, Payload CMS.
+AI: OpenRouter LLM (configurable model) for change analysis and insight generation.

@@ -7,6 +7,7 @@ import { redirect } from 'next/navigation'
 
 import { BlocksRenderer } from '@/features/cms'
 import { FooterSection, Navbar, SmoothScroll } from '@/features/landing'
+import { JsonLd } from '@/components/json-ld'
 import { getPayloadClient } from '@/lib/payload'
 import { buildThemeStyle } from '@/lib/theme-style'
 
@@ -197,6 +198,15 @@ export default async function HomePage() {
     // DB unavailable — fall through to defaults
   }
 
+  // Extract FAQ items from the CMS blocks for FAQPage JSON-LD
+  const faqItems = blocks
+    .filter((b) => b.blockType === 'faq')
+    .flatMap((b) => {
+      const items = (b as { items?: { question: string; answer: string }[] }).items ?? []
+      return items
+    })
+    .filter((item) => item.question && item.answer)
+
   return (
     <div className="min-h-screen bg-[var(--pz-page-bg)]">
       {themeStyle && (
@@ -222,11 +232,12 @@ export default async function HomePage() {
         logoUrl={footerLogoUrl}
       />
 
-      <script type="application/ld+json">
-        {JSON.stringify({
+      <JsonLd
+        data={{
           '@context': 'https://schema.org',
           '@type': 'SoftwareApplication',
           name: 'Pulzifi',
+          url: process.env.NEXT_PUBLIC_APP_BASE_URL || 'https://pulzifi.com',
           applicationCategory: 'BusinessApplication',
           operatingSystem: 'Web',
           description:
@@ -247,15 +258,24 @@ export default async function HomePage() {
               priceValidUntil: '2027-12-31',
             },
           ],
-          aggregateRating: {
-            '@type': 'AggregateRating',
-            ratingValue: '5.0',
-            ratingCount: '205',
-            bestRating: '5',
-            worstRating: '1',
-          },
-        })}
-      </script>
+        }}
+      />
+      {faqItems.length > 0 && (
+        <JsonLd
+          data={{
+            '@context': 'https://schema.org',
+            '@type': 'FAQPage',
+            mainEntity: faqItems.map((item) => ({
+              '@type': 'Question',
+              name: item.question,
+              acceptedAnswer: {
+                '@type': 'Answer',
+                text: item.answer,
+              },
+            })),
+          }}
+        />
+      )}
     </div>
   )
 }
