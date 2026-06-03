@@ -68,7 +68,7 @@ func NewModuleWithDeps(
 
 	cfg := config.Load()
 	if cfg.OpenRouterAPIKey != "" {
-		openRouterClient := sharedAI.NewOpenRouterClient(cfg.OpenRouterAPIKey, cfg.OpenRouterModel)
+		openRouterClient := sharedAI.NewOpenRouterClient(cfg.OpenRouterAPIKey, cfg.OpenRouterModel).WithBaseURL(cfg.AIBaseURL)
 		generator := insightAI.NewOpenRouterGenerator(openRouterClient)
 		// The handler will create its own per-request repo in Handle; pass a no-op repo here.
 		// Actual repo is created per-request inside handleGenerateInsight.
@@ -268,7 +268,7 @@ func (m *Module) runInsightGeneration(
 
 	// Build the handler per-request (uses per-tenant insight repo).
 	insightRepo := persistence.NewInsightPostgresRepository(m.db, tenant)
-	openRouterClient := sharedAI.NewOpenRouterClient(cfg.OpenRouterAPIKey, cfg.OpenRouterModel)
+	openRouterClient := sharedAI.NewOpenRouterClient(cfg.OpenRouterAPIKey, cfg.OpenRouterModel).WithBaseURL(cfg.AIBaseURL)
 	generator := insightAI.NewOpenRouterGenerator(openRouterClient)
 	quotaReader := persistence.NewQuotaPostgresRepository(m.db)
 	insightHandler := generateinsights.NewGenerateInsightsHandler(generator, insightRepo, quotaReader)

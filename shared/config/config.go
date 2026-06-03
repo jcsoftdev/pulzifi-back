@@ -74,10 +74,15 @@ type Config struct {
 	ExtractorAPIKey string // EXTRACTOR_API_KEY — must match scraper's SCRAPER_API_KEY
 
 	// AI / OpenRouter
-	OpenRouterAPIKey     string
-	OpenRouterModel      string
+	OpenRouterAPIKey      string
+	OpenRouterModel       string
 	OpenRouterVisionModel string
-	PixelDiffThreshold    float64
+	// AIBaseURL overrides the OpenAI-compatible endpoint for insight/vision
+	// generation. Empty = OpenRouter default. Set it to target a pay-per-token
+	// provider (e.g. https://api.deepinfra.com/v1/openai) or self-hosted Ollama
+	// (http://ollama:11434/v1) without code changes.
+	AIBaseURL          string
+	PixelDiffThreshold float64
 
 	// Email (Resend)
 	ResendAPIKey     string
@@ -153,11 +158,11 @@ type Config struct {
 	SnapshotPresignTTL    time.Duration // SNAPSHOT_PRESIGN_TTL — lifetime of presigned GET URLs (default 15m)
 
 	// Durable EventBus (transactional outbox)
-	EventBusProvider      string        // EVENT_BUS_PROVIDER — memory|outbox (default: memory)
-	OutboxPollInterval    time.Duration // OUTBOX_POLL_INTERVAL — relay poll cadence (default 1s)
-	OutboxBatchSize       int           // OUTBOX_BATCH_SIZE — rows claimed per relay tick (default 100)
-	OutboxMaxAttempts     int           // OUTBOX_MAX_ATTEMPTS — attempts before DLQ (default 8)
-	OutboxStaleThreshold  time.Duration // OUTBOX_STALE_THRESHOLD — stuck-in-publishing recovery window (default 30s)
+	EventBusProvider     string        // EVENT_BUS_PROVIDER — memory|outbox (default: memory)
+	OutboxPollInterval   time.Duration // OUTBOX_POLL_INTERVAL — relay poll cadence (default 1s)
+	OutboxBatchSize      int           // OUTBOX_BATCH_SIZE — rows claimed per relay tick (default 100)
+	OutboxMaxAttempts    int           // OUTBOX_MAX_ATTEMPTS — attempts before DLQ (default 8)
+	OutboxStaleThreshold time.Duration // OUTBOX_STALE_THRESHOLD — stuck-in-publishing recovery window (default 30s)
 
 	// HA / multi-instance
 	// InstanceMode controls whether the server runs in single-instance or HA mode.
@@ -256,10 +261,11 @@ func Load() *Config {
 		CloudinaryFolder:      getEnv("CLOUDINARY_FOLDER", ""),
 		ExtractorURL:          mustGetEnv("EXTRACTOR_URL"),
 		ExtractorAPIKey:       extractorAPIKey,
-		OpenRouterAPIKey:       getEnv("OPENROUTER_API_KEY", ""),
-		OpenRouterModel:        getEnv("OPENROUTER_MODEL", "mistralai/mistral-7b-instruct:free"),
-		OpenRouterVisionModel:  getEnv("OPENROUTER_VISION_MODEL", ""),
-		PixelDiffThreshold:     getEnvFloat("PIXEL_DIFF_THRESHOLD", 0.001),
+		OpenRouterAPIKey:      getEnv("OPENROUTER_API_KEY", ""),
+		OpenRouterModel:       getEnv("OPENROUTER_MODEL", "mistralai/mistral-7b-instruct:free"),
+		OpenRouterVisionModel: getEnv("OPENROUTER_VISION_MODEL", ""),
+		AIBaseURL:             getEnv("AI_BASE_URL", ""),
+		PixelDiffThreshold:    getEnvFloat("PIXEL_DIFF_THRESHOLD", 0.001),
 		ResendAPIKey:          getEnv("RESEND_API_KEY", ""),
 		EmailFromAddress:      getEnv("EMAIL_FROM_ADDRESS", ""),
 		EmailFromName:         getEnv("EMAIL_FROM_NAME", ""),
@@ -279,12 +285,12 @@ func Load() *Config {
 		DeliveryPollInterval:         getEnvDuration("DELIVERY_POLL_INTERVAL", 5*time.Second),
 		DeliveryWorkerPoolSize:       getEnvInt("DELIVERY_WORKER_POOL_SIZE", 10),
 
-		DiscordClientID:     getEnv("DISCORD_CLIENT_ID", ""),
-		DiscordClientSecret: getEnv("DISCORD_CLIENT_SECRET", ""),
-		TwilioAccountSID:    getEnv("TWILIO_ACCOUNT_SID", ""),
-		TwilioAuthToken:     getEnv("TWILIO_AUTH_TOKEN", ""),
-		TwilioFromNumber:    getEnv("TWILIO_FROM_NUMBER", ""),
-		TwilioPaidPlans:     splitCSV(getEnv("TWILIO_PAID_PLANS", "pro,business")),
+		DiscordClientID:      getEnv("DISCORD_CLIENT_ID", ""),
+		DiscordClientSecret:  getEnv("DISCORD_CLIENT_SECRET", ""),
+		TwilioAccountSID:     getEnv("TWILIO_ACCOUNT_SID", ""),
+		TwilioAuthToken:      getEnv("TWILIO_AUTH_TOKEN", ""),
+		TwilioFromNumber:     getEnv("TWILIO_FROM_NUMBER", ""),
+		TwilioPaidPlans:      splitCSV(getEnv("TWILIO_PAID_PLANS", "pro,business")),
 		IntegrationPaidPlans: splitCSV(getEnv("INTEGRATION_PAID_PLANS", "trial,starter,pro,enterprise")),
 
 		SheetsClientID:          getEnv("SHEETS_CLIENT_ID", ""),

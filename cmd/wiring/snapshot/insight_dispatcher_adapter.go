@@ -30,7 +30,7 @@ func NewInsightDispatcher(db *sql.DB, cfg *config.Config) snapServices.InsightDi
 	if cfg.OpenRouterAPIKey == "" {
 		return nil
 	}
-	openRouterClient := sharedAI.NewOpenRouterClient(cfg.OpenRouterAPIKey, cfg.OpenRouterModel)
+	openRouterClient := sharedAI.NewOpenRouterClient(cfg.OpenRouterAPIKey, cfg.OpenRouterModel).WithBaseURL(cfg.AIBaseURL)
 	generator := insightAI.NewOpenRouterGenerator(openRouterClient)
 	quotaReader := insightpersistence.NewQuotaPostgresRepository(db)
 	return &insightDispatcherAdapter{db: db, generator: generator, quotaReader: quotaReader}
