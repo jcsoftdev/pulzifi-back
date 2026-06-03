@@ -50,3 +50,11 @@ func TestSetRole_OwnerDemoteBlocked(t *testing.T) {
 		t.Fatalf("want ErrCannotModifyOwner, got %v", err)
 	}
 }
+
+func TestSetRole_OwnerRoleRejected(t *testing.T) {
+	h := setmembershiprole.NewHandler(&fakeMembershipWriter{})
+	err := h.Handle(context.Background(), setmembershiprole.Request{UserID: uuid.New(), OrgID: uuid.New(), Role: "OWNER"})
+	if err != setmembershiprole.ErrInvalidRole {
+		t.Fatalf("want ErrInvalidRole, got %v", err)
+	}
+}

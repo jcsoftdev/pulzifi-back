@@ -12,7 +12,7 @@ var (
 	ErrCannotModifyOwner = errors.New("cannot modify the organization owner")
 )
 
-var validRoles = map[string]bool{"OWNER": true, "ADMIN": true, "MEMBER": true}
+var validRoles = map[string]bool{"ADMIN": true, "MEMBER": true}
 
 // Writer is the port implemented by the persistence layer.
 type Writer interface {

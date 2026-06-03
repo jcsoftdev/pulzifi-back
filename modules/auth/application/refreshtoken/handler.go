@@ -86,6 +86,13 @@ func (h *Handler) Handle(ctx context.Context, req *Request) (*Response, error) {
 		return nil, errors.New("user not found")
 	}
 
+	if user.Status == entities.UserStatusSuspended {
+		logger.WarnWithContext(ctx, "Refresh token denied: account suspended",
+			zap.String("user_id", user.ID.String()),
+		)
+		return nil, errors.New("account suspended")
+	}
+
 	// Generate new access token
 	newAccessToken, err := h.tokenService.GenerateAccessToken(ctx, user.ID, user.Email)
 	if err != nil {

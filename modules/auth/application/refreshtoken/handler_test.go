@@ -119,6 +119,40 @@ func TestRefreshTokenHandler_Handle(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "suspended user cannot refresh token",
+			req:  &Request{RefreshToken: uniquePrefix + "-valid"},
+			setupMocks: func(rt *repomocks.MockRefreshTokenRepository, u *repomocks.MockUserRepository, ts *svcmocks.MockTokenService) {
+				rt.FindByTokenResult = validToken
+				u.GetByIDUser = &entities.User{
+					ID:     userID,
+					Email:  "user@example.com",
+					Status: entities.UserStatusSuspended,
+				}
+			},
+			wantErr: true,
+		},
+		{
+			name: "approved user can still refresh token",
+			req:  &Request{RefreshToken: uniquePrefix + "-valid"},
+			setupMocks: func(rt *repomocks.MockRefreshTokenRepository, u *repomocks.MockUserRepository, ts *svcmocks.MockTokenService) {
+				rt.FindByTokenResult = validToken
+				u.GetByIDUser = &entities.User{
+					ID:     userID,
+					Email:  "user@example.com",
+					Status: entities.UserStatusApproved,
+				}
+				ts.GenerateAccessTokenResult = "new-access-token"
+				ts.GenerateRefreshTokenResult = "new-refresh-token"
+			},
+			wantErr: false,
+			checkResult: func(t *testing.T, resp *Response) {
+				t.Helper()
+				if resp.AccessToken != "new-access-token" {
+					t.Errorf("access token: want %q, got %q", "new-access-token", resp.AccessToken)
+				}
+			},
+		},
 	}
 
 	for _, tt := range tests {

@@ -80,9 +80,6 @@ func (r *AdminUserPostgresRepository) ListUsers(ctx context.Context, filter list
 	return result, total, nil
 }
 
-// Ensure the uuid import is used (ID is scanned directly by the driver).
-var _ = uuid.UUID{}
-
 // GetUserDetail fetches full profile + org memberships for a single user.
 // Implements getuserdetail.Reader.
 func (r *AdminUserPostgresRepository) GetUserDetail(ctx context.Context, id uuid.UUID) (*getuserdetail.UserDetail, error) {
