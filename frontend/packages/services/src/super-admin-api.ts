@@ -6,6 +6,29 @@ export interface AdminUser {
   firstName: string
   lastName: string
   isSuperAdmin: boolean
+  status: string
+  emailVerified: boolean
+  orgCount: number
+}
+
+export interface AdminMembership {
+  orgId: string
+  orgName: string
+  subdomain: string
+  role: string
+  invitationStatus: string
+  isOwner: boolean
+}
+
+export interface AdminUserDetail {
+  id: string
+  email: string
+  firstName: string
+  lastName: string
+  status: string
+  emailVerified: boolean
+  isSuperAdmin: boolean
+  memberships: AdminMembership[]
 }
 
 export interface ListUsersResponse {
@@ -19,6 +42,8 @@ export interface ListUsersParams {
   search?: string
   page?: number
   pageSize?: number
+  orgId?: string
+  status?: string
 }
 
 export interface AdminPlan {
@@ -71,14 +96,39 @@ export const SuperAdminApi = {
   // leftover forward. Requires an existing Stripe customer.
   async listUsers(params: ListUsersParams = {}): Promise<ListUsersResponse> {
     const http = await getHttpClient()
-    const { search = '', page = 1, pageSize = 5 } = params
+    const { search = '', page = 1, pageSize = 5, orgId = '', status = '' } = params
     const query = new URLSearchParams({
       search,
       page: String(page),
       pageSize: String(pageSize),
+      orgId,
+      status,
     }).toString()
-    const response = await http.get<ListUsersResponse>(`/api/v1/auth/admin/users?${query}`)
-    return response
+    return http.get<ListUsersResponse>(`/api/v1/auth/admin/users?${query}`)
+  },
+
+  async getUser(userId: string): Promise<AdminUserDetail> {
+    const http = await getHttpClient()
+    return http.get<AdminUserDetail>(`/api/v1/auth/admin/users/${userId}`)
+  },
+
+  async setUserStatus(userId: string, status: 'approved' | 'suspended'): Promise<void> {
+    const http = await getHttpClient()
+    await http.patch(`/api/v1/auth/admin/users/${userId}/status`, { status })
+  },
+
+  async setMembershipRole(
+    userId: string,
+    orgId: string,
+    role: 'OWNER' | 'ADMIN' | 'MEMBER'
+  ): Promise<void> {
+    const http = await getHttpClient()
+    await http.patch(`/api/v1/auth/admin/users/${userId}/memberships/${orgId}`, { role })
+  },
+
+  async removeMembership(userId: string, orgId: string): Promise<void> {
+    const http = await getHttpClient()
+    await http.delete(`/api/v1/auth/admin/users/${userId}/memberships/${orgId}`)
   },
 
   async promoteUser(userId: string): Promise<AdminUser> {
