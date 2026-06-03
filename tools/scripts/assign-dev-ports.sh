@@ -2,7 +2,10 @@
 set -euo pipefail
 
 ENV_FILE="${1:-.env}"
-MODE="${2:-all}" # "docker" for make dev, "web" for make dev-web, "all" for both
+MODE="${2:-all}" # "docker" for make dev, "web" for make dev-web, "prod-docker" for make dev-with-prod, "all" for both
+
+# Production DB port — used when connecting to the production database.
+PROD_DB_PORT=5432
 
 # Ports from port-registry MCP — source of truth.
 declare -A REGISTRY_PORTS=(
@@ -15,14 +18,19 @@ declare -A REGISTRY_PORTS=(
   [GRPC_PORT]=9000
 )
 
+# Prod modes target the production DB: DB_PORT must stay 5432, not the local mapping.
+case "$MODE" in
+  prod-*) REGISTRY_PORTS[DB_PORT]="$PROD_DB_PORT" ;;
+esac
+
 # Which keys each mode needs
 docker_keys=(HTTP_PORT SCRAPER_PORT DB_PORT DEV_REDIS_PORT LOCALSTACK_PORT GRPC_PORT)
 web_keys=(DEV_WEB_PORT)
 
 case "$MODE" in
-  docker) active_keys=("${docker_keys[@]}") ;;
-  web)    active_keys=("${web_keys[@]}") ;;
-  *)      active_keys=(HTTP_PORT DEV_WEB_PORT SCRAPER_PORT DB_PORT DEV_REDIS_PORT LOCALSTACK_PORT GRPC_PORT) ;;
+  docker|prod-docker) active_keys=("${docker_keys[@]}") ;;
+  web)                active_keys=("${web_keys[@]}") ;;
+  *)                  active_keys=(HTTP_PORT DEV_WEB_PORT SCRAPER_PORT DB_PORT DEV_REDIS_PORT LOCALSTACK_PORT GRPC_PORT) ;;
 esac
 
 if [ ! -f "$ENV_FILE" ]; then
@@ -83,7 +91,7 @@ upsert_env "COOKIE_DOMAIN" ".lvh.me"
 upsert_env "CORS_ALLOWED_ORIGINS" "http://localhost:${api_port},http://*.localhost:${api_port},http://localhost:${web_port},http://pulzifi.lvh.me:${api_port},http://*.pulzifi.lvh.me:${api_port},http://lvh.me:${api_port}"
 upsert_env "PAYLOAD_CSRF_ORIGINS" "http://localhost:${api_port},http://localhost:${web_port},http://pulzifi.lvh.me:${api_port}"
 
-if [ "$MODE" = "docker" ]; then
+if [ "$MODE" = "docker" ] || [ "$MODE" = "prod-docker" ]; then
   cat <<EOF
 
 Dev ports (docker):

@@ -67,7 +67,7 @@ dev: check-env ## Start local dev (postgres + scraper + API + worker with hot re
 	@docker-compose logs -f
 
 dev-with-prod: check-env ## Start dev environment using production DB (no local postgres)
-	@./tools/scripts/assign-dev-ports.sh $(ENV_FILE) docker
+	@./tools/scripts/assign-dev-ports.sh $(ENV_FILE) prod-docker
 	@echo "$(GREEN)Starting dev environment with production DB...$(NC)"
 	@docker-compose -f docker-compose.yml -f docker-compose.prod-db.yml up -d --remove-orphans redis localstack scraper monolith worker
 	@echo "$(GREEN)Ready. Attaching to logs (Ctrl+C detaches — containers keep running)...$(NC)"
