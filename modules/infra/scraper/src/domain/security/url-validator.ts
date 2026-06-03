@@ -19,9 +19,12 @@ export type DnsResolver = (hostname: string) => Promise<string[]>;
 
 const defaultResolver: DnsResolver = async (hostname: string): Promise<string[]> => {
   try {
-    const results = await dns.resolve(hostname, "A");
-    const v6results = await dns.resolve(hostname, "AAAA").catch(() => []);
-    return [...results, ...v6results];
+    // Bun's dns.lookup returns typed DNSLookup records ({ address, family, ttl }),
+    // so we map to the plain address strings the DnsResolver contract requires.
+    // (The older dns.resolve returns record objects too, which broke isPrivateIP.)
+    const v4 = await dns.lookup(hostname, { family: 4 }).catch(() => []);
+    const v6 = await dns.lookup(hostname, { family: 6 }).catch(() => []);
+    return [...v4, ...v6].map((r) => r.address);
   } catch {
     return [];
   }
@@ -81,6 +84,9 @@ function isPrivateIPv6(ip: string): boolean {
 }
 
 function isPrivateIP(ip: string): boolean {
+  // Fail closed: any entry that is not a plain string (e.g. a resolver that
+  // returns DNS record objects) is treated as unsafe rather than crashing.
+  if (typeof ip !== "string") return true;
   if (ip.includes(":")) return isPrivateIPv6(ip);
   return isPrivateIPv4(ip);
 }
