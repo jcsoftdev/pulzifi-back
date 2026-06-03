@@ -18,6 +18,7 @@ interface UserBackendDto {
   avatar?: string
   tenant?: string | null
   organization?: OrganizationBackendDto | null
+  onboarding_completed?: boolean
   created_at: string
   updated_at?: string
 }
@@ -34,6 +35,7 @@ interface RegisterBackendResponse {
   email: string
   first_name: string
   last_name: string
+  organization_subdomain: string
   status: string
   message: string
 }
@@ -56,6 +58,7 @@ export interface User {
   avatar?: string
   tenant?: string | null
   organization?: UserOrganization
+  onboardingCompleted: boolean
   createdAt: string
   updatedAt?: string
 }
@@ -90,6 +93,7 @@ export function transformUser(backend: UserBackendDto): User {
           featureFlags: backend.organization.featureFlags ?? {},
         }
       : undefined,
+    onboardingCompleted: backend.onboarding_completed ?? false,
     createdAt: backend.created_at,
     updatedAt: backend.updated_at,
   }
@@ -154,10 +158,27 @@ export const AuthApi = {
   async submitOnboarding(body: {
     org_name: string
     subdomain: string
+    company_size?: string
+    business_type?: string
+    competitor_challenges?: string[]
+    website_url?: string
   }): Promise<{ subdomain: string; trial_ends_at: string }> {
     const http = await getHttpClient()
     return http.post<{ subdomain: string; trial_ends_at: string }>(
       '/api/v1/auth/onboarding',
+      body
+    )
+  },
+
+  async submitOnboardingProfile(body: {
+    company_size?: string
+    business_type?: string
+    competitor_challenges?: string[]
+    website_url?: string
+  }): Promise<{ onboarding_completed: boolean }> {
+    const http = await getHttpClient()
+    return http.post<{ onboarding_completed: boolean }>(
+      '/api/v1/auth/onboarding/profile',
       body
     )
   },
@@ -170,6 +191,7 @@ export const AuthApi = {
     organizationName: string
     organizationSubdomain: string
   }): Promise<{
+    organizationSubdomain: string
     status: string
     message: string
   }> {
@@ -183,6 +205,7 @@ export const AuthApi = {
       organization_subdomain: data.organizationSubdomain,
     })
     return {
+      organizationSubdomain: response.organization_subdomain,
       status: response.status,
       message: response.message,
     }

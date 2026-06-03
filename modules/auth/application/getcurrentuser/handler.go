@@ -20,16 +20,17 @@ type OrganizationResponse struct {
 
 // Response represents the current user response
 type Response struct {
-	ID           string                `json:"id"`
-	Name         string                `json:"name"`
-	Email        string                `json:"email"`
-	Role         string                `json:"role"`
-	Status       string                `json:"status"`
-	Avatar       *string               `json:"avatar,omitempty"`
-	Tenant       *string               `json:"tenant,omitempty"`       // KEEP for backward compat
-	Organization *OrganizationResponse `json:"organization,omitempty"` // NEW
-	CreatedAt    string                `json:"created_at"`
-	UpdatedAt    string                `json:"updated_at"`
+	ID                  string                `json:"id"`
+	Name                string                `json:"name"`
+	Email               string                `json:"email"`
+	Role                string                `json:"role"`
+	Status              string                `json:"status"`
+	Avatar              *string               `json:"avatar,omitempty"`
+	Tenant              *string               `json:"tenant,omitempty"`       // KEEP for backward compat
+	Organization        *OrganizationResponse `json:"organization,omitempty"` // NEW
+	OnboardingCompleted bool                  `json:"onboarding_completed"`
+	CreatedAt           string                `json:"created_at"`
+	UpdatedAt           string                `json:"updated_at"`
 }
 
 // Handler handles the get current user use case
@@ -66,7 +67,7 @@ func (h *Handler) Handle(ctx context.Context, userID uuid.UUID, roles []string) 
 		resp.Tenant = tenant
 	}
 
-	// Phase 2: org context (planCode + featureFlags). Fail-open on error.
+	// Phase 2: org context (planCode + featureFlags + onboarding). Fail-open on error.
 	if h.orgLookup != nil {
 		if oc, err := h.orgLookup.Lookup(ctx, userID); err == nil && oc != nil {
 			resp.Organization = &OrganizationResponse{
@@ -76,6 +77,7 @@ func (h *Handler) Handle(ctx context.Context, userID uuid.UUID, roles []string) 
 				PlanCode:     oc.PlanCode,
 				FeatureFlags: oc.FeatureFlags,
 			}
+			resp.OnboardingCompleted = oc.OnboardingCompleted
 		}
 	}
 

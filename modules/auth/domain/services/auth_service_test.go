@@ -30,12 +30,6 @@ func (s *stubAuthService) Authenticate(ctx context.Context, email, password stri
 	if err := s.ValidateCredentials(ctx, user, password); err != nil {
 		return nil, err
 	}
-	switch user.Status {
-	case entities.UserStatusPending:
-		return nil, errors.New("user not approved")
-	case entities.UserStatusRejected:
-		return nil, errors.New("user rejected")
-	}
 	return user, nil
 }
 
@@ -101,21 +95,27 @@ func TestAuthService_Authenticate_WrongPassword(t *testing.T) {
 	}
 }
 
-func TestAuthService_Authenticate_PendingUser(t *testing.T) {
+func TestAuthService_Authenticate_PendingUserCanLogin(t *testing.T) {
+	// Pending status no longer blocks login — self-serve signup always creates
+	// users with status="approved". This test guards against regression where
+	// the old approval gate was re-introduced.
 	userRepo := newStubUserRepo()
 	permRepo := newStubPermRepo()
 	svc := newStubAuthService(userRepo, permRepo)
 
 	_ = userRepo.Create(context.Background(), &entities.User{
 		ID:           uuid.New(),
-		Email:        "pending@example.com",
+		Email:        "legacy-pending@example.com",
 		PasswordHash: "hash:secret",
-		Status:       entities.UserStatusPending,
+		Status:       "pending",
 	})
 
-	_, err := svc.Authenticate(context.Background(), "pending@example.com", "secret")
-	if err == nil {
-		t.Fatal("expected error for pending user, got nil")
+	user, err := svc.Authenticate(context.Background(), "legacy-pending@example.com", "secret")
+	if err != nil {
+		t.Fatalf("pending user should be able to login, got error: %v", err)
+	}
+	if user == nil {
+		t.Fatal("expected non-nil user for pending login")
 	}
 }
 

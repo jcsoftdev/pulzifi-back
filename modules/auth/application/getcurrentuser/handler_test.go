@@ -9,6 +9,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/entities"
 	repomocks "github.com/jcsoftdev/pulzifi-back/modules/auth/domain/repositories/mocks"
+	svcmocks "github.com/jcsoftdev/pulzifi-back/modules/auth/domain/services/mocks"
+	authservices "github.com/jcsoftdev/pulzifi-back/modules/auth/domain/services"
 )
 
 func TestGetCurrentUserHandler_Handle(t *testing.T) {
@@ -129,7 +131,7 @@ func TestGetCurrentUserHandler_Handle(t *testing.T) {
 				tt.setupMocks(userRepo)
 			}
 
-			h := NewHandler(userRepo, nil) // nil orgLookup — Organization field omitted
+			h := NewHandler(userRepo, nil) // nil orgLookup — Organization field omitted; onboarding_completed=false
 			resp, err := h.Handle(context.Background(), tt.userID, tt.roles)
 
 			if tt.wantErr {
@@ -145,6 +147,77 @@ func TestGetCurrentUserHandler_Handle(t *testing.T) {
 
 			if tt.checkResult != nil {
 				tt.checkResult(t, resp)
+			}
+		})
+	}
+}
+
+func TestGetCurrentUserHandler_OnboardingCompleted(t *testing.T) {
+	userID := uuid.New()
+	testUser := &entities.User{
+		ID:        userID,
+		FirstName: "Bob",
+		LastName:  "Smith",
+		Email:     "bob@example.com",
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	tests := []struct {
+		name            string
+		orgContext      *authservices.OrgContext
+		wantOnboarding  bool
+	}{
+		{
+			name: "onboarding_completed true when org has completed_at set",
+			orgContext: &authservices.OrgContext{
+				ID:                  uuid.New(),
+				Name:                "Acme",
+				Subdomain:           "acme",
+				PlanCode:            "trial",
+				FeatureFlags:        map[string]any{},
+				OnboardingCompleted: true,
+			},
+			wantOnboarding: true,
+		},
+		{
+			name: "onboarding_completed false when org has no completed_at",
+			orgContext: &authservices.OrgContext{
+				ID:                  uuid.New(),
+				Name:                "Acme",
+				Subdomain:           "acme",
+				PlanCode:            "trial",
+				FeatureFlags:        map[string]any{},
+				OnboardingCompleted: false,
+			},
+			wantOnboarding: false,
+		},
+		{
+			name:           "onboarding_completed false when no org (nil orgLookup result)",
+			orgContext:     nil,
+			wantOnboarding: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			userRepo := &repomocks.MockUserRepository{
+				GetByIDUser: testUser,
+			}
+			orgLookup := &svcmocks.MockOrgContextLookup{
+				Result: tt.orgContext,
+			}
+
+			h := NewHandler(userRepo, orgLookup)
+			resp, err := h.Handle(context.Background(), userID, []string{"USER"})
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if resp == nil {
+				t.Fatal("expected non-nil response")
+			}
+			if resp.OnboardingCompleted != tt.wantOnboarding {
+				t.Errorf("onboarding_completed: want %v, got %v", tt.wantOnboarding, resp.OnboardingCompleted)
 			}
 		})
 	}

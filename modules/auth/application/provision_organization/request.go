@@ -16,10 +16,18 @@ var subdomainPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9\-]{1,61}[a-z0-9]$`)
 //
 // UserID is always populated from the auth middleware context — it MUST NOT
 // come from the request body.  OrgName and Subdomain come from the JSON body.
+// The onboarding profile fields are optional; when provided they are persisted
+// atomically with the org creation in the OAuth flow.
 type Request struct {
 	UserID    uuid.UUID `json:"-"`
 	OrgName   string    `json:"org_name"`
 	Subdomain string    `json:"subdomain"`
+
+	// Onboarding profile (optional — provided by OAuth users who haven't completed it)
+	CompanySize          string   `json:"company_size,omitempty"`
+	BusinessType         string   `json:"business_type,omitempty"`
+	CompetitorChallenges []string `json:"competitor_challenges,omitempty"`
+	WebsiteURL           string   `json:"website_url,omitempty"`
 }
 
 // Validate performs lightweight structural checks before calling any

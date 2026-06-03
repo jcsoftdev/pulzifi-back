@@ -26,6 +26,7 @@ import (
 	refreshapp "github.com/jcsoftdev/pulzifi-back/modules/auth/application/refreshtoken"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/application/register"
 	resetpassword "github.com/jcsoftdev/pulzifi-back/modules/auth/application/reset_password"
+	saveonboardingprofile "github.com/jcsoftdev/pulzifi-back/modules/auth/application/save_onboarding_profile"
 	updatecurrentuser "github.com/jcsoftdev/pulzifi-back/modules/auth/application/update_current_user"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/domain/entities"
 	autherrors "github.com/jcsoftdev/pulzifi-back/modules/auth/domain/errors"
@@ -44,18 +45,19 @@ import (
 )
 
 type Module struct {
-	registerHandler          *register.Handler
-	checkSubdomainHandler    *checksubdomain.Handler
-	loginHandler             *login.Handler
-	logoutHandler            *logout.Handler
-	refreshHandler           *refreshapp.Handler
-	getCurrentUserHandler    *getcurrentuser.Handler
-	forgotPasswordHandler    *forgotpassword.Handler
-	resetPasswordHandler     *resetpassword.Handler
-	updateCurrentUserHandler *updatecurrentuser.Handler
-	changePasswordHandler    *changepassword.Handler
-	deleteCurrentUserHandler *deletecurrentuser.Handler
-	provisionOrgHandler      *provisionorganization.Handler
+	registerHandler            *register.Handler
+	checkSubdomainHandler      *checksubdomain.Handler
+	loginHandler               *login.Handler
+	logoutHandler              *logout.Handler
+	refreshHandler             *refreshapp.Handler
+	getCurrentUserHandler      *getcurrentuser.Handler
+	forgotPasswordHandler      *forgotpassword.Handler
+	resetPasswordHandler       *resetpassword.Handler
+	updateCurrentUserHandler   *updatecurrentuser.Handler
+	changePasswordHandler      *changepassword.Handler
+	deleteCurrentUserHandler   *deletecurrentuser.Handler
+	provisionOrgHandler        *provisionorganization.Handler
+	saveOnboardingProfileHandler *saveonboardingprofile.Handler
 	authMiddleware           *authmw.AuthMiddleware
 	tokenService             services.TokenService
 	userRepo                 repositories.UserRepository
@@ -72,24 +74,25 @@ type Module struct {
 }
 
 type ModuleDeps struct {
-	UserRepo          repositories.UserRepository
-	RefreshTokenRepo  repositories.RefreshTokenRepository
-	RoleRepo          repositories.RoleRepository
-	PermRepo          repositories.PermissionRepository
-	RegReqWriter      services.RegistrationRequestWriter
-	OrgDirectory      services.OrganizationDirectory
-	TrialProvisioner  services.TrialProvisioner
-	MembershipChecker services.OrganizationMembershipChecker // optional; nil → onboarding handler not wired
-	TrialDays         int
-	AuthService       services.AuthService
-	TokenService      services.TokenService
-	CookieDomain      string
-	CookieSecure      bool
-	FrontendURL       string
-	Notifier          services.RegistrationNotifier
-	EventBus          eventbus.MessageBus
-	DB                *sql.DB
-	OrgContextLookup  services.OrgContextLookup // optional; nil → org omitted from /me
+	UserRepo            repositories.UserRepository
+	RefreshTokenRepo    repositories.RefreshTokenRepository
+	RoleRepo            repositories.RoleRepository
+	PermRepo            repositories.PermissionRepository
+	OrgDirectory        services.OrganizationDirectory
+	TrialProvisioner    services.TrialProvisioner
+	MembershipChecker   services.OrganizationMembershipChecker // optional; nil → onboarding handler not wired
+	OnboardingWriter    services.OrganizationOnboardingWriter  // optional; nil → profile route returns 503
+	OnboardingOrgFinder services.OrganizationOrgFinder         // optional; required when OnboardingWriter is set
+	TrialDays           int
+	AuthService         services.AuthService
+	TokenService        services.TokenService
+	CookieDomain        string
+	CookieSecure        bool
+	FrontendURL         string
+	Notifier            services.RegistrationNotifier
+	EventBus            eventbus.MessageBus
+	DB                  *sql.DB
+	OrgContextLookup    services.OrgContextLookup // optional; nil → org omitted from /me
 }
 
 func NewModule(deps ModuleDeps) router.ModuleRegisterer {
@@ -118,22 +121,32 @@ func NewModule(deps ModuleDeps) router.ModuleRegisterer {
 	var provisionOrgHandler *provisionorganization.Handler
 	if deps.TrialProvisioner != nil && deps.MembershipChecker != nil {
 		provisionOrgHandler = provisionorganization.NewHandler(deps.TrialProvisioner, deps.MembershipChecker)
+		if deps.OnboardingWriter != nil && deps.OnboardingOrgFinder != nil {
+			provisionOrgHandler = provisionOrgHandler.WithOnboardingProfile(deps.OnboardingWriter, deps.OnboardingOrgFinder)
+		}
+	}
+
+	var saveOnboardingHandler *saveonboardingprofile.Handler
+	if deps.OnboardingWriter != nil && deps.OnboardingOrgFinder != nil {
+		saveOnboardingHandler = saveonboardingprofile.NewHandler(deps.OnboardingOrgFinder, deps.OnboardingWriter)
 	}
 
 	return &Module{
-		registerHandler:          register.NewHandler(deps.UserRepo, deps.TrialProvisioner, deps.OrgDirectory, deps.TrialDays),
-		checkSubdomainHandler:    checksubdomain.NewHandler(deps.RegReqWriter, deps.OrgDirectory),
-		loginHandler:             login.NewHandler(deps.AuthService, deps.UserRepo, deps.RefreshTokenRepo, deps.TokenService),
-		logoutHandler:            logout.NewHandler(deps.RefreshTokenRepo),
-		refreshHandler:           refreshapp.NewHandler(deps.RefreshTokenRepo, deps.UserRepo, deps.TokenService),
-		getCurrentUserHandler:    getCurrentUserHandler,
-		forgotPasswordHandler:    forgotpassword.NewHandler(deps.UserRepo, passwordResetRepo, deps.Notifier).WithTTL(cfg.ResetTokenTTL),
-		resetPasswordHandler:     resetpassword.NewHandler(passwordResetRepo, deps.AuthService),
-		updateCurrentUserHandler: updatecurrentuser.NewHandler(deps.UserRepo, getCurrentUserHandler),
-		changePasswordHandler:    changepassword.NewHandler(deps.UserRepo, deps.AuthService),
-		deleteCurrentUserHandler: deletecurrentuser.NewHandler(deps.UserRepo, deps.EventBus),
-		provisionOrgHandler:      provisionOrgHandler,
-		authMiddleware:           authmw.NewAuthMiddleware(deps.TokenService),
+		registerHandler:              register.NewHandler(deps.UserRepo, deps.TrialProvisioner, deps.OrgDirectory, deps.TrialDays),
+		checkSubdomainHandler:        checksubdomain.NewHandler(deps.OrgDirectory),
+		loginHandler:                 login.NewHandler(deps.AuthService, deps.UserRepo, deps.RefreshTokenRepo, deps.TokenService),
+		logoutHandler:                logout.NewHandler(deps.RefreshTokenRepo),
+		refreshHandler:               refreshapp.NewHandler(deps.RefreshTokenRepo, deps.UserRepo, deps.TokenService),
+		getCurrentUserHandler:        getCurrentUserHandler,
+		forgotPasswordHandler:        forgotpassword.NewHandler(deps.UserRepo, passwordResetRepo, deps.Notifier).WithTTL(cfg.ResetTokenTTL),
+		resetPasswordHandler:         resetpassword.NewHandler(passwordResetRepo, deps.AuthService),
+		updateCurrentUserHandler:     updatecurrentuser.NewHandler(deps.UserRepo, getCurrentUserHandler),
+		changePasswordHandler:        changepassword.NewHandler(deps.UserRepo, deps.AuthService),
+		deleteCurrentUserHandler:     deletecurrentuser.NewHandler(deps.UserRepo, deps.EventBus),
+		provisionOrgHandler:          provisionOrgHandler,
+		saveOnboardingProfileHandler: saveOnboardingHandler,
+		authMiddleware:               authmw.NewAuthMiddleware(deps.TokenService),
+
 		tokenService:             deps.TokenService,
 		userRepo:                 deps.UserRepo,
 		authService:              deps.AuthService,
@@ -185,6 +198,7 @@ func (m *Module) RegisterHTTPRoutes(r chi.Router) {
 			r.Put("/me/password", m.handleChangePassword)
 			r.Delete("/me", m.handleDeleteCurrentUser)
 			r.Post("/onboarding", m.handleOnboarding)
+			r.Post("/onboarding/profile", m.handleSaveOnboardingProfile)
 		})
 	})
 }
@@ -265,13 +279,6 @@ func (m *Module) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	response, err := m.loginHandler.Handle(r.Context(), &req)
 	if err != nil {
-		var userErr autherrors.UserError
-		if errors.As(err, &userErr) {
-			if userErr.Code == autherrors.ErrUserNotApproved.Code || userErr.Code == autherrors.ErrUserRejected.Code {
-				writeJSON(w, http.StatusForbidden, map[string]string{"error": userErr.Message, "code": userErr.Code})
-				return
-			}
-		}
 		logger.Error("Login failed", zap.Error(err))
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid credentials"})
 		return
@@ -934,6 +941,53 @@ func (m *Module) handleOnboarding(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		logger.Warn("Failed to regenerate access token after onboarding (non-fatal)", zap.Error(tokErr))
+	}
+
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (m *Module) handleSaveOnboardingProfile(w http.ResponseWriter, r *http.Request) {
+	if m.saveOnboardingProfileHandler == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "onboarding profile not configured"})
+		return
+	}
+
+	userIDStr, ok := r.Context().Value(authmw.UserIDKey).(string)
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid user id"})
+		return
+	}
+
+	var body struct {
+		CompanySize          string   `json:"company_size"`
+		BusinessType         string   `json:"business_type"`
+		CompetitorChallenges []string `json:"competitor_challenges"`
+		WebsiteURL           string   `json:"website_url"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+
+	req := saveonboardingprofile.Request{
+		UserID:               userID,
+		CompanySize:          body.CompanySize,
+		BusinessType:         body.BusinessType,
+		CompetitorChallenges: body.CompetitorChallenges,
+		WebsiteURL:           body.WebsiteURL,
+	}
+
+	resp, err := m.saveOnboardingProfileHandler.Handle(r.Context(), req)
+	if err != nil {
+		logger.Error("Failed to save onboarding profile", zap.Error(err))
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to save onboarding profile"})
+		return
 	}
 
 	writeJSON(w, http.StatusOK, resp)

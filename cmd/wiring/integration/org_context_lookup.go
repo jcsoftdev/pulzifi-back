@@ -22,20 +22,21 @@ func NewOrgContextLookup(db *sql.DB) *OrgContextLookup {
 var _ authservices.OrgContextLookup = (*OrgContextLookup)(nil)
 
 // Lookup finds the user's primary org (their first org membership) and returns
-// its identity + active plan code + feature flags as a single struct.
+// its identity + active plan code + feature flags + onboarding status as a single struct.
 // Returns (nil, nil) if the user has no org.
 func (l *OrgContextLookup) Lookup(ctx context.Context, userID uuid.UUID) (*authservices.OrgContext, error) {
 	var (
-		orgID     uuid.UUID
-		name      string
-		subdomain string
-		planCode  sql.NullString
-		flagsRaw  []byte
+		orgID                uuid.UUID
+		name                 string
+		subdomain            string
+		planCode             sql.NullString
+		flagsRaw             []byte
+		onboardingCompletedAt sql.NullTime
 	)
 	// organization_members joins to organizations; organization_plans is the active row (if any).
 	// Use ORDER BY created_at to pick the user's *first* org (matches Phase 1's GetUserFirstOrganization semantic).
 	err := l.db.QueryRowContext(ctx, `
-		SELECT o.id, o.name, o.subdomain, p.code, o.feature_flags
+		SELECT o.id, o.name, o.subdomain, p.code, o.feature_flags, o.onboarding_completed_at
 		  FROM public.organization_members om
 		  JOIN public.organizations o ON o.id = om.organization_id
 		  LEFT JOIN public.organization_plans op
@@ -47,7 +48,7 @@ func (l *OrgContextLookup) Lookup(ctx context.Context, userID uuid.UUID) (*auths
 		   AND o.deleted_at IS NULL
 		 ORDER BY om.created_at ASC
 		 LIMIT 1
-	`, userID).Scan(&orgID, &name, &subdomain, &planCode, &flagsRaw)
+	`, userID).Scan(&orgID, &name, &subdomain, &planCode, &flagsRaw, &onboardingCompletedAt)
 
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
@@ -63,10 +64,11 @@ func (l *OrgContextLookup) Lookup(ctx context.Context, userID uuid.UUID) (*auths
 	}
 
 	return &authservices.OrgContext{
-		ID:           orgID,
-		Name:         name,
-		Subdomain:    subdomain,
-		PlanCode:     planCode.String, // empty string if no active plan
-		FeatureFlags: flags,
+		ID:                  orgID,
+		Name:                name,
+		Subdomain:           subdomain,
+		PlanCode:            planCode.String, // empty string if no active plan
+		FeatureFlags:        flags,
+		OnboardingCompleted: onboardingCompletedAt.Valid,
 	}, nil
 }

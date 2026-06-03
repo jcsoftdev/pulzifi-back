@@ -12,17 +12,16 @@ func TestCheckSubdomainHandler_Handle(t *testing.T) {
 	tests := []struct {
 		name          string
 		subdomain     string
-		setupMocks    func(orgDir *svcmocks.MockOrganizationDirectory, regReq *svcmocks.MockRegistrationRequestWriter)
+		setupMocks    func(orgDir *svcmocks.MockOrganizationDirectory)
 		wantErr       bool
 		wantAvailable bool
 	}{
 		{
 			name:      "available subdomain returns available=true",
 			subdomain: "newacme",
-			setupMocks: func(orgDir *svcmocks.MockOrganizationDirectory, regReq *svcmocks.MockRegistrationRequestWriter) {
+			setupMocks: func(orgDir *svcmocks.MockOrganizationDirectory) {
 				orgDir.ValidateSubdomainErr = nil
 				orgDir.CountBySubdomainResult = 0
-				regReq.ExistsPendingBySubdomainResult = false
 			},
 			wantErr:       false,
 			wantAvailable: true,
@@ -30,18 +29,8 @@ func TestCheckSubdomainHandler_Handle(t *testing.T) {
 		{
 			name:      "subdomain already in use returns available=false",
 			subdomain: "existingacme",
-			setupMocks: func(orgDir *svcmocks.MockOrganizationDirectory, regReq *svcmocks.MockRegistrationRequestWriter) {
+			setupMocks: func(orgDir *svcmocks.MockOrganizationDirectory) {
 				orgDir.CountBySubdomainResult = 1
-			},
-			wantErr:       false,
-			wantAvailable: false,
-		},
-		{
-			name:      "subdomain pending approval returns available=false",
-			subdomain: "pendingacme",
-			setupMocks: func(orgDir *svcmocks.MockOrganizationDirectory, regReq *svcmocks.MockRegistrationRequestWriter) {
-				orgDir.CountBySubdomainResult = 0
-				regReq.ExistsPendingBySubdomainResult = true
 			},
 			wantErr:       false,
 			wantAvailable: false,
@@ -49,7 +38,7 @@ func TestCheckSubdomainHandler_Handle(t *testing.T) {
 		{
 			name:      "invalid subdomain format returns available=false (no error)",
 			subdomain: "INVALID__FORMAT",
-			setupMocks: func(orgDir *svcmocks.MockOrganizationDirectory, regReq *svcmocks.MockRegistrationRequestWriter) {
+			setupMocks: func(orgDir *svcmocks.MockOrganizationDirectory) {
 				orgDir.ValidateSubdomainErr = errors.New("subdomain: invalid characters")
 			},
 			wantErr:       false,
@@ -58,26 +47,16 @@ func TestCheckSubdomainHandler_Handle(t *testing.T) {
 		{
 			name:      "count repo error propagates",
 			subdomain: "acme",
-			setupMocks: func(orgDir *svcmocks.MockOrganizationDirectory, regReq *svcmocks.MockRegistrationRequestWriter) {
+			setupMocks: func(orgDir *svcmocks.MockOrganizationDirectory) {
 				orgDir.CountBySubdomainErr = errors.New("db error")
-			},
-			wantErr: true,
-		},
-		{
-			name:      "pending check repo error propagates",
-			subdomain: "acme",
-			setupMocks: func(orgDir *svcmocks.MockOrganizationDirectory, regReq *svcmocks.MockRegistrationRequestWriter) {
-				orgDir.CountBySubdomainResult = 0
-				regReq.ExistsPendingBySubdomainErr = errors.New("db error")
 			},
 			wantErr: true,
 		},
 		{
 			name:      "subdomain is normalized to lowercase before lookup",
 			subdomain: "ACME",
-			setupMocks: func(orgDir *svcmocks.MockOrganizationDirectory, regReq *svcmocks.MockRegistrationRequestWriter) {
+			setupMocks: func(orgDir *svcmocks.MockOrganizationDirectory) {
 				orgDir.CountBySubdomainResult = 0
-				regReq.ExistsPendingBySubdomainResult = false
 			},
 			wantErr:       false,
 			wantAvailable: true,
@@ -87,13 +66,12 @@ func TestCheckSubdomainHandler_Handle(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			orgDir := &svcmocks.MockOrganizationDirectory{}
-			regReq := &svcmocks.MockRegistrationRequestWriter{}
 
 			if tt.setupMocks != nil {
-				tt.setupMocks(orgDir, regReq)
+				tt.setupMocks(orgDir)
 			}
 
-			h := NewHandler(regReq, orgDir)
+			h := NewHandler(orgDir)
 			resp, err := h.Handle(context.Background(), tt.subdomain)
 
 			if tt.wantErr {
