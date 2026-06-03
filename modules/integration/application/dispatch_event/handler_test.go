@@ -188,6 +188,22 @@ func (g *stubOrgGuard) IsActive(_ context.Context, _ uuid.UUID) (bool, error) {
 }
 
 // ---------------------------------------------------------------------------
+// ChannelEntitlement stub
+// ---------------------------------------------------------------------------
+
+type stubEntitlement struct {
+	emailOnly bool
+	err       error
+}
+
+func (s *stubEntitlement) IsPaid(_ context.Context, _ uuid.UUID) (bool, error) {
+	if s.err != nil {
+		return false, s.err
+	}
+	return !s.emailOnly, nil
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -421,5 +437,125 @@ func TestDispatch_PersistenceErrorStops(t *testing.T) {
 
 	if len(delRepo.created) != 1 {
 		t.Fatalf("expected exactly 1 delivery persisted before error, got %d", len(delRepo.created))
+	}
+}
+
+// ---------------------------------------------------------------------------
+// ChannelEntitlement / plan-tiered tests
+// ---------------------------------------------------------------------------
+
+// TestDispatch_FreeOrg_OnlyEmailDelivered asserts that when the entitlement
+// gate reports email-only, non-email destinations are skipped and only the
+// email destination receives a Delivery row.
+func TestDispatch_FreeOrg_OnlyEmailDelivered(t *testing.T) {
+	orgID := uuid.New()
+
+	slackDest := newDest("slack", entities.ScopeOrg, orgID, []string{"change.detected"})
+	discordDest := newDest("discord", entities.ScopeOrg, orgID, []string{"change.detected"})
+	emailDest := newDest("email", entities.ScopeOrg, orgID, []string{"change.detected"})
+
+	destRepo := &inMemDestRepo{dests: []*entities.Destination{slackDest, discordDest, emailDest}}
+	delRepo := &inMemDelRepo{}
+	h := NewHandlerWithEntitlement(
+		&stubFactory{destRepo, delRepo},
+		&stubOrgGuard{isActive: true},
+		&stubEntitlement{emailOnly: true},
+	)
+
+	ev := makeEvent(orgID, nil, nil)
+	if err := h.Handle(context.Background(), ev); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(delRepo.created) != 1 {
+		t.Fatalf("expected 1 delivery (email only), got %d", len(delRepo.created))
+	}
+	if delRepo.created[0].DestinationID != emailDest.ID {
+		t.Errorf("expected email destination, got destination %v", delRepo.created[0].DestinationID)
+	}
+}
+
+// TestDispatch_PaidOrg_AllChannelsDelivered asserts that when the org is on a
+// paid plan, all destinations receive Delivery rows regardless of ServiceType.
+func TestDispatch_PaidOrg_AllChannelsDelivered(t *testing.T) {
+	orgID := uuid.New()
+
+	slackDest := newDest("slack", entities.ScopeOrg, orgID, []string{"change.detected"})
+	discordDest := newDest("discord", entities.ScopeOrg, orgID, []string{"change.detected"})
+	emailDest := newDest("email", entities.ScopeOrg, orgID, []string{"change.detected"})
+
+	destRepo := &inMemDestRepo{dests: []*entities.Destination{slackDest, discordDest, emailDest}}
+	delRepo := &inMemDelRepo{}
+	h := NewHandlerWithEntitlement(
+		&stubFactory{destRepo, delRepo},
+		&stubOrgGuard{isActive: true},
+		&stubEntitlement{emailOnly: false},
+	)
+
+	ev := makeEvent(orgID, nil, nil)
+	if err := h.Handle(context.Background(), ev); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(delRepo.created) != 3 {
+		t.Fatalf("expected 3 deliveries (all channels), got %d", len(delRepo.created))
+	}
+}
+
+// TestDispatch_NilEntitlement_AllChannelsDelivered asserts that when no
+// ChannelEntitlement is injected (nil), all destinations pass through
+// unchanged — preserving backward-compatible behaviour for call sites that
+// don't supply the gate.
+func TestDispatch_NilEntitlement_AllChannelsDelivered(t *testing.T) {
+	orgID := uuid.New()
+
+	slackDest := newDest("slack", entities.ScopeOrg, orgID, []string{"change.detected"})
+	emailDest := newDest("email", entities.ScopeOrg, orgID, []string{"change.detected"})
+
+	destRepo := &inMemDestRepo{dests: []*entities.Destination{slackDest, emailDest}}
+	delRepo := &inMemDelRepo{}
+	// NewHandler (no entitlement) must behave as "all paid".
+	h := NewHandler(&stubFactory{destRepo, delRepo}, &stubOrgGuard{isActive: true})
+
+	ev := makeEvent(orgID, nil, nil)
+	if err := h.Handle(context.Background(), ev); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(delRepo.created) != 2 {
+		t.Fatalf("expected 2 deliveries (nil entitlement = all pass), got %d", len(delRepo.created))
+	}
+}
+
+// TestDispatch_EntitlementError_FailOpenEmailOnly asserts that when the
+// ChannelEntitlement check returns an error, the handler fails open to
+// email-only (does NOT silently allow all channels) and returns no error
+// to the caller (alert email still goes out; paid channels are skipped as a
+// conservative safe-default).
+func TestDispatch_EntitlementError_FailOpenEmailOnly(t *testing.T) {
+	orgID := uuid.New()
+
+	slackDest := newDest("slack", entities.ScopeOrg, orgID, []string{"change.detected"})
+	emailDest := newDest("email", entities.ScopeOrg, orgID, []string{"change.detected"})
+
+	destRepo := &inMemDestRepo{dests: []*entities.Destination{slackDest, emailDest}}
+	delRepo := &inMemDelRepo{}
+	h := NewHandlerWithEntitlement(
+		&stubFactory{destRepo, delRepo},
+		&stubOrgGuard{isActive: true},
+		&stubEntitlement{err: errors.New("db unavailable")},
+	)
+
+	ev := makeEvent(orgID, nil, nil)
+	// Must not return an error to the caller — email path must still succeed.
+	if err := h.Handle(context.Background(), ev); err != nil {
+		t.Fatalf("expected no error on entitlement failure (fail-open), got: %v", err)
+	}
+
+	if len(delRepo.created) != 1 {
+		t.Fatalf("expected 1 delivery (email only on error), got %d", len(delRepo.created))
+	}
+	if delRepo.created[0].DestinationID != emailDest.ID {
+		t.Errorf("expected email destination on entitlement error")
 	}
 }
