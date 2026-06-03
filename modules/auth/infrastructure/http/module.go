@@ -1064,6 +1064,8 @@ func (m *Module) handleListUsers(w http.ResponseWriter, r *http.Request) {
 		Search:   search,
 		Page:     page,
 		PageSize: pageSize,
+		OrgID:    q.Get("orgId"),
+		Status:   q.Get("status"),
 	})
 	if err != nil {
 		logger.Error("Failed to list admin users", zap.Error(err))

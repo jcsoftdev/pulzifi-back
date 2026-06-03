@@ -17,12 +17,16 @@ type fakeAdminUserReader struct {
 
 	// Call tracking
 	lastSearch string
+	lastOrgID  string
+	lastStatus string
 	lastLimit  int
 	lastOffset int
 }
 
-func (f *fakeAdminUserReader) ListUsers(_ context.Context, search string, limit, offset int) ([]listusers.AdminUserRow, int, error) {
-	f.lastSearch = search
+func (f *fakeAdminUserReader) ListUsers(_ context.Context, filter listusers.ListFilter, limit, offset int) ([]listusers.AdminUserRow, int, error) {
+	f.lastSearch = filter.Search
+	f.lastOrgID = filter.OrgID
+	f.lastStatus = filter.Status
 	f.lastLimit = limit
 	f.lastOffset = offset
 	if f.err != nil {
@@ -35,8 +39,8 @@ func TestListUsersHandler_Handle(t *testing.T) {
 	id1 := uuid.New()
 	id2 := uuid.New()
 	rows := []listusers.AdminUserRow{
-		{ID: id1, Email: "alice@example.com", FirstName: "Alice", LastName: "Smith", IsSuperAdmin: false},
-		{ID: id2, Email: "bob@example.com", FirstName: "Bob", LastName: "Jones", IsSuperAdmin: true},
+		{ID: id1, Email: "alice@example.com", FirstName: "Alice", LastName: "Smith", IsSuperAdmin: false, Status: "approved", EmailVerified: true, OrgCount: 1},
+		{ID: id2, Email: "bob@example.com", FirstName: "Bob", LastName: "Jones", IsSuperAdmin: true, Status: "suspended", EmailVerified: false, OrgCount: 0},
 	}
 
 	tests := []struct {
@@ -126,10 +130,10 @@ func TestListUsersHandler_Handle(t *testing.T) {
 			},
 		},
 		{
-			name:    "reader error propagates",
-			req:     listusers.Request{Search: "", Page: 1, PageSize: 5},
+			name:      "reader error propagates",
+			req:       listusers.Request{Search: "", Page: 1, PageSize: 5},
 			readerErr: errors.New("db error"),
-			wantErr: true,
+			wantErr:   true,
 		},
 		{
 			name:        "page defaults to minimum 1 when zero",
@@ -146,6 +150,30 @@ func TestListUsersHandler_Handle(t *testing.T) {
 				t.Helper()
 				if r.lastOffset != 0 {
 					t.Errorf("offset: want 0, got %d", r.lastOffset)
+				}
+			},
+		},
+		{
+			name:        "passes org and status filters to reader",
+			req:         listusers.Request{Search: "", Page: 1, PageSize: 5, OrgID: "org-123", Status: "suspended"},
+			readerRows:  rows[1:],
+			readerTotal: 1,
+			checkResult: func(t *testing.T, resp *listusers.Response) {
+				t.Helper()
+				if resp.Users[0].Status != "suspended" {
+					t.Errorf("status passthrough: got %q", resp.Users[0].Status)
+				}
+				if resp.Users[0].OrgCount != 0 {
+					t.Errorf("orgCount passthrough: got %d", resp.Users[0].OrgCount)
+				}
+			},
+			checkReader: func(t *testing.T, r *fakeAdminUserReader) {
+				t.Helper()
+				if r.lastOrgID != "org-123" {
+					t.Errorf("orgID: want org-123, got %q", r.lastOrgID)
+				}
+				if r.lastStatus != "suspended" {
+					t.Errorf("status: want suspended, got %q", r.lastStatus)
 				}
 			},
 		},

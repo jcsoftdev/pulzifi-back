@@ -12,17 +12,27 @@ const maxPageSize = 50
 // It embeds the is_super_admin flag computed by the persistence layer,
 // avoiding an N+1 role lookup per user.
 type AdminUserRow struct {
-	ID           uuid.UUID
-	Email        string
-	FirstName    string
-	LastName     string
-	IsSuperAdmin bool
+	ID            uuid.UUID
+	Email         string
+	FirstName     string
+	LastName      string
+	IsSuperAdmin  bool
+	Status        string
+	EmailVerified bool
+	OrgCount      int
+}
+
+// ListFilter carries the inbound filters for the list query.
+type ListFilter struct {
+	Search string
+	OrgID  string // optional; restrict to members of this org
+	Status string // optional; "approved" | "suspended" | "trial_expired"
 }
 
 // AdminUserReader is the narrow port used by this use case.
 // Implemented by the persistence layer; also satisfied by test fakes.
 type AdminUserReader interface {
-	ListUsers(ctx context.Context, search string, limit, offset int) (rows []AdminUserRow, total int, err error)
+	ListUsers(ctx context.Context, filter ListFilter, limit, offset int) (rows []AdminUserRow, total int, err error)
 }
 
 // Request carries the inbound query parameters.
@@ -30,15 +40,20 @@ type Request struct {
 	Search   string
 	Page     int
 	PageSize int
+	OrgID    string
+	Status   string
 }
 
 // UserDTO is the per-user shape in the JSON response.
 type UserDTO struct {
-	ID           string `json:"id"`
-	Email        string `json:"email"`
-	FirstName    string `json:"firstName"`
-	LastName     string `json:"lastName"`
-	IsSuperAdmin bool   `json:"isSuperAdmin"`
+	ID            string `json:"id"`
+	Email         string `json:"email"`
+	FirstName     string `json:"firstName"`
+	LastName      string `json:"lastName"`
+	IsSuperAdmin  bool   `json:"isSuperAdmin"`
+	Status        string `json:"status"`
+	EmailVerified bool   `json:"emailVerified"`
+	OrgCount      int    `json:"orgCount"`
 }
 
 // Response is the JSON body returned on success.
@@ -79,7 +94,11 @@ func (h *Handler) Handle(ctx context.Context, req Request) (*Response, error) {
 
 	offset := (page - 1) * pageSize
 
-	rows, total, err := h.reader.ListUsers(ctx, req.Search, pageSize, offset)
+	rows, total, err := h.reader.ListUsers(ctx, ListFilter{
+		Search: req.Search,
+		OrgID:  req.OrgID,
+		Status: req.Status,
+	}, pageSize, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -87,11 +106,14 @@ func (h *Handler) Handle(ctx context.Context, req Request) (*Response, error) {
 	dtos := make([]UserDTO, 0, len(rows))
 	for _, r := range rows {
 		dtos = append(dtos, UserDTO{
-			ID:           r.ID.String(),
-			Email:        r.Email,
-			FirstName:    r.FirstName,
-			LastName:     r.LastName,
-			IsSuperAdmin: r.IsSuperAdmin,
+			ID:            r.ID.String(),
+			Email:         r.Email,
+			FirstName:     r.FirstName,
+			LastName:      r.LastName,
+			IsSuperAdmin:  r.IsSuperAdmin,
+			Status:        r.Status,
+			EmailVerified: r.EmailVerified,
+			OrgCount:      r.OrgCount,
 		})
 	}
 
