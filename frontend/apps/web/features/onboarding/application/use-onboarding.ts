@@ -2,7 +2,7 @@
 
 import { AuthApi } from '@workspace/services'
 import { useCallback, useRef, useState } from 'react'
-import type { OnboardingFormValues } from '../domain/types'
+import type { OnboardingFormValues, OnboardingProfileValues } from '../domain/types'
 
 export type SubdomainStatus = 'idle' | 'checking' | 'available' | 'unavailable'
 
@@ -64,13 +64,15 @@ export function useOnboarding() {
     }, 500)
   }, [])
 
-  const submit = async (values: OnboardingFormValues) => {
+  // OAuth path: create org + save profile in one shot, then redirect to tenant root
+  const submit = async (values: OnboardingFormValues, profile?: OnboardingProfileValues) => {
     setIsLoading(true)
     setError(undefined)
     try {
       const result = await AuthApi.submitOnboarding({
         org_name: values.org_name,
         subdomain: values.subdomain,
+        ...(profile ?? {}),
       })
       window.location.assign(buildTenantUrl(result.subdomain))
     } catch (err: unknown) {
@@ -103,8 +105,31 @@ export function useOnboarding() {
     }
   }
 
+  // Email user path: org already exists; submit only the 4 profile questions
+  const submitProfile = async (profile: OnboardingProfileValues) => {
+    setIsLoading(true)
+    setError(undefined)
+    try {
+      await AuthApi.submitOnboardingProfile(profile)
+      window.location.assign('/workspaces')
+    } catch (err: unknown) {
+      const apiError = err as {
+        response?: { data?: { error?: string } }
+        message?: string
+      }
+      setError(
+        apiError?.response?.data?.error ||
+          apiError?.message ||
+          'Failed to save your answers. Please try again.'
+      )
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   return {
     submit,
+    submitProfile,
     isLoading,
     error,
     checkSubdomain,

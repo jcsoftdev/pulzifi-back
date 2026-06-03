@@ -19,13 +19,14 @@ interface AuthGuardProps {
 export async function AuthGuard({ children }: AuthGuardProps) {
   try {
     const user = await AuthApi.getCurrentUser()
-    if (user.status && user.status !== 'approved') {
-      redirect('/login?error=PendingApproval')
-    }
-    // Defense in depth: approved users without an org must complete onboarding.
+    // Defense in depth: users without an org must complete onboarding.
     // AuthGuard only runs inside (main) route group; (onboarding) has its own layout,
     // so this redirect can never loop.
-    if (user.status === 'approved' && user.tenant == null) {
+    if (user.tenant == null) {
+      redirect('/onboarding')
+    }
+    // Users who haven't answered the onboarding questions go to the wizard (step 2).
+    if (!user.onboardingCompleted) {
       redirect('/onboarding')
     }
   } catch (error) {

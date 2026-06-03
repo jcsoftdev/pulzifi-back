@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic'
 import { AuthApi } from '@workspace/services'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
-import { OnboardingForm } from '@/features/onboarding/ui/onboarding-form'
+import { OnboardingWizard } from '@/features/onboarding/ui/onboarding-wizard'
 import { env } from '@/lib/env'
 
 function buildTenantRedirectUrl(host: string, protocol: string, tenant: string): string {
@@ -38,14 +38,16 @@ export default async function OnboardingPage() {
     return p ? `${p}:` : 'http:'
   })()
 
+  let hasOrg = false
+
   try {
     const user = await AuthApi.getCurrentUser()
-    // If user already has an org, redirect them to their tenant subdomain.
-    // Otherwise render the form regardless of which host they reached us on —
-    // the form lets them pick their own subdomain.
-    if (user.tenant) {
+    // If user already has an org AND onboarding is complete, redirect to app.
+    if (user.tenant && user.onboardingCompleted) {
       redirect(buildTenantRedirectUrl(host, protocol, user.tenant))
     }
+    // hasOrg = true means email-registered user with tenant but onboarding not done.
+    hasOrg = user.tenant != null
   } catch (error: unknown) {
     // Re-throw Next.js internal errors
     if (error && typeof error === 'object' && 'digest' in error) {
@@ -54,24 +56,27 @@ export default async function OnboardingPage() {
     // Auth errors are handled by the layout — render the form anyway
   }
 
+  const title = hasOrg ? 'Almost there!' : 'Set up your organization'
+  const subtitle = hasOrg
+    ? 'Tell us a bit about your company so we can personalize your experience.'
+    : 'Choose a name and subdomain to get started.'
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-[var(--pz-page-bg)] px-4 py-8">
-      <div className="w-full max-w-[480px] rounded-2xl border border-[var(--pz-card-border)] bg-white p-8 shadow-[var(--pz-card-shadow-rest)]">
+      <div className="w-full max-w-[520px] rounded-2xl border border-[var(--pz-card-border)] bg-white p-8 shadow-[var(--pz-card-shadow-rest)]">
         <div className="mb-6">
           <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-[var(--pz-accent)]/10 px-3 py-1">
             <span className="size-1.5 rounded-full bg-[var(--pz-accent)]" />
             <span className="text-xs font-semibold uppercase tracking-widest text-[var(--pz-accent)]">
-              Free 14-day trial
+              {hasOrg ? 'Quick setup' : 'Free 14-day trial'}
             </span>
           </div>
           <h1 className="font-heading text-2xl font-bold leading-tight text-[var(--pz-ink)]">
-            Set up your organization
+            {title}
           </h1>
-          <p className="mt-1 text-sm text-[var(--pz-ink-2)]">
-            Choose a name and subdomain to get started.
-          </p>
+          <p className="mt-1 text-sm text-[var(--pz-ink-2)]">{subtitle}</p>
         </div>
-        <OnboardingForm />
+        <OnboardingWizard hasOrg={hasOrg} />
       </div>
     </div>
   )

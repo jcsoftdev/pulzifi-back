@@ -4,7 +4,6 @@ import { Button } from '@workspace/ui/components/atoms/button'
 import { cn } from '@workspace/ui/lib/utils'
 import { CheckCircle, Loader2, XCircle } from 'lucide-react'
 import { useId, useState } from 'react'
-import { useOnboarding } from '../application/use-onboarding'
 import type { SubdomainStatus } from '../application/use-onboarding'
 import { AuthLabel, ErrorBanner, FieldMessage } from '@/features/auth/ui/form-atoms'
 
@@ -24,12 +23,23 @@ function SubdomainStatusIcon({ status }: { status: SubdomainStatus }) {
   return null
 }
 
-export function OnboardingForm() {
-  const { submit, isLoading, error, checkSubdomain, subdomainStatus, subdomainMessage } =
-    useOnboarding()
+interface OnboardingFormProps {
+  /** Called when the user completes step 1 — moves to the profile questions step. */
+  onNext: (orgName: string, subdomain: string) => void
+  checkSubdomain: (subdomain: string) => void
+  subdomainStatus: SubdomainStatus
+  subdomainMessage?: string
+}
 
+export function OnboardingForm({
+  onNext,
+  checkSubdomain,
+  subdomainStatus,
+  subdomainMessage,
+}: OnboardingFormProps) {
   const [orgName, setOrgName] = useState('')
   const [subdomain, setSubdomain] = useState('')
+  const [localError, setLocalError] = useState<string>()
 
   const orgNameId = useId()
   const subdomainId = useId()
@@ -42,9 +52,19 @@ export function OnboardingForm() {
     checkSubdomain(normalized)
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    await submit({ org_name: orgName, subdomain })
+    setLocalError(undefined)
+    if (!orgName.trim()) {
+      setLocalError('Organization name is required.')
+      return
+    }
+    if (!subdomain.trim()) {
+      setLocalError('Subdomain is required.')
+      return
+    }
+    if (subdomainStatus === 'unavailable') return
+    onNext(orgName, subdomain)
   }
 
   const isSubdomainUnavailable = subdomainStatus === 'unavailable'
@@ -118,15 +138,15 @@ export function OnboardingForm() {
       </div>
 
       {/* General error */}
-      {error && <ErrorBanner id={errorId} message={error} />}
+      {localError && <ErrorBanner id={errorId} message={localError} />}
 
-      {/* Submit */}
+      {/* Next */}
       <Button
         type="submit"
-        disabled={isLoading || isSubdomainUnavailable || subdomainStatus === 'checking'}
+        disabled={isSubdomainUnavailable || subdomainStatus === 'checking'}
         className="mt-0.5 h-10 w-full rounded-xl bg-[var(--pz-accent)] text-sm font-semibold shadow-[var(--pz-shadow-accent)] transition-[opacity,box-shadow,transform] hover:opacity-90 hover:shadow-[var(--pz-shadow-accent-lg)] hover:scale-[1.01] active:scale-[0.99]"
       >
-        {isLoading ? 'Creating organization...' : 'Create organization'}
+        Next
       </Button>
     </form>
   )

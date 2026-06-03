@@ -72,7 +72,7 @@ bun run type-check # TypeScript type checking
 
 ### Entry Points (`cmd/`)
 
-- **`cmd/server/`** — Main HTTP + gRPC monolith. Loads config, connects to PostgreSQL/Redis, registers up to 15 module routes under `/api/v1/*` (billing requires `BILLING_ENABLED=true`), mounts BFF auth at `/api/auth/*`, proxies unmatched routes to Next.js, starts gRPC server for Organization service. If `ENABLE_WORKERS=true`, also runs background monitoring processes (all-in-one mode).
+- **`cmd/server/`** — Main HTTP + gRPC monolith. Loads config, connects to PostgreSQL/Redis, registers up to 14 module routes under `/api/v1/*` (billing requires `BILLING_ENABLED=true`), mounts BFF auth at `/api/auth/*`, proxies unmatched routes to Next.js, starts gRPC server for Organization service. If `ENABLE_WORKERS=true`, also runs background monitoring processes (all-in-one mode).
 - **`cmd/worker/`** — Standalone background worker. Runs monitoring scheduler, snapshot change detection, AI insight generation, alert creation, and email notifications.
 - **`cmd/migrate/`** — Database migration CLI. Supports flags: `-cmd` (up/down/version/force), `-scope` (all/public/tenant), `-tenant` (specific schema), `-steps`.
 - **`cmd/wiring/integration/`** — Cross-module adapter package (not a CLI). Houses anti-corruption adapters (email adapter, org plan lookup, quota adapter, tenant repo factory) that prevent direct module-to-module imports. Wired at startup by `cmd/server/modules.go`.
@@ -80,11 +80,10 @@ bun run type-check # TypeScript type checking
 
 ### Module Structure
 
-There are 18 module directories in `modules/`. 15 are registered in the monolith server (when enabled), plus 3 special-purpose modules:
+There are 17 module directories in `modules/`. 14 are registered in the monolith server (when enabled), plus 3 special-purpose modules:
 
 | Module | Type | Description |
 |--------|------|-------------|
-| admin | API | User registration approval workflow (SUPER_ADMIN) |
 | alert | API | Change detection alert notifications |
 | billing | API (BILLING_ENABLED) | Stripe payment gateway — checkout, subscription management, webhook handling; public schema only; gated by `BILLING_ENABLED` env flag |
 | api-docs | Standalone | Swagger/OpenAPI documentation hub (Gin, :9000, not part of monolith) |
@@ -292,11 +291,10 @@ See `shared/config/config.go` and `.env.example` for all 43+ variables. Critical
 
 No file under `modules/*` may import another module's package. Cross-module dependencies belong in `cmd/wiring/{module}/` adapters, injected at startup.
 
-All 9 wiring packages are in place:
+All 8 wiring packages are in place:
 
 | Package | Purpose |
 |---------|---------|
-| `cmd/wiring/admin` | Approval/rejection provisioning, pending-user and notifier adapters |
 | `cmd/wiring/auth` | Organization directory, registration writer, and notifier adapters |
 | `cmd/wiring/billing` | Plan assigner — resolves org from Stripe customer ID and upserts `organization_plans` |
 | `cmd/wiring/insight` | Monitoring adapter — feeds monitoring data to the insight generator |
@@ -332,3 +330,50 @@ All 9 wiring packages are in place:
 #### Legacy Cleanup
 
 - Empty placeholder directories (`integration/setup_webhook/`, `snapshot/kafka/`, `report/create_report/`, `usage/track_usage/`, `usage/entities/`, `usage/repositories/`) should either be implemented or removed.
+
+<!-- project-brain:start -->
+# Project: pulzifi-back
+
+This project is indexed with [project-brain](https://github.com/jcsoftdev/project-brain).
+
+## project-brain MCP
+
+You have access to the `project-brain` MCP server for codebase knowledge retrieval.
+
+### Available Tools
+
+- `search_context` — semantic search across indexed project knowledge
+- `add_knowledge` — manually add context chunks
+- `list_modules` — see all indexed modules
+- `get_module` — retrieve all chunks for a module
+- `delete_knowledge` — remove chunks by source
+- `check_health` — verify embedding service and index status
+
+### Usage
+
+When answering questions about this codebase, always run `search_context` first to find semantically relevant context before reading files directly.
+
+### Project Context
+
+- **Project ID**: pulzifi-back
+- **Stack**: Go
+
+## Module Documentation
+
+Detected modules:
+- cmd
+- docs
+- frontend
+- modules
+- shared
+- specs
+
+For each module stub in docs/modules/:
+1. Read the stub file.
+2. Fill in each section (Purpose, Key Files, Dependencies, Data Flow, Gotchas, Last Updated).
+3. Call add_knowledge with the filled content, source: "docs/modules/<name>.md",
+   tags: ["module", "<name>"].
+Do this automatically when you open a project session and a stub is unfilled.
+
+
+<!-- project-brain:end -->

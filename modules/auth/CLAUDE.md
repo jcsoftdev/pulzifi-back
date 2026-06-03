@@ -11,7 +11,7 @@ User authentication, JWT token management, and OAuth providers.
 
 ## Use Cases (application/ directories)
 
-11 use case directories exist:
+12 use case directories exist:
 
 | Directory | Package | Description |
 |-----------|---------|-------------|
@@ -23,7 +23,8 @@ User authentication, JWT token management, and OAuth providers.
 | `login/` | `login` | Authenticate with email/password |
 | `logout/` | `logout` | Revoke refresh token |
 | `refreshtoken/` | `refreshtoken` | Refresh JWT tokens (token rotation) |
-| `register/` | `register` | User registration (creates pending request) |
+| `register/` | `register` | Self-serve registration — auto-approved, provisions org + 14-day trial |
+| `save_onboarding_profile/` | `saveonboardingprofile` | Persist 4 onboarding answers to the org + mark onboarding complete |
 | `reset_password/` | `resetpassword` | Apply password reset using token |
 | `update_current_user/` | `updatecurrentuser` | Update profile for authenticated user |
 
@@ -34,6 +35,8 @@ User authentication, JWT token management, and OAuth providers.
 | Method | Path | Handler |
 |--------|------|---------|
 | POST | `/auth/register` | `register.Handler` |
+| POST | `/auth/onboarding` | `provisionorganization.Handler` |
+| POST | `/auth/onboarding/profile` | `saveonboardingprofile.Handler` |
 | POST | `/auth/check-subdomain` | `checksubdomain.Handler` |
 | POST | `/auth/login` | `login.Handler` |
 | POST | `/auth/logout` | `logout.Handler` |
@@ -73,7 +76,6 @@ Tests in `domain/services/` use local fakes (no infrastructure imports):
 
 ## Cross-Module Dependencies (violations)
 
-- Imports `modules/admin/domain/repositories` (RegistrationRequestRepository)
 - Imports `modules/email/domain/services` (EmailProvider)
 - Imports `modules/email/infrastructure/templates`
 - Imports `modules/organization/domain/repositories` (OrganizationRepository)

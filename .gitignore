@@ -106,6 +106,13 @@ skills-lock.json
 /client_*
 secrets/
 .worktrees/
+
+# Local analysis, generated module docs, ops notes, and tooling state
+.project-brain/
+docs/analisis/
+docs/modules/
+docs/ops/
+frontend/test-results/
 modules/*/docs/
 # Local Pi runtime state
 .atl/

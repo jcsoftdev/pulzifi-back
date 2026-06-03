@@ -110,10 +110,9 @@ func buildRedirectBranchRouter(
 	mod := authhttp.NewModule(authhttp.ModuleDeps{
 		UserRepo:          userRepo,
 		RefreshTokenRepo:  &authrepomocks.MockRefreshTokenRepository{},
-		RoleRepo:          &stubRoleRepo{},
-		PermRepo:          &stubPermRepo{},
-		RegReqWriter:      &authsvcmocks.MockRegistrationRequestWriter{},
-		OrgDirectory:      &authsvcmocks.MockOrganizationDirectory{},
+		RoleRepo:     &stubRoleRepo{},
+		PermRepo:     &stubPermRepo{},
+		OrgDirectory: &authsvcmocks.MockOrganizationDirectory{},
 		AuthService:       &authsvcmocks.MockAuthService{},
 		TokenService:      tokenSvc,
 		MembershipChecker: membershipChecker,

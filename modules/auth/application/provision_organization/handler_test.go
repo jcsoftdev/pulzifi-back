@@ -181,3 +181,87 @@ func TestHandler_Handle_TrialEndsAtInFuture(t *testing.T) {
 		t.Errorf("trial_ends_at %v is not ~14 days from now (expected ~%v)", resp.TrialEndsAt, expectedTrialEnd)
 	}
 }
+
+func TestHandler_Handle_WithOnboardingProfile_PersistsAnswers(t *testing.T) {
+	orgID := uuid.New()
+	req := Request{
+		UserID:               uuid.New(),
+		OrgName:              "Acme Corp",
+		Subdomain:            "acme",
+		CompanySize:          "11-50",
+		BusinessType:         "SaaS / Software",
+		CompetitorChallenges: []string{"I don't know what they're changing"},
+		WebsiteURL:           "https://acme.io",
+	}
+	checker := &servicemocks.MockOrganizationMembershipChecker{HasAnyMembershipResult: false}
+	provisioner := &servicemocks.MockTrialProvisioner{}
+	writer := &servicemocks.MockOrganizationOnboardingWriter{}
+	finder := &servicemocks.MockOrganizationOrgFinder{OrgID: &orgID}
+
+	h := NewHandler(provisioner, checker).WithOnboardingProfile(writer, finder)
+	resp, err := h.Handle(context.Background(), req)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp == nil {
+		t.Fatal("expected non-nil response")
+	}
+	if writer.SaveCalls != 1 {
+		t.Errorf("expected 1 save call, got %d", writer.SaveCalls)
+	}
+	if writer.LastInput.CompanySize != req.CompanySize {
+		t.Errorf("company_size: want %q, got %q", req.CompanySize, writer.LastInput.CompanySize)
+	}
+	if writer.LastInput.OrgID != orgID {
+		t.Errorf("org_id: want %v, got %v", orgID, writer.LastInput.OrgID)
+	}
+	if writer.LastInput.OnboardingCompletedAt.IsZero() {
+		t.Error("expected onboarding_completed_at to be set")
+	}
+}
+
+func TestHandler_Handle_WithOnboardingProfile_NoAnswers_SkipsWrite(t *testing.T) {
+	// When no answers are supplied, the profile step must be skipped.
+	orgID := uuid.New()
+	req := validRequest() // no onboarding fields
+	checker := &servicemocks.MockOrganizationMembershipChecker{HasAnyMembershipResult: false}
+	provisioner := &servicemocks.MockTrialProvisioner{}
+	writer := &servicemocks.MockOrganizationOnboardingWriter{}
+	finder := &servicemocks.MockOrganizationOrgFinder{OrgID: &orgID}
+
+	h := NewHandler(provisioner, checker).WithOnboardingProfile(writer, finder)
+	_, err := h.Handle(context.Background(), req)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if writer.SaveCalls != 0 {
+		t.Errorf("writer should not be called when no answers provided; got %d calls", writer.SaveCalls)
+	}
+}
+
+func TestHandler_Handle_WithOnboardingProfile_WriterError_NonFatal(t *testing.T) {
+	// A writer error on the profile step must not fail the provision.
+	orgID := uuid.New()
+	req := Request{
+		UserID:      uuid.New(),
+		OrgName:     "Acme",
+		Subdomain:   "acme",
+		CompanySize: "1-10",
+	}
+	checker := &servicemocks.MockOrganizationMembershipChecker{HasAnyMembershipResult: false}
+	provisioner := &servicemocks.MockTrialProvisioner{}
+	writer := &servicemocks.MockOrganizationOnboardingWriter{SaveErr: errors.New("db error")}
+	finder := &servicemocks.MockOrganizationOrgFinder{OrgID: &orgID}
+
+	h := NewHandler(provisioner, checker).WithOnboardingProfile(writer, finder)
+	resp, err := h.Handle(context.Background(), req)
+
+	if err != nil {
+		t.Fatalf("profile write error should be non-fatal, got: %v", err)
+	}
+	if resp == nil {
+		t.Fatal("expected non-nil response despite profile write error")
+	}
+}

@@ -19,13 +19,11 @@ func NewUserError(code, message string) UserError {
 
 // Common user errors
 var (
-	ErrUserNotFound         = UserError{Code: "USER_NOT_FOUND", Message: "user not found"}
-	ErrUserAlreadyExists    = UserError{Code: "USER_ALREADY_EXISTS", Message: "user already exists"}
-	ErrInvalidEmail         = UserError{Code: "INVALID_EMAIL", Message: "invalid email format"}
-	ErrInvalidPassword      = UserError{Code: "INVALID_PASSWORD", Message: "invalid password"}
-	ErrWeakPassword         = UserError{Code: "WEAK_PASSWORD", Message: "password is too weak"}
-	ErrUnauthorized         = UserError{Code: "UNAUTHORIZED", Message: "unauthorized"}
-	ErrUserNotApproved      = UserError{Code: "USER_NOT_APPROVED", Message: "account is pending approval"}
-	ErrUserRejected         = UserError{Code: "USER_REJECTED", Message: "account has been rejected"}
-	ErrAlreadyProvisioned   = UserError{Code: "ALREADY_PROVISIONED", Message: "user already has an organization"}
+	ErrUserNotFound       = UserError{Code: "USER_NOT_FOUND", Message: "user not found"}
+	ErrUserAlreadyExists  = UserError{Code: "USER_ALREADY_EXISTS", Message: "user already exists"}
+	ErrInvalidEmail       = UserError{Code: "INVALID_EMAIL", Message: "invalid email format"}
+	ErrInvalidPassword    = UserError{Code: "INVALID_PASSWORD", Message: "invalid password"}
+	ErrWeakPassword       = UserError{Code: "WEAK_PASSWORD", Message: "password is too weak"}
+	ErrUnauthorized       = UserError{Code: "UNAUTHORIZED", Message: "unauthorized"}
+	ErrAlreadyProvisioned = UserError{Code: "ALREADY_PROVISIONED", Message: "user already has an organization"}
 )

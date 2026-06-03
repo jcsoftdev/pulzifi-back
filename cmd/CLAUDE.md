@@ -8,19 +8,19 @@ Main HTTP + gRPC monolith server.
 
 ### Files
 - `main.go` — Application bootstrap: config loading, database/Redis connection, EventBus init, Chi router setup, CORS, rate limiting, route mounting, gRPC server, graceful shutdown
-- `modules.go` — Module registration and dependency wiring: instantiates all 14 modules, creates repositories and services, configures auth middleware, builds BFF handler
+- `modules.go` — Module registration and dependency wiring: instantiates all 13 modules, creates repositories and services, configures auth middleware, builds BFF handler
 
 ### Responsibilities
 - Starts HTTP server on `:3000` (configurable via `HTTP_PORT`)
 - Starts gRPC server on `:9000` (configurable via `GRPC_PORT`)
-- Registers 14 module routes under `/api/v1/*`
+- Registers 13 module routes under `/api/v1/*`
 - Mounts BFF auth at `/api/auth/*`
 - Proxies unmatched routes to Next.js on `:3001`
 - If `ENABLE_WORKERS=true`, also runs background monitoring processes (all-in-one mode)
 - Handles graceful shutdown on SIGINT/SIGTERM
 
 ### Module Registration Order
-Auth, Admin, Email, Organization, Workspace, Page, Alert, Monitoring, Integration, Insight, Report, Usage, Dashboard, Team
+Auth, Email, Organization, Workspace, Page, Alert, Monitoring, Integration, Insight, Report, Usage, Dashboard, Team
 
 ## cmd/worker/
 

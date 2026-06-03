@@ -102,7 +102,6 @@ func buildAuthRouter(t *testing.T) http.Handler {
 	rtRepo := &authrepomocks.MockRefreshTokenRepository{}
 	tokenSvc := &authsvcmocks.MockTokenService{}
 	orgDir := &authsvcmocks.MockOrganizationDirectory{}
-	regReqWriter := &authsvcmocks.MockRegistrationRequestWriter{}
 	authSvc := &authsvcmocks.MockAuthService{}
 	notifier := &stubNotifier{}
 	bus := eventbus.GetInstance()
@@ -110,10 +109,9 @@ func buildAuthRouter(t *testing.T) http.Handler {
 	mod := authhttp.NewModule(authhttp.ModuleDeps{
 		UserRepo:         userRepo,
 		RefreshTokenRepo: rtRepo,
-		RoleRepo:         &stubRoleRepo{},
-		PermRepo:         &stubPermRepo{},
-		RegReqWriter:     regReqWriter,
-		OrgDirectory:     orgDir,
+		RoleRepo:     &stubRoleRepo{},
+		PermRepo:     &stubPermRepo{},
+		OrgDirectory: orgDir,
 		AuthService:      authSvc,
 		TokenService:     tokenSvc,
 		Notifier:         notifier,

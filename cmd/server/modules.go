@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	adminwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/admin"
 	authwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/auth"
 	billingwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/billing"
 	insightwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/insight"
@@ -18,8 +17,6 @@ import (
 	monitoringwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/monitoring"
 	pagewiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/page"
 	teamwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/team"
-	admin "github.com/jcsoftdev/pulzifi-back/modules/admin/infrastructure/http"
-	adminpersistence "github.com/jcsoftdev/pulzifi-back/modules/admin/infrastructure/persistence"
 	alert "github.com/jcsoftdev/pulzifi-back/modules/alert/infrastructure/http"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/bff"
 	auth "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/http"
@@ -105,7 +102,6 @@ func registerAllModulesInternal(
 	refreshTokenRepo := authpersistence.NewRefreshTokenPostgresRepository(db)
 	orgRepo := orgpersistence.NewOrganizationPostgresRepository(db)
 
-	regReqRepo := adminpersistence.NewRegistrationRequestPostgresRepository(db)
 	orgService := orgservices.NewOrganizationService()
 
 	authService := authservices.NewBcryptAuthService(userRepo, permRepo)
@@ -119,21 +115,22 @@ func registerAllModulesInternal(
 	orgContextLookup := intwiring.NewOrgContextLookup(db)
 
 	// Auth wiring adapters — bridge auth module ports to concrete implementations
-	// from admin, organization, and email modules without creating cross-module imports.
-	authRegReqWriter := authwiring.NewRegistrationWriterAdapter(regReqRepo)
+	// from organization and email modules without creating cross-module imports.
 	authOrgDirectory := authwiring.NewOrganizationDirectoryAdapter(orgRepo, orgService)
+	authOnboardingAdapter := authwiring.NewOnboardingProfileAdapter(db)
 	authNotifier := authwiring.NewNotifierAdapter(emailProvider)
 	authTrialProvisioner := authwiring.NewTrialProvisioner(db, orgService)
 	authMembershipChecker := authwiring.NewMembershipChecker(db)
 
 	// Create auth module and set global middleware
 	authModule := auth.NewModule(auth.ModuleDeps{
-		UserRepo:          userRepo,
-		RefreshTokenRepo:  refreshTokenRepo,
-		RoleRepo:          roleRepo,
-		PermRepo:          permRepo,
-		RegReqWriter:      authRegReqWriter,
-		OrgDirectory:      authOrgDirectory,
+		UserRepo:            userRepo,
+		RefreshTokenRepo:    refreshTokenRepo,
+		RoleRepo:            roleRepo,
+		PermRepo:            permRepo,
+		OrgDirectory:        authOrgDirectory,
+		OnboardingWriter:    authOnboardingAdapter,
+		OnboardingOrgFinder: authOnboardingAdapter,
 		TrialProvisioner:  authTrialProvisioner,
 		MembershipChecker: authMembershipChecker,
 		TrialDays:         cfg.TrialDays,
@@ -162,15 +159,6 @@ func registerAllModulesInternal(
 		module router.ModuleRegisterer
 	}{
 		{"Auth", authModule},
-		{"Admin", admin.NewModule(admin.ModuleDeps{
-			RegReqRepo:           regReqRepo,
-			UserReader:           adminwiring.NewPendingUserAdapter(userRepo),
-			ApprovalProvisioner:  adminwiring.NewApprovalProvisioner(db, orgService),
-			RejectionProvisioner: adminwiring.NewRejectionProvisioner(db),
-			Notifier:             adminwiring.NewNotifierAdapter(emailProvider),
-			AuthMiddleware:       authMiddleware,
-			FrontendURL:          cfg.FrontendURL,
-		})},
 		{"Email", email.NewModule(emailProvider)},
 		{"Organization", organization.NewModule(orgRepo)},
 		{"Workspace", workspace.NewModuleWithDB(db)},

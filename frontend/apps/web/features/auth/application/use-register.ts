@@ -6,10 +6,35 @@ import type { RegisterData } from '../domain/types'
 
 export type SubdomainStatus = 'idle' | 'checking' | 'available' | 'unavailable'
 
+function buildTenantOnboardingUrl(subdomain: string): string {
+  const baseUrl = process.env.NEXT_PUBLIC_APP_BASE_URL
+  if (baseUrl) {
+    const base = new URL(baseUrl)
+    const portSuffix = base.port ? `:${base.port}` : ''
+    return `${base.protocol}//${subdomain}.${base.hostname}${portSuffix}/onboarding`
+  }
+
+  const appDomain = process.env.NEXT_PUBLIC_APP_DOMAIN
+  if (appDomain) {
+    return `https://${subdomain}.${appDomain}/onboarding`
+  }
+
+  const { protocol, hostname, port } = window.location
+  const hostWithoutPort = hostname
+  let baseDomain: string
+  if (hostWithoutPort === 'localhost' || hostWithoutPort === '127.0.0.1') {
+    baseDomain = 'localhost'
+  } else {
+    const parts = hostWithoutPort.split('.')
+    baseDomain = parts.length >= 2 ? parts.slice(-2).join('.') : hostWithoutPort
+  }
+  const portSuffix = port ? `:${port}` : ''
+  return `${protocol}//${subdomain}.${baseDomain}${portSuffix}/onboarding`
+}
+
 export function useRegister() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string>()
-  const [submitted, setSubmitted] = useState(false)
   const [subdomainStatus, setSubdomainStatus] = useState<SubdomainStatus>('idle')
   const [subdomainMessage, setSubdomainMessage] = useState<string>()
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -40,8 +65,8 @@ export function useRegister() {
     setIsLoading(true)
     setError(undefined)
     try {
-      await AuthApi.register(data)
-      setSubmitted(true)
+      const result = await AuthApi.register(data)
+      window.location.assign(buildTenantOnboardingUrl(result.organizationSubdomain))
     } catch (err: unknown) {
       const apiError = err as {
         response?: {
@@ -65,7 +90,6 @@ export function useRegister() {
     register,
     isLoading,
     error,
-    submitted,
     checkSubdomain,
     subdomainStatus,
     subdomainMessage,

@@ -11,16 +11,14 @@ import (
 
 // Handler checks whether a subdomain is available for registration
 type Handler struct {
-	regReqWriter authservices.RegistrationRequestWriter
 	orgDirectory authservices.OrganizationDirectory
 }
 
 // NewHandler creates a new handler instance
 func NewHandler(
-	regReqWriter authservices.RegistrationRequestWriter,
 	orgDirectory authservices.OrganizationDirectory,
 ) *Handler {
-	return &Handler{regReqWriter: regReqWriter, orgDirectory: orgDirectory}
+	return &Handler{orgDirectory: orgDirectory}
 }
 
 // Response is the result of a subdomain availability check
@@ -44,15 +42,6 @@ func (h *Handler) Handle(ctx context.Context, subdomain string) (*Response, erro
 	}
 	if count > 0 {
 		return &Response{Available: false, Message: "subdomain is already in use"}, nil
-	}
-
-	pendingExists, err := h.regReqWriter.ExistsPendingBySubdomain(ctx, subdomain)
-	if err != nil {
-		logger.Error("Failed to check pending subdomain", zap.Error(err))
-		return nil, err
-	}
-	if pendingExists {
-		return &Response{Available: false, Message: "subdomain is already pending registration approval"}, nil
 	}
 
 	return &Response{Available: true}, nil

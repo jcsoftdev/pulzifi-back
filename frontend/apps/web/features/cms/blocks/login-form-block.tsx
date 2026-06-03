@@ -31,7 +31,6 @@ function LoginFormInner({ block }: Props) {
   const searchParams = useSearchParams()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string>()
-  const [infoBanner, setInfoBanner] = useState<string>()
 
   const headline = block.headline ?? 'Welcome back'
   const subheadline = block.subheadline ?? 'Enter your credentials to continue'
@@ -39,12 +38,6 @@ function LoginFormInner({ block }: Props) {
   useEffect(() => {
     const errorParam = searchParams.get('error')
     if (errorParam === 'SessionExpired') setError('Your session has expired. Please sign in again.')
-    else if (errorParam === 'PendingApproval')
-      setInfoBanner(
-        'Your account is pending approval by an administrator. Please check back later.'
-      )
-    if (searchParams.get('registered') === 'true')
-      setInfoBanner('Registration successful! Please wait for admin approval before logging in.')
   }, [
     searchParams,
   ])
@@ -108,25 +101,8 @@ function LoginFormInner({ block }: Props) {
       } else {
         globalThis.location.href = tenantCallbackUrl.toString()
       }
-    } catch (err: unknown) {
-      const axiosError = err as {
-        response?: {
-          status?: number
-          data?: {
-            code?: string
-          }
-        }
-      }
-      if (axiosError?.response?.status === 403) {
-        const code = axiosError.response?.data?.code
-        setError(
-          code === 'USER_REJECTED'
-            ? 'Your account has been rejected. Please contact support.'
-            : 'Your account is pending approval by an administrator.'
-        )
-      } else {
-        setError('Invalid email or password')
-      }
+    } catch {
+      setError('Invalid email or password')
     } finally {
       setIsLoading(false)
     }
@@ -147,12 +123,6 @@ function LoginFormInner({ block }: Props) {
           </h1>
           <p className="mt-1.5 text-sm text-[var(--pz-ink-2)]">{subheadline}</p>
         </div>
-
-        {infoBanner && (
-          <div className="mb-5 rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">
-            {infoBanner}
-          </div>
-        )}
 
         <LoginForm onSubmit={handleLogin} isLoading={isLoading} error={error} />
       </div>

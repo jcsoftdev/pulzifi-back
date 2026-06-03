@@ -19,17 +19,6 @@ export interface AdminOrganizationPlan {
   checks_allowed_monthly: number
 }
 
-export interface PendingUser {
-  request_id: string
-  user_id: string
-  email: string
-  first_name: string
-  last_name: string
-  organization_name: string
-  organization_subdomain: string
-  created_at: string
-}
-
 export const SuperAdminApi = {
   async listPlans(): Promise<AdminPlan[]> {
     const http = await getHttpClient()
@@ -81,21 +70,4 @@ export const SuperAdminApi = {
     })
   },
 
-  async listPendingUsers(): Promise<PendingUser[]> {
-    const http = await getHttpClient()
-    const response = await http.get<{
-      pending_users: PendingUser[]
-    }>('/api/v1/admin/users/pending')
-    return response.pending_users || []
-  },
-
-  async approveUser(requestId: string): Promise<void> {
-    const http = await getHttpClient()
-    await http.put(`/api/v1/admin/users/${requestId}/approve`, {})
-  },
-
-  async rejectUser(requestId: string): Promise<void> {
-    const http = await getHttpClient()
-    await http.put(`/api/v1/admin/users/${requestId}/reject`, {})
-  },
 }

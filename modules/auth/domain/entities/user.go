@@ -7,9 +7,7 @@ import (
 )
 
 const (
-	UserStatusPending      = "pending"
 	UserStatusApproved     = "approved"
-	UserStatusRejected     = "rejected"
 	UserStatusTrialExpired = "trial_expired"
 )
 
@@ -38,7 +36,7 @@ func NewUser(email, passwordHash, firstName, lastName string) *User {
 		PasswordHash:              passwordHash,
 		FirstName:                 firstName,
 		LastName:                  lastName,
-		Status:                    UserStatusPending,
+		Status:                    UserStatusApproved,
 		EmailVerified:             false,
 		EmailNotificationsEnabled: true,
 		NotificationFrequency:     "immediate",

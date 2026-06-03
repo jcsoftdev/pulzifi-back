@@ -57,10 +57,13 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
   async function tryRedirectFromUserOrCookie() {
     try {
       const user = await AuthApi.getCurrentUser()
-      if (user.tenant) {
+      if (user.tenant && user.onboardingCompleted) {
         redirect(buildTenantRedirectUrl(host, protocol, user.tenant))
-      } else if (user.status === 'approved' && user.tenant == null) {
-        // Authenticated but no org yet — send to onboarding
+      } else if (user.tenant && !user.onboardingCompleted) {
+        // Has org but hasn't completed onboarding questions — send to wizard (step 2)
+        redirect('/onboarding')
+      } else if (user.tenant == null) {
+        // Authenticated but no org yet — send to onboarding (full wizard)
         redirect('/onboarding')
       }
     } catch (error: unknown) {

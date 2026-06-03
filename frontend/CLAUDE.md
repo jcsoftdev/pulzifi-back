@@ -60,7 +60,7 @@ account-settings, auth, changes-view, dashboard, landing, navigation, notificati
 - No Next.js middleware file — auth is handled by `AuthGuard` (async React Server Component)
 - `AuthGuard` calls `AuthApi.getCurrentUser()` server-side
 - On `UnauthorizedError`, renders `SessionRefresher` client component to attempt client-side token refresh
-- Users with non-approved status are redirected to `/login?error=PendingApproval`
+- After login, users who have not completed onboarding (`onboarding_completed === false`) are redirected to `/onboarding`; users without an org go to the full onboarding wizard.
 - `(auth)` layout checks if user is already authenticated and redirects to tenant subdomain
 
 ## Multi-Tenant Support
