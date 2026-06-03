@@ -113,7 +113,10 @@ func (r *RolePostgresRepository) GetRolePermissions(ctx context.Context, roleID 
 }
 
 func (r *RolePostgresRepository) AssignRoleToUser(ctx context.Context, userID, roleID uuid.UUID) error {
-	query := `INSERT INTO public.user_roles (user_id, role_id, created_at) VALUES ($1, $2, NOW())`
+	// ON CONFLICT DO NOTHING keeps role assignment idempotent and race-safe:
+	// concurrent promotes for the same user no-op instead of hitting the
+	// (user_id, role_id) PK violation and bubbling up as a 500.
+	query := `INSERT INTO public.user_roles (user_id, role_id, created_at) VALUES ($1, $2, NOW()) ON CONFLICT DO NOTHING`
 
 	_, err := r.db.ExecContext(ctx, query, userID, roleID)
 	if err != nil {

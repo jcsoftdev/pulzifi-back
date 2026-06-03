@@ -43,7 +43,13 @@ export type { CreatePageDto, ListPagesParams, Page } from './page-api'
 export { PageApi } from './page-api'
 export type { CreateReportDto, Report } from './report-api'
 export { ReportApi } from './report-api'
-export type { AdminOrganizationPlan, AdminPlan } from './super-admin-api'
+export type {
+  AdminOrganizationPlan,
+  AdminPlan,
+  AdminUser,
+  ListUsersParams,
+  ListUsersResponse,
+} from './super-admin-api'
 export { SuperAdminApi } from './super-admin-api'
 export type { InviteMemberDto, TeamMember, UpdateMemberDto } from './team-api'
 export { TeamApi } from './team-api'

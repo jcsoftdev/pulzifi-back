@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -20,9 +21,11 @@ import (
 	deletecurrentuser "github.com/jcsoftdev/pulzifi-back/modules/auth/application/delete_current_user"
 	forgotpassword "github.com/jcsoftdev/pulzifi-back/modules/auth/application/forgot_password"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/application/getcurrentuser"
+	listusers "github.com/jcsoftdev/pulzifi-back/modules/auth/application/list_users"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/application/login"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/application/logout"
 	provisionorganization "github.com/jcsoftdev/pulzifi-back/modules/auth/application/provision_organization"
+	promotesuperadmin "github.com/jcsoftdev/pulzifi-back/modules/auth/application/promote_super_admin"
 	refreshapp "github.com/jcsoftdev/pulzifi-back/modules/auth/application/refreshtoken"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/application/register"
 	resetpassword "github.com/jcsoftdev/pulzifi-back/modules/auth/application/reset_password"
@@ -36,6 +39,7 @@ import (
 	authmw "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/middleware"
 	oauthproviders "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/oauth"
 	authpersistence "github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/persistence"
+	"github.com/jcsoftdev/pulzifi-back/shared/contextkeys"
 	"github.com/jcsoftdev/pulzifi-back/shared/config"
 	"github.com/jcsoftdev/pulzifi-back/shared/eventbus"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
@@ -45,32 +49,35 @@ import (
 )
 
 type Module struct {
-	registerHandler            *register.Handler
-	checkSubdomainHandler      *checksubdomain.Handler
-	loginHandler               *login.Handler
-	logoutHandler              *logout.Handler
-	refreshHandler             *refreshapp.Handler
-	getCurrentUserHandler      *getcurrentuser.Handler
-	forgotPasswordHandler      *forgotpassword.Handler
-	resetPasswordHandler       *resetpassword.Handler
-	updateCurrentUserHandler   *updatecurrentuser.Handler
-	changePasswordHandler      *changepassword.Handler
-	deleteCurrentUserHandler   *deletecurrentuser.Handler
-	provisionOrgHandler        *provisionorganization.Handler
+	registerHandler              *register.Handler
+	checkSubdomainHandler        *checksubdomain.Handler
+	loginHandler                 *login.Handler
+	logoutHandler                *logout.Handler
+	refreshHandler               *refreshapp.Handler
+	getCurrentUserHandler        *getcurrentuser.Handler
+	forgotPasswordHandler        *forgotpassword.Handler
+	resetPasswordHandler         *resetpassword.Handler
+	updateCurrentUserHandler     *updatecurrentuser.Handler
+	changePasswordHandler        *changepassword.Handler
+	deleteCurrentUserHandler     *deletecurrentuser.Handler
+	provisionOrgHandler          *provisionorganization.Handler
 	saveOnboardingProfileHandler *saveonboardingprofile.Handler
-	authMiddleware           *authmw.AuthMiddleware
-	tokenService             services.TokenService
-	userRepo                 repositories.UserRepository
-	authService              services.AuthService
-	notifier                 services.RegistrationNotifier
-	membershipChecker        services.OrganizationMembershipChecker
-	oauthProviders           map[string]oauthproviders.Provider
-	refreshTokenRepo         repositories.RefreshTokenRepository
-	eventBus                 eventbus.MessageBus
-	cookieDomain             string
-	cookieSecure             bool
-	frontendURL              string
-	db                       *sql.DB
+	listUsersHandler             *listusers.Handler
+	promoteSuperAdminHandler     *promotesuperadmin.Handler
+	authMiddleware               *authmw.AuthMiddleware
+	tokenService                 services.TokenService
+	userRepo                     repositories.UserRepository
+	roleRepo                     repositories.RoleRepository
+	authService                  services.AuthService
+	notifier                     services.RegistrationNotifier
+	membershipChecker            services.OrganizationMembershipChecker
+	oauthProviders               map[string]oauthproviders.Provider
+	refreshTokenRepo             repositories.RefreshTokenRepository
+	eventBus                     eventbus.MessageBus
+	cookieDomain                 string
+	cookieSecure                 bool
+	frontendURL                  string
+	db                           *sql.DB
 }
 
 type ModuleDeps struct {
@@ -114,8 +121,15 @@ func NewModule(deps ModuleDeps) router.ModuleRegisterer {
 	getCurrentUserHandler := getcurrentuser.NewHandler(deps.UserRepo, deps.OrgContextLookup)
 
 	var passwordResetRepo repositories.PasswordResetRepository
+	var listUsersHandler *listusers.Handler
+	var promoteSuperAdminHandler *promotesuperadmin.Handler
 	if deps.DB != nil {
 		passwordResetRepo = authpersistence.NewPasswordResetPostgresRepository(deps.DB)
+		adminUserReader := authpersistence.NewAdminUserPostgresRepository(deps.DB)
+		listUsersHandler = listusers.NewHandler(adminUserReader)
+	}
+	if deps.RoleRepo != nil {
+		promoteSuperAdminHandler = promotesuperadmin.NewHandler(deps.UserRepo, deps.RoleRepo)
 	}
 
 	var provisionOrgHandler *provisionorganization.Handler
@@ -145,10 +159,13 @@ func NewModule(deps ModuleDeps) router.ModuleRegisterer {
 		deleteCurrentUserHandler:     deletecurrentuser.NewHandler(deps.UserRepo, deps.EventBus),
 		provisionOrgHandler:          provisionOrgHandler,
 		saveOnboardingProfileHandler: saveOnboardingHandler,
+		listUsersHandler:             listUsersHandler,
+		promoteSuperAdminHandler:     promoteSuperAdminHandler,
 		authMiddleware:               authmw.NewAuthMiddleware(deps.TokenService),
 
 		tokenService:             deps.TokenService,
 		userRepo:                 deps.UserRepo,
+		roleRepo:                 deps.RoleRepo,
 		authService:              deps.AuthService,
 		notifier:                 deps.Notifier,
 		membershipChecker:        deps.MembershipChecker,
@@ -199,6 +216,14 @@ func (m *Module) RegisterHTTPRoutes(r chi.Router) {
 			r.Delete("/me", m.handleDeleteCurrentUser)
 			r.Post("/onboarding", m.handleOnboarding)
 			r.Post("/onboarding/profile", m.handleSaveOnboardingProfile)
+		})
+
+		// SUPER_ADMIN-only admin routes
+		r.Group(func(r chi.Router) {
+			r.Use(m.authMiddleware.Authenticate)
+			r.Use(m.requireSuperAdmin())
+			r.Get("/admin/users", m.handleListUsers)
+			r.Post("/admin/users/{id}/promote", m.handlePromoteSuperAdmin)
 		})
 	})
 }
@@ -987,6 +1012,94 @@ func (m *Module) handleSaveOnboardingProfile(w http.ResponseWriter, r *http.Requ
 	if err != nil {
 		logger.Error("Failed to save onboarding profile", zap.Error(err))
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to save onboarding profile"})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// requireSuperAdmin is a Chi middleware that allows only requests whose JWT
+// carries the SUPER_ADMIN role. It mirrors the same pattern used in the
+// billing module (shared/contextkeys.UserRolesKey).
+func (m *Module) requireSuperAdmin() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			roles, _ := r.Context().Value(contextkeys.UserRolesKey).([]string)
+			for _, role := range roles {
+				if role == "SUPER_ADMIN" {
+					next.ServeHTTP(w, r)
+					return
+				}
+			}
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": "super admin required"})
+		})
+	}
+}
+
+// handleListUsers handles GET /api/v1/auth/admin/users
+func (m *Module) handleListUsers(w http.ResponseWriter, r *http.Request) {
+	if m.listUsersHandler == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "service unavailable"})
+		return
+	}
+
+	q := r.URL.Query()
+	search := q.Get("search")
+
+	page := 1
+	if v := q.Get("page"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			page = n
+		}
+	}
+
+	pageSize := 5
+	if v := q.Get("pageSize"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			pageSize = n
+		}
+	}
+
+	resp, err := m.listUsersHandler.Handle(r.Context(), listusers.Request{
+		Search:   search,
+		Page:     page,
+		PageSize: pageSize,
+	})
+	if err != nil {
+		logger.Error("Failed to list admin users", zap.Error(err))
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to list users"})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// handlePromoteSuperAdmin handles POST /api/v1/auth/admin/users/{id}/promote
+func (m *Module) handlePromoteSuperAdmin(w http.ResponseWriter, r *http.Request) {
+	if m.promoteSuperAdminHandler == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "service unavailable"})
+		return
+	}
+
+	idStr := chi.URLParam(r, "id")
+	targetID, err := uuid.Parse(idStr)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid user id"})
+		return
+	}
+
+	resp, err := m.promoteSuperAdminHandler.Handle(r.Context(), targetID)
+	if err != nil {
+		if errors.Is(err, promotesuperadmin.ErrUserNotFound) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "user not found"})
+			return
+		}
+		if errors.Is(err, promotesuperadmin.ErrAlreadySuperAdmin) {
+			writeJSON(w, http.StatusConflict, map[string]string{"error": "user is already a super admin"})
+			return
+		}
+		logger.Error("Failed to promote user to super admin", zap.Error(err))
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to promote user"})
 		return
 	}
 

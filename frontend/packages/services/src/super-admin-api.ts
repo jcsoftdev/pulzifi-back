@@ -1,5 +1,26 @@
 import { getHttpClient } from '@workspace/shared-http'
 
+export interface AdminUser {
+  id: string
+  email: string
+  firstName: string
+  lastName: string
+  isSuperAdmin: boolean
+}
+
+export interface ListUsersResponse {
+  users: AdminUser[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+export interface ListUsersParams {
+  search?: string
+  page?: number
+  pageSize?: number
+}
+
 export interface AdminPlan {
   id: string
   code: string
@@ -48,6 +69,23 @@ export const SuperAdminApi = {
   // balance. Always one month (monthly price), never yearly. Does not change
   // the org's plan. Balance auto-applies to upcoming invoices and carries any
   // leftover forward. Requires an existing Stripe customer.
+  async listUsers(params: ListUsersParams = {}): Promise<ListUsersResponse> {
+    const http = await getHttpClient()
+    const { search = '', page = 1, pageSize = 5 } = params
+    const query = new URLSearchParams({
+      search,
+      page: String(page),
+      pageSize: String(pageSize),
+    }).toString()
+    const response = await http.get<ListUsersResponse>(`/api/v1/auth/admin/users?${query}`)
+    return response
+  },
+
+  async promoteUser(userId: string): Promise<AdminUser> {
+    const http = await getHttpClient()
+    return http.post<AdminUser>(`/api/v1/auth/admin/users/${userId}/promote`, {})
+  },
+
   async giftMonth(
     organizationId: string,
     planCode: string
@@ -69,5 +107,4 @@ export const SuperAdminApi = {
       plan_code: planCode,
     })
   },
-
 }

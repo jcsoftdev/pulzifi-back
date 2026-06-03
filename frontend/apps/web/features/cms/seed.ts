@@ -860,31 +860,36 @@ export type SeedResult = {
 type PlanId = string | number
 
 export async function seedCMSIfEmpty(payload: Payload): Promise<SeedResult> {
-  // CMS_PRESERVE_EDITS=true → only seed when collections empty (protects editor changes).
-  // Default (unset/false) → always rebuild on boot so page block-refs stay in sync with
-  // block-library ids. Flip this on once real editor work begins.
-  const preserveEdits = process.env.CMS_PRESERVE_EDITS === 'true'
-
-  if (preserveEdits) {
-    const plansResult = await payload.find({
-      collection: 'plans',
-      limit: 1,
-    })
-    const pagesResult = await payload.find({
-      collection: 'pages',
-      limit: 1,
-    })
-    if (plansResult.totalDocs > 0 && pagesResult.totalDocs > 0) {
-      return {
-        seeded: false,
-        reason: 'preserve-edits',
-      }
-    }
-  }
-
+  // seedAll is create-only: it fills in MISSING globals/blocks/pages and never
+  // overwrites existing content. That makes it safe to run on every boot or
+  // migration — editor changes are preserved automatically, no env flag needed.
+  // To force a full overwrite (deliberate, secret-guarded), call
+  // seedAll(payload, { overwrite: true }) instead.
   await seedAll(payload)
   return {
     seeded: true,
+  }
+}
+
+// Returns true when a Payload global has not been populated yet (so seeding is
+// safe). Used to keep seedAll create-only: globals are singletons that always
+// "exist", so we probe a signal field instead of doc count. Resilient to a
+// payload client without findGlobal (e.g. the unit-test fake) — treats it as empty.
+async function globalIsEmpty(payload: Payload, slug: string, signalKey: string): Promise<boolean> {
+  const p = payload as {
+    findGlobal?: (args: { slug: string; depth?: number }) => Promise<unknown>
+  }
+  if (typeof p.findGlobal !== 'function') return true
+  try {
+    const g = (await p.findGlobal({
+      slug,
+      depth: 0,
+    })) as Record<string, unknown>
+    const v = g?.[signalKey]
+    if (Array.isArray(v)) return v.length === 0
+    return v === undefined || v === null || v === ''
+  } catch {
+    return true
   }
 }
 
@@ -920,53 +925,68 @@ export async function seedPlans(payload: Payload): Promise<PlanId[]> {
   return created.map((d) => d.id)
 }
 
-export async function seedAll(payload: Payload): Promise<void> {
-  await payload.updateGlobal({
-    slug: 'navbar',
-    data: {
-      links: NAV_LINKS.map((l) => ({
-        label: l.label,
-        href: l.href,
-      })),
-      signinLabel: 'Sign in',
-      signinHref: '/login',
-      primaryCtaLabel: 'Start Monitoring Free',
-      primaryCtaHref: '/register',
-    },
-  })
+export async function seedAll(
+  payload: Payload,
+  opts: {
+    overwrite?: boolean
+  } = {}
+): Promise<void> {
+  // create-only by default: seeding fills in MISSING content and never
+  // overwrites existing docs/globals, so it is safe to run on every boot or
+  // migration without clobbering editor changes. overwrite:true is the explicit
+  // escape hatch used only by the secret-guarded force-reseed route.
+  const overwrite = opts.overwrite === true
 
-  await payload.updateGlobal({
-    slug: 'footer',
-    data: {
-      groups: (
-        Object.entries(FOOTER_LINKS) as [
-          string,
-          ReadonlyArray<{
-            label: string
-            href: string
-          }>,
-        ][]
-      ).map(([heading, links]) => ({
-        heading,
-        links: links.map((l) => ({
+  if (overwrite || (await globalIsEmpty(payload, 'navbar', 'links'))) {
+    await payload.updateGlobal({
+      slug: 'navbar',
+      data: {
+        links: NAV_LINKS.map((l) => ({
           label: l.label,
           href: l.href,
         })),
-      })),
-      tagline: "Built for teams who can't afford to be second.",
-      socialLinks: [
-        {
-          platform: 'twitter',
-          href: 'https://twitter.com/pulzifi',
-        },
-        {
-          platform: 'linkedin',
-          href: 'https://linkedin.com/company/pulzifi',
-        },
-      ],
-      copyrightText: `© ${new Date().getFullYear()} Pulzifi. All rights reserved.`,
-    },
-  })
+        signinLabel: 'Sign in',
+        signinHref: '/login',
+        primaryCtaLabel: 'Start Monitoring Free',
+        primaryCtaHref: '/register',
+      },
+    })
+  }
+
+  if (overwrite || (await globalIsEmpty(payload, 'footer', 'groups'))) {
+    await payload.updateGlobal({
+      slug: 'footer',
+      data: {
+        groups: (
+          Object.entries(FOOTER_LINKS) as [
+            string,
+            ReadonlyArray<{
+              label: string
+              href: string
+            }>,
+          ][]
+        ).map(([heading, links]) => ({
+          heading,
+          links: links.map((l) => ({
+            label: l.label,
+            href: l.href,
+          })),
+        })),
+        tagline: "Built for teams who can't afford to be second.",
+        socialLinks: [
+          {
+            platform: 'twitter',
+            href: 'https://twitter.com/pulzifi',
+          },
+          {
+            platform: 'linkedin',
+            href: 'https://linkedin.com/company/pulzifi',
+          },
+        ],
+        copyrightText: `© ${new Date().getFullYear()} Pulzifi. All rights reserved.`,
+      },
+    })
+  }
 
   const planIds = await seedPlans(payload)
 
@@ -1065,31 +1085,35 @@ export async function seedAll(payload: Payload): Promise<void> {
   for (const entry of libraryEntries) {
     const existingId = libraryByName.get(entry.name)
     if (existingId) {
-      await payload.update({
-        collection: 'block-library',
-        id: existingId,
-        data: JSON.parse(
-          JSON.stringify({
-            block: [
-              entry.block,
-            ],
-          })
-        ),
-      })
-    } else {
-      const doc = await payload.create({
-        collection: 'block-library',
-        data: JSON.parse(
-          JSON.stringify({
-            name: entry.name,
-            block: [
-              entry.block,
-            ],
-          })
-        ),
-      })
-      libraryByName.set(entry.name, doc.id)
+      // create-only: leave existing blocks untouched unless an explicit overwrite
+      // was requested. Prevents the seed from clobbering editor changes.
+      if (overwrite) {
+        await payload.update({
+          collection: 'block-library',
+          id: existingId,
+          data: JSON.parse(
+            JSON.stringify({
+              block: [
+                entry.block,
+              ],
+            })
+          ),
+        })
+      }
+      continue
     }
+    const doc = await payload.create({
+      collection: 'block-library',
+      data: JSON.parse(
+        JSON.stringify({
+          name: entry.name,
+          block: [
+            entry.block,
+          ],
+        })
+      ),
+    })
+    libraryByName.set(entry.name, doc.id)
   }
 
   const ref = (name: string) => {
@@ -1137,7 +1161,7 @@ export async function seedAll(payload: Payload): Promise<void> {
         })
       ),
     })
-  } else {
+  } else if (overwrite) {
     const homeId = existingHome.docs[0]?.id
     if (homeId !== undefined) {
       await payload.update({
@@ -1183,7 +1207,7 @@ export async function seedAll(payload: Payload): Promise<void> {
         })
       ),
     })
-  } else {
+  } else if (overwrite) {
     const pricingId = existingPricing.docs[0]?.id
     if (pricingId !== undefined) {
       await payload.update({
@@ -1229,7 +1253,7 @@ export async function seedAll(payload: Payload): Promise<void> {
         })
       ),
     })
-  } else {
+  } else if (overwrite) {
     const loginId = existingLogin.docs[0]?.id
     if (loginId !== undefined) {
       await payload.update({
@@ -1275,7 +1299,7 @@ export async function seedAll(payload: Payload): Promise<void> {
         })
       ),
     })
-  } else {
+  } else if (overwrite) {
     const registerId = existingRegister.docs[0]?.id
     if (registerId !== undefined) {
       await payload.update({
@@ -1290,23 +1314,25 @@ export async function seedAll(payload: Payload): Promise<void> {
     }
   }
 
-  await payload.updateGlobal({
-    slug: 'theme',
-    data: {
-      pageBg: '#f3f3f3',
-      pageBgAlt: '#ebebef',
-      cardBg: '#ffffff',
-      darkSurface: '#29144c',
-      inkPrimary: '#131313',
-      inkSecondary: '#444141',
-      accentPrimary: '#7c3aed',
-      accentMuted: '#a78bfa',
-      accentGold: '#f59e0b',
-      accentTeal: '#14b8a6',
-      border: 'rgba(0, 0, 0, 0.08)',
-      borderStrong: 'rgba(0, 0, 0, 0.16)',
-    },
-  })
+  if (overwrite || (await globalIsEmpty(payload, 'theme', 'accentPrimary'))) {
+    await payload.updateGlobal({
+      slug: 'theme',
+      data: {
+        pageBg: '#f3f3f3',
+        pageBgAlt: '#ebebef',
+        cardBg: '#ffffff',
+        darkSurface: '#29144c',
+        inkPrimary: '#131313',
+        inkSecondary: '#444141',
+        accentPrimary: '#7c3aed',
+        accentMuted: '#a78bfa',
+        accentGold: '#f59e0b',
+        accentTeal: '#14b8a6',
+        border: 'rgba(0, 0, 0, 0.08)',
+        borderStrong: 'rgba(0, 0, 0, 0.16)',
+      },
+    })
+  }
 }
 
 export type BrokenRef = {
