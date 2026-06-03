@@ -2,6 +2,7 @@ package intwiring
 
 import (
 	"context"
+	"strings"
 
 	"github.com/google/uuid"
 )
@@ -31,8 +32,12 @@ func (a *ChannelEntitlementAdapter) IsPaid(ctx context.Context, orgID uuid.UUID)
 	if err != nil {
 		return false, err
 	}
+	// Normalise both sides: plan codes and the configured list are matched
+	// case-insensitively and trimmed, so a manually-inserted "Trial" or an env
+	// value like "Trial, Starter" does not wrongly deny a paying org.
+	code = strings.ToLower(strings.TrimSpace(code))
 	for _, p := range a.paidPlans {
-		if p == code {
+		if strings.ToLower(strings.TrimSpace(p)) == code {
 			return true, nil
 		}
 	}

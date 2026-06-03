@@ -3,6 +3,7 @@ package dispatchevent
 import (
 	"context"
 	"encoding/json"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jcsoftdev/pulzifi-back/modules/integration/domain/entities"
@@ -108,7 +109,7 @@ func (h *Handler) Handle(ctx context.Context, ev eventbus.DomainEvent) error {
 
 	skipped := 0
 	for _, d := range dests {
-		if emailOnly && d.ServiceType != emailServiceType {
+		if emailOnly && !strings.EqualFold(strings.TrimSpace(d.ServiceType), emailServiceType) {
 			skipped++
 			continue
 		}
