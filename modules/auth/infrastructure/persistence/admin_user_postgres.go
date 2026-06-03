@@ -128,3 +128,14 @@ func (r *AdminUserPostgresRepository) GetUserDetail(ctx context.Context, id uuid
 	}
 	return &d, rows.Err()
 }
+
+// SetStatus updates a user's status to "approved" or "suspended".
+// Implements setuserstatus.Writer.
+func (r *AdminUserPostgresRepository) SetStatus(ctx context.Context, id uuid.UUID, status string) error {
+	const q = `UPDATE public.users SET status = $2, updated_at = NOW() WHERE id = $1 AND deleted_at IS NULL`
+	_, err := r.db.ExecContext(ctx, q, id, status)
+	if err != nil {
+		logger.Error("AdminUserRepo: set status failed", zap.Error(err))
+	}
+	return err
+}
