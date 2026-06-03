@@ -184,6 +184,11 @@ type Config struct {
 	// Auth-specific rate limiting (applied per route to /login and /forgot-password).
 	AuthRateLimitRequests int           // AUTH_RATE_LIMIT_REQUESTS — default 5
 	AuthRateLimitWindow   time.Duration // AUTH_RATE_LIMIT_WINDOW — default 15m
+
+	// Ollama (section naming for change diffs). Optional; disabled by default.
+	OllamaURL     string
+	OllamaModel   string
+	OllamaEnabled bool
 }
 
 func Load() *Config {
@@ -319,6 +324,10 @@ func Load() *Config {
 		TrustedProxyCIDRs:     parseTrustedProxyCIDRs(getEnv("TRUSTED_PROXY_CIDRS", "")),
 		AuthRateLimitRequests: getEnvInt("AUTH_RATE_LIMIT_REQUESTS", 5),
 		AuthRateLimitWindow:   getEnvDuration("AUTH_RATE_LIMIT_WINDOW", 15*time.Minute),
+
+		OllamaURL:     getEnv("OLLAMA_URL", ""),
+		OllamaModel:   getEnv("OLLAMA_MODEL", "qwen3:4b"),
+		OllamaEnabled: getEnvBool("OLLAMA_ENABLED", false),
 	}
 }
 
