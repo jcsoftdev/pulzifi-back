@@ -219,6 +219,22 @@ for path in files:
             violations.append(("shared-imports-module", r, f"shared imports module {target_module!r}: {imp}"))
             counts["shared-imports-module"] += 1
 
+    # Rule 5: tenant-scoped queries must use database.WithTenant (one tx, one
+    # backend connection, SET LOCAL) — NOT the legacy GetSetSearchPathSQL pattern
+    # of a session-scoped SET on the pool followed by a SEPARATE pool query, which
+    # silently leaks across tenants under PgBouncer transaction pooling.
+    # The single legitimate site is the definition in shared/middleware/tenant.go.
+    GETSETSEARCHPATH_ALLOWED = {"shared/middleware/tenant.go"}
+    if r not in GETSETSEARCHPATH_ALLOWED:
+        src_no_comments = strip_comments(path.read_text(encoding="utf-8", errors="ignore"))
+        if "GetSetSearchPathSQL" in src_no_comments:
+            violations.append((
+                "legacy-search-path-set",
+                r,
+                "uses GetSetSearchPathSQL; tenant queries must use database.WithTenant",
+            ))
+            counts["legacy-search-path-set"] += 1
+
 
 print("Checking architecture rules...")
 print(f"  project: {project}")

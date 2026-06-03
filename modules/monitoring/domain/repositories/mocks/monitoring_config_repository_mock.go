@@ -71,3 +71,13 @@ func (m *MockMonitoringConfigRepository) MarkPageDueNow(_ context.Context, _ uui
 func (m *MockMonitoringConfigRepository) GetLastCheckedAt(_ context.Context, _ uuid.UUID) (*time.Time, error) {
 	return m.GetLastCheckedAtResult, m.GetLastCheckedAtErr
 }
+
+// Queue-mode stubs — dormant in poll mode.
+
+func (m *MockMonitoringConfigRepository) GetDueSnapshotTasksQueue(_ context.Context) ([]entities.SnapshotTask, error) {
+	return m.GetDueTasksResult, m.GetDueTasksErr
+}
+
+func (m *MockMonitoringConfigRepository) UpdateNextRunAt(_ context.Context, _ uuid.UUID) error {
+	return m.UpdateLastCheckedErr
+}

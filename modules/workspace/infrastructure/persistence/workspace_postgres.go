@@ -9,8 +9,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jcsoftdev/pulzifi-back/modules/workspace/domain/entities"
 	"github.com/jcsoftdev/pulzifi-back/modules/workspace/domain/value_objects"
+	"github.com/jcsoftdev/pulzifi-back/shared/database"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
-	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
 	"github.com/lib/pq"
 	"go.uber.org/zap"
 )
@@ -36,28 +36,22 @@ func (r *WorkspacePostgresRepository) Create(ctx context.Context, workspace *ent
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`
 
-	// Set search path to tenant schema
-	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
-		logger.Error("Failed to set search path", zap.Error(err))
-		return err
-	}
-
-	_, err := r.db.ExecContext(ctx, query,
-		workspace.ID,
-		workspace.Name,
-		workspace.Type,
-		pq.Array(workspace.Tags),
-		workspace.CreatedBy,
-		workspace.CreatedAt,
-		workspace.UpdatedAt,
-	)
-
-	if err != nil {
-		logger.Error("Failed to create workspace", zap.Error(err))
-		return err
-	}
-
-	return nil
+	return database.WithTenant(ctx, r.db, r.tenant, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, query,
+			workspace.ID,
+			workspace.Name,
+			workspace.Type,
+			pq.Array(workspace.Tags),
+			workspace.CreatedBy,
+			workspace.CreatedAt,
+			workspace.UpdatedAt,
+		)
+		if err != nil {
+			logger.Error("Failed to create workspace", zap.Error(err))
+			return err
+		}
+		return nil
+	})
 }
 
 // GetByID retrieves a workspace from tenant schema
@@ -68,31 +62,34 @@ func (r *WorkspacePostgresRepository) GetByID(ctx context.Context, id uuid.UUID)
 		WHERE id = $1 AND deleted_at IS NULL
 	`
 
-	// Set search path to tenant schema
-	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
-		logger.Error("Failed to set search path", zap.Error(err))
-		return nil, err
-	}
-
 	var workspace entities.Workspace
 	var deletedAt sql.NullTime
 
-	err := r.db.QueryRowContext(ctx, query, id).Scan(
-		&workspace.ID,
-		&workspace.Name,
-		&workspace.Type,
-		pq.Array(&workspace.Tags),
-		&workspace.CreatedBy,
-		&workspace.CreatedAt,
-		&workspace.UpdatedAt,
-		&deletedAt,
-	)
+	err := database.WithTenant(ctx, r.db, r.tenant, func(tx *sql.Tx) error {
+		err := tx.QueryRowContext(ctx, query, id).Scan(
+			&workspace.ID,
+			&workspace.Name,
+			&workspace.Type,
+			pq.Array(&workspace.Tags),
+			&workspace.CreatedBy,
+			&workspace.CreatedAt,
+			&workspace.UpdatedAt,
+			&deletedAt,
+		)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return sql.ErrNoRows
+			}
+			logger.Error("Failed to get workspace by ID", zap.Error(err))
+			return err
+		}
+		return nil
+	})
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		logger.Error("Failed to get workspace by ID", zap.Error(err))
 		return nil, err
 	}
 
@@ -112,45 +109,46 @@ func (r *WorkspacePostgresRepository) List(ctx context.Context) ([]*entities.Wor
 		ORDER BY created_at DESC
 	`
 
-	// Set search path to tenant schema
-	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
-		logger.Error("Failed to set search path", zap.Error(err))
-		return nil, err
-	}
-
-	rows, err := r.db.QueryContext(ctx, query)
-	if err != nil {
-		logger.Error("Failed to list workspaces", zap.Error(err))
-		return nil, err
-	}
-	defer func() { _ = rows.Close() }()
-
 	var workspaces []*entities.Workspace
-	for rows.Next() {
-		var workspace entities.Workspace
-		var deletedAt sql.NullTime
 
-		if err := rows.Scan(
-			&workspace.ID,
-			&workspace.Name,
-			&workspace.Type,
-			pq.Array(&workspace.Tags),
-			&workspace.CreatedBy,
-			&workspace.CreatedAt,
-			&workspace.UpdatedAt,
-			&deletedAt,
-		); err != nil {
-			logger.Error("Failed to scan workspace", zap.Error(err))
-			return nil, err
+	err := database.WithTenant(ctx, r.db, r.tenant, func(tx *sql.Tx) error {
+		rows, err := tx.QueryContext(ctx, query)
+		if err != nil {
+			logger.Error("Failed to list workspaces", zap.Error(err))
+			return err
 		}
+		defer func() { _ = rows.Close() }()
 
-		if deletedAt.Valid {
-			workspace.DeletedAt = &deletedAt.Time
+		for rows.Next() {
+			var workspace entities.Workspace
+			var deletedAt sql.NullTime
+
+			if err := rows.Scan(
+				&workspace.ID,
+				&workspace.Name,
+				&workspace.Type,
+				pq.Array(&workspace.Tags),
+				&workspace.CreatedBy,
+				&workspace.CreatedAt,
+				&workspace.UpdatedAt,
+				&deletedAt,
+			); err != nil {
+				logger.Error("Failed to scan workspace", zap.Error(err))
+				return err
+			}
+
+			if deletedAt.Valid {
+				workspace.DeletedAt = &deletedAt.Time
+			}
+
+			workspaces = append(workspaces, &workspace)
 		}
+		return nil
+	})
 
-		workspaces = append(workspaces, &workspace)
+	if err != nil {
+		return nil, err
 	}
-
 	return workspaces, nil
 }
 
@@ -163,45 +161,46 @@ func (r *WorkspacePostgresRepository) ListByCreator(ctx context.Context, created
 		ORDER BY created_at DESC
 	`
 
-	// Set search path to tenant schema
-	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
-		logger.Error("Failed to set search path", zap.Error(err))
-		return nil, err
-	}
-
-	rows, err := r.db.QueryContext(ctx, query, createdBy)
-	if err != nil {
-		logger.Error("Failed to list workspaces", zap.Error(err))
-		return nil, err
-	}
-	defer func() { _ = rows.Close() }()
-
 	var workspaces []*entities.Workspace
-	for rows.Next() {
-		var workspace entities.Workspace
-		var deletedAt sql.NullTime
 
-		if err := rows.Scan(
-			&workspace.ID,
-			&workspace.Name,
-			&workspace.Type,
-			pq.Array(&workspace.Tags),
-			&workspace.CreatedBy,
-			&workspace.CreatedAt,
-			&workspace.UpdatedAt,
-			&deletedAt,
-		); err != nil {
-			logger.Error("Failed to scan workspace", zap.Error(err))
-			return nil, err
+	err := database.WithTenant(ctx, r.db, r.tenant, func(tx *sql.Tx) error {
+		rows, err := tx.QueryContext(ctx, query, createdBy)
+		if err != nil {
+			logger.Error("Failed to list workspaces", zap.Error(err))
+			return err
 		}
+		defer func() { _ = rows.Close() }()
 
-		if deletedAt.Valid {
-			workspace.DeletedAt = &deletedAt.Time
+		for rows.Next() {
+			var workspace entities.Workspace
+			var deletedAt sql.NullTime
+
+			if err := rows.Scan(
+				&workspace.ID,
+				&workspace.Name,
+				&workspace.Type,
+				pq.Array(&workspace.Tags),
+				&workspace.CreatedBy,
+				&workspace.CreatedAt,
+				&workspace.UpdatedAt,
+				&deletedAt,
+			); err != nil {
+				logger.Error("Failed to scan workspace", zap.Error(err))
+				return err
+			}
+
+			if deletedAt.Valid {
+				workspace.DeletedAt = &deletedAt.Time
+			}
+
+			workspaces = append(workspaces, &workspace)
 		}
+		return nil
+	})
 
-		workspaces = append(workspaces, &workspace)
+	if err != nil {
+		return nil, err
 	}
-
 	return workspaces, nil
 }
 
@@ -213,28 +212,22 @@ func (r *WorkspacePostgresRepository) Update(ctx context.Context, workspace *ent
 		WHERE id = $5
 	`
 
-	// Set search path to tenant schema
-	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
-		logger.Error("Failed to set search path", zap.Error(err))
-		return err
-	}
-
 	workspace.UpdatedAt = time.Now()
 
-	_, err := r.db.ExecContext(ctx, query,
-		workspace.Name,
-		workspace.Type,
-		pq.Array(workspace.Tags),
-		workspace.UpdatedAt,
-		workspace.ID,
-	)
-
-	if err != nil {
-		logger.Error("Failed to update workspace", zap.Error(err))
-		return err
-	}
-
-	return nil
+	return database.WithTenant(ctx, r.db, r.tenant, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, query,
+			workspace.Name,
+			workspace.Type,
+			pq.Array(workspace.Tags),
+			workspace.UpdatedAt,
+			workspace.ID,
+		)
+		if err != nil {
+			logger.Error("Failed to update workspace", zap.Error(err))
+			return err
+		}
+		return nil
+	})
 }
 
 // Delete soft-deletes a workspace
@@ -245,30 +238,24 @@ func (r *WorkspacePostgresRepository) Delete(ctx context.Context, id uuid.UUID) 
 		WHERE id = $2 AND deleted_at IS NULL
 	`
 
-	// Set search path to tenant schema
-	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
-		logger.Error("Failed to set search path", zap.Error(err))
-		return err
-	}
+	return database.WithTenant(ctx, r.db, r.tenant, func(tx *sql.Tx) error {
+		result, err := tx.ExecContext(ctx, query, time.Now(), id)
+		if err != nil {
+			logger.Error("Failed to delete workspace", zap.Error(err))
+			return err
+		}
 
-	result, err := r.db.ExecContext(ctx, query, time.Now(), id)
-	if err != nil {
-		logger.Error("Failed to delete workspace", zap.Error(err))
-		return err
-	}
+		rowsAffected, err := result.RowsAffected()
+		if err != nil {
+			logger.Error("Failed to get rows affected", zap.Error(err))
+			return err
+		}
 
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		logger.Error("Failed to get rows affected", zap.Error(err))
-		return err
-	}
-
-	if rowsAffected == 0 {
-		logger.Warn("Workspace not found for deletion", zap.String("id", id.String()))
+		if rowsAffected == 0 {
+			logger.Warn("Workspace not found for deletion", zap.String("id", id.String()))
+		}
 		return nil
-	}
-
-	return nil
+	})
 }
 
 // AddMember adds a user to a workspace
@@ -278,26 +265,20 @@ func (r *WorkspacePostgresRepository) AddMember(ctx context.Context, member *ent
 		VALUES ($1, $2, $3, $4, $5)
 	`
 
-	// Set search path to tenant schema
-	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
-		logger.Error("Failed to set search path", zap.Error(err))
-		return err
-	}
-
-	_, err := r.db.ExecContext(ctx, query,
-		member.WorkspaceID,
-		member.UserID,
-		member.Role.String(),
-		member.InvitedBy,
-		member.InvitedAt,
-	)
-
-	if err != nil {
-		logger.Error("Failed to add workspace member", zap.Error(err))
-		return err
-	}
-
-	return nil
+	return database.WithTenant(ctx, r.db, r.tenant, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, query,
+			member.WorkspaceID,
+			member.UserID,
+			member.Role.String(),
+			member.InvitedBy,
+			member.InvitedAt,
+		)
+		if err != nil {
+			logger.Error("Failed to add workspace member", zap.Error(err))
+			return err
+		}
+		return nil
+	})
 }
 
 // GetMember retrieves a workspace member
@@ -308,29 +289,32 @@ func (r *WorkspacePostgresRepository) GetMember(ctx context.Context, workspaceID
 		WHERE workspace_id = $1 AND user_id = $2 AND removed_at IS NULL
 	`
 
-	// Set search path to tenant schema
-	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
-		logger.Error("Failed to set search path", zap.Error(err))
-		return nil, err
-	}
-
 	var member entities.WorkspaceMember
 	var roleStr string
 	var invitedBy sql.NullString
 
-	err := r.db.QueryRowContext(ctx, query, workspaceID, userID).Scan(
-		&member.WorkspaceID,
-		&member.UserID,
-		&roleStr,
-		&invitedBy,
-		&member.InvitedAt,
-	)
+	err := database.WithTenant(ctx, r.db, r.tenant, func(tx *sql.Tx) error {
+		err := tx.QueryRowContext(ctx, query, workspaceID, userID).Scan(
+			&member.WorkspaceID,
+			&member.UserID,
+			&roleStr,
+			&invitedBy,
+			&member.InvitedAt,
+		)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return sql.ErrNoRows
+			}
+			logger.Error("Failed to get workspace member", zap.Error(err))
+			return err
+		}
+		return nil
+	})
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		logger.Error("Failed to get workspace member", zap.Error(err))
 		return nil, err
 	}
 
@@ -360,53 +344,54 @@ func (r *WorkspacePostgresRepository) ListMembers(ctx context.Context, workspace
 		ORDER BY invited_at ASC
 	`
 
-	// Set search path to tenant schema
-	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
-		logger.Error("Failed to set search path", zap.Error(err))
-		return nil, err
-	}
-
-	rows, err := r.db.QueryContext(ctx, query, workspaceID)
-	if err != nil {
-		logger.Error("Failed to list workspace members", zap.Error(err))
-		return nil, err
-	}
-	defer func() { _ = rows.Close() }()
-
 	var members []*entities.WorkspaceMember
-	for rows.Next() {
-		var member entities.WorkspaceMember
-		var roleStr string
-		var invitedBy sql.NullString
 
-		if err := rows.Scan(
-			&member.WorkspaceID,
-			&member.UserID,
-			&roleStr,
-			&invitedBy,
-			&member.InvitedAt,
-		); err != nil {
-			logger.Error("Failed to scan workspace member", zap.Error(err))
-			return nil, err
-		}
-
-		role, err := value_objects.NewWorkspaceRole(roleStr)
+	err := database.WithTenant(ctx, r.db, r.tenant, func(tx *sql.Tx) error {
+		rows, err := tx.QueryContext(ctx, query, workspaceID)
 		if err != nil {
-			logger.Error("Invalid role in database", zap.String("role", roleStr))
-			continue
+			logger.Error("Failed to list workspace members", zap.Error(err))
+			return err
 		}
-		member.Role = role
+		defer func() { _ = rows.Close() }()
 
-		if invitedBy.Valid {
-			invitedByUUID, err := uuid.Parse(invitedBy.String)
-			if err == nil {
-				member.InvitedBy = &invitedByUUID
+		for rows.Next() {
+			var member entities.WorkspaceMember
+			var roleStr string
+			var invitedBy sql.NullString
+
+			if err := rows.Scan(
+				&member.WorkspaceID,
+				&member.UserID,
+				&roleStr,
+				&invitedBy,
+				&member.InvitedAt,
+			); err != nil {
+				logger.Error("Failed to scan workspace member", zap.Error(err))
+				return err
 			}
+
+			role, err := value_objects.NewWorkspaceRole(roleStr)
+			if err != nil {
+				logger.Error("Invalid role in database", zap.String("role", roleStr))
+				continue
+			}
+			member.Role = role
+
+			if invitedBy.Valid {
+				invitedByUUID, err := uuid.Parse(invitedBy.String)
+				if err == nil {
+					member.InvitedBy = &invitedByUUID
+				}
+			}
+
+			members = append(members, &member)
 		}
+		return nil
+	})
 
-		members = append(members, &member)
+	if err != nil {
+		return nil, err
 	}
-
 	return members, nil
 }
 
@@ -420,45 +405,46 @@ func (r *WorkspacePostgresRepository) ListByMember(ctx context.Context, userID u
 		ORDER BY w.created_at DESC
 	`
 
-	// Set search path to tenant schema
-	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
-		logger.Error("Failed to set search path", zap.Error(err))
-		return nil, err
-	}
-
-	rows, err := r.db.QueryContext(ctx, query, userID)
-	if err != nil {
-		logger.Error("Failed to list workspaces by member", zap.Error(err))
-		return nil, err
-	}
-	defer func() { _ = rows.Close() }()
-
 	var workspaces []*entities.Workspace
-	for rows.Next() {
-		var workspace entities.Workspace
-		var deletedAt sql.NullTime
 
-		if err := rows.Scan(
-			&workspace.ID,
-			&workspace.Name,
-			&workspace.Type,
-			pq.Array(&workspace.Tags),
-			&workspace.CreatedBy,
-			&workspace.CreatedAt,
-			&workspace.UpdatedAt,
-			&deletedAt,
-		); err != nil {
-			logger.Error("Failed to scan workspace", zap.Error(err))
-			return nil, err
+	err := database.WithTenant(ctx, r.db, r.tenant, func(tx *sql.Tx) error {
+		rows, err := tx.QueryContext(ctx, query, userID)
+		if err != nil {
+			logger.Error("Failed to list workspaces by member", zap.Error(err))
+			return err
 		}
+		defer func() { _ = rows.Close() }()
 
-		if deletedAt.Valid {
-			workspace.DeletedAt = &deletedAt.Time
+		for rows.Next() {
+			var workspace entities.Workspace
+			var deletedAt sql.NullTime
+
+			if err := rows.Scan(
+				&workspace.ID,
+				&workspace.Name,
+				&workspace.Type,
+				pq.Array(&workspace.Tags),
+				&workspace.CreatedBy,
+				&workspace.CreatedAt,
+				&workspace.UpdatedAt,
+				&deletedAt,
+			); err != nil {
+				logger.Error("Failed to scan workspace", zap.Error(err))
+				return err
+			}
+
+			if deletedAt.Valid {
+				workspace.DeletedAt = &deletedAt.Time
+			}
+
+			workspaces = append(workspaces, &workspace)
 		}
+		return nil
+	})
 
-		workspaces = append(workspaces, &workspace)
+	if err != nil {
+		return nil, err
 	}
-
 	return workspaces, nil
 }
 
@@ -470,32 +456,26 @@ func (r *WorkspacePostgresRepository) UpdateMemberRole(ctx context.Context, work
 		WHERE workspace_id = $2 AND user_id = $3
 	`
 
-	// Set search path to tenant schema
-	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
-		logger.Error("Failed to set search path", zap.Error(err))
-		return err
-	}
+	return database.WithTenant(ctx, r.db, r.tenant, func(tx *sql.Tx) error {
+		result, err := tx.ExecContext(ctx, query, role.String(), workspaceID, userID)
+		if err != nil {
+			logger.Error("Failed to update member role", zap.Error(err))
+			return err
+		}
 
-	result, err := r.db.ExecContext(ctx, query, role.String(), workspaceID, userID)
-	if err != nil {
-		logger.Error("Failed to update member role", zap.Error(err))
-		return err
-	}
+		rowsAffected, err := result.RowsAffected()
+		if err != nil {
+			logger.Error("Failed to get rows affected", zap.Error(err))
+			return err
+		}
 
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		logger.Error("Failed to get rows affected", zap.Error(err))
-		return err
-	}
-
-	if rowsAffected == 0 {
-		logger.Warn("Member not found for role update",
-			zap.String("workspace_id", workspaceID.String()),
-			zap.String("user_id", userID.String()))
+		if rowsAffected == 0 {
+			logger.Warn("Member not found for role update",
+				zap.String("workspace_id", workspaceID.String()),
+				zap.String("user_id", userID.String()))
+		}
 		return nil
-	}
-
-	return nil
+	})
 }
 
 // RemoveMember removes a user from a workspace (soft delete)
@@ -506,30 +486,24 @@ func (r *WorkspacePostgresRepository) RemoveMember(ctx context.Context, workspac
 		WHERE workspace_id = $2 AND user_id = $3 AND removed_at IS NULL
 	`
 
-	// Set search path to tenant schema
-	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
-		logger.Error("Failed to set search path", zap.Error(err))
-		return err
-	}
+	return database.WithTenant(ctx, r.db, r.tenant, func(tx *sql.Tx) error {
+		result, err := tx.ExecContext(ctx, query, time.Now(), workspaceID, userID)
+		if err != nil {
+			logger.Error("Failed to remove workspace member", zap.Error(err))
+			return err
+		}
 
-	result, err := r.db.ExecContext(ctx, query, time.Now(), workspaceID, userID)
-	if err != nil {
-		logger.Error("Failed to remove workspace member", zap.Error(err))
-		return err
-	}
+		rowsAffected, err := result.RowsAffected()
+		if err != nil {
+			logger.Error("Failed to get rows affected", zap.Error(err))
+			return err
+		}
 
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		logger.Error("Failed to get rows affected", zap.Error(err))
-		return err
-	}
-
-	if rowsAffected == 0 {
-		logger.Warn("Member not found for removal",
-			zap.String("workspace_id", workspaceID.String()),
-			zap.String("user_id", userID.String()))
+		if rowsAffected == 0 {
+			logger.Warn("Member not found for removal",
+				zap.String("workspace_id", workspaceID.String()),
+				zap.String("user_id", userID.String()))
+		}
 		return nil
-	}
-
-	return nil
+	})
 }

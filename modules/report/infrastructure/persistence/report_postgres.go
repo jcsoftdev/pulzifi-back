@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jcsoftdev/pulzifi-back/modules/report/domain/entities"
-	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
+	"github.com/jcsoftdev/pulzifi-back/shared/database"
 )
 
 // dbContent wraps entities.Content to provide sql.Scanner and driver.Valuer
@@ -45,33 +45,37 @@ func NewReportPostgresRepository(db *sql.DB, tenant string) *ReportPostgresRepos
 }
 
 func (r *ReportPostgresRepository) Create(ctx context.Context, report *entities.Report) error {
-	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
-		return err
-	}
-
 	q := `INSERT INTO reports (id, page_id, title, report_date, content, pdf_url, created_by, created_at)
 	      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
-	_, err := r.db.ExecContext(ctx, q,
-		report.ID, report.PageID, report.Title, report.ReportDate,
-		dbContent(report.Content), report.PDFURL, report.CreatedBy, report.CreatedAt,
-	)
-	return err
+	return database.WithTenant(ctx, r.db, r.tenant, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, q,
+			report.ID, report.PageID, report.Title, report.ReportDate,
+			dbContent(report.Content), report.PDFURL, report.CreatedBy, report.CreatedAt,
+		)
+		return err
+	})
 }
 
 func (r *ReportPostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (*entities.Report, error) {
-	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
-		return nil, err
-	}
-
 	var report entities.Report
 	var pdfURL sql.NullString
 	var content dbContent
 	q := `SELECT id, page_id, title, report_date, content, pdf_url, created_by, created_at
 	      FROM reports WHERE id = $1 AND deleted_at IS NULL`
-	err := r.db.QueryRowContext(ctx, q, id).Scan(
-		&report.ID, &report.PageID, &report.Title, &report.ReportDate,
-		&content, &pdfURL, &report.CreatedBy, &report.CreatedAt,
-	)
+
+	err := database.WithTenant(ctx, r.db, r.tenant, func(tx *sql.Tx) error {
+		err := tx.QueryRowContext(ctx, q, id).Scan(
+			&report.ID, &report.PageID, &report.Title, &report.ReportDate,
+			&content, &pdfURL, &report.CreatedBy, &report.CreatedAt,
+		)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return sql.ErrNoRows
+			}
+			return err
+		}
+		return nil
+	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -84,27 +88,40 @@ func (r *ReportPostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (*
 }
 
 func (r *ReportPostgresRepository) ListByPage(ctx context.Context, pageID uuid.UUID) ([]*entities.Report, error) {
-	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
-		return nil, err
-	}
-
 	q := `SELECT id, page_id, title, report_date, content, pdf_url, created_by, created_at
 	      FROM reports WHERE page_id = $1 AND deleted_at IS NULL ORDER BY report_date DESC`
-	return r.scanRows(ctx, q, pageID)
+	var reports []*entities.Report
+	err := database.WithTenant(ctx, r.db, r.tenant, func(tx *sql.Tx) error {
+		var err error
+		reports, err = scanReportRows(ctx, tx, q, pageID)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return reports, nil
 }
 
 func (r *ReportPostgresRepository) List(ctx context.Context) ([]*entities.Report, error) {
-	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
-		return nil, err
-	}
-
 	q := `SELECT id, page_id, title, report_date, content, pdf_url, created_by, created_at
 	      FROM reports WHERE deleted_at IS NULL ORDER BY report_date DESC`
-	return r.scanRows(ctx, q)
+	var reports []*entities.Report
+	err := database.WithTenant(ctx, r.db, r.tenant, func(tx *sql.Tx) error {
+		var err error
+		reports, err = scanReportRows(ctx, tx, q)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return reports, nil
 }
 
-func (r *ReportPostgresRepository) scanRows(ctx context.Context, q string, args ...interface{}) ([]*entities.Report, error) {
-	rows, err := r.db.QueryContext(ctx, q, args...)
+// scanReportRows executes q against tx and scans the result into a slice of Report.
+// It replaces the old r.db-based scanRows helper so all scanning stays inside the
+// WithTenant transaction boundary.
+func scanReportRows(ctx context.Context, tx *sql.Tx, q string, args ...interface{}) ([]*entities.Report, error) {
+	rows, err := tx.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, err
 	}

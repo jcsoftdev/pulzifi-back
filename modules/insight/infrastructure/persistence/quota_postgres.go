@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/jcsoftdev/pulzifi-back/modules/insight/domain/services"
-	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
+	"github.com/jcsoftdev/pulzifi-back/shared/database"
 )
 
 // unlimitedSentinel mirrors the value PlanAssigner writes when the active
@@ -36,10 +36,6 @@ func NewQuotaPostgresRepository(db *sql.DB) *QuotaPostgresRepository {
 // Read returns the current period's ai insight usage/cap. No active period →
 // Unlimited:true so generation proceeds (get_quotas seeds the period on next read).
 func (r *QuotaPostgresRepository) Read(ctx context.Context, tenant string) (services.InsightQuotaSnapshot, error) {
-	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(tenant)); err != nil {
-		return services.InsightQuotaSnapshot{}, err
-	}
-
 	const q = `
 		SELECT ai_insights_used, ai_insights_allowed
 		  FROM usage_tracking
@@ -49,14 +45,21 @@ func (r *QuotaPostgresRepository) Read(ctx context.Context, tenant string) (serv
 	`
 
 	var snap services.InsightQuotaSnapshot
-	err := r.db.QueryRowContext(ctx, q, time.Now()).Scan(&snap.Used, &snap.Allowed)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return services.InsightQuotaSnapshot{Unlimited: true}, nil
+	err := database.WithTenant(ctx, r.db, tenant, func(tx *sql.Tx) error {
+		err := tx.QueryRowContext(ctx, q, time.Now()).Scan(&snap.Used, &snap.Allowed)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				snap = services.InsightQuotaSnapshot{Unlimited: true}
+				return nil
+			}
+			return err
 		}
+		snap.Unlimited = snap.Allowed >= unlimitedSentinel
+		return nil
+	})
+	if err != nil {
 		return services.InsightQuotaSnapshot{}, err
 	}
-	snap.Unlimited = snap.Allowed >= unlimitedSentinel
 	return snap, nil
 }
 
@@ -64,10 +67,6 @@ func (r *QuotaPostgresRepository) Read(ctx context.Context, tenant string) (serv
 // and returns the post-update snapshot. Uses UPDATE … RETURNING so concurrent
 // goroutines serialize on the row lock — no read-modify-write race.
 func (r *QuotaPostgresRepository) Increment(ctx context.Context, tenant string) (services.InsightQuotaSnapshot, error) {
-	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(tenant)); err != nil {
-		return services.InsightQuotaSnapshot{}, err
-	}
-
 	const q = `
 		UPDATE usage_tracking
 		   SET ai_insights_used = ai_insights_used + 1,
@@ -77,13 +76,20 @@ func (r *QuotaPostgresRepository) Increment(ctx context.Context, tenant string) 
 	`
 
 	var snap services.InsightQuotaSnapshot
-	err := r.db.QueryRowContext(ctx, q, time.Now()).Scan(&snap.Used, &snap.Allowed)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return services.InsightQuotaSnapshot{Unlimited: true}, nil
+	err := database.WithTenant(ctx, r.db, tenant, func(tx *sql.Tx) error {
+		err := tx.QueryRowContext(ctx, q, time.Now()).Scan(&snap.Used, &snap.Allowed)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				snap = services.InsightQuotaSnapshot{Unlimited: true}
+				return nil
+			}
+			return err
 		}
+		snap.Unlimited = snap.Allowed >= unlimitedSentinel
+		return nil
+	})
+	if err != nil {
 		return services.InsightQuotaSnapshot{}, err
 	}
-	snap.Unlimited = snap.Allowed >= unlimitedSentinel
 	return snap, nil
 }

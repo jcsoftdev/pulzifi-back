@@ -72,7 +72,7 @@ export interface LoginResponse {
 }
 
 // Helper: Transform backend to frontend format
-function transformUser(backend: UserBackendDto): User {
+export function transformUser(backend: UserBackendDto): User {
   return {
     id: backend.id,
     name: backend.name,
@@ -95,7 +95,7 @@ function transformUser(backend: UserBackendDto): User {
   }
 }
 
-function mapLoginResponse(response: LoginBackendResponse): LoginResponse {
+export function mapLoginResponse(response: LoginBackendResponse): LoginResponse {
   return {
     expiresIn: response.expires_in ?? response.expiresIn ?? 3600,
     tenant: response.tenant ?? undefined,

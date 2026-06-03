@@ -87,6 +87,8 @@ coverage.html
 tmp
 
 /docs/superpowers/*
+/docs/analisis/*
+/docs/ops/*
 
 /.trae
 
@@ -102,6 +104,7 @@ tmp
 skills-lock.json
 
 /client_*
+secrets/
 .worktrees/
 modules/*/docs/
 # Local Pi runtime state
@@ -126,3 +129,9 @@ volume/tmp/
 build-errors.log
 build-errors-worker.log
 .claude/worktrees/
+
+# Dev integration key — never commit
+.dev-integration-key
+
+# Playwright artifacts
+frontend/test-results/

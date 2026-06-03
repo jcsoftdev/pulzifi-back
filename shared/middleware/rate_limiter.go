@@ -4,31 +4,41 @@ import (
 	"net"
 	"net/http"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 )
 
 type visitor struct {
-	tokens    int
-	lastSeen  time.Time
-	mu        sync.Mutex
+	tokens   int
+	lastSeen time.Time
+	mu       sync.Mutex
 }
 
 // RateLimiter implements an in-memory token bucket rate limiter per IP.
 type RateLimiter struct {
-	visitors   sync.Map
-	maxTokens  int
-	window     time.Duration
-	quit       chan struct{}
+	visitors      sync.Map
+	maxTokens     int
+	window        time.Duration
+	quit          chan struct{}
+	trustedCIDRs  []net.IPNet
 }
 
 // NewRateLimiter creates a rate limiter that allows maxTokens requests per window per IP.
+// IP extraction uses RemoteAddr directly (no trusted-proxy header processing).
+// Use NewRateLimiterWithTrustedProxies when running behind a proxy.
 func NewRateLimiter(maxTokens int, window time.Duration) *RateLimiter {
+	return NewRateLimiterWithTrustedProxies(maxTokens, window, nil)
+}
+
+// NewRateLimiterWithTrustedProxies creates a rate limiter that respects the given
+// trusted CIDR list when extracting the real client IP from X-Forwarded-For.
+// Pass nil or an empty slice to fall back to RemoteAddr-only behaviour (same as NewRateLimiter).
+func NewRateLimiterWithTrustedProxies(maxTokens int, window time.Duration, trusted []net.IPNet) *RateLimiter {
 	rl := &RateLimiter{
-		maxTokens: maxTokens,
-		window:    window,
-		quit:      make(chan struct{}),
+		maxTokens:    maxTokens,
+		window:       window,
+		quit:         make(chan struct{}),
+		trustedCIDRs: trusted,
 	}
 	go rl.cleanup()
 	return rl
@@ -42,7 +52,7 @@ func (rl *RateLimiter) Stop() {
 // Handler returns an http.Handler middleware that enforces the rate limit.
 func (rl *RateLimiter) Handler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ip := extractIP(r)
+		ip := ClientIP(r, rl.trustedCIDRs)
 
 		v := rl.getVisitor(ip)
 		v.mu.Lock()
@@ -109,28 +119,4 @@ func (rl *RateLimiter) cleanup() {
 			return
 		}
 	}
-}
-
-// extractIP returns the client IP from the request.
-func extractIP(r *http.Request) string {
-	// Check X-Forwarded-For first (may contain comma-separated list)
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		parts := strings.SplitN(xff, ",", 2)
-		ip := strings.TrimSpace(parts[0])
-		if ip != "" {
-			return ip
-		}
-	}
-
-	// Check X-Real-IP
-	if xri := r.Header.Get("X-Real-IP"); xri != "" {
-		return strings.TrimSpace(xri)
-	}
-
-	// Fall back to RemoteAddr
-	ip, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return r.RemoteAddr
-	}
-	return ip
 }

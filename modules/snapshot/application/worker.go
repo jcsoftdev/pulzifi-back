@@ -22,18 +22,19 @@ import (
 )
 
 type SnapshotWorker struct {
-	objectStorage      repositories.ObjectStorage
-	extractorClient    snapServices.ExtractorClient
-	monitoringReader   snapServices.MonitoringReader
-	checkRepoFactory   func(schemaName string) snapServices.CheckRepository
-	alertCreator       snapServices.AlertCreator
+	objectStorage       repositories.ObjectStorage
+	extractorClient     snapServices.ExtractorClient
+	monitoringReader    snapServices.MonitoringReader
+	checkRepoFactory    func(schemaName string) snapServices.CheckRepository
+	alertCreator        snapServices.AlertCreator
 	notificationEmailer snapServices.NotificationEmailer
-	insightDispatcher  snapServices.InsightDispatcher
-	visionAnalyzer     snapServices.VisionAnalyzer
-	bus                eventbus.MessageBus
-	frontendURL        string
-	pixelDiffThreshold float64
-	onCheckDone        func(pageID uuid.UUID, checkJSON []byte)
+	insightDispatcher   snapServices.InsightDispatcher
+	visionAnalyzer      snapServices.VisionAnalyzer
+	bus                 eventbus.MessageBus
+	storageFlagReader   repositories.StorageFlagReader
+	frontendURL         string
+	pixelDiffThreshold  float64
+	onCheckDone         func(pageID uuid.UUID, checkJSON []byte)
 }
 
 // SetOnCheckDone registers a callback invoked after every check completes
@@ -102,6 +103,7 @@ type SnapshotWorkerDeps struct {
 	AlertCreator        snapServices.AlertCreator
 	NotificationEmailer snapServices.NotificationEmailer
 	InsightDispatcher   snapServices.InsightDispatcher
+	StorageFlagReader   repositories.StorageFlagReader
 	FrontendURL         string
 }
 
@@ -114,9 +116,24 @@ func NewSnapshotWorker(deps SnapshotWorkerDeps) *SnapshotWorker {
 		alertCreator:        deps.AlertCreator,
 		notificationEmailer: deps.NotificationEmailer,
 		insightDispatcher:   deps.InsightDispatcher,
+		storageFlagReader:   deps.StorageFlagReader,
 		frontendURL:         deps.FrontendURL,
 		pixelDiffThreshold:  0.001, // default
 	}
+}
+
+// objectKey returns the storage object key for the given suffix, optionally
+// prefixed with {schemaName}/ when the per-org "snapshot.private_storage" flag
+// is enabled. Default-deny: any error or nil reader means no prefix.
+func (s *SnapshotWorker) objectKey(ctx context.Context, schemaName, suffix string) string {
+	if s.storageFlagReader == nil || schemaName == "" {
+		return suffix
+	}
+	enabled, err := s.storageFlagReader.IsPrivateStorageEnabled(ctx, schemaName)
+	if err != nil || !enabled {
+		return suffix
+	}
+	return schemaName + "/" + suffix
 }
 
 func (s *SnapshotWorker) ExecuteCheck(ctx context.Context, checkID uuid.UUID, targetURL string, schemaName string) error {
@@ -174,7 +191,7 @@ func (s *SnapshotWorker) ExecuteCheck(ctx context.Context, checkID uuid.UUID, ta
 	}
 
 	ts := time.Now().Unix()
-	imgBytes, imgURL, storeErr := s.storeFullPageSnapshot(ctx, check, res, ts, duration, markError)
+	imgBytes, imgURL, storeErr := s.storeFullPageSnapshot(ctx, schemaName, check, res, ts, duration, markError)
 	if storeErr != nil {
 		return storeErr
 	}
@@ -221,6 +238,7 @@ func resolveEnabledTypes(pageConfig *snapEntities.MonitoringConfig) (enabledInsi
 // the caller can return immediately.
 func (s *SnapshotWorker) storeFullPageSnapshot(
 	ctx context.Context,
+	schemaName string,
 	check *snapEntities.Check,
 	res *snapServices.ExtractorResult,
 	ts int64,
@@ -233,8 +251,8 @@ func (s *SnapshotWorker) storeFullPageSnapshot(
 		return nil, "", markError(fmt.Sprintf("failed to decode screenshot: %v", err), duration)
 	}
 
-	imgName := fmt.Sprintf("%s/%d.png", check.PageID, ts)
-	htmlName := fmt.Sprintf("%s/%d.html", check.PageID, ts)
+	imgName := s.objectKey(ctx, schemaName, fmt.Sprintf("%s/%d.png", check.PageID, ts))
+	htmlName := s.objectKey(ctx, schemaName, fmt.Sprintf("%s/%d.html", check.PageID, ts))
 
 	// Upload
 	if s.objectStorage == nil {
@@ -363,7 +381,7 @@ func (s *SnapshotWorker) executeSectionsCheck(
 	if res.ScreenshotBase64 != "" {
 		if imgBytes, decErr := base64.StdEncoding.DecodeString(res.ScreenshotBase64); decErr == nil && len(imgBytes) > 0 {
 			ts := time.Now().Unix()
-			imgName := fmt.Sprintf("%s/%d.png", check.PageID, ts)
+			imgName := s.objectKey(ctx, schemaName, fmt.Sprintf("%s/%d.png", check.PageID, ts))
 			if imgURL, upErr := s.objectStorage.Upload(ctx, imgName, bytes.NewReader(imgBytes), int64(len(imgBytes)), "image/png"); upErr == nil {
 				check.ScreenshotURL = imgURL
 			}
@@ -416,7 +434,7 @@ func (s *SnapshotWorker) applyChangeDetection(
 
 	// Upload diff image if generated
 	if len(diffImgBytes) > 0 {
-		diffName := fmt.Sprintf("%s/diffs/%d.png", check.PageID, ts)
+		diffName := s.objectKey(ctx, schemaName, fmt.Sprintf("%s/diffs/%d.png", check.PageID, ts))
 		if diffURL, upErr := s.objectStorage.Upload(ctx, diffName, bytes.NewReader(diffImgBytes), int64(len(diffImgBytes)), "image/png"); upErr == nil {
 			check.DiffImageURL = diffURL
 		} else {
@@ -1008,7 +1026,7 @@ func (s *SnapshotWorker) processSectionsFromExtractor(
 	var changeSummaries []string
 
 	for i := range sectionResults {
-		outcome, ok := s.processSingleSection(ctx, checkRepo, parentCheckID, pageID, sectionsByID, &sectionResults[i], targetURL)
+		outcome, ok := s.processSingleSection(ctx, checkRepo, schemaName, parentCheckID, pageID, sectionsByID, &sectionResults[i], targetURL)
 		if !ok {
 			continue
 		}
@@ -1062,6 +1080,7 @@ type sectionOutcome struct {
 func (s *SnapshotWorker) processSingleSection(
 	ctx context.Context,
 	checkRepo snapServices.CheckRepository,
+	schemaName string,
 	parentCheckID uuid.UUID,
 	pageID uuid.UUID,
 	sectionsByID map[uuid.UUID]*snapEntities.MonitoredSection,
@@ -1092,7 +1111,7 @@ func (s *SnapshotWorker) processSingleSection(
 	}
 
 	ts := time.Now().Unix()
-	imgName := fmt.Sprintf("%s/sections/%s/%d.png", pageID, sectionID, ts)
+	imgName := s.objectKey(ctx, schemaName, fmt.Sprintf("%s/sections/%s/%d.png", pageID, sectionID, ts))
 	imgURL, err := s.objectStorage.Upload(ctx, imgName, bytes.NewReader(imgBytes), int64(len(imgBytes)), "image/png")
 	if err != nil {
 		logger.Error("Failed to upload section screenshot", zap.String("section_id", sec.ID), zap.Error(err))
@@ -1101,7 +1120,7 @@ func (s *SnapshotWorker) processSingleSection(
 
 	htmlURL := ""
 	if sec.HTML != "" {
-		htmlName := fmt.Sprintf("%s/sections/%s/%d.html", pageID, sectionID, ts)
+		htmlName := s.objectKey(ctx, schemaName, fmt.Sprintf("%s/sections/%s/%d.html", pageID, sectionID, ts))
 		htmlURL, _ = s.objectStorage.Upload(ctx, htmlName, strings.NewReader(sec.HTML), int64(len(sec.HTML)), "text/html")
 	}
 
@@ -1120,7 +1139,7 @@ func (s *SnapshotWorker) processSingleSection(
 	sectionCheck.ContentBlockHash = sectionContentBlockHash
 	sectionCheck.ScreenshotHash = snapServices.HashScreenshot(imgBytes)
 
-	changed, changeSummary := s.detectSectionChange(ctx, checkRepo, sectionCheck, section, pageID, sectionID, ts, imgBytes, sec, targetURL)
+	changed, changeSummary := s.detectSectionChange(ctx, checkRepo, schemaName, sectionCheck, section, pageID, sectionID, ts, imgBytes, sec, targetURL)
 
 	if err := checkRepo.Create(ctx, sectionCheck); err != nil {
 		logger.Error("Failed to create section check", zap.String("section_id", sec.ID), zap.Error(err))
@@ -1138,6 +1157,7 @@ func (s *SnapshotWorker) processSingleSection(
 func (s *SnapshotWorker) detectSectionChange(
 	ctx context.Context,
 	checkRepo snapServices.CheckRepository,
+	schemaName string,
 	sectionCheck *snapEntities.Check,
 	section *snapEntities.MonitoredSection,
 	pageID, sectionID uuid.UUID,
@@ -1161,7 +1181,7 @@ func (s *SnapshotWorker) detectSectionChange(
 	sectionCheck.VisionChangeSummary = summary
 	// Upload diff image for section check
 	if len(diffImgBytes) > 0 {
-		diffName := fmt.Sprintf("%s/sections/%s/%d_diff.png", pageID, sectionID, ts)
+		diffName := s.objectKey(ctx, schemaName, fmt.Sprintf("%s/sections/%s/%d_diff.png", pageID, sectionID, ts))
 		if diffURL, upErr := s.objectStorage.Upload(ctx, diffName, bytes.NewReader(diffImgBytes), int64(len(diffImgBytes)), "image/png"); upErr == nil {
 			sectionCheck.DiffImageURL = diffURL
 		}

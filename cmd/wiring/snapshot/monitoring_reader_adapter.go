@@ -9,7 +9,7 @@ import (
 	monPersistence "github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/persistence"
 	snapEntities "github.com/jcsoftdev/pulzifi-back/modules/snapshot/domain/entities"
 	snapServices "github.com/jcsoftdev/pulzifi-back/modules/snapshot/domain/services"
-	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
+	"github.com/jcsoftdev/pulzifi-back/shared/database"
 )
 
 // monitoringReaderAdapter implements snapshot's MonitoringReader port by wrapping
@@ -100,23 +100,29 @@ func (a *monitoringReaderAdapter) GetUserEmail(ctx context.Context, userID uuid.
 }
 
 func (a *monitoringReaderAdapter) GetWorkspaceIDForPage(ctx context.Context, schemaName string, pageID uuid.UUID) (uuid.UUID, error) {
-	if _, err := a.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(schemaName)); err != nil {
-		return uuid.Nil, err
-	}
 	var workspaceID uuid.UUID
-	if err := a.db.QueryRowContext(ctx, `SELECT workspace_id FROM pages WHERE id = $1`, pageID).Scan(&workspaceID); err != nil {
-		return uuid.Nil, fmt.Errorf("get workspace_id for page %s: %w", pageID, err)
+	err := database.WithTenant(ctx, a.db, schemaName, func(tx *sql.Tx) error {
+		if err := tx.QueryRowContext(ctx, `SELECT workspace_id FROM pages WHERE id = $1`, pageID).Scan(&workspaceID); err != nil {
+			return fmt.Errorf("get workspace_id for page %s: %w", pageID, err)
+		}
+		return nil
+	})
+	if err != nil {
+		return uuid.Nil, err
 	}
 	return workspaceID, nil
 }
 
 func (a *monitoringReaderAdapter) GetPageTitle(ctx context.Context, schemaName string, pageID uuid.UUID) (string, error) {
-	if _, err := a.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(schemaName)); err != nil {
-		return "", err
-	}
 	var title string
-	if err := a.db.QueryRowContext(ctx, `SELECT COALESCE(title,'') FROM pages WHERE id = $1`, pageID).Scan(&title); err != nil {
-		return "", fmt.Errorf("get page title for page %s: %w", pageID, err)
+	err := database.WithTenant(ctx, a.db, schemaName, func(tx *sql.Tx) error {
+		if err := tx.QueryRowContext(ctx, `SELECT COALESCE(title,'') FROM pages WHERE id = $1`, pageID).Scan(&title); err != nil {
+			return fmt.Errorf("get page title for page %s: %w", pageID, err)
+		}
+		return nil
+	})
+	if err != nil {
+		return "", err
 	}
 	return title, nil
 }
@@ -133,13 +139,12 @@ func (a *monitoringReaderAdapter) GetOrgIDBySchemaName(ctx context.Context, sche
 }
 
 func (a *monitoringReaderAdapter) UpdatePageSnapshotMetadata(ctx context.Context, schemaName string, pageID uuid.UUID, thumbnailURL string, changeDetected bool) error {
-	if _, err := a.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(schemaName)); err != nil {
-		return err
-	}
 	q := `UPDATE pages
 		SET thumbnail_url = $1,
 			last_change_detected_at = CASE WHEN $2 THEN NOW() ELSE last_change_detected_at END
 		WHERE id = $3`
-	_, err := a.db.ExecContext(ctx, q, thumbnailURL, changeDetected, pageID)
-	return err
+	return database.WithTenant(ctx, a.db, schemaName, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, q, thumbnailURL, changeDetected, pageID)
+		return err
+	})
 }

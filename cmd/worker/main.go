@@ -26,6 +26,7 @@ import (
 	twilioprovider "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers/twilio"
 	deliveryworker "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/worker"
 	monitoring "github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/http"
+	"github.com/jcsoftdev/pulzifi-back/shared/cache"
 	"github.com/jcsoftdev/pulzifi-back/shared/config"
 	"github.com/jcsoftdev/pulzifi-back/shared/crypto"
 	"github.com/jcsoftdev/pulzifi-back/shared/database"
@@ -47,13 +48,43 @@ func main() {
 	}
 	defer func() { _ = db.Close() }()
 
+	// Initialize Redis.
+	// In single mode optional; in HA mode required (fatal if unreachable).
+	if err := cache.InitRedis(cfg); err != nil {
+		if cfg.InstanceMode == "ha" {
+			logger.Logger.Fatal("Worker: HA mode requires Redis but connection failed — refusing to start",
+				zap.Error(err),
+				zap.String("instance_mode", cfg.InstanceMode),
+			)
+		}
+		logger.Warn("Worker: Failed to initialize Redis - operating without cache", zap.Error(err))
+	} else {
+		defer func() { _ = cache.CloseRedis() }()
+		logger.Info("Worker: Redis initialized successfully")
+	}
+
+	// Build the event bus from config. When provider=outbox, the relay is
+	// started below (after all subscribers are registered).
+	bus, err := eventbus.NewFromConfig(cfg.EventBusProvider, cfg.OutboxBatchSize, cfg.OutboxMaxAttempts, db)
+	if err != nil {
+		logger.Error("Failed to initialize event bus", zap.Error(err))
+		os.Exit(1) //nolint:gocritic // fatal startup error; OS reclaims db connection
+	}
+	defer bus.Close()
+
 	emailProvider := emailproviders.NewResendProvider(cfg.ResendAPIKey, cfg.EmailFromAddress, cfg.EmailFromName)
 
 	// Monitoring background processes
-	startMonitoring(db, cfg, emailProvider)
+	startMonitoringWithBus(db, cfg, emailProvider, bus)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	// Start outbox relay when using the outbox provider (after all subscribers registered).
+	if ob, ok := bus.(*eventbus.OutboxBus); ok {
+		ob.StartRelay(ctx)
+		logger.Info("Outbox relay started", zap.String("provider", cfg.EventBusProvider))
+	}
 
 	// Integration delivery worker
 	delWorker := buildDeliveryWorker(db, cfg, emailProvider)
@@ -73,6 +104,20 @@ func main() {
 		}
 	}()
 
+	// ---------------------------------------------------------------------------
+	// Snapshot retention job
+	// ---------------------------------------------------------------------------
+	retentionRunner, err := workerjobs.NewSnapshotRetentionRunner(db, cfg)
+	if err != nil {
+		logger.Warn("snapshot retention runner could not be initialized — skipping", zap.Error(err))
+	} else {
+		go func() {
+			if runErr := retentionRunner.Run(ctx); runErr != nil && runErr != context.Canceled {
+				logger.Warn("snapshot retention runner stopped", zap.Error(runErr))
+			}
+		}()
+	}
+
 	logger.Info("Worker Service is running...")
 
 	// Wait for shutdown signal
@@ -84,12 +129,12 @@ func main() {
 	cancel()
 }
 
-// startMonitoring builds the snapshot worker and starts the monitoring module's
-// background processes.
-func startMonitoring(db *sql.DB, cfg *config.Config, emailProvider *emailproviders.ResendProvider) {
+// startMonitoringWithBus builds the snapshot worker and starts the monitoring
+// module's background processes using the provided event bus.
+func startMonitoringWithBus(db *sql.DB, cfg *config.Config, emailProvider *emailproviders.ResendProvider, bus eventbus.MessageBus) {
 	snapshotWorker, err := monitoringwiring.NewSnapshotWorker(monitoringwiring.SnapshotWorkerDeps{
 		DB:            db,
-		EventBus:      eventbus.GetInstance(),
+		EventBus:      bus,
 		EmailProvider: emailProvider,
 		FrontendURL:   cfg.FrontendURL,
 		Cfg:           cfg,
@@ -99,8 +144,9 @@ func startMonitoring(db *sql.DB, cfg *config.Config, emailProvider *emailprovide
 	}
 	monitoringMod := monitoring.NewModuleWithDeps(monitoring.Deps{
 		DB:               db,
-		EventBus:         eventbus.GetInstance(),
+		EventBus:         bus,
 		SnapshotExecutor: snapshotWorker,
+		SchedulerMode:    cfg.SchedulerMode,
 	})
 	monitoringMod.StartBackgroundProcesses()
 }

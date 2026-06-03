@@ -184,3 +184,32 @@ describe("validateUrl — SSRF protection", () => {
     }
   });
 });
+
+describe("validateUrl — SSRF host allowlist", () => {
+  /** Resolver that always returns a private IP (10.x range) for allowlist tests. */
+  const tenResolver = async (_hostname: string): Promise<string[]> => ["10.0.0.5"];
+
+  it("allows an allowlisted hostname that resolves to a private IP", async () => {
+    await expect(
+      validateUrl("http://e2e-fixture:8080/page", tenResolver, new Set(["e2e-fixture"])),
+    ).resolves.toBeUndefined();
+  });
+
+  it("still blocks a non-allowlisted hostname resolving to a private IP", async () => {
+    await expect(
+      validateUrl("http://internal-svc:8080/", tenResolver, new Set(["e2e-fixture"])),
+    ).rejects.toThrow(UrlValidationError);
+  });
+
+  it("empty allowlist preserves current blocking behavior", async () => {
+    await expect(
+      validateUrl("http://e2e-fixture:8080/page", tenResolver, new Set()),
+    ).rejects.toThrow(UrlValidationError);
+  });
+
+  it("allowlist match is case-insensitive", async () => {
+    await expect(
+      validateUrl("http://E2E-Fixture:8080/page", tenResolver, new Set(["e2e-fixture"])),
+    ).resolves.toBeUndefined();
+  });
+});

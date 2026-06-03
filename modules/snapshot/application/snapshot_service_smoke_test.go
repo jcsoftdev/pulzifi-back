@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"testing"
+	"time"
 
 	snapp "github.com/jcsoftdev/pulzifi-back/modules/snapshot/application"
 	snapentities "github.com/jcsoftdev/pulzifi-back/modules/snapshot/domain/entities"
@@ -21,7 +22,12 @@ func (stubObjectStorage) Upload(_ context.Context, _ string, _ io.Reader, _ int6
 	return "https://example.com/snap.png", nil
 }
 func (stubObjectStorage) Download(_ context.Context, _ string) ([]byte, error) { return nil, nil }
+func (stubObjectStorage) Delete(_ context.Context, _ string) error              { return nil }
 func (stubObjectStorage) EnsureBucket(_ context.Context) error                 { return nil }
+func (stubObjectStorage) ObjectNameFromURL(storedURL string) string             { return storedURL }
+func (stubObjectStorage) PresignedGetURL(_ context.Context, storedURL string, _ time.Duration) (string, error) {
+	return storedURL, nil
+}
 
 var _ snaprepos.ObjectStorage = stubObjectStorage{}
 

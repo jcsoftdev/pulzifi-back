@@ -1,0 +1,27 @@
+name: E2E Full Pipeline
+# Heavy (full Docker stack + Chromium). NOT on push/PR — manual + nightly only.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * *"   # 06:00 UTC nightly
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    name: Full pipeline E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Add tenant host
+        run: echo "127.0.0.1 jcsoftdev-inc.lvh.me" | sudo tee -a /etc/hosts
+      - name: Run E2E
+        run: bash tools/scripts/e2e.sh
+      - name: Dump stack logs on failure
+        if: failure()
+        run: docker compose -f docker-compose.e2e.yml logs --no-color || true

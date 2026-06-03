@@ -1,0 +1,154 @@
+# E2E stack — full pipeline test (login → scraper → change detection).
+# Self-contained: brings up the whole app + a controlled fixture. NOT for prod.
+# Usage: tools/scripts/e2e.sh
+#
+# NOTE: database_setup.sql is an empty directory in this repo (placeholder for
+# optional init SQL). The volume mount is kept for structural consistency with
+# docker-compose.yml; postgres will skip it if the directory is empty.
+
+networks:
+  pulzifi-e2e:
+    driver: bridge
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: ${DB_NAME:-pulzifi}
+      POSTGRES_USER: ${DB_USER:-pulzifi_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-pulzifi_password}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=en_US.UTF-8 --lc-ctype=en_US.UTF-8"
+    # No initdb mounts: the `migrate` service applies all migrations + seed. (The dev
+    # compose mounts database_setup.sql, but here it's an empty dir → initdb crashes.)
+    networks: [pulzifi-e2e]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-pulzifi_user} -d ${DB_NAME:-pulzifi}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    networks: [pulzifi-e2e]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  localstack:
+    image: localstack/localstack:3.0
+    environment:
+      - SERVICES=s3
+    networks: [pulzifi-e2e]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  e2e-fixture:
+    build:
+      context: .
+      dockerfile: tools/e2e/fixture/Dockerfile
+    environment:
+      PORT: "8080"
+    ports:
+      - "8088:8080"   # hardcoded host port; the spec's FIXTURE_SWITCH defaults to :8088
+    networks: [pulzifi-e2e]
+    # distroless has no shell/curl; rely on monolith readiness + test-side retry.
+
+  scraper:
+    build:
+      context: ./modules/infra/scraper
+      dockerfile: Dockerfile
+    shm_size: '1gb'
+    environment:
+      PORT: 3000
+      MAX_CONCURRENT_PAGES: 3
+      NAV_TIMEOUT_MS: 30000
+      SSRF_HOST_ALLOWLIST: "e2e-fixture"   # allow ONLY the fixture's private IP
+    networks: [pulzifi-e2e]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  # One-shot migration + seed. Builds the prod image (reused by monolith) and runs
+  # public migrations (incl. 000005 seed: ajcarlos032@gmail.com / org jcsoftdev-inc /
+  # schema jcsoftdev_inc) then tenant migrations. A clean `down -v` volume starts empty,
+  # so this MUST run before the monolith. monolith waits on service_completed_successfully.
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    image: pulzifi-api:e2e
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-pulzifi_user}
+      DB_PASSWORD: ${DB_PASSWORD:-pulzifi_password}
+      DB_NAME: ${DB_NAME:-pulzifi}
+      DB_SSLMODE: disable
+    command: ["./migrate", "-cmd", "up"]
+    restart: "no"
+    networks: [pulzifi-e2e]
+
+  monolith:
+    # Same prod binary image as `migrate` (no air/swag hot-reload: the dev all-in-one
+    # image rebuild-loops on swag output and never goes healthy in E2E). Own build block
+    # so compose doesn't try to pull the locally-built tag.
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    image: pulzifi-api:e2e
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      localstack: { condition: service_healthy }
+      scraper: { condition: service_healthy }
+    environment:
+      HTTP_PORT: 3000
+      GRPC_PORT: 9000
+      NEXTJS_URL: http://web:3001
+      ENVIRONMENT: development
+      ENABLE_WORKERS: "false"     # inline 1-worker handles run-now dispatch
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-pulzifi_user}
+      DB_PASSWORD: ${DB_PASSWORD:-pulzifi_password}
+      DB_NAME: ${DB_NAME:-pulzifi}
+      DB_SSLMODE: disable
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      MINIO_ENDPOINT: localstack:4566
+      MINIO_ACCESS_KEY: test
+      MINIO_SECRET_KEY: test
+      MINIO_BUCKET: pulzifi-snapshots
+      MINIO_USE_SSL: "false"
+      MINIO_PUBLIC_URL: http://localstack:4566
+      EXTRACTOR_URL: http://scraper:3000
+      CORS_ALLOWED_ORIGINS: "http://jcsoftdev-inc.lvh.me:3000"
+      JWT_SECRET: e2e-test-secret-not-for-prod
+      COOKIE_DOMAIN: .lvh.me
+    ports:
+      # Hardcoded 3000 (NOT ${HTTP_PORT}) so the repo .env can't remap the host port —
+      # baseURL, CORS origin, e2e.sh health-wait and the spec all assume host :3000.
+      - "3000:3000"
+    networks: [pulzifi-e2e]
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 15
+      start_period: 20s
+  # No `web` service: the E2E is API-driven (login via BFF + workspace/page/check/alert
+  # via /api/v1). The frontend login is a Payload-CMS block with no standalone route, so
+  # driving the UI would require provisioning Payload (env + migrate + seed). The BFF
+  # login sets the same auth cookie, exercising the identical backend pipeline. The
+  # monolith's NEXTJS_URL points at a non-existent `web` here, but the test only hits
+  # /api/* (never proxied routes), so it's never dereferenced.

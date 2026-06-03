@@ -11,7 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/domain/entities"
-	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
+	"github.com/jcsoftdev/pulzifi-back/shared/database"
 	"github.com/lib/pq"
 )
 
@@ -41,9 +41,6 @@ func marshalSelectorOffsets(o *entities.SelectorOffsets) []byte {
 }
 
 func (r *MonitoringConfigPostgresRepository) Create(ctx context.Context, config *entities.MonitoringConfig) error {
-	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
-		return err
-	}
 	insightTypesJSON := marshalStringSlice(config.EnabledInsightTypes)
 	alertConditionsJSON := marshalStringSlice(config.EnabledAlertConditions)
 	selectorOffsetsJSON := marshalSelectorOffsets(config.SelectorOffsets)
@@ -54,21 +51,20 @@ func (r *MonitoringConfigPostgresRepository) Create(ctx context.Context, config 
 		 selector_type, css_selector, xpath_selector, selector_offsets, ignore_selectors,
 		 created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`
-	_, err := r.db.ExecContext(ctx, q,
-		config.ID, config.PageID, config.CheckFrequency, config.ScheduleType,
-		config.Timezone, config.BlockAdsCookies,
-		string(insightTypesJSON), string(alertConditionsJSON), config.CustomAlertCondition,
-		config.SelectorType, config.CSSSelector, config.XPathSelector, string(selectorOffsetsJSON),
-		string(ignoreSelectorsJSON),
-		config.CreatedAt, config.UpdatedAt,
-	)
-	return err
+	return database.WithTenant(ctx, r.db, r.tenant, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, q,
+			config.ID, config.PageID, config.CheckFrequency, config.ScheduleType,
+			config.Timezone, config.BlockAdsCookies,
+			string(insightTypesJSON), string(alertConditionsJSON), config.CustomAlertCondition,
+			config.SelectorType, config.CSSSelector, config.XPathSelector, string(selectorOffsetsJSON),
+			string(ignoreSelectorsJSON),
+			config.CreatedAt, config.UpdatedAt,
+		)
+		return err
+	})
 }
 
 func (r *MonitoringConfigPostgresRepository) GetByPageID(ctx context.Context, pageID uuid.UUID) (*entities.MonitoringConfig, error) {
-	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
-		return nil, err
-	}
 	var c entities.MonitoringConfig
 	var insightTypesRaw, alertConditionsRaw, selectorOffsetsRaw, ignoreSelectorsRaw []byte
 	q := `SELECT id, page_id, check_frequency, schedule_type, timezone, block_ads_cookies,
@@ -78,17 +74,20 @@ func (r *MonitoringConfigPostgresRepository) GetByPageID(ctx context.Context, pa
 		         COALESCE(ignore_selectors, '[]')::text,
 		         created_at, updated_at
 		  FROM monitoring_configs WHERE page_id = $1 AND deleted_at IS NULL`
-	err := r.db.QueryRowContext(ctx, q, pageID).Scan(
-		&c.ID, &c.PageID, &c.CheckFrequency, &c.ScheduleType, &c.Timezone, &c.BlockAdsCookies,
-		&insightTypesRaw, &alertConditionsRaw, &c.CustomAlertCondition,
-		&c.SelectorType, &c.CSSSelector, &c.XPathSelector, &selectorOffsetsRaw,
-		&ignoreSelectorsRaw,
-		&c.CreatedAt, &c.UpdatedAt,
-	)
+
+	err := database.WithTenant(ctx, r.db, r.tenant, func(tx *sql.Tx) error {
+		return tx.QueryRowContext(ctx, q, pageID).Scan(
+			&c.ID, &c.PageID, &c.CheckFrequency, &c.ScheduleType, &c.Timezone, &c.BlockAdsCookies,
+			&insightTypesRaw, &alertConditionsRaw, &c.CustomAlertCondition,
+			&c.SelectorType, &c.CSSSelector, &c.XPathSelector, &selectorOffsetsRaw,
+			&ignoreSelectorsRaw,
+			&c.CreatedAt, &c.UpdatedAt,
+		)
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
 		return nil, err
 	}
 	if len(insightTypesRaw) > 0 {
@@ -110,9 +109,6 @@ func (r *MonitoringConfigPostgresRepository) GetByPageID(ctx context.Context, pa
 }
 
 func (r *MonitoringConfigPostgresRepository) Update(ctx context.Context, config *entities.MonitoringConfig) error {
-	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
-		return err
-	}
 	config.UpdatedAt = time.Now()
 	insightTypesJSON, err := json.Marshal(config.EnabledInsightTypes)
 	if err != nil {
@@ -130,22 +126,21 @@ func (r *MonitoringConfigPostgresRepository) Update(ctx context.Context, config 
 		      selector_type = $8, css_selector = $9, xpath_selector = $10, selector_offsets = $11,
 		      ignore_selectors = $12, updated_at = $13
 		  WHERE id = $14 AND deleted_at IS NULL`
-	_, err = r.db.ExecContext(ctx, q,
-		config.CheckFrequency, config.ScheduleType, config.Timezone, config.BlockAdsCookies,
-		string(insightTypesJSON), string(alertConditionsJSON), config.CustomAlertCondition,
-		config.SelectorType, config.CSSSelector, config.XPathSelector, string(selectorOffsetsJSON),
-		string(ignoreSelectorsJSON),
-		config.UpdatedAt, config.ID,
-	)
-	return err
+	return database.WithTenant(ctx, r.db, r.tenant, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, q,
+			config.CheckFrequency, config.ScheduleType, config.Timezone, config.BlockAdsCookies,
+			string(insightTypesJSON), string(alertConditionsJSON), config.CustomAlertCondition,
+			config.SelectorType, config.CSSSelector, config.XPathSelector, string(selectorOffsetsJSON),
+			string(ignoreSelectorsJSON),
+			config.UpdatedAt, config.ID,
+		)
+		return err
+	})
 }
 
 func (r *MonitoringConfigPostgresRepository) BulkUpdateFrequency(ctx context.Context, pageIDs []uuid.UUID, frequency string) error {
 	if len(pageIDs) == 0 {
 		return nil
-	}
-	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
-		return err
 	}
 	now := time.Now()
 	placeholders := make([]string, len(pageIDs))
@@ -157,8 +152,27 @@ func (r *MonitoringConfigPostgresRepository) BulkUpdateFrequency(ctx context.Con
 		args[i+2] = id
 	}
 	q := `UPDATE monitoring_configs SET check_frequency = $1, updated_at = $2 WHERE page_id IN (` + strings.Join(placeholders, ", ") + `) AND deleted_at IS NULL`
-	_, err := r.db.ExecContext(ctx, q, args...)
-	return err
+	return database.WithTenant(ctx, r.db, r.tenant, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, q, args...)
+		return err
+	})
+}
+
+// buildNextRunAtCases generates the CASE WHEN fragment that computes
+// NOW() + interval for a given check_frequency.  Used by queue-mode
+// queries to advance next_run_at atomically at claim time.
+func buildNextRunAtCases() string {
+	allKeys := entities.AllFrequencyKeys()
+	var cases string
+	for canonical, keys := range allKeys {
+		pgInterval := entities.FrequencyToPostgresInterval[canonical]
+		for _, k := range keys {
+			cases += fmt.Sprintf(
+				"\n\t\t\t\tWHEN mc.check_frequency = '%s' THEN NOW() + INTERVAL '%s'",
+				k, pgInterval)
+		}
+	}
+	return cases
 }
 
 func buildDueConditions() string {
@@ -218,12 +232,11 @@ func (r *MonitoringConfigPostgresRepository) GetDueSnapshotTasks(ctx context.Con
 }
 
 func (r *MonitoringConfigPostgresRepository) GetPageURL(ctx context.Context, pageID uuid.UUID) (string, error) {
-	if _, err := r.db.ExecContext(ctx, middleware.GetSetSearchPathSQL(r.tenant)); err != nil {
-		return "", err
-	}
 	var url string
 	q := `SELECT url FROM pages WHERE id = $1 AND deleted_at IS NULL`
-	err := r.db.QueryRowContext(ctx, q, pageID).Scan(&url)
+	err := database.WithTenant(ctx, r.db, r.tenant, func(tx *sql.Tx) error {
+		return tx.QueryRowContext(ctx, q, pageID).Scan(&url)
+	})
 	if err != nil {
 		return "", err
 	}
@@ -250,4 +263,81 @@ func (r *MonitoringConfigPostgresRepository) GetLastCheckedAt(ctx context.Contex
 		return nil, err
 	}
 	return lastCheckedAt, nil
+}
+
+// GetDueSnapshotTasksQueue is the queue-mode replacement for GetDueSnapshotTasks.
+// It claims pages WHERE next_run_at <= NOW() (FOR UPDATE SKIP LOCKED) and in the
+// same atomic UPDATE advances next_run_at = NOW() + interval so concurrent
+// scheduler instances never double-claim the same page.
+//
+// Only active when SCHEDULER_MODE=queue; poll mode uses GetDueSnapshotTasks.
+func (r *MonitoringConfigPostgresRepository) GetDueSnapshotTasksQueue(ctx context.Context) ([]entities.SnapshotTask, error) {
+	qTenant := pq.QuoteIdentifier(r.tenant)
+	nextRunCases := buildNextRunAtCases()
+
+	q := fmt.Sprintf(`
+		WITH candidates AS (
+			SELECT p.id, mc.check_frequency
+			FROM %[1]s.pages p
+			JOIN %[1]s.monitoring_configs mc ON p.id = mc.page_id
+			WHERE p.deleted_at IS NULL AND mc.deleted_at IS NULL
+			AND mc.check_frequency != 'Off'
+			AND p.next_run_at IS NOT NULL
+			AND p.next_run_at <= NOW()
+			LIMIT 50
+			FOR UPDATE OF p SKIP LOCKED
+		)
+		UPDATE %[1]s.pages p
+		SET last_checked_at = NOW(),
+		    next_run_at = CASE %s
+		                    ELSE NOW() + INTERVAL '1 hour'
+		                  END
+		FROM candidates mc
+		WHERE p.id = mc.id
+		RETURNING p.id, p.url
+	`, qTenant, nextRunCases)
+
+	rows, err := r.db.QueryContext(ctx, q)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var tasks []entities.SnapshotTask
+	for rows.Next() {
+		var t entities.SnapshotTask
+		if err := rows.Scan(&t.PageID, &t.URL); err != nil {
+			return nil, err
+		}
+		tasks = append(tasks, t)
+	}
+	return tasks, rows.Err()
+}
+
+// UpdateNextRunAt recomputes next_run_at for a page based on its current
+// check_frequency.  Called after a check completes in queue mode so the page
+// stays scheduled even when the check completion path runs outside the
+// atomic claim window (e.g. orchestrator.PageRepository.UpdateLastChecked).
+//
+// In poll mode this is a no-op (the column is unused) — the UPDATE is
+// harmless because it only touches rows that already have a non-NULL
+// check_frequency config.
+func (r *MonitoringConfigPostgresRepository) UpdateNextRunAt(ctx context.Context, pageID uuid.UUID) error {
+	qTenant := pq.QuoteIdentifier(r.tenant)
+	nextRunCases := buildNextRunAtCases()
+
+	q := fmt.Sprintf(`
+		UPDATE %[1]s.pages p
+		SET next_run_at = CASE %s
+		                    ELSE NOW() + INTERVAL '1 hour'
+		                  END
+		FROM %[1]s.monitoring_configs mc
+		WHERE p.id = $1
+		  AND p.deleted_at IS NULL
+		  AND mc.page_id = p.id
+		  AND mc.deleted_at IS NULL
+		  AND mc.check_frequency != 'Off'
+	`, qTenant, nextRunCases)
+	_, err := r.db.ExecContext(ctx, q, pageID)
+	return err
 }

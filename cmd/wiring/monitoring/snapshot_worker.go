@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	snapshotwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/snapshot"
 	emailservices "github.com/jcsoftdev/pulzifi-back/modules/email/domain/services"
+	listchecks "github.com/jcsoftdev/pulzifi-back/modules/monitoring/application/list_checks"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/application/workers"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/persistence"
 	snapshotapp "github.com/jcsoftdev/pulzifi-back/modules/snapshot/application"
@@ -24,7 +25,7 @@ import (
 // SnapshotWorkerDeps groups everything NewSnapshotWorker needs.
 type SnapshotWorkerDeps struct {
 	DB            *sql.DB
-	EventBus      *eventbus.EventBus
+	EventBus      eventbus.MessageBus
 	EmailProvider emailservices.EmailProvider
 	FrontendURL   string
 	Cfg           *config.Config
@@ -66,6 +67,8 @@ func NewSnapshotWorker(deps SnapshotWorkerDeps) (*snapshotapp.SnapshotWorker, er
 		notificationEmailer = snapshotwiring.NewNotificationEmailer(deps.EmailProvider)
 	}
 
+	storageFlagReader := snapshotwiring.NewStorageFlagReader(deps.DB)
+
 	workerDeps := snapshotapp.SnapshotWorkerDeps{
 		ObjectStorage:       objectStorage,
 		ExtractorClient:     extractorClient,
@@ -74,6 +77,7 @@ func NewSnapshotWorker(deps SnapshotWorkerDeps) (*snapshotapp.SnapshotWorker, er
 		AlertCreator:        alertCreator,
 		NotificationEmailer: notificationEmailer,
 		InsightDispatcher:   insightDispatcher,
+		StorageFlagReader:   storageFlagReader,
 		FrontendURL:         deps.FrontendURL,
 	}
 
@@ -91,6 +95,18 @@ func NewSnapshotWorker(deps SnapshotWorkerDeps) (*snapshotapp.SnapshotWorker, er
 	}
 
 	return snapshotWorker, nil
+}
+
+// NewSnapshotPresigner builds an ObjectStorage that satisfies listchecks.SnapshotURLPresigner
+// for URL mediation in browser-facing monitoring endpoints. Returns nil on failure
+// so callers fall back to pass-through mode (safe public default).
+func NewSnapshotPresigner(cfg *config.Config) listchecks.SnapshotURLPresigner {
+	storage, err := snapshotstorage.NewObjectStorage(cfg)
+	if err != nil {
+		logger.Warn("Failed to build snapshot presigner — URL mediation in pass-through mode", zap.Error(err))
+		return nil
+	}
+	return storage
 }
 
 // NewWorkerPool builds a *workers.WorkerPool from a SnapshotPort and a fail-check

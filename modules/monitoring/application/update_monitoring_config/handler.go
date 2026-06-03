@@ -18,12 +18,12 @@ import (
 
 type UpdateMonitoringConfigHandler struct {
 	repo      repositories.MonitoringConfigRepository
-	eventBus  *eventbus.EventBus
+	eventBus  eventbus.MessageBus
 	tenant    string
 	scheduler monitoringservices.Scheduler
 }
 
-func NewUpdateMonitoringConfigHandler(repo repositories.MonitoringConfigRepository, eventBus *eventbus.EventBus, tenant string, scheduler monitoringservices.Scheduler) *UpdateMonitoringConfigHandler {
+func NewUpdateMonitoringConfigHandler(repo repositories.MonitoringConfigRepository, eventBus eventbus.MessageBus, tenant string, scheduler monitoringservices.Scheduler) *UpdateMonitoringConfigHandler {
 	return &UpdateMonitoringConfigHandler{
 		repo:      repo,
 		eventBus:  eventBus,

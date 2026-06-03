@@ -49,7 +49,7 @@ interface ListAllAlertsDTO {
   total: number
 }
 
-function mapAlertType(type_: string): Notification['type'] {
+export function mapAlertType(type_: string): Notification['type'] {
   switch (type_) {
     case 'content_change':
       return 'warning'

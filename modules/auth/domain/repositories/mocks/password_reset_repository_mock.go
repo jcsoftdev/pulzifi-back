@@ -10,13 +10,15 @@ import (
 
 // MockPasswordResetRepository is a hand-rolled mock of repositories.PasswordResetRepository.
 type MockPasswordResetRepository struct {
-	StoreErr   error
-	FindResult *repositories.PasswordReset
-	FindErr    error
-	ConsumeErr error
+	StoreErr        error
+	StoredExpiresAt time.Time // captured from the last Store call
+	FindResult      *repositories.PasswordReset
+	FindErr         error
+	ConsumeErr      error
 }
 
-func (m *MockPasswordResetRepository) Store(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ string, _ time.Time) error {
+func (m *MockPasswordResetRepository) Store(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ string, expiresAt time.Time) error {
+	m.StoredExpiresAt = expiresAt
 	return m.StoreErr
 }
 

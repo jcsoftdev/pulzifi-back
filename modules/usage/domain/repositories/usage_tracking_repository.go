@@ -8,7 +8,7 @@ import (
 )
 
 // UsageTrackingRepository manages usage_tracking rows in the tenant schema.
-// Implementations MUST call middleware.GetSetSearchPathSQL(tenant) before queries.
+// Implementations MUST scope every query to the tenant schema.
 type UsageTrackingRepository interface {
 	// FindCurrent returns the active billing period covering today, or nil if none exists.
 	FindCurrent(ctx context.Context, today time.Time) (*entities.UsageTracking, error)
