@@ -139,3 +139,24 @@ func (r *AdminUserPostgresRepository) SetStatus(ctx context.Context, id uuid.UUI
 	}
 	return err
 }
+
+// IsOrgOwner returns true when userID is the owner_user_id of the given org.
+// Implements setmembershiprole.Writer and removemembership.Remover.
+func (r *AdminUserPostgresRepository) IsOrgOwner(ctx context.Context, userID, orgID uuid.UUID) (bool, error) {
+	const q = `SELECT EXISTS(SELECT 1 FROM public.organizations WHERE id = $2 AND owner_user_id = $1 AND deleted_at IS NULL)`
+	var owner bool
+	err := r.db.QueryRowContext(ctx, q, userID, orgID).Scan(&owner)
+	return owner, err
+}
+
+// SetRole updates the role column of an active org membership.
+// Implements setmembershiprole.Writer.
+func (r *AdminUserPostgresRepository) SetRole(ctx context.Context, userID, orgID uuid.UUID, role string) error {
+	const q = `UPDATE public.organization_members SET role = $3
+	           WHERE user_id = $1 AND organization_id = $2 AND deleted_at IS NULL`
+	_, err := r.db.ExecContext(ctx, q, userID, orgID, role)
+	if err != nil {
+		logger.Error("AdminUserRepo: set role failed", zap.Error(err))
+	}
+	return err
+}
