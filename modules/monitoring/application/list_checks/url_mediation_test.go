@@ -3,7 +3,6 @@ package listchecks
 import (
 	"context"
 	"errors"
-	"strings"
 	"testing"
 	"time"
 )
@@ -189,9 +188,14 @@ func TestExtractObjectNameFromURL(t *testing.T) {
 			want:      "550e8400-e29b-41d4-a716-446655440000/123.png",
 		},
 		{
-			name:      "cloudinary URL",
+			name:      "cloudinary image URL → empty (ACL handled by Cloudinary)",
 			storedURL: "https://res.cloudinary.com/mycloud/image/upload/v123/page-uuid/123.png",
-			want:      "", // cloudinary URLs parsed differently; we rely on the /bucket/ marker
+			want:      "",
+		},
+		{
+			name:      "cloudinary raw URL → empty (ACL handled by Cloudinary)",
+			storedURL: "https://res.cloudinary.com/mycloud/raw/upload/v123/page-uuid/123.html",
+			want:      "",
 		},
 		{
 			name:      "empty",
@@ -203,14 +207,29 @@ func TestExtractObjectNameFromURL(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := extractObjectNameFromStorageURL(tt.storedURL)
-			// For the cloudinary case we only care it doesn't panic; the ownership
-			// check will treat an empty result as legacy-owned.
-			if strings.Contains(tt.storedURL, "cloudinary") {
-				return
-			}
 			if got != tt.want {
 				t.Errorf("extractObjectNameFromStorageURL(%q) = %q, want %q", tt.storedURL, got, tt.want)
 			}
 		})
+	}
+}
+
+// TestMediateURL_CloudinaryURL_PassThrough is the regression for the IDOR
+// defense wrongly dropping Cloudinary URLs (parsed prefix "image"/"raw" ≠ tenant).
+func TestMediateURL_CloudinaryURL_PassThrough(t *testing.T) {
+	cfg := URLMediationConfig{
+		Tenant:        "jcsoftdev_inc",
+		BucketPrivate: false,
+		PresignTTL:    15 * time.Minute,
+		Presigner:     &stubPresigner{},
+	}
+	inputs := []string{
+		"https://res.cloudinary.com/dspfsm1wp/image/upload/v1780523918/pulzifi/page-uuid/123.webp",
+		"https://res.cloudinary.com/dspfsm1wp/raw/upload/v1780523920/pulzifi/page-uuid/123.html",
+	}
+	for _, input := range inputs {
+		if got := mediateURL(context.Background(), input, cfg); got != input {
+			t.Errorf("mediateURL (cloudinary) = %q, want %q (pass-through, not IDOR drop)", got, input)
+		}
 	}
 }

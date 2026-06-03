@@ -124,6 +124,16 @@ func extractObjectNameFromStorageURL(storedURL string) string {
 	if hostEnd < 0 {
 		return ""
 	}
+
+	// Cloudinary URLs (res.cloudinary.com/<cloud>/<resource_type>/<delivery>/...)
+	// do not follow the host/bucket/key shape: parsing them naively yields a bogus
+	// key prefixed with "image" or "raw", which would trip the tenant-ownership
+	// check and drop legitimately-owned URLs. Cloudinary ACL is enforced at the
+	// Cloudinary level (authenticated type, non-guessable public IDs), so we
+	// return "" here and let the caller treat it as legacy pass-through.
+	if host := stripped[:hostEnd]; strings.Contains(host, "cloudinary.com") {
+		return ""
+	}
 	rest := stripped[hostEnd+1:] // "snapshots/tenant1/page-uuid/123.png"
 
 	bucketEnd := strings.Index(rest, "/")
