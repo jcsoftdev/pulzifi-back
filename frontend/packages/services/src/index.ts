@@ -44,9 +44,11 @@ export { PageApi } from './page-api'
 export type { CreateReportDto, Report } from './report-api'
 export { ReportApi } from './report-api'
 export type {
+  AdminMembership,
   AdminOrganizationPlan,
   AdminPlan,
   AdminUser,
+  AdminUserDetail,
   ListUsersParams,
   ListUsersResponse,
 } from './super-admin-api'

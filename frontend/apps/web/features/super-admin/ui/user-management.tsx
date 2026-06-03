@@ -10,162 +10,145 @@ import {
   CardHeader,
   CardTitle,
   Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from '@workspace/ui/components/atoms'
-import type { AxiosError } from 'axios'
 import { ChevronLeft, ChevronRight, Loader2, ShieldCheck } from 'lucide-react'
-import { useCallback, useEffect, useId, useRef, useState, useTransition } from 'react'
-import { notification } from '@/lib/notification'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { UserDetailSheet } from './user-detail-sheet'
 
-function getHttpStatus(err: unknown): number | undefined {
-  return (err as AxiosError)?.response?.status
+const PAGE_SIZE = 10
+
+interface UserManagementProps {
+  initialOrgId?: string
 }
 
-const PAGE_SIZE = 5
-
-export function UserManagement() {
-  const [isPending, startTransition] = useTransition()
+export function UserManagement({ initialOrgId = '' }: UserManagementProps) {
   const [users, setUsers] = useState<AdminUser[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
+  const [orgId, setOrgId] = useState(initialOrgId)
+  const [status, setStatus] = useState('')
+  const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
-  const [actionError, setActionError] = useState<string | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const searchId = useId()
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
-  const loadUsers = useCallback(async (currentSearch: string, currentPage: number) => {
+  const loadUsers = useCallback(async (s: string, p: number, org: string, st: string) => {
+    setLoading(true)
     try {
       setLoadError(null)
       const data = await SuperAdminApi.listUsers({
-        search: currentSearch,
-        page: currentPage,
+        search: s,
+        page: p,
         pageSize: PAGE_SIZE,
+        orgId: org,
+        status: st,
       })
       setUsers(data.users ?? [])
       setTotal(data.total ?? 0)
-    } catch (err) {
-      const status = getHttpStatus(err)
-      setLoadError(
-        status === 403
-          ? 'You need SUPER_ADMIN role to manage users.'
-          : 'Failed to load users. Please try again.'
-      )
+    } catch {
+      setLoadError('You need SUPER_ADMIN role to manage users.')
+    } finally {
+      setLoading(false)
     }
   }, [])
 
-  // Mount-only fetch
   useEffect(() => {
-    loadUsers('', 1)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+    loadUsers(search, page, orgId, status)
+  }, [loadUsers, search, page, orgId, status])
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value
-    setSearch(value)
     setPage(1)
-
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current)
-    }
-    debounceRef.current = setTimeout(() => {
-      loadUsers(value, 1)
-    }, 300)
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => setSearch(value), 300)
   }
 
-  const handlePageChange = (next: number) => {
-    setPage(next)
-    loadUsers(search, next)
-  }
-
-  const handlePromote = (user: AdminUser) => {
-    setActionError(null)
-    startTransition(async () => {
-      try {
-        await SuperAdminApi.promoteUser(user.id)
-        notification.success({
-          title: 'User promoted',
-          description: `${user.email} is now a Super Admin.`,
-        })
-        await loadUsers(search, page)
-      } catch (err) {
-        const status = getHttpStatus(err)
-
-        const userMessage =
-          status === 409
-            ? `${user.email} is already a Super Admin.`
-            : status === 404
-              ? 'User not found. They may have been deleted.'
-              : 'Failed to promote user. Please try again.'
-
-        setActionError(userMessage)
-        notification.error({
-          title: 'Promotion failed',
-          description: userMessage,
-        })
-      }
-    })
-  }
+  const refresh = () => loadUsers(search, page, orgId, status)
 
   if (loadError) {
     return (
-      <div className="flex-1 p-8 max-w-7xl mx-auto w-full">
-        <Card>
-          <CardHeader>
-            <CardTitle>Super Admin Access</CardTitle>
-            <CardDescription>{loadError}</CardDescription>
-          </CardHeader>
-        </Card>
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Super Admin Access</CardTitle>
+          <CardDescription>{loadError}</CardDescription>
+        </CardHeader>
+      </Card>
     )
   }
 
   return (
-    <div className="flex-1 p-8 max-w-7xl mx-auto w-full">
+    <>
       <Card>
         <CardHeader>
-          <CardTitle>Promote users</CardTitle>
+          <CardTitle>Users</CardTitle>
           <CardDescription>
-            Search for a user by name or email and promote them to Super Admin.
+            Search, filter, and manage user accounts and their organization roles.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-6">
-          {actionError && (
-            <div className="text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-md px-4 py-3">
-              {actionError}
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="flex-1 min-w-[220px]">
+              <label htmlFor={searchId} className="block text-sm font-medium mb-2">
+                Search by name or email
+              </label>
+              <Input id={searchId} placeholder="john@example.com" onChange={handleSearchChange} />
+            </div>
+            <Select
+              value={status || 'all'}
+              onValueChange={(v) => {
+                setStatus(v === 'all' ? '' : v)
+                setPage(1)
+              }}
+            >
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All statuses</SelectItem>
+                <SelectItem value="approved">Approved</SelectItem>
+                <SelectItem value="suspended">Suspended</SelectItem>
+                <SelectItem value="trial_expired">Trial expired</SelectItem>
+              </SelectContent>
+            </Select>
+            {loading && <Loader2 className="w-5 h-5 animate-spin text-muted-foreground mb-2" />}
+          </div>
+
+          {orgId && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span>Filtered by organization.</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setOrgId('')
+                  setPage(1)
+                }}
+              >
+                Clear org filter
+              </Button>
             </div>
           )}
 
-          <div className="flex items-center gap-3">
-            <div className="flex-1">
-              <label htmlFor={searchId} className="block text-sm font-medium text-foreground mb-2">
-                Search by name or email
-              </label>
-              <Input
-                id={searchId}
-                placeholder="john@example.com"
-                value={search}
-                onChange={handleSearchChange}
-                className="text-sm"
-              />
-            </div>
-            {isPending && (
-              <Loader2 className="w-5 h-5 animate-spin text-muted-foreground self-end mb-0.5" />
-            )}
-          </div>
-
           <div className="overflow-x-auto">
             {users.length === 0 ? (
-              <div className="p-6 text-sm text-muted-foreground text-center">
-                {search ? 'No users match your search.' : 'No users found.'}
-              </div>
+              <div className="p-6 text-sm text-muted-foreground text-center">No users found.</div>
             ) : (
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border">
                     <th className="text-left py-3 px-4 font-medium">Name</th>
                     <th className="text-left py-3 px-4 font-medium">Email</th>
+                    <th className="text-left py-3 px-4 font-medium">Status</th>
+                    <th className="text-left py-3 px-4 font-medium">Orgs</th>
                     <th className="text-left py-3 px-4 font-medium">Role</th>
                     <th className="text-right py-3 px-4 font-medium">Action</th>
                   </tr>
@@ -178,6 +161,12 @@ export function UserManagement() {
                       </td>
                       <td className="py-3 px-4 text-muted-foreground">{user.email}</td>
                       <td className="py-3 px-4">
+                        <Badge variant={user.status === 'suspended' ? 'destructive' : 'secondary'}>
+                          {user.status}
+                        </Badge>
+                      </td>
+                      <td className="py-3 px-4">{user.orgCount}</td>
+                      <td className="py-3 px-4">
                         {user.isSuperAdmin && (
                           <Badge variant="default" className="gap-1">
                             <ShieldCheck className="w-3 h-3" />
@@ -189,10 +178,9 @@ export function UserManagement() {
                         <Button
                           variant="outline"
                           size="sm"
-                          disabled={isPending || user.isSuperAdmin}
-                          onClick={() => handlePromote(user)}
+                          onClick={() => setSelectedId(user.id)}
                         >
-                          {user.isSuperAdmin ? 'Already promoted' : 'Promote'}
+                          Manage
                         </Button>
                       </td>
                     </tr>
@@ -211,26 +199,33 @@ export function UserManagement() {
                 <Button
                   variant="outline"
                   size="sm"
-                  disabled={page <= 1 || isPending}
-                  onClick={() => handlePageChange(page - 1)}
+                  disabled={page <= 1 || loading}
+                  onClick={() => setPage((p) => p - 1)}
                 >
-                  <ChevronLeft className="w-4 h-4" />
-                  Prev
+                  <ChevronLeft className="w-4 h-4" /> Prev
                 </Button>
                 <Button
                   variant="outline"
                   size="sm"
-                  disabled={page >= totalPages || isPending}
-                  onClick={() => handlePageChange(page + 1)}
+                  disabled={page >= totalPages || loading}
+                  onClick={() => setPage((p) => p + 1)}
                 >
-                  Next
-                  <ChevronRight className="w-4 h-4" />
+                  Next <ChevronRight className="w-4 h-4" />
                 </Button>
               </div>
             </div>
           )}
         </CardContent>
       </Card>
-    </div>
+
+      {selectedId && (
+        <UserDetailSheet
+          userId={selectedId}
+          open={!!selectedId}
+          onClose={() => setSelectedId(null)}
+          onChanged={refresh}
+        />
+      )}
+    </>
   )
 }
