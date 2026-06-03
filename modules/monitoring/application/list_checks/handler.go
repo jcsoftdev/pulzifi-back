@@ -2,6 +2,7 @@ package listchecks
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -65,6 +66,16 @@ func (h *ListChecksHandler) HandleBySection(ctx context.Context, pageID uuid.UUI
 	return buildResponse(ctx, checks, h.mediationCfg), nil
 }
 
+// rawContentDiff embeds the stored content-diff jsonb string as a JSON object in
+// the response. Empty or invalid JSON yields nil so the field is omitted instead
+// of producing a malformed response body.
+func rawContentDiff(s string) json.RawMessage {
+	if s == "" || !json.Valid([]byte(s)) {
+		return nil
+	}
+	return json.RawMessage(s)
+}
+
 func toCheckResponse(ctx context.Context, check *entities.Check, cfg URLMediationConfig) *CheckResponse {
 	resp := &CheckResponse{
 		ID:              check.ID,
@@ -77,7 +88,7 @@ func toCheckResponse(ctx context.Context, check *entities.Check, cfg URLMediatio
 		ChangeDetected:  check.ChangeDetected,
 		ChangeType:      check.ChangeType,
 		ErrorMessage:    check.ErrorMessage,
-		ContentDiff:     check.ContentDiffJSON,
+		ContentDiff:     rawContentDiff(check.ContentDiffJSON),
 		DiffImageURL:    mediateURL(ctx, check.DiffImageURL, cfg),
 		CheckedAt:       check.CheckedAt,
 	}
