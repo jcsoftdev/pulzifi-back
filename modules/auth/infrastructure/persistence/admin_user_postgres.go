@@ -5,6 +5,7 @@ import (
 	"database/sql"
 
 	"github.com/google/uuid"
+	getuserdetail "github.com/jcsoftdev/pulzifi-back/modules/auth/application/get_user_detail"
 	listusers "github.com/jcsoftdev/pulzifi-back/modules/auth/application/list_users"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 	"go.uber.org/zap"
@@ -81,3 +82,49 @@ func (r *AdminUserPostgresRepository) ListUsers(ctx context.Context, filter list
 
 // Ensure the uuid import is used (ID is scanned directly by the driver).
 var _ = uuid.UUID{}
+
+// GetUserDetail fetches full profile + org memberships for a single user.
+// Implements getuserdetail.Reader.
+func (r *AdminUserPostgresRepository) GetUserDetail(ctx context.Context, id uuid.UUID) (*getuserdetail.UserDetail, error) {
+	const userQuery = `
+		SELECT u.id, u.email, u.first_name, u.last_name, u.status, u.email_verified,
+		       EXISTS(SELECT 1 FROM public.user_roles ur
+		              JOIN public.roles ro ON ro.id = ur.role_id
+		              WHERE ur.user_id = u.id AND ro.name = 'SUPER_ADMIN') AS is_super_admin
+		FROM public.users u
+		WHERE u.id = $1 AND u.deleted_at IS NULL
+	`
+	var d getuserdetail.UserDetail
+	err := r.db.QueryRowContext(ctx, userQuery, id).Scan(
+		&d.ID, &d.Email, &d.FirstName, &d.LastName, &d.Status, &d.EmailVerified, &d.IsSuperAdmin)
+	if err == sql.ErrNoRows {
+		return nil, getuserdetail.ErrUserNotFound
+	}
+	if err != nil {
+		logger.Error("AdminUserRepo: detail query failed", zap.Error(err))
+		return nil, err
+	}
+
+	const memQuery = `
+		SELECT o.id, o.name, o.subdomain, om.role, om.invitation_status,
+		       (o.owner_user_id = $1) AS is_owner
+		FROM public.organization_members om
+		JOIN public.organizations o ON o.id = om.organization_id
+		WHERE om.user_id = $1 AND om.deleted_at IS NULL AND o.deleted_at IS NULL
+		ORDER BY om.joined_at ASC
+	`
+	rows, err := r.db.QueryContext(ctx, memQuery, id)
+	if err != nil {
+		logger.Error("AdminUserRepo: memberships query failed", zap.Error(err))
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var m getuserdetail.Membership
+		if err := rows.Scan(&m.OrgID, &m.OrgName, &m.Subdomain, &m.Role, &m.InvitationStatus, &m.IsOwner); err != nil {
+			return nil, err
+		}
+		d.Memberships = append(d.Memberships, m)
+	}
+	return &d, rows.Err()
+}
