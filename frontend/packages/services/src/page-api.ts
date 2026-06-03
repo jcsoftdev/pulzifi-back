@@ -81,6 +81,8 @@ export interface BlockDiffDto {
   op: 'added' | 'removed' | 'changed'
   block: ContentBlockDto
   old_block?: ContentBlockDto
+  section_name?: string
+  section_order?: number
 }
 
 export interface ContentDiffDto {
