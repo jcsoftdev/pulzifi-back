@@ -243,3 +243,45 @@ func TestHashContentBlocks_Empty(t *testing.T) {
 		t.Error("expected non-empty hash for nil blocks")
 	}
 }
+
+func TestExtractContentBlocks_SectionMetadata(t *testing.T) {
+	htmlContent := `<html><body>
+		<header><h1>Title</h1></header>
+		<section class="stats" aria-label="Numbers"><p>+$900K</p><p>137.000</p></section>
+		<footer><p>Contact us</p></footer>
+	</body></html>`
+
+	blocks := ExtractContentBlocks(htmlContent)
+
+	var header, stats, footer *ContentBlock
+	for i := range blocks {
+		switch blocks[i].Text {
+		case "Title":
+			header = &blocks[i]
+		case "+$900K":
+			stats = &blocks[i]
+		case "Contact us":
+			footer = &blocks[i]
+		}
+	}
+	if header == nil || stats == nil || footer == nil {
+		t.Fatalf("missing blocks: header=%v stats=%v footer=%v", header, stats, footer)
+	}
+	if header.SectionTag != "header" {
+		t.Errorf("header.SectionTag = %q, want header", header.SectionTag)
+	}
+	if stats.SectionTag != "section" || stats.SectionClass != "stats" || stats.SectionAria != "Numbers" {
+		t.Errorf("stats section meta wrong: tag=%q class=%q aria=%q", stats.SectionTag, stats.SectionClass, stats.SectionAria)
+	}
+	if footer.SectionTag != "footer" {
+		t.Errorf("footer.SectionTag = %q, want footer", footer.SectionTag)
+	}
+}
+
+func TestHashContentBlocks_IgnoresSectionMetadata(t *testing.T) {
+	a := []ContentBlock{{Type: BlockParagraph, Text: "x"}}
+	b := []ContentBlock{{Type: BlockParagraph, Text: "x", SectionTag: "section", SectionClass: "card", SectionIndex: 3}}
+	if HashContentBlocks(a) != HashContentBlocks(b) {
+		t.Error("hash changed due to section metadata; must hash content only")
+	}
+}
