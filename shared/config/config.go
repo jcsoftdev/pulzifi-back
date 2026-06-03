@@ -112,6 +112,14 @@ type Config struct {
 	TwilioFromNumber    string
 	TwilioPaidPlans     []string // comma-separated env (TWILIO_PAID_PLANS)
 
+	// IntegrationPaidPlans is the set of plan codes that unlock all notification
+	// channels (Slack, Discord, Teams, Gmail, Outlook, Sheets, Twilio).
+	// Orgs with NO active plan or a plan code outside this list are "free" and
+	// may only receive email notifications.
+	// Default: trial,starter,pro,enterprise (all seeded plans).
+	// Env var: INTEGRATION_PAID_PLANS (comma-separated).
+	IntegrationPaidPlans []string
+
 	// Phase 3
 	SheetsClientID          string
 	SheetsClientSecret      string
@@ -272,6 +280,7 @@ func Load() *Config {
 		TwilioAuthToken:     getEnv("TWILIO_AUTH_TOKEN", ""),
 		TwilioFromNumber:    getEnv("TWILIO_FROM_NUMBER", ""),
 		TwilioPaidPlans:     splitCSV(getEnv("TWILIO_PAID_PLANS", "pro,business")),
+		IntegrationPaidPlans: splitCSV(getEnv("INTEGRATION_PAID_PLANS", "trial,starter,pro,enterprise")),
 
 		SheetsClientID:          getEnv("SHEETS_CLIENT_ID", ""),
 		SheetsClientSecret:      getEnv("SHEETS_CLIENT_SECRET", ""),

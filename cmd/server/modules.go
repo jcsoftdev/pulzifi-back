@@ -305,7 +305,8 @@ func buildIntegrationModule(
 
 	intRepoFactory := intwiring.NewTenantRepoFactory(db)
 	intOrgGuard := intwiring.NewOrgGuard(orgRepo)
-	intDispatcher := dispatchevent.NewHandler(intRepoFactory, intOrgGuard)
+	intChannelEntitlement := intwiring.NewChannelEntitlementAdapter(twilioPlanLookup, cfg.IntegrationPaidPlans)
+	intDispatcher := dispatchevent.NewHandlerWithEntitlement(intRepoFactory, intOrgGuard, intChannelEntitlement)
 
 	subscribeIntegrationEvents(eventBus, intDispatcher)
 

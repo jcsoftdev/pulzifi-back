@@ -27,12 +27,15 @@ export default async function BlogIndexPage() {
   })
 
   return (
-    <div className="min-h-screen bg-[#f3f3f3]">
+    <div className="min-h-screen bg-[var(--pz-page-bg)]">
       <div className="mx-auto max-w-[1280px] space-y-3 p-3">
         <Navbar />
         <main>
-          <div className="rounded-3xl bg-white px-8 py-12">
-            <h1 className="mb-8 text-4xl font-bold text-gray-900">Blog</h1>
+          <div className="rounded-3xl bg-[var(--pz-card-bg)] px-8 py-12">
+            <h1 className="pz-display mb-2 text-4xl text-[var(--pz-ink)]">Blog</h1>
+            <p className="mb-10 text-[var(--pz-ink-2)]">
+              Insights, product updates, and guides from the Pulzifi team.
+            </p>
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {(posts.docs as unknown as PostDoc[]).map((post) => (
                 <BlogCard
@@ -50,7 +53,9 @@ export default async function BlogIndexPage() {
                 />
               ))}
             </div>
-            {posts.docs.length === 0 && <p className="text-gray-400">No posts published yet.</p>}
+            {posts.docs.length === 0 && (
+              <p className="text-[var(--pz-ink-2)] opacity-50">No posts published yet.</p>
+            )}
           </div>
         </main>
         <FooterSection />
