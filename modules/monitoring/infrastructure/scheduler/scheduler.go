@@ -149,50 +149,95 @@ func (s *Scheduler) WakeUp() {
 	}
 }
 
+// safeGo runs fn in a goroutine guarded by recover. A panic in scheduled work
+// (orchestrator, DB driver, or a single bad tenant/page) must never crash the
+// worker process: an unrecovered panic in a goroutine takes down the whole
+// process, which silently halts monitoring for ALL tenants until a restart.
+func safeGo(where string, fn func()) {
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logger.Error("scheduler goroutine panic recovered",
+					zap.String("where", where),
+					zap.Any("panic", r),
+					zap.Stack("stack"))
+			}
+		}()
+		fn()
+	}()
+}
+
 func (s *Scheduler) Start(ctx context.Context) {
 	go func() {
 		for {
-			var nextRun time.Time
-			if s.schedulerMode == "queue" {
-				nextRun = s.minNextRunAtQueue(ctx)
-			} else {
-				nextRun = s.getNextRunTime(ctx)
-			}
-			now := time.Now()
-
-			var waitDuration time.Duration
-			if nextRun.IsZero() {
-				// No tasks pending. In split API/worker mode wake-up signals are in-process only,
-				// so we keep a short polling interval to discover newly enabled configs.
-				waitDuration = 15 * time.Second
-			} else {
-				waitDuration = nextRun.Sub(now)
-				if waitDuration < 0 {
-					waitDuration = 0
-				}
-			}
-
-			logger.Debug("Scheduler sleeping", zap.Duration("duration", waitDuration))
-
-			timer := time.NewTimer(waitDuration)
-
-			select {
-			case <-ctx.Done():
-				timer.Stop()
+			if stop := s.schedulerTick(ctx); stop {
 				return
-			case <-s.wakeUp:
-				// Woken up by signal (e.g. new task or config change)
-				timer.Stop()
-				logger.Info("Scheduler woken up by signal")
-				// Loop again to re-calculate next run time immediately
-				continue
-			case <-timer.C:
-				// Timer expired, run check
-				s.runCheck(ctx)
 			}
 		}
 	}()
 	logger.Info("Monitoring Scheduler started (Wake-up Channel Mode)")
+}
+
+// schedulerTick runs one iteration of the scheduler loop. It is wrapped in a
+// recover so a panic in getNextRunTime/runCheck cannot kill the loop goroutine
+// (which would stop ALL monitoring). On panic it backs off briefly to avoid a
+// tight crash loop, then the caller iterates again. Returns true only when the
+// context is cancelled and the loop should exit.
+func (s *Scheduler) schedulerTick(ctx context.Context) (stop bool) {
+	defer func() {
+		if r := recover(); r != nil {
+			logger.Error("Scheduler tick panic recovered",
+				zap.Any("panic", r),
+				zap.Stack("stack"))
+			// Persistent panics would otherwise hot-loop; back off, but exit if
+			// the context is cancelled during the backoff.
+			select {
+			case <-ctx.Done():
+				stop = true
+			case <-time.After(5 * time.Second):
+			}
+		}
+	}()
+
+	var nextRun time.Time
+	if s.schedulerMode == "queue" {
+		nextRun = s.minNextRunAtQueue(ctx)
+	} else {
+		nextRun = s.getNextRunTime(ctx)
+	}
+	now := time.Now()
+
+	var waitDuration time.Duration
+	if nextRun.IsZero() {
+		// No tasks pending. In split API/worker mode wake-up signals are in-process only,
+		// so we keep a short polling interval to discover newly enabled configs.
+		waitDuration = 15 * time.Second
+	} else {
+		waitDuration = nextRun.Sub(now)
+		if waitDuration < 0 {
+			waitDuration = 0
+		}
+	}
+
+	logger.Debug("Scheduler sleeping", zap.Duration("duration", waitDuration))
+
+	timer := time.NewTimer(waitDuration)
+
+	select {
+	case <-ctx.Done():
+		timer.Stop()
+		return true
+	case <-s.wakeUp:
+		// Woken up by signal (e.g. new task or config change)
+		timer.Stop()
+		logger.Info("Scheduler woken up by signal")
+		// Loop again to re-calculate next run time immediately
+		return false
+	case <-timer.C:
+		// Timer expired, run check
+		s.runCheck(ctx)
+		return false
+	}
 }
 
 func (s *Scheduler) getNextRunTime(ctx context.Context) time.Time {
@@ -363,7 +408,7 @@ func (s *Scheduler) processTenant(ctx context.Context, schema string) {
 			URL:        task.URL,
 			SchemaName: schema,
 		}
-		go func() {
+		safeGo("processTenant.ScheduleCheck", func() {
 			if err := s.orchestrator.ScheduleCheck(context.Background(), job); err != nil {
 				if errors.Is(err, orchestrator.ErrQuotaExceeded) {
 					logger.Warn("Check not scheduled due to quota", zap.String("page_id", job.PageID.String()), zap.String("schema", job.SchemaName))
@@ -371,7 +416,7 @@ func (s *Scheduler) processTenant(ctx context.Context, schema string) {
 				}
 				logger.Error("Failed to schedule check", zap.String("page_id", job.PageID.String()), zap.Error(err))
 			}
-		}()
+		})
 	}
 }
 
