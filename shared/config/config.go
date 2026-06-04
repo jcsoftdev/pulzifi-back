@@ -177,9 +177,11 @@ type Config struct {
 	BrokerBackend    string // BROKER_BACKEND — redis|memory|"" (default: "")
 	RateLimitBackend string // RATELIMIT_BACKEND — redis|memory|"" (default: "")
 
-	// SchedulerMode selects the distributed lock mechanism for the monitoring scheduler.
-	// Accepted values: "poll" (default) | "redis-lock" (requires redis).
-	SchedulerMode string // SCHEDULER_MODE — poll|redis-lock (default: poll)
+	// SchedulerMode selects the monitoring scheduler claim strategy.
+	// Accepted values: "poll" (default, claims on pages.last_checked_at) |
+	// "queue" (claims on pages.next_run_at with FOR UPDATE SKIP LOCKED for
+	// multi-instance safety). Any other value falls back to "poll".
+	SchedulerMode string // SCHEDULER_MODE — poll|queue (default: poll)
 
 	// TrustedProxyCIDRs is the list of CIDR ranges whose X-Forwarded-For header
 	// entries are trusted for real-IP extraction. Empty slice = no trusted proxies
