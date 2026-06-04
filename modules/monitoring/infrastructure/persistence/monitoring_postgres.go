@@ -193,25 +193,32 @@ func (r *MonitoringConfigPostgresRepository) GetDueSnapshotTasks(ctx context.Con
 	// round-trip. This prevents concurrent scheduler instances from picking up the same
 	// page and creating duplicate check records.
 	qTenant := pq.QuoteIdentifier(r.tenant)
+	// Advance next_run_at alongside last_checked_at even in poll mode. Poll mode
+	// itself never reads next_run_at (it claims on last_checked_at), but keeping
+	// the column current means switching to queue mode — or any external reader —
+	// never sees a stale next_run_at that points into the past.
 	q := fmt.Sprintf(`
 		WITH candidates AS (
-			SELECT p.id
+			SELECT p.id, mc.check_frequency
 			FROM %[1]s.pages p
 			JOIN %[1]s.monitoring_configs mc ON p.id = mc.page_id
 			WHERE p.deleted_at IS NULL AND mc.deleted_at IS NULL
 			AND mc.check_frequency != 'Off'
 			AND (
-				%s
+				%[2]s
 			)
 			LIMIT 50
 			FOR UPDATE OF p SKIP LOCKED
 		)
-		UPDATE %[1]s.pages
-		SET last_checked_at = NOW()
-		FROM candidates
-		WHERE %[1]s.pages.id = candidates.id
-		RETURNING %[1]s.pages.id, %[1]s.pages.url
-	`, qTenant, buildDueConditions())
+		UPDATE %[1]s.pages p
+		SET last_checked_at = NOW(),
+		    next_run_at = CASE %[3]s
+		                    ELSE NOW() + INTERVAL '1 hour'
+		                  END
+		FROM candidates mc
+		WHERE p.id = mc.id
+		RETURNING p.id, p.url
+	`, qTenant, buildDueConditions(), buildNextRunAtCases())
 
 	rows, err := r.db.QueryContext(ctx, q)
 	if err != nil {
