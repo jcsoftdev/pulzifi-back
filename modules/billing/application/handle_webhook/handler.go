@@ -139,7 +139,7 @@ func (h *Handler) dispatch(ctx context.Context, event services.StripeEvent) erro
 		return h.handleSubscriptionDeleted(ctx, event)
 	case "invoice.payment_failed":
 		return h.handlePaymentFailed(ctx, event)
-	case "price.created", "price.updated", "product.updated":
+	case "price.created", "price.updated":
 		return h.handlePricingChanged(ctx, event)
 	default:
 		// Unknown event — acknowledge silently (Stripe will not retry)
@@ -194,9 +194,8 @@ type invoicePayload struct {
 	Subscription string `json:"subscription"`
 }
 
-// pricePayload is the subset we read from price.* events. product.updated events
-// whose object is a product (not a price) unmarshal with empty fields and are
-// safely skipped (no recurring interval → no-op).
+// pricePayload is the subset we read from price.created / price.updated events.
+// A one-time (non-recurring) price has no recurring.interval and is skipped.
 type pricePayload struct {
 	ID         string `json:"id"`
 	Product    string `json:"product"`

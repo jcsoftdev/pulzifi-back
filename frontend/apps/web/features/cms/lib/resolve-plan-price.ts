@@ -55,7 +55,8 @@ export async function resolvePlanPrice(
       price: formatCents(monthly, currency),
       priceAnnual: yearly == null ? null : formatCents(yearly, currency),
     }
-  } catch {
+  } catch (err) {
+    console.warn('[cms] resolvePlanPrice failed; falling back to "Custom"', err)
     return {
       price: 'Custom',
       priceAnnual: null,
