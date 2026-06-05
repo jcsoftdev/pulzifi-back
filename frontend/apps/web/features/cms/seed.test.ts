@@ -106,6 +106,35 @@ describe('cms seed', () => {
     expect(broken).toEqual([])
   })
 
+  it('seeds the legal pages (privacy, terms, security) with a rich-text block', async () => {
+    const payload = new FakePayload()
+    // biome-ignore lint/suspicious/noExplicitAny: fake payload duck-types the surface seed.ts uses
+    await seedAll(payload as any)
+
+    for (const slug of [
+      'privacy',
+      'terms',
+      'security',
+    ]) {
+      const page = payload.rawCollection('pages').find((d) => d.slug === slug) as Doc | undefined
+      expect(page, `missing legal page: ${slug}`).toBeDefined()
+      expect(
+        (
+          page?.blocks as Array<{
+            blockType?: string
+          }>
+        )[0]?.blockType
+      ).toBe('rich-text')
+      expect(
+        (
+          page?.meta as {
+            title?: string
+          }
+        )?.title
+      ).toBeTruthy()
+    }
+  })
+
   it('re-seeding is create-only: never overwrites edited blocks, globals, or page blocks', async () => {
     const payload = new FakePayload()
     // biome-ignore lint/suspicious/noExplicitAny: fake payload duck-types the surface seed.ts uses

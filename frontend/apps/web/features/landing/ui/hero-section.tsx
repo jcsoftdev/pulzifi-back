@@ -1,12 +1,19 @@
 'use client'
 
 import { cn } from '@workspace/ui/lib/utils'
+import Image from 'next/image'
 import Link from 'next/link'
 import { useClipReveal, useHeadlineReveal, useHeroTimeline, useParallaxBlob } from '../lib/gsap'
-import { type DashboardAlert, DashboardMock, type KpiItem } from './components/dashboard-mock'
 import { Eyebrow } from './components/eyebrow'
 import { LandingButton } from './components/landing-button'
 import { UnderlineSwoosh } from './components/underline-swoosh'
+
+export type HeroImage = {
+  url?: string | null
+  alt?: string | null
+  width?: number | null
+  height?: number | null
+}
 
 type HeroSectionProps = {
   eyebrowBadge?: string
@@ -19,42 +26,8 @@ type HeroSectionProps = {
   secondaryCtaLabel?: string
   secondaryCtaHref?: string
   trustLine?: string
-  dashboardAlerts?: DashboardAlert[]
-  aiInsightTitle?: string
-  aiInsightBody?: string
-  kpis?: KpiItem[]
+  image?: HeroImage
 }
-
-const fallbackAlerts: DashboardAlert[] = [
-  {
-    tone: 'signal',
-    icon: '🔴',
-    site: 'competitor.com — Pricing Change',
-    title: 'Pro plan dropped from $89 → $69/mo',
-    time: '2m ago',
-  },
-  {
-    tone: 'amber',
-    icon: '⚡',
-    site: 'rival-startup.io — New Feature Page',
-    title: '"AI Automation Suite" launched',
-    time: '18m ago',
-  },
-  {
-    tone: 'teal',
-    icon: '📣',
-    site: 'industry-leader.com — Messaging Shift',
-    title: 'Homepage CTA changed to "Free Trial"',
-    time: '1h ago',
-  },
-  {
-    tone: 'ink',
-    icon: '📄',
-    site: 'regulator.gov — Policy Update',
-    title: 'New compliance requirements — Q1 2026',
-    time: '3h ago',
-  },
-]
 
 const AVATAR_COLORS = [
   'var(--pz-accent)',
@@ -75,10 +48,7 @@ export function HeroSection({
   secondaryCtaLabel,
   secondaryCtaHref,
   trustLine,
-  dashboardAlerts,
-  aiInsightTitle,
-  aiInsightBody,
-  kpis,
+  image,
 }: Readonly<HeroSectionProps> = {}) {
   const sectionRef = useHeroTimeline<HTMLElement>()
   const blobRef = useParallaxBlob<HTMLDivElement>()
@@ -95,7 +65,6 @@ export function HeroSection({
   })
   const resolvedPrimaryHref = primaryCtaHref ?? '/register'
   const resolvedPrimaryLabel = primaryCtaLabel ?? 'Start Monitoring Free'
-  const alerts = dashboardAlerts?.length ? dashboardAlerts : fallbackAlerts
 
   return (
     <section
@@ -231,21 +200,26 @@ export function HeroSection({
             )}
           </div>
 
-          {/* Right rail — DashboardMock with clip-path uncover */}
-          <div className="hidden md:block">
-            <div ref={dashboardRef} className="relative">
-              <DashboardMock
-                kpis={kpis}
-                alerts={alerts}
-                aiInsightTitle={aiInsightTitle}
-                aiInsightBody={aiInsightBody}
-              />
-              <div
-                className="absolute -inset-6 -z-10 rounded-3xl bg-[var(--pz-accent)]/10 blur-3xl"
-                aria-hidden
-              />
+          {/* Right rail — CMS hero image with clip-path uncover */}
+          {image?.url && (
+            <div className="hidden md:block">
+              <div ref={dashboardRef} className="relative">
+                <Image
+                  src={image.url}
+                  alt={image.alt ?? headline ?? 'Pulzifi'}
+                  width={image.width ?? 1200}
+                  height={image.height ?? 900}
+                  className="h-auto w-full rounded-2xl"
+                  priority
+                  sizes="(max-width: 768px) 100vw, 50vw"
+                />
+                <div
+                  className="absolute -inset-6 -z-10 rounded-3xl bg-[var(--pz-accent)]/10 blur-3xl"
+                  aria-hidden
+                />
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </section>

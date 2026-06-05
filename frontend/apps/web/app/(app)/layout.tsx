@@ -17,7 +17,7 @@ export const metadata: Metadata = {
     default: 'Pulzifi — AI-Powered Competitive Intelligence',
   },
   description:
-    'Monitor any website for changes and get AI-powered strategic insights. Track competitor moves automatically.',
+    'Pulzifi monitors any website for text and visual changes, then turns each one into an AI strategic insight delivered to Slack — so you catch competitor moves first.',
   openGraph: {
     type: 'website',
     siteName: 'Pulzifi',

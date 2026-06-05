@@ -22,6 +22,15 @@ export function proxy(req: NextRequest): NextResponse {
   const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || ''
   const tenant = extractTenantFromHostname(host)
 
+  // The Payload CMS (admin + data API) is apex-only — it must never be reachable
+  // on a tenant subdomain, so no CMS login/session can be established there.
+  // Bounce any CMS route on a subdomain to the apex regardless of session cookie.
+  const { pathname, search } = req.nextUrl
+  const isCmsRoute = pathname.startsWith('/cms-admin') || pathname.startsWith('/cms-api')
+  if (tenant && isCmsRoute) {
+    return NextResponse.redirect(buildApexUrl(host, req.nextUrl.protocol, `${pathname}${search}`))
+  }
+
   // Apex (no tenant) — public site renders normally.
   if (!tenant) {
     return NextResponse.next()

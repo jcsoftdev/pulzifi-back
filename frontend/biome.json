@@ -83,7 +83,8 @@
       "!**/dist",
       "!**/build",
       "!**/.turbo",
-      "!**/node_modules"
+      "!**/node_modules",
+      "!**/payload-types.ts"
     ]
   }
 }

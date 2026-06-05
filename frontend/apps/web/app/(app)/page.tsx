@@ -14,7 +14,7 @@ import { buildThemeStyle } from '@/lib/theme-style'
 export const metadata: Metadata = {
   title: 'Pulzifi — AI-Powered Competitive Intelligence & Website Monitoring',
   description:
-    'Monitor any website for changes and instantly get AI-powered strategic insights. Track competitor moves, pricing changes, and market shifts — automatically, 24/7.',
+    'Track any competitor site for pricing, copy, and visual changes. Pulzifi turns each change into an AI strategic insight, delivered to Slack or email — automatically, 24/7.',
   keywords: [
     'competitive intelligence',
     'website monitoring',
@@ -36,7 +36,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Pulzifi — AI-Powered Competitive Intelligence & Website Monitoring',
     description:
-      'Monitor any website for changes and instantly get AI-powered strategic insights. Track competitor moves, pricing changes, and market shifts — automatically, 24/7.',
+      'Track any competitor site for pricing, copy, and visual changes. Pulzifi turns each change into an AI strategic insight, delivered to Slack or email — automatically, 24/7.',
     type: 'website',
     siteName: 'Pulzifi',
     images: [
@@ -51,7 +51,7 @@ export const metadata: Metadata = {
   twitter: {
     title: 'Pulzifi — AI-Powered Competitive Intelligence',
     description:
-      'Monitor any website for changes and get AI-powered strategic insights. Know what competitors do before it impacts your business.',
+      'Monitor competitor sites for text and visual changes. Pulzifi turns each one into an AI insight in Slack — know what rivals do before it impacts your business.',
     card: 'summary_large_image',
     images: [
       '/images/landing/hero-dashboard.png',

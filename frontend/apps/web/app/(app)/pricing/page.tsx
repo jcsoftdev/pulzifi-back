@@ -14,11 +14,38 @@ import { buildThemeStyle } from '@/lib/theme-style'
 export const metadata: Metadata = {
   title: 'Pricing — Simple, Transparent Plans',
   description:
-    'Choose a plan that fits your business needs and budget. No hidden fees, no surprises, just straightforward pricing for powerful competitive intelligence.',
+    'Simple, transparent plans for AI-powered competitive intelligence. Monitor more pages, unlock deeper AI insights, and scale alerts as your team grows. No hidden fees.',
+  alternates: {
+    canonical: '/pricing',
+  },
   openGraph: {
     title: 'Pricing — Pulzifi',
     description:
-      'Simple, transparent pricing for AI-powered competitive intelligence. Start with our Starter plan or scale with Professional and Enterprise.',
+      'Simple, transparent pricing for AI-powered competitive intelligence. Start with a free trial, then scale pages, AI insights, and alerts as your team grows.',
+    type: 'website',
+    siteName: 'Pulzifi',
+    url: '/pricing',
+    images: [
+      {
+        url: '/opengraph-image',
+        width: 1200,
+        height: 630,
+        alt: 'Pulzifi — Simple, Transparent Pricing',
+      },
+    ],
+  },
+  twitter: {
+    title: 'Pricing — Pulzifi',
+    description:
+      'Simple, transparent pricing for AI-powered competitive intelligence. Start with a free trial, then scale pages, AI insights, and alerts as your team grows.',
+    card: 'summary_large_image',
+    images: [
+      '/opengraph-image',
+    ],
+  },
+  robots: {
+    index: true,
+    follow: true,
   },
 }
 
@@ -178,8 +205,12 @@ export default async function PricingPage() {
   return (
     <div className="min-h-screen bg-[var(--pz-page-bg)]">
       {themeStyle && (
-        // biome-ignore lint/security/noDangerouslySetInnerHtml: intentional theme CSS injection — controlled server-side input
-        <style dangerouslySetInnerHTML={{ __html: themeStyle }} />
+        <style
+          // biome-ignore lint/security/noDangerouslySetInnerHtml: intentional theme CSS injection — controlled server-side input
+          dangerouslySetInnerHTML={{
+            __html: themeStyle,
+          }}
+        />
       )}
       <SmoothScroll />
       <Navbar

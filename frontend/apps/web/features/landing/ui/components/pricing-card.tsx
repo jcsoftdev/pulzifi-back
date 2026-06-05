@@ -61,7 +61,7 @@ function PriceDisplay({
 
   if (!isNumeric) {
     return (
-      <span className="text-5xl font-medium leading-[56px] tracking-[-1.44px] text-[#111]">
+      <span className="text-[52px] font-semibold leading-[56px] tracking-[-1.6px] text-current">
         {activePrice}
       </span>
     )
@@ -70,7 +70,7 @@ function PriceDisplay({
   return (
     <span
       ref={countRef}
-      className="text-5xl font-medium leading-[56px] tracking-[-1.44px] text-[#111]"
+      className="text-[52px] font-semibold leading-[56px] tracking-[-1.6px] text-current"
     >
       {`${prefix}${numericVal}`}
     </span>
@@ -97,10 +97,10 @@ export function PricingCard({
   })
 
   return (
-    <div className="relative pt-5">
+    <div className="relative flex h-full flex-col pt-5">
       {popular && (
-        <div className="absolute inset-x-0 top-0 flex justify-center z-1">
-          <span className="rounded-full bg-[var(--pz-accent)] px-4 py-1.5 text-sm font-semibold leading-5 tracking-tight text-white shadow-sm">
+        <div className="absolute inset-x-0 top-0 z-10 flex justify-center">
+          <span className="rounded-full bg-gradient-to-r from-[var(--pz-accent)] to-[var(--pz-accent-muted,#8b5cf6)] px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-white shadow-[0_8px_24px_-6px_rgba(106,53,224,0.6)]">
             {popularBadge ?? 'Most Popular'}
           </span>
         </div>
@@ -109,15 +109,30 @@ export function PricingCard({
       <div
         ref={tiltRef}
         className={cn(
-          'flex flex-1 flex-col gap-6 rounded-2xl border border-[var(--pz-card-border)] bg-white p-5 shadow-[var(--pz-card-shadow-rest)] sm:p-[30px] transition-all duration-300',
-          popular && 'ring-2 ring-[var(--pz-accent)] shadow-[var(--pz-shadow-accent-lg)]'
+          'group/card relative flex flex-1 flex-col gap-6 overflow-hidden rounded-3xl border p-6 transition-all duration-300 hover:-translate-y-1 sm:p-8',
+          popular
+            ? 'border-transparent bg-[var(--pz-dark-surface)] text-white shadow-[0_24px_70px_-20px_rgba(106,53,224,0.55)] lg:scale-[1.03]'
+            : 'border-[var(--pz-card-border)] bg-white text-[#111] shadow-[var(--pz-card-shadow-rest)] hover:border-[var(--pz-accent)]/30 hover:shadow-[0_24px_50px_-24px_rgba(17,17,17,0.28)]'
         )}
       >
-        <div className="flex flex-col gap-3.5">
-          <h3 className="text-xl font-medium leading-8 tracking-[-0.6px] text-[#111] capitalize">
+        {/* Accent glow — featured plan only */}
+        {popular && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -right-20 -top-24 h-56 w-56 rounded-full bg-[var(--pz-accent)] opacity-30 blur-[80px]"
+          />
+        )}
+
+        <div className="relative flex flex-col gap-3.5">
+          <h3
+            className={cn(
+              'text-xs font-semibold uppercase tracking-[0.18em]',
+              popular ? 'text-white/70' : 'text-[var(--pz-accent)]'
+            )}
+          >
             {name}
           </h3>
-          <div className="flex items-end gap-2.5">
+          <div className="flex items-end gap-2">
             <PriceDisplay
               price={price}
               priceAnnual={priceAnnual}
@@ -125,52 +140,94 @@ export function PricingCard({
               billingCycle={billingCycle}
             />
             {period && (
-              <span className="text-xl font-medium leading-8 tracking-[-0.6px] text-[#777]">
+              <span
+                className={cn(
+                  'pb-1.5 text-lg font-medium tracking-[-0.4px]',
+                  popular ? 'text-white/50' : 'text-[#777]'
+                )}
+              >
                 {period}
               </span>
             )}
           </div>
           {billingCycle === 'annual' && priceAnnual && (
-            <p className="text-xs text-[var(--pz-accent)] font-medium">
+            <p
+              className={cn(
+                'text-xs font-medium',
+                popular ? 'text-[var(--pz-accent-gold,#f59e0b)]' : 'text-[var(--pz-accent)]'
+              )}
+            >
               {annualNote ?? 'Billed annually · 2 months free'}
             </p>
           )}
-          {description && <p className="text-sm leading-5 text-[var(--pz-ink-2)]">{description}</p>}
+          {description && (
+            <p
+              className={cn(
+                'text-sm leading-5',
+                popular ? 'text-white/65' : 'text-[var(--pz-ink-2)]'
+              )}
+            >
+              {description}
+            </p>
+          )}
         </div>
 
         <LandingButton
           href={ctaHref}
           variant={popular ? 'primary' : 'dark'}
-          className="w-full rounded-[10px]"
+          className="relative w-full rounded-xl"
         >
           {cta}
         </LandingButton>
 
-        <div className="flex flex-col gap-4 p-3.5">
-          <h4 className="text-xl font-medium leading-8 tracking-[-0.6px] text-[#111]">
-            {featuresLabel ?? 'Features:'}
+        <div
+          className={cn(
+            'relative flex flex-col gap-4 border-t pt-6',
+            popular ? 'border-white/12' : 'border-[var(--pz-card-border)]'
+          )}
+        >
+          <h4
+            className={cn(
+              'text-[11px] font-semibold uppercase tracking-[0.16em]',
+              popular ? 'text-white/55' : 'text-[#999]'
+            )}
+          >
+            {featuresLabel ?? 'Features'}
           </h4>
-          <ul className="flex flex-col gap-2.5">
+          <ul className="flex flex-col gap-3">
             {features.map((f) => {
               const included = f.included !== false
               return (
-                <li key={f.text} className="flex items-center gap-3.5">
+                <li key={f.text} className="flex items-start gap-3">
                   <span
                     className={cn(
-                      'flex size-5 shrink-0 items-center justify-center rounded-full',
-                      included ? 'bg-[var(--pz-dark-surface)]' : 'bg-black/10'
+                      'mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full',
+                      included
+                        ? 'bg-[var(--pz-accent)] shadow-[0_2px_8px_-2px_rgba(106,53,224,0.6)]'
+                        : popular
+                          ? 'bg-white/10'
+                          : 'bg-black/[0.06]'
                     )}
                   >
                     {included ? (
                       <Check className="size-3 text-white" strokeWidth={3} />
                     ) : (
-                      <X className="size-3 text-[#888]" strokeWidth={3} />
+                      <X
+                        className={cn('size-3', popular ? 'text-white/40' : 'text-[#999]')}
+                        strokeWidth={3}
+                      />
                     )}
                   </span>
                   <span
                     className={cn(
-                      'text-base leading-6',
-                      included ? 'text-[var(--pz-ink-2)]' : 'text-[#999] line-through'
+                      'text-[15px] leading-6',
+                      included
+                        ? popular
+                          ? 'text-white/85'
+                          : 'text-[var(--pz-ink-2)]'
+                        : popular
+                          ? 'text-white/35 line-through'
+                          : 'text-[#aaa] line-through'
                     )}
                   >
                     {f.text}

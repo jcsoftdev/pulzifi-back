@@ -5,11 +5,11 @@ import type { Payload } from 'payload'
 const NAV_LINKS = [
   {
     label: 'Home',
-    href: '#',
+    href: '/',
   },
   {
     label: 'Product',
-    href: '#how',
+    href: '#how-it-works',
   },
   {
     label: 'How to use',
@@ -35,71 +35,8 @@ const HERO = {
   primaryCtaLabel: 'Start Monitoring Free',
   primaryCtaHref: '/register',
   secondaryCtaLabel: 'See how it works',
-  secondaryCtaHref: '#how',
+  secondaryCtaHref: '#how-it-works',
   trustLine: 'Trusted by 2,500+ teams across 40+ countries',
-  kpis: [
-    {
-      label: 'Alerts (24h)',
-      value: '128',
-      delta: '+24% vs yesterday',
-      deltaDirection: 'up',
-    },
-    {
-      label: 'Mentions',
-      value: '43',
-      delta: '+8%',
-      deltaDirection: 'up',
-    },
-    {
-      label: 'Pages Changed',
-      value: '17',
-      delta: '-3%',
-      deltaDirection: 'down',
-    },
-    {
-      label: 'Price Changes',
-      value: '5',
-      delta: '+2',
-      deltaDirection: 'up',
-    },
-  ],
-  dashboardAlerts: [
-    {
-      tone: 'signal',
-      icon: '🔴',
-      site: 'competitor.com — Pricing Change',
-      title: 'Pro plan dropped from $89 → $69/mo',
-      detail: '',
-      time: '2m ago',
-    },
-    {
-      tone: 'amber',
-      icon: '⚡',
-      site: 'rival-startup.io — New Feature Page',
-      title: '”AI Automation Suite” launched',
-      detail: '',
-      time: '18m ago',
-    },
-    {
-      tone: 'teal',
-      icon: '📣',
-      site: 'industry-leader.com — Messaging Shift',
-      title: 'Homepage CTA changed to “Free Trial”',
-      detail: '',
-      time: '1h ago',
-    },
-    {
-      tone: 'ink',
-      icon: '📄',
-      site: 'regulator.gov — Policy Update',
-      title: 'New compliance requirements — Q1 2026',
-      detail: '',
-      time: '3h ago',
-    },
-  ],
-  aiInsightTitle: 'AI Insight',
-  aiInsightBody:
-    'Your competitor cut pricing by 22%. This signals aggressive growth targeting — consider reinforcing your value-add messaging before the weekend traffic spike.',
 } as const
 
 const LOGOS = {
@@ -799,7 +736,7 @@ const FOOTER_LINKS = {
   Product: [
     {
       label: 'How it works',
-      href: '#how',
+      href: '#how-it-works',
     },
     {
       label: 'Use Cases',
@@ -807,18 +744,10 @@ const FOOTER_LINKS = {
     },
     {
       label: 'Pricing',
-      href: '#pricing',
-    },
-    {
-      label: 'Integrations',
-      href: '#',
+      href: '/pricing',
     },
   ],
   Company: [
-    {
-      label: 'About',
-      href: '#',
-    },
     {
       label: 'Contact',
       href: '/contact',
@@ -827,30 +756,217 @@ const FOOTER_LINKS = {
       label: 'Blog',
       href: '/blog',
     },
-    {
-      label: 'Careers',
-      href: '#',
-    },
   ],
   Legal: [
     {
       label: 'Privacy Policy',
-      href: '#',
+      href: '/privacy',
     },
     {
       label: 'Terms of Service',
-      href: '#',
+      href: '/terms',
     },
     {
       label: 'Security',
-      href: '#',
+      href: '/security',
     },
     {
       label: 'GDPR',
-      href: '#',
+      href: '/privacy',
     },
   ],
 } as const
+
+// Minimal Lexical (SerializedEditorState) builder so seed legal pages render
+// through the existing `rich-text` block. Accepts a flat list of headings and
+// paragraphs — enough for boilerplate legal copy the team replaces in the CMS.
+type LexLine =
+  | {
+      h2: string
+    }
+  | {
+      p: string
+    }
+
+function lexical(lines: LexLine[]) {
+  const text = (t: string) => ({
+    type: 'text',
+    text: t,
+    version: 1,
+    format: 0,
+    style: '',
+    mode: 'normal',
+    detail: 0,
+  })
+  const children = lines.map((line) =>
+    'h2' in line
+      ? {
+          type: 'heading',
+          tag: 'h2',
+          version: 1,
+          format: '',
+          indent: 0,
+          direction: 'ltr',
+          children: [
+            text(line.h2),
+          ],
+        }
+      : {
+          type: 'paragraph',
+          version: 1,
+          format: '',
+          indent: 0,
+          direction: 'ltr',
+          textFormat: 0,
+          children: [
+            text(line.p),
+          ],
+        }
+  )
+  return {
+    root: {
+      type: 'root',
+      format: '',
+      indent: 0,
+      version: 1,
+      direction: 'ltr',
+      children,
+    },
+  }
+}
+
+const PLACEHOLDER_NOTE =
+  'This is placeholder copy. Replace it with reviewed legal text before launch.'
+
+const LEGAL_PAGES = [
+  {
+    slug: 'privacy',
+    title: 'Privacy Policy',
+    metaTitle: 'Privacy Policy — Pulzifi',
+    metaDescription:
+      'How Pulzifi collects, uses, stores, and protects your data, and your rights under GDPR.',
+    lines: [
+      {
+        h2: 'Privacy Policy',
+      },
+      {
+        p: PLACEHOLDER_NOTE,
+      },
+      {
+        h2: 'Information we collect',
+      },
+      {
+        p: PLACEHOLDER_NOTE,
+      },
+      {
+        h2: 'How we use your information',
+      },
+      {
+        p: PLACEHOLDER_NOTE,
+      },
+      {
+        h2: 'Data retention and security',
+      },
+      {
+        p: PLACEHOLDER_NOTE,
+      },
+      {
+        h2: 'Your rights (GDPR)',
+      },
+      {
+        p: PLACEHOLDER_NOTE,
+      },
+      {
+        h2: 'Contact',
+      },
+      {
+        p: 'Questions about this policy? Email support@pulzifi.com.',
+      },
+    ] as LexLine[],
+  },
+  {
+    slug: 'terms',
+    title: 'Terms of Service',
+    metaTitle: 'Terms of Service — Pulzifi',
+    metaDescription: 'The terms that govern your use of Pulzifi.',
+    lines: [
+      {
+        h2: 'Terms of Service',
+      },
+      {
+        p: PLACEHOLDER_NOTE,
+      },
+      {
+        h2: 'Acceptance of terms',
+      },
+      {
+        p: PLACEHOLDER_NOTE,
+      },
+      {
+        h2: 'Use of the service',
+      },
+      {
+        p: PLACEHOLDER_NOTE,
+      },
+      {
+        h2: 'Subscriptions and billing',
+      },
+      {
+        p: PLACEHOLDER_NOTE,
+      },
+      {
+        h2: 'Limitation of liability',
+      },
+      {
+        p: PLACEHOLDER_NOTE,
+      },
+      {
+        h2: 'Contact',
+      },
+      {
+        p: 'Questions about these terms? Email support@pulzifi.com.',
+      },
+    ] as LexLine[],
+  },
+  {
+    slug: 'security',
+    title: 'Security',
+    metaTitle: 'Security — Pulzifi',
+    metaDescription: 'How Pulzifi protects your data: encryption, access control, and practices.',
+    lines: [
+      {
+        h2: 'Security',
+      },
+      {
+        p: PLACEHOLDER_NOTE,
+      },
+      {
+        h2: 'Data encryption',
+      },
+      {
+        p: PLACEHOLDER_NOTE,
+      },
+      {
+        h2: 'Access control',
+      },
+      {
+        p: PLACEHOLDER_NOTE,
+      },
+      {
+        h2: 'Infrastructure',
+      },
+      {
+        p: PLACEHOLDER_NOTE,
+      },
+      {
+        h2: 'Reporting a vulnerability',
+      },
+      {
+        p: 'Found a security issue? Email security@pulzifi.com.',
+      },
+    ] as LexLine[],
+  },
+] as const
 
 export type SeedResult = {
   seeded: boolean
@@ -1311,6 +1427,57 @@ export async function seedAll(
           })
         ),
       })
+    }
+  }
+
+  // Upsert legal pages (privacy, terms, security) as CMS pages rendered via the
+  // [slug] route. Footer links point here. Content is placeholder skeleton —
+  // editable in the CMS, replace before launch.
+  for (const legal of LEGAL_PAGES) {
+    const existing = await payload.find({
+      collection: 'pages',
+      where: {
+        slug: {
+          equals: legal.slug,
+        },
+      },
+      limit: 1,
+    })
+    const blocks = [
+      {
+        blockType: 'rich-text',
+        content: lexical(legal.lines),
+      },
+    ]
+    if (existing.totalDocs === 0) {
+      await payload.create({
+        collection: 'pages',
+        data: JSON.parse(
+          JSON.stringify({
+            title: legal.title,
+            slug: legal.slug,
+            _status: 'published',
+            blocks,
+            meta: {
+              title: legal.metaTitle,
+              description: legal.metaDescription,
+            },
+          })
+        ),
+      })
+    } else if (overwrite) {
+      const id = existing.docs[0]?.id
+      if (id !== undefined) {
+        await payload.update({
+          collection: 'pages',
+          id,
+          data: JSON.parse(
+            JSON.stringify({
+              blocks,
+            })
+          ),
+        })
+      }
     }
   }
 

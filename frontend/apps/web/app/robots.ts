@@ -1,6 +1,18 @@
 import type { MetadataRoute } from 'next'
 
-const privateRoutes = ['/api/', '/dashboard', '/workspaces', '/settings', '/team', '/admin']
+const privateRoutes = [
+  '/api/',
+  '/cms-api/',
+  '/cms-admin',
+  '/preview/',
+  '/dashboard',
+  '/workspaces',
+  '/settings',
+  '/team',
+  '/admin',
+  '/onboarding',
+  '/lecture-ai',
+]
 
 export default function robots(): MetadataRoute.Robots {
   const baseUrl = process.env.NEXT_PUBLIC_APP_BASE_URL || 'https://pulzifi.com'

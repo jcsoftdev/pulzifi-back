@@ -210,28 +210,6 @@ export interface BlockLibrary {
             secondaryCtaHref?: string | null;
             trustLine?: string | null;
             image?: (number | null) | Media;
-            dashboardAlerts?:
-              | {
-                  tone?: ('signal' | 'amber' | 'teal' | 'ink') | null;
-                  icon?: string | null;
-                  site: string;
-                  title: string;
-                  detail?: string | null;
-                  time?: string | null;
-                  id?: string | null;
-                }[]
-              | null;
-            aiInsightTitle?: string | null;
-            aiInsightBody?: string | null;
-            kpis?:
-              | {
-                  label: string;
-                  value: string;
-                  delta?: string | null;
-                  deltaDirection?: ('up' | 'down') | null;
-                  id?: string | null;
-                }[]
-              | null;
             id?: string | null;
             blockName?: string | null;
             blockType: 'hero';
@@ -625,28 +603,6 @@ export interface Page {
             secondaryCtaHref?: string | null;
             trustLine?: string | null;
             image?: (number | null) | Media;
-            dashboardAlerts?:
-              | {
-                  tone?: ('signal' | 'amber' | 'teal' | 'ink') | null;
-                  icon?: string | null;
-                  site: string;
-                  title: string;
-                  detail?: string | null;
-                  time?: string | null;
-                  id?: string | null;
-                }[]
-              | null;
-            aiInsightTitle?: string | null;
-            aiInsightBody?: string | null;
-            kpis?:
-              | {
-                  label: string;
-                  value: string;
-                  delta?: string | null;
-                  deltaDirection?: ('up' | 'down') | null;
-                  id?: string | null;
-                }[]
-              | null;
             id?: string | null;
             blockName?: string | null;
             blockType: 'hero';
@@ -1185,28 +1141,6 @@ export interface BlockLibrarySelect<T extends boolean = true> {
               secondaryCtaHref?: T;
               trustLine?: T;
               image?: T;
-              dashboardAlerts?:
-                | T
-                | {
-                    tone?: T;
-                    icon?: T;
-                    site?: T;
-                    title?: T;
-                    detail?: T;
-                    time?: T;
-                    id?: T;
-                  };
-              aiInsightTitle?: T;
-              aiInsightBody?: T;
-              kpis?:
-                | T
-                | {
-                    label?: T;
-                    value?: T;
-                    delta?: T;
-                    deltaDirection?: T;
-                    id?: T;
-                  };
               id?: T;
               blockName?: T;
             };
@@ -1528,28 +1462,6 @@ export interface PagesSelect<T extends boolean = true> {
               secondaryCtaHref?: T;
               trustLine?: T;
               image?: T;
-              dashboardAlerts?:
-                | T
-                | {
-                    tone?: T;
-                    icon?: T;
-                    site?: T;
-                    title?: T;
-                    detail?: T;
-                    time?: T;
-                    id?: T;
-                  };
-              aiInsightTitle?: T;
-              aiInsightBody?: T;
-              kpis?:
-                | T
-                | {
-                    label?: T;
-                    value?: T;
-                    delta?: T;
-                    deltaDirection?: T;
-                    id?: T;
-                  };
               id?: T;
               blockName?: T;
             };
