@@ -494,8 +494,7 @@ const COMPARISON = {
 const PLANS = [
   {
     name: 'Starter',
-    price: '$20',
-    priceAnnual: '$16',
+    planCode: 'starter',
     period: '/month',
     tagline: 'Perfect for individual users and business owners',
     features: [
@@ -530,8 +529,7 @@ const PLANS = [
   },
   {
     name: 'Professional',
-    price: '$62',
-    priceAnnual: '$49',
+    planCode: 'pro',
     period: '/month',
     tagline: 'Perfect for Growing Businesses Ready to Scale',
     features: [
@@ -571,7 +569,7 @@ const PLANS = [
   },
   {
     name: 'Enterprise',
-    price: 'Custom',
+    planCode: 'enterprise',
     period: '',
     tagline: 'Comprehensive and Scalable Solutions for Large Organizations',
     features: [
