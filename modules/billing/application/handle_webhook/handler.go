@@ -26,6 +26,7 @@ type Handler struct {
 	customerRepo   repositories.CustomerRepository
 	webhookRepo    repositories.WebhookEventRepository
 	subRepo        repositories.SubscriptionRepository
+	planRepo       repositories.PlanRepository // optional; nil → pricing-sync events are skipped
 }
 
 // NewHandler returns a Handler with its dependencies injected.
@@ -52,6 +53,14 @@ func NewHandler(
 // PlanAssigner.Assign on checkout.session.completed.
 func (h *Handler) WithTrialConverter(tc services.TrialConverter) *Handler {
 	h.trialConverter = tc
+	return h
+}
+
+// WithPlanRepository wires the optional PlanRepository used to cache Stripe
+// price amounts into public.plans on pricing webhook events. When nil, those
+// events are acknowledged without writing.
+func (h *Handler) WithPlanRepository(pr repositories.PlanRepository) *Handler {
+	h.planRepo = pr
 	return h
 }
 
@@ -130,6 +139,8 @@ func (h *Handler) dispatch(ctx context.Context, event services.StripeEvent) erro
 		return h.handleSubscriptionDeleted(ctx, event)
 	case "invoice.payment_failed":
 		return h.handlePaymentFailed(ctx, event)
+	case "price.created", "price.updated", "product.updated":
+		return h.handlePricingChanged(ctx, event)
 	default:
 		// Unknown event — acknowledge silently (Stripe will not retry)
 		logger.Info("billing: ignoring unknown webhook event type", zap.String("type", event.Type))
@@ -181,6 +192,22 @@ func (p subscriptionPayload) resolveCurrentPeriodEnd() int64 {
 type invoicePayload struct {
 	Customer     string `json:"customer"`
 	Subscription string `json:"subscription"`
+}
+
+// pricePayload is the subset we read from price.* events. product.updated events
+// whose object is a product (not a price) unmarshal with empty fields and are
+// safely skipped (no recurring interval → no-op).
+type pricePayload struct {
+	ID         string `json:"id"`
+	Product    string `json:"product"`
+	UnitAmount int64  `json:"unit_amount"`
+	Currency   string `json:"currency"`
+	Recurring  *struct {
+		Interval string `json:"interval"`
+	} `json:"recurring"`
+	Metadata struct {
+		PlanCode string `json:"plan_code"`
+	} `json:"metadata"`
 }
 
 func (h *Handler) handleCheckoutCompleted(ctx context.Context, event services.StripeEvent) error {
@@ -356,6 +383,58 @@ func (h *Handler) handlePaymentFailed(ctx context.Context, event services.Stripe
 		CurrentPeriodEnd:     periodEnd,
 		PaymentStatus:        "grace_period",
 	})
+}
+
+// handlePricingChanged caches a Stripe Price's amount into public.plans so the
+// CMS can render the real charged price. It is deliberately tolerant: any event
+// it cannot map (no plan_code, non-recurring price, unknown plan) is logged and
+// acknowledged so Stripe does not retry.
+func (h *Handler) handlePricingChanged(ctx context.Context, event services.StripeEvent) error {
+	if h.planRepo == nil {
+		return nil // pricing-sync not wired
+	}
+
+	var payload pricePayload
+	if err := json.Unmarshal(event.RawData, &payload); err != nil {
+		return err
+	}
+
+	if payload.Recurring == nil || payload.Recurring.Interval == "" {
+		return nil
+	}
+
+	planCode := payload.Metadata.PlanCode
+	if planCode == "" {
+		logger.Warn("billing: pricing event without metadata.plan_code — ignoring",
+			zap.String("event_id", event.ID),
+			zap.String("price_id", payload.ID),
+		)
+		return nil
+	}
+
+	var cycle string
+	switch payload.Recurring.Interval {
+	case "month":
+		cycle = "monthly"
+	case "year":
+		cycle = "yearly"
+	default:
+		logger.Warn("billing: pricing event with unsupported interval — ignoring",
+			zap.String("interval", payload.Recurring.Interval),
+			zap.String("price_id", payload.ID),
+		)
+		return nil
+	}
+
+	err := h.planRepo.UpsertStripePricing(ctx, planCode, cycle, payload.ID, payload.UnitAmount, payload.Currency)
+	if errors.Is(err, repositories.ErrPlanNotFound) {
+		logger.Warn("billing: pricing event for unknown plan_code — ignoring",
+			zap.String("plan_code", planCode),
+			zap.String("price_id", payload.ID),
+		)
+		return nil
+	}
+	return err
 }
 
 // resolveOrgByCustomer looks up the orgID associated with a Stripe customer ID.

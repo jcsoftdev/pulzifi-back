@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jcsoftdev/pulzifi-back/modules/billing/domain/entities"
+	"github.com/jcsoftdev/pulzifi-back/modules/billing/domain/repositories"
 	"github.com/jcsoftdev/pulzifi-back/modules/billing/domain/services"
 	billingmocks "github.com/jcsoftdev/pulzifi-back/modules/billing/domain/services/mocks"
 )
@@ -153,6 +154,34 @@ func (r *fakeSubscriptionRepo) Update(_ context.Context, sub *entities.Subscript
 	return nil
 }
 
+// fakePlanRepo records UpsertStripePricing calls for pricing-sync assertions.
+type fakePlanRepo struct {
+	mu        sync.Mutex
+	calls     int
+	lastCode  string
+	lastCycle string
+	lastPrice string
+	lastCents int64
+	lastCur   string
+	knownCode string // codes != knownCode return ErrPlanNotFound (when set)
+}
+
+func (r *fakePlanRepo) FindStripePriceID(_ context.Context, _, _ string) (string, error) {
+	return "", nil
+}
+
+func (r *fakePlanRepo) UpsertStripePricing(_ context.Context, planCode, cycle, priceID string, amountCents int64, currency string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.calls++
+	r.lastCode, r.lastCycle, r.lastPrice = planCode, cycle, priceID
+	r.lastCents, r.lastCur = amountCents, currency
+	if r.knownCode != "" && planCode != r.knownCode {
+		return repositories.ErrPlanNotFound
+	}
+	return nil
+}
+
 // Ensure domain sentinel is importable from the application layer.
 var _ = services.ErrPlanNotFound
 
@@ -210,6 +239,24 @@ func makeSubResult(customerID, subID, priceID, status string, periodEnd int64) s
 		CustomerID:       customerID,
 		PriceID:          priceID,
 	}
+}
+
+// priceData builds a Stripe price.* event object. interval is "month" | "year".
+// planCode is written to metadata.plan_code (empty → omitted).
+func priceData(priceID, productID string, unitAmount int64, currency, interval, planCode string) []byte {
+	obj := map[string]interface{}{
+		"id":          priceID,
+		"product":     productID,
+		"unit_amount": unitAmount,
+		"currency":    currency,
+		"active":      true,
+		"recurring":   map[string]interface{}{"interval": interval},
+	}
+	if planCode != "" {
+		obj["metadata"] = map[string]interface{}{"plan_code": planCode}
+	}
+	d, _ := json.Marshal(obj)
+	return d
 }
 
 // ── Test ──────────────────────────────────────────────────────────────────────
@@ -527,4 +574,101 @@ func TestHandleWebhook_OrphanCustomer_IsDeferred(t *testing.T) {
 	if len(stored.RawPayload) == 0 {
 		t.Error("raw payload must be persisted so ReconcileFromStripe can replay it")
 	}
+}
+
+func TestHandleWebhook_PricingChanged(t *testing.T) {
+	const secret = "whsec_test"
+
+	newHandler := func(gw *billingmocks.MockStripeGateway, pr *fakePlanRepo) *Handler {
+		pa := &billingmocks.MockPlanAssigner{}
+		return NewHandler(gw, secret, pa,
+			newFakeCustomerRepo(), newFakeWebhookEventRepo(), newFakeSubscriptionRepo()).
+			WithPlanRepository(pr)
+	}
+
+	t.Run("price.updated monthly writes cached amount", func(t *testing.T) {
+		pr := &fakePlanRepo{}
+		gw := &billingmocks.MockStripeGateway{
+			ConstructEventResult: makeEvent("evt_p1", "price.updated",
+				priceData("price_m_pro", "prod_pro", 2000, "usd", "month", "pro")),
+		}
+		if err := newHandler(gw, pr).Handle(context.Background(), []byte(`{}`), "sig"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if pr.calls != 1 {
+			t.Fatalf("expected 1 upsert, got %d", pr.calls)
+		}
+		if pr.lastCode != "pro" || pr.lastCycle != "monthly" || pr.lastPrice != "price_m_pro" || pr.lastCents != 2000 || pr.lastCur != "usd" {
+			t.Errorf("upsert args = (%q,%q,%q,%d,%q)", pr.lastCode, pr.lastCycle, pr.lastPrice, pr.lastCents, pr.lastCur)
+		}
+	})
+
+	t.Run("price.created yearly maps interval year -> yearly", func(t *testing.T) {
+		pr := &fakePlanRepo{}
+		gw := &billingmocks.MockStripeGateway{
+			ConstructEventResult: makeEvent("evt_p2", "price.created",
+				priceData("price_y_pro", "prod_pro", 19200, "usd", "year", "pro")),
+		}
+		if err := newHandler(gw, pr).Handle(context.Background(), []byte(`{}`), "sig"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if pr.lastCycle != "yearly" || pr.lastCents != 19200 {
+			t.Errorf("expected yearly/19200, got %q/%d", pr.lastCycle, pr.lastCents)
+		}
+	})
+
+	t.Run("missing plan_code is silent no-op", func(t *testing.T) {
+		pr := &fakePlanRepo{}
+		gw := &billingmocks.MockStripeGateway{
+			ConstructEventResult: makeEvent("evt_p3", "price.updated",
+				priceData("price_x", "prod_x", 500, "usd", "month", "")),
+		}
+		if err := newHandler(gw, pr).Handle(context.Background(), []byte(`{}`), "sig"); err != nil {
+			t.Fatalf("expected nil (ack), got %v", err)
+		}
+		if pr.calls != 0 {
+			t.Errorf("expected 0 upserts for missing plan_code, got %d", pr.calls)
+		}
+	})
+
+	t.Run("non-recurring price is skipped", func(t *testing.T) {
+		pr := &fakePlanRepo{}
+		obj, _ := json.Marshal(map[string]interface{}{
+			"id": "price_once", "product": "prod_x", "unit_amount": 500,
+			"currency": "usd", "active": true,
+			"metadata": map[string]interface{}{"plan_code": "pro"},
+		})
+		gw := &billingmocks.MockStripeGateway{
+			ConstructEventResult: makeEvent("evt_p4", "price.updated", obj),
+		}
+		if err := newHandler(gw, pr).Handle(context.Background(), []byte(`{}`), "sig"); err != nil {
+			t.Fatalf("expected nil, got %v", err)
+		}
+		if pr.calls != 0 {
+			t.Errorf("expected 0 upserts for non-recurring price, got %d", pr.calls)
+		}
+	})
+
+	t.Run("unknown plan_code (ErrPlanNotFound) is acked, not failed", func(t *testing.T) {
+		pr := &fakePlanRepo{knownCode: "pro"}
+		gw := &billingmocks.MockStripeGateway{
+			ConstructEventResult: makeEvent("evt_p5", "price.updated",
+				priceData("price_m_ghost", "prod_ghost", 700, "usd", "month", "ghost")),
+		}
+		if err := newHandler(gw, pr).Handle(context.Background(), []byte(`{}`), "sig"); err != nil {
+			t.Errorf("ErrPlanNotFound must be acked as nil, got %v", err)
+		}
+	})
+
+	t.Run("nil plan repo (not wired) is a no-op", func(t *testing.T) {
+		gw := &billingmocks.MockStripeGateway{
+			ConstructEventResult: makeEvent("evt_p6", "price.updated",
+				priceData("price_m_pro", "prod_pro", 2000, "usd", "month", "pro")),
+		}
+		pa := &billingmocks.MockPlanAssigner{}
+		h := NewHandler(gw, secret, pa, newFakeCustomerRepo(), newFakeWebhookEventRepo(), newFakeSubscriptionRepo())
+		if err := h.Handle(context.Background(), []byte(`{}`), "sig"); err != nil {
+			t.Errorf("nil plan repo must be a no-op, got %v", err)
+		}
+	})
 }
