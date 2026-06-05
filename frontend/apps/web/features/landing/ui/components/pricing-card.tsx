@@ -97,7 +97,7 @@ export function PricingCard({
   })
 
   return (
-    <div className="relative pt-5">
+    <div className="relative flex h-full flex-col pt-5">
       {popular && (
         <div className="absolute inset-x-0 top-0 flex justify-center z-1">
           <span className="rounded-full bg-[var(--pz-accent)] px-4 py-1.5 text-sm font-semibold leading-5 tracking-tight text-white shadow-sm">

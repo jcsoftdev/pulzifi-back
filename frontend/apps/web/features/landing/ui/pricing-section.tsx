@@ -65,6 +65,17 @@ export function PricingSection({
 
   const hasAnnual = items.some((p) => p.priceAnnual)
 
+  // Adapt the desktop column count to the number of plans so 4 plans lay out as
+  // a single row (4-up) instead of an orphaned 3 + 1. Literal class strings keep
+  // them discoverable by Tailwind's JIT.
+  const lgColsByCount: Record<number, string> = {
+    1: 'lg:grid-cols-1',
+    2: 'lg:grid-cols-2',
+    3: 'lg:grid-cols-3',
+    4: 'lg:grid-cols-4',
+  }
+  const lgColsClass = lgColsByCount[Math.min(Math.max(items.length, 1), 4)] ?? 'lg:grid-cols-4'
+
   const tableColumns = items.map((plan) => ({
     name: plan.name,
     cta: plan.ctaLabel ?? 'Get Started',
@@ -138,9 +149,12 @@ export function PricingSection({
         )}
       </div>
 
-      <div ref={cardsRef} className="mt-14 grid grid-cols-1 gap-6 md:grid-cols-3 md:gap-8">
+      <div
+        ref={cardsRef}
+        className={`mx-auto mt-14 grid w-full max-w-6xl grid-cols-1 gap-6 sm:grid-cols-2 md:gap-8 ${lgColsClass}`}
+      >
         {items.map((plan) => (
-          <div key={plan.name} data-pz-card>
+          <div key={plan.name} data-pz-card className="h-full">
             <PricingCard
               name={plan.name}
               price={plan.price}
