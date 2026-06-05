@@ -58,6 +58,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         },
       },
       limit: 1,
+      depth: 1,
     })
     const page = result.docs[0] as
       | {
@@ -65,13 +66,60 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
           meta?: {
             title?: string
             description?: string
+            image?: {
+              url?: string | null
+              alt?: string | null
+              width?: number | null
+              height?: number | null
+            } | null
           }
         }
       | undefined
     if (!page) return {}
+    const title = page.meta?.title ?? page.title
+    const description = page.meta?.description ?? undefined
+    const canonical = `/${slug}`
+    const ogImage = page.meta?.image?.url
+      ? [
+          {
+            url: page.meta.image.url,
+            width: page.meta.image.width ?? 1200,
+            height: page.meta.image.height ?? 630,
+            alt: page.meta.image.alt ?? title ?? 'Pulzifi',
+          },
+        ]
+      : [
+          {
+            url: '/opengraph-image',
+            width: 1200,
+            height: 630,
+            alt: title ?? 'Pulzifi',
+          },
+        ]
     return {
-      title: page.meta?.title ?? page.title,
-      description: page.meta?.description ?? undefined,
+      title,
+      description,
+      alternates: {
+        canonical,
+      },
+      openGraph: {
+        title: title ?? undefined,
+        description,
+        type: 'website',
+        siteName: 'Pulzifi',
+        url: canonical,
+        images: ogImage,
+      },
+      twitter: {
+        title: title ?? undefined,
+        description,
+        card: 'summary_large_image',
+        images: ogImage.map((i) => i.url),
+      },
+      robots: {
+        index: true,
+        follow: true,
+      },
     }
   } catch {
     return {}
@@ -191,8 +239,8 @@ export default async function DynamicPage({ params }: Props) {
     | undefined
   if ((foot?.groups as unknown[] | undefined)?.length) {
     footerGroups = Object.fromEntries(
-      // biome-ignore lint/style/noNonNullAssertion: narrowed by length check above
       (
+        // biome-ignore lint/style/noNonNullAssertion: narrowed by length check above
         foot!.groups as {
           heading: string
           links: {
@@ -213,8 +261,12 @@ export default async function DynamicPage({ params }: Props) {
   return (
     <div className="flex min-h-screen flex-col bg-[var(--pz-page-bg)]">
       {themeStyle && (
-        // biome-ignore lint/security/noDangerouslySetInnerHtml: intentional theme CSS injection — controlled server-side input
-        <style dangerouslySetInnerHTML={{ __html: themeStyle }} />
+        <style
+          // biome-ignore lint/security/noDangerouslySetInnerHtml: intentional theme CSS injection — controlled server-side input
+          dangerouslySetInnerHTML={{
+            __html: themeStyle,
+          }}
+        />
       )}
       <SmoothScroll />
       <Navbar
