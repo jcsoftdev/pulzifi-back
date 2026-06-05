@@ -54,7 +54,7 @@ func looksLikeStats(blocks []ContentBlock) bool {
 		if t == "" || len(t) > 12 {
 			continue
 		}
-		if strings.IndexAny(t, "0123456789") >= 0 {
+		if strings.ContainsAny(t, "0123456789") {
 			numeric++
 		}
 	}

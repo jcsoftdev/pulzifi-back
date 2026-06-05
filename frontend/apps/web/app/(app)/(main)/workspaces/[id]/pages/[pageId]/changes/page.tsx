@@ -316,7 +316,7 @@ export default function ChangesPage() {
       for (const d of diffs) {
         const ord = d.section_order ?? 0
         if (!byOrder.has(ord)) {
-          byOrder.set(ord, { name: d.section_name ?? 'Cambios', rows: [] })
+          byOrder.set(ord, { name: d.section_name ?? 'Changes', rows: [] })
           order.push(ord)
         }
         // biome-ignore lint/style/noNonNullAssertion: set above
@@ -355,8 +355,8 @@ export default function ChangesPage() {
         // Override the first group's sectionName with the monitored section name when
         // there is only one backend section (common case before section_name is populated).
         const firstGroup = grouped[0]
-        if (grouped.length === 1 && firstGroup && firstGroup.sectionName === 'Cambios') {
-          firstGroup.sectionName = sections.find((s) => s.id === sc.sectionId)?.name ?? 'Cambios'
+        if (grouped.length === 1 && firstGroup && firstGroup.sectionName === 'Changes') {
+          firstGroup.sectionName = sections.find((s) => s.id === sc.sectionId)?.name ?? 'Changes'
         }
         return grouped.map((g) => ({ ...g, changeDetected: sc.changeDetected }))
       })
@@ -372,9 +372,9 @@ export default function ChangesPage() {
     // When there is only one group and the diff carries no section_name, fall back to the
     // monitored-section display name (backward-compatible with old data).
     const firstGroup = grouped[0]
-    if (grouped.length === 1 && firstGroup && firstGroup.sectionName === 'Cambios' && activeCheck.sectionId) {
+    if (grouped.length === 1 && firstGroup && firstGroup.sectionName === 'Changes' && activeCheck.sectionId) {
       firstGroup.sectionName =
-        sections.find((s) => s.id === activeCheck.sectionId)?.name ?? 'Cambios'
+        sections.find((s) => s.id === activeCheck.sectionId)?.name ?? 'Changes'
     }
     return grouped
   }, [

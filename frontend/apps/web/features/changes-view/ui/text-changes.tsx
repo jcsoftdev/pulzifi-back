@@ -172,7 +172,7 @@ export function TextChanges({ sections = [] }: Readonly<TextChangesProps>) {
             <details key={si} open className="group">
               <summary className="flex items-center gap-2 cursor-pointer list-none text-sm font-medium text-muted-foreground mb-2 select-none">
                 <span className="transition-transform group-open:rotate-90">&#9658;</span>
-                {section.sectionName ?? 'Cambios'}
+                {section.sectionName ?? 'Changes'}
                 <span className="ml-auto text-xs text-foreground/40">{section.changes.length}</span>
               </summary>
               {section.changes.length > 0 ? (

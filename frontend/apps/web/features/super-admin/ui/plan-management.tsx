@@ -188,7 +188,7 @@ if (loadError) {
                     href={`/admin?tab=users&org=${org.id}`}
                     className="text-sm text-primary hover:underline"
                   >
-                    Ver miembros
+                    View members
                   </Link>
                 </div>
               </CardContent>
