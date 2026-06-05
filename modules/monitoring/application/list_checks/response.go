@@ -21,7 +21,7 @@ type CheckResponse struct {
 	// ContentDiff is the stored content-diff jsonb embedded as a real JSON object
 	// (not a quoted string) so the frontend can read content_diff.has_changes /
 	// content_diff.diffs directly without re-parsing.
-	ContentDiff json.RawMessage `json:"content_diff,omitempty"`
+	ContentDiff json.RawMessage `json:"content_diff,omitempty" swaggertype:"object"`
 	DiffImageURL    string           `json:"diff_image_url,omitempty"`
 	CheckedAt       time.Time        `json:"checked_at"`
 	Sections        []*CheckResponse `json:"sections,omitempty"`

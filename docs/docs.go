@@ -2491,7 +2491,8 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "content_diff": {
-                    "type": "string"
+                    "description": "ContentDiff is the stored content-diff jsonb embedded as a real JSON object\n(not a quoted string) so the frontend can read content_diff.has_changes /\ncontent_diff.diffs directly without re-parsing.",
+                    "type": "object"
                 },
                 "diff_image_url": {
                     "type": "string"
