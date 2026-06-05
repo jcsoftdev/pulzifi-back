@@ -1,6 +1,6 @@
 'use client'
 
-import type { Integration, User } from '@workspace/services'
+import type { Integration, ProviderState, User } from '@workspace/services'
 import { AuthApi, IntegrationsApi } from '@workspace/services'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
@@ -12,6 +12,7 @@ export function SettingsIntegrations() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const [integrations, setIntegrations] = useState<Integration[]>([])
+  const [providers, setProviders] = useState<ProviderState[]>([])
   const [me, setMe] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [consentModal, setConsentModal] = useState<{
@@ -57,10 +58,12 @@ export function SettingsIntegrations() {
     Promise.all([
       IntegrationsApi.list(),
       AuthApi.getCurrentUser(),
+      IntegrationsApi.listProviders(),
     ])
-      .then(([integrationList, user]) => {
+      .then(([integrationList, user, providerList]) => {
         setIntegrations(integrationList)
         setMe(user)
+        setProviders(providerList)
       })
       .catch(() => {
         notification.error({
@@ -90,7 +93,7 @@ export function SettingsIntegrations() {
 
   return (
     <>
-      <IntegrationsPanel integrations={integrations} me={me} />
+      <IntegrationsPanel integrations={integrations} providers={providers} me={me} />
       {consentModal.open && (
         <TeamsConsentModal
           open={consentModal.open}
