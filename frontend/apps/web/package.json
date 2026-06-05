@@ -44,6 +44,7 @@
     "react": "^19.2.4",
     "react-colorful": "^5.6.2",
     "react-dom": "^19.2.4",
+    "swiper": "^12.2.0",
     "tailwind-merge": "^3.4.1"
   },
   "devDependencies": {

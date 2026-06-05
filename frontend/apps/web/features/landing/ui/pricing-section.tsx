@@ -1,7 +1,10 @@
 'use client'
 
-import { useState } from 'react'
-import { useCardStagger } from '../lib/gsap'
+import { type CSSProperties, useState } from 'react'
+import 'swiper/css'
+import 'swiper/css/pagination'
+import { A11y, Pagination } from 'swiper/modules'
+import { Swiper, SwiperSlide } from 'swiper/react'
 import { Eyebrow } from './components/eyebrow'
 import { Highlight } from './components/highlight'
 import { PricingCard } from './components/pricing-card'
@@ -57,24 +60,15 @@ export function PricingSection({
 }: Readonly<PricingSectionProps> = {}) {
   const items = plans ?? []
   const [cycle, setCycle] = useState<'monthly' | 'annual'>('monthly')
-  const cardsRef = useCardStagger<HTMLDivElement>({
-    scale: true,
-    stagger: 0.1,
-    y: 32,
-  })
 
   const hasAnnual = items.some((p) => p.priceAnnual)
 
-  // Adapt the desktop column count to the number of plans so 4 plans lay out as
-  // a single row (4-up) instead of an orphaned 3 + 1. Literal class strings keep
-  // them discoverable by Tailwind's JIT.
-  const lgColsByCount: Record<number, string> = {
-    1: 'lg:grid-cols-1',
-    2: 'lg:grid-cols-2',
-    3: 'lg:grid-cols-3',
-    4: 'lg:grid-cols-4',
-  }
-  const lgColsClass = lgColsByCount[Math.min(Math.max(items.length, 1), 4)] ?? 'lg:grid-cols-4'
+  // Desktop shows every plan in one row; fewer breakpoints below scale down.
+  const desktopPerView = Math.min(Math.max(items.length, 1), 4)
+  const swiperVars = {
+    '--swiper-pagination-color': 'var(--pz-accent)',
+    '--swiper-pagination-bullet-inactive-color': 'var(--pz-ink-2)',
+  } as CSSProperties
 
   const tableColumns = items.map((plan) => ({
     name: plan.name,
@@ -149,33 +143,43 @@ export function PricingSection({
         )}
       </div>
 
-      <div
-        ref={cardsRef}
-        className={`mx-auto mt-14 grid w-full max-w-6xl grid-cols-1 gap-6 sm:grid-cols-2 md:gap-8 ${lgColsClass}`}
+      <Swiper
+        modules={[Pagination, A11y]}
+        className="mx-auto mt-14 w-full max-w-6xl !pb-12"
+        style={swiperVars}
+        slidesPerView={1.1}
+        spaceBetween={24}
+        pagination={{ clickable: true }}
+        breakpoints={{
+          640: { slidesPerView: 2, spaceBetween: 24 },
+          1024: { slidesPerView: desktopPerView, spaceBetween: 32 },
+        }}
       >
         {items.map((plan) => (
-          <div key={plan.name} data-pz-card className="h-full">
-            <PricingCard
-              name={plan.name}
-              price={plan.price}
-              priceAnnual={plan.priceAnnual}
-              period={plan.period}
-              description={plan.tagline}
-              cta={plan.ctaLabel ?? 'Get Started'}
-              ctaHref={plan.ctaHref ?? '/register'}
-              features={(plan.features ?? []).map((f) => ({
-                text: f.text ?? '',
-                included: f.included ?? true,
-              }))}
-              popular={plan.highlighted ?? false}
-              popularBadge={plan.popularBadge}
-              billingCycle={cycle}
-              annualNote={billing?.annualNote}
-              featuresLabel={featuresLabel}
-            />
-          </div>
+          <SwiperSlide key={plan.name} className="!h-auto">
+            <div className="h-full pt-2">
+              <PricingCard
+                name={plan.name}
+                price={plan.price}
+                priceAnnual={plan.priceAnnual}
+                period={plan.period}
+                description={plan.tagline}
+                cta={plan.ctaLabel ?? 'Get Started'}
+                ctaHref={plan.ctaHref ?? '/register'}
+                features={(plan.features ?? []).map((f) => ({
+                  text: f.text ?? '',
+                  included: f.included ?? true,
+                }))}
+                popular={plan.highlighted ?? false}
+                popularBadge={plan.popularBadge}
+                billingCycle={cycle}
+                annualNote={billing?.annualNote}
+                featuresLabel={featuresLabel}
+              />
+            </div>
+          </SwiperSlide>
         ))}
-      </div>
+      </Swiper>
 
       {guaranteeNote && (
         <p className="mt-10 text-center text-sm leading-5 text-[var(--pz-ink-2)]">
