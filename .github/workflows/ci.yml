@@ -41,6 +41,18 @@ jobs:
           version: v2.12.2  # pinned to match local validation; bump deliberately
           args: --timeout=5m
 
+  swagger:
+    name: Swagger generation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: go install github.com/swaggo/swag/cmd/swag@latest
+      - run: swag init -g cmd/server/main.go --output docs
+
   arch:
     name: Hexagonal architecture
     runs-on: ubuntu-latest
