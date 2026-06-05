@@ -142,3 +142,6 @@ build-errors-worker.log
 
 # Playwright artifacts
 frontend/test-results/
+
+# Local dev TLS certs (mkcert) — never commit
+tools/dev-certs/

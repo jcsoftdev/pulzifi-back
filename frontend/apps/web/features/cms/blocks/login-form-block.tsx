@@ -3,8 +3,8 @@
 import { AuthApi } from '@workspace/services'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense, useEffect, useState } from 'react'
+import { performTenantHandoff } from '@/features/auth/application/tenant-session-handoff'
 import { LoginForm } from '@/features/auth/ui/login-form'
-import { env } from '@/lib/env'
 
 type LoginFormBlockData = {
   blockType: 'login-form'
@@ -42,65 +42,16 @@ function LoginFormInner({ block }: Props) {
     searchParams,
   ])
 
-  const getHostInfo = () => {
-    const hostname = globalThis.location.hostname
-    const isLocalhost =
-      hostname === 'localhost' || hostname === '127.0.0.1' || hostname.endsWith('.localhost')
-    const appBaseUrl = env.NEXT_PUBLIC_APP_BASE_URL
-    const base = isLocalhost && appBaseUrl ? new URL(appBaseUrl) : null
-    const protocol = base ? base.protocol : globalThis.location.protocol
-    const port = base
-      ? base.port
-      : isLocalhost
-        ? globalThis.location.port || '3000'
-        : globalThis.location.port
-    const appDomain = env.NEXT_PUBLIC_APP_DOMAIN
-    let baseDomain = appDomain === 'localhost' && !isLocalhost ? undefined : appDomain
-    if (!baseDomain)
-      baseDomain = base
-        ? base.hostname.split('.').slice(-2).join('.')
-        : isLocalhost
-          ? 'localhost'
-          : hostname.split('.').slice(-2).join('.')
-    return {
-      hostname,
-      isLocalhost,
-      protocol,
-      port,
-      baseDomain,
-    }
-  }
-
   const handleLogin = async (credentials: { email: string; password: string }) => {
     setIsLoading(true)
     setError(undefined)
     try {
       const loginResponse = await AuthApi.login(credentials)
-      const tenant = loginResponse.tenant
-      if (!tenant) {
+      const redirectTo = searchParams.get('callbackUrl') || '/'
+      performTenantHandoff(loginResponse, redirectTo, () => {
         router.push('/')
         router.refresh()
-        return
-      }
-      const { hostname, protocol, port, baseDomain } = getHostInfo()
-      const targetHost = `${tenant}.${baseDomain}`
-      const redirectTo = searchParams.get('callbackUrl') || '/'
-      const portSuffix = port ? `:${port}` : ''
-      const tenantCallbackUrl = new URL(`${protocol}//${targetHost}${portSuffix}/api/auth/callback`)
-      if (loginResponse.nonce) tenantCallbackUrl.searchParams.set('nonce', loginResponse.nonce)
-      tenantCallbackUrl.searchParams.set('redirectTo', redirectTo)
-      const isOnSubdomain = hostname !== baseDomain
-      if (isOnSubdomain && loginResponse.nonce) {
-        const baseSessionUrl = new URL(
-          `${protocol}//${baseDomain}${portSuffix}/api/auth/set-base-session`
-        )
-        baseSessionUrl.searchParams.set('nonce', loginResponse.nonce)
-        baseSessionUrl.searchParams.set('tenant', tenant)
-        baseSessionUrl.searchParams.set('returnTo', tenantCallbackUrl.toString())
-        globalThis.location.href = baseSessionUrl.toString()
-      } else {
-        globalThis.location.href = tenantCallbackUrl.toString()
-      }
+      })
     } catch {
       setError('Invalid email or password')
     } finally {

@@ -22,7 +22,9 @@ export async function POST(req: NextRequest) {
     const payload = await getPayloadClient()
 
     if (force) {
-      await seedAll(payload)
+      await seedAll(payload, {
+        overwrite: true,
+      })
       return NextResponse.json({
         message: 'Force re-seeded landing/navbar/footer.',
       })

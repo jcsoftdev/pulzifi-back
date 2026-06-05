@@ -67,7 +67,7 @@ dev: check-env ## Start local dev (postgres + scraper + API + worker with hot re
 	@docker-compose logs -f
 
 dev-with-prod: check-env ## Start dev environment using production DB (no local postgres)
-	@./tools/scripts/assign-dev-ports.sh $(ENV_FILE) docker
+	@./tools/scripts/assign-dev-ports.sh $(ENV_FILE) prod-docker
 	@echo "$(GREEN)Starting dev environment with production DB...$(NC)"
 	@docker-compose -f docker-compose.yml -f docker-compose.prod-db.yml up -d --remove-orphans redis localstack scraper monolith worker
 	@echo "$(GREEN)Ready. Attaching to logs (Ctrl+C detaches — containers keep running)...$(NC)"
@@ -81,7 +81,7 @@ dev-web: check-env ## Start Next.js on configured DEV_WEB_PORT (Go proxies unmat
 		cd frontend/apps/web && PORT=$${DEV_WEB_PORT} bun dev
 
 dev-web-with-prod: check-env ## Start Next.js + CMS connected to production DB
-	@./tools/scripts/assign-dev-ports.sh $(ENV_FILE) web
+	@./tools/scripts/assign-dev-ports.sh $(ENV_FILE) prod-web
 	@set -a; . $(PWD)/$(ENV_FILE); set +a; \
 		echo "$(GREEN)Starting Next.js on :$${DEV_WEB_PORT} (prod DB)...$(NC)"; \
 		echo "$(YELLOW)Access the app at http://<tenant>.localhost:$${HTTP_PORT}$(NC)"; \

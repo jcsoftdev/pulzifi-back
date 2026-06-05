@@ -82,9 +82,17 @@ class FakePayload {
     return args.data
   }
 
+  async findGlobal(args: { slug: string }) {
+    return this.globals.get(args.slug) ?? {}
+  }
+
   // Test helpers
   rawCollection(name: string): Doc[] {
     return this.store(name)
+  }
+
+  rawGlobal(slug: string): Record<string, unknown> | undefined {
+    return this.globals.get(slug)
   }
 }
 
@@ -96,6 +104,83 @@ describe('cms seed', () => {
     // biome-ignore lint/suspicious/noExplicitAny: same as above
     const broken = await validateRefs(payload as any)
     expect(broken).toEqual([])
+  })
+
+  it('re-seeding is create-only: never overwrites edited blocks, globals, or page blocks', async () => {
+    const payload = new FakePayload()
+    // biome-ignore lint/suspicious/noExplicitAny: fake payload duck-types the surface seed.ts uses
+    await seedAll(payload as any)
+
+    // Simulate an editor changing content through the Payload admin.
+    const hero = payload.rawCollection('block-library').find((d) => d.name === 'Hero — Main') as Doc
+    hero.block = [
+      {
+        blockType: 'hero',
+        headline: 'EDITED BY HUMAN',
+      },
+    ]
+
+    const home = payload.rawCollection('pages').find((d) => d.slug === 'home') as Doc
+    home.blocks = [
+      {
+        blockType: 'hero',
+        custom: true,
+      },
+    ]
+
+    await payload.updateGlobal({
+      slug: 'navbar',
+      data: {
+        links: [
+          {
+            label: 'EDITED',
+            href: '/x',
+          },
+        ],
+      },
+    })
+
+    // A second seed (boot / cms-migrate) must leave every edit intact.
+    // biome-ignore lint/suspicious/noExplicitAny: see above
+    await seedAll(payload as any)
+
+    expect(
+      (
+        hero.block as Array<{
+          headline?: string
+        }>
+      )[0]?.headline
+    ).toBe('EDITED BY HUMAN')
+    expect(home.blocks).toEqual([
+      {
+        blockType: 'hero',
+        custom: true,
+      },
+    ])
+    expect((payload.rawGlobal('navbar')?.links as unknown[])?.length).toBe(1)
+  })
+
+  it('overwrite:true forces a full re-seed, replacing edited content', async () => {
+    const payload = new FakePayload()
+    // biome-ignore lint/suspicious/noExplicitAny: see above
+    await seedAll(payload as any)
+
+    const home = payload.rawCollection('pages').find((d) => d.slug === 'home') as Doc
+    home.blocks = [
+      {
+        blockType: 'hero',
+        custom: true,
+      },
+    ]
+
+    // biome-ignore lint/suspicious/noExplicitAny: see above
+    await seedAll(payload as any, {
+      overwrite: true,
+    })
+
+    // home blocks rebuilt to the canonical 8-block landing layout.
+    const homeAfter = payload.rawCollection('pages').find((d) => d.slug === 'home') as Doc
+    expect((homeAfter.blocks as unknown[]).length).toBe(8)
   })
 
   it('validateRefs flags pages whose block-ref points to a missing block-library doc', async () => {

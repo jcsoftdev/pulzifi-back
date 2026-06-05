@@ -55,5 +55,6 @@ export {
   SheetTrigger,
 } from './sheet'
 export { Skeleton } from './skeleton'
+export { Tabs, TabsContent, TabsList, TabsTrigger } from './tabs'
 export { TagsInput } from './tags-input'
 export { Textarea } from './textarea'

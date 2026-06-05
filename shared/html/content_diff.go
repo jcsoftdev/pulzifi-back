@@ -19,6 +19,10 @@ type BlockDiff struct {
 	Op       DiffOp        `json:"op"`
 	Block    ContentBlock  `json:"block"`
 	OldBlock *ContentBlock `json:"old_block,omitempty"`
+	// Section grouping for the UI. Assigned by EnrichSections. SectionOrder is the
+	// zero-based display order of the section this diff belongs to.
+	SectionName  string `json:"section_name,omitempty"`
+	SectionOrder int    `json:"section_order,omitempty"`
 }
 
 // ContentDiff represents the result of comparing two content block sequences.
@@ -26,6 +30,67 @@ type ContentDiff struct {
 	HasChanges   bool        `json:"has_changes"`
 	TotalChanges int         `json:"total_changes"`
 	Diffs        []BlockDiff `json:"diffs"`
+}
+
+// SectionNamer names a section's blocks. Implementations may call out to an AI
+// backend. Returning "" means "no opinion" (caller applies a fallback).
+type SectionNamer interface {
+	NameSection(blocks []ContentBlock) string
+}
+
+// diffSectionBlock returns the block whose container defines this diff's section:
+// the new block for added/changed, the old block for removed.
+func diffSectionBlock(d BlockDiff) ContentBlock {
+	if d.Op == DiffRemoved && d.OldBlock != nil {
+		return *d.OldBlock
+	}
+	if d.Op == DiffRemoved {
+		return d.Block
+	}
+	return d.Block
+}
+
+// EnrichSections groups the diffs by container signature (first-seen order) and
+// assigns each diff a SectionName + SectionOrder. Naming precedence:
+//  1. heuristicSectionName (deterministic, free)
+//  2. namer.NameSection (AI; skipped when namer is nil or returns "")
+//  3. "Sección N" fallback
+func EnrichSections(diff *ContentDiff, namer SectionNamer) {
+	if diff == nil || len(diff.Diffs) == 0 {
+		return
+	}
+
+	order := make(map[string]int)
+	var groupBlocks [][]ContentBlock
+
+	for i := range diff.Diffs {
+		b := diffSectionBlock(diff.Diffs[i])
+		sig := sectionSignature(b)
+		idx, ok := order[sig]
+		if !ok {
+			idx = len(groupBlocks)
+			order[sig] = idx
+			groupBlocks = append(groupBlocks, nil)
+		}
+		diff.Diffs[i].SectionOrder = idx
+		groupBlocks[idx] = append(groupBlocks[idx], b)
+	}
+
+	names := make([]string, len(groupBlocks))
+	for idx, blocks := range groupBlocks {
+		name := heuristicSectionName(blocks)
+		if name == "" && namer != nil {
+			name = strings.TrimSpace(namer.NameSection(blocks))
+		}
+		if name == "" {
+			name = fmt.Sprintf("Sección %d", idx+1)
+		}
+		names[idx] = name
+	}
+
+	for i := range diff.Diffs {
+		diff.Diffs[i].SectionName = names[diff.Diffs[i].SectionOrder]
+	}
 }
 
 // DiffContentBlocks compares two sequences of content blocks and produces a diff.

@@ -4,6 +4,7 @@ import { lexicalEditor } from '@payloadcms/richtext-lexical'
 import { s3Storage } from '@payloadcms/storage-s3'
 import { buildConfig } from 'payload'
 import { ALL_BLOCKS } from './features/cms/blocks/schemas'
+import { readingTimeFromContent } from './features/cms/lib/reading-time'
 import { seedCMSIfEmpty } from './features/cms/seed'
 
 function newHexId(): string {
@@ -13,7 +14,10 @@ function newHexId(): string {
 function regenerateIds(items: unknown[]): unknown[] {
   return items.map((item) => {
     if (typeof item !== 'object' || item === null) return item
-    const obj: Record<string, unknown> = { ...(item as Record<string, unknown>), id: newHexId() }
+    const obj: Record<string, unknown> = {
+      ...(item as Record<string, unknown>),
+      id: newHexId(),
+    }
     for (const key of Object.keys(obj)) {
       if (Array.isArray(obj[key])) {
         obj[key] = regenerateIds(obj[key] as unknown[])
@@ -36,7 +40,13 @@ function requireEnv(name: string): string {
   return value
 }
 
-const csrfOrigins = requireEnv('PAYLOAD_CSRF_ORIGINS')
+// CSRF allowlist for cookie-based auth. Payload only honors the auth cookie when the request
+// Origin is in this list, or (when no Origin is sent) when Sec-Fetch-Site marks it same-origin.
+// Over plain HTTP on a non-localhost domain (e.g. lvh.me) Chrome sends NEITHER Origin nor
+// Sec-Fetch-* on same-origin admin GETs, so a populated list breaks the admin (login loop).
+// An EMPTY list disables that enforcement (same-origin cookie always accepted) — fine for local
+// dev. Production MUST set PAYLOAD_CSRF_ORIGINS to its real HTTPS origins.
+const csrfOrigins = (process.env.PAYLOAD_CSRF_ORIGINS ?? '')
   .split(',')
   .map((o) => o.trim())
   .filter(Boolean)
@@ -44,7 +54,7 @@ const csrfOrigins = requireEnv('PAYLOAD_CSRF_ORIGINS')
 export default buildConfig({
   serverURL: requireEnv('NEXT_PUBLIC_SERVER_URL'),
   csrf: csrfOrigins,
-  cors: csrfOrigins,
+  cors: csrfOrigins.length ? csrfOrigins : '*',
   secret: requireEnv('PAYLOAD_SECRET'),
   db: postgresAdapter({
     pool: {
@@ -278,6 +288,16 @@ export default buildConfig({
       access: {
         read: () => true,
       },
+      hooks: {
+        beforeChange: [
+          ({ data }) => {
+            if (data?.content) {
+              data.readingTime = readingTimeFromContent(data.content)
+            }
+            return data
+          },
+        ],
+      },
       fields: [
         {
           name: 'title',
@@ -319,6 +339,15 @@ export default buildConfig({
             'Company',
             'Guide',
           ],
+        },
+        {
+          name: 'readingTime',
+          type: 'number',
+          admin: {
+            position: 'sidebar',
+            readOnly: true,
+            description: 'Auto-calculated from content (minutes).',
+          },
         },
         {
           name: 'publishedAt',

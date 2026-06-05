@@ -213,3 +213,17 @@ describe("validateUrl — SSRF host allowlist", () => {
     ).resolves.toBeUndefined();
   });
 });
+
+describe("validateUrl — resolver contract robustness", () => {
+  // Bun's runtime DNS APIs can return record OBJECTS ({ address, ttl }) rather
+  // than plain strings. A resolver that violates the string[] contract must
+  // fail closed (block) instead of crashing the request with a TypeError.
+  const objectResolver = async (_hostname: string): Promise<string[]> =>
+    [{ address: "93.184.216.34", ttl: 60 } as unknown as string];
+
+  it("blocks (does not crash) when the resolver returns non-string entries", async () => {
+    await expect(
+      validateUrl("https://evil.example.com/", objectResolver),
+    ).rejects.toThrow(UrlValidationError);
+  });
+});

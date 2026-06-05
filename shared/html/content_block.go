@@ -31,6 +31,16 @@ type ContentBlock struct {
 	Href  string    `json:"href,omitempty"`
 	Src   string    `json:"src,omitempty"`
 	Alt   string    `json:"alt,omitempty"`
+
+	// Section metadata — describes the nearest structural container this block
+	// belongs to. Used ONLY for grouping/naming in the diff view; deliberately
+	// excluded from HashContentBlocks so it never triggers false content changes.
+	SectionIndex   int    `json:"section_index,omitempty"`
+	SectionTag     string `json:"section_tag,omitempty"`
+	SectionRole    string `json:"section_role,omitempty"`
+	SectionAria    string `json:"section_aria,omitempty"`
+	SectionClass   string `json:"section_class,omitempty"`
+	SectionHeading string `json:"section_heading,omitempty"`
 }
 
 // contentSkipTags are elements whose subtrees should be skipped entirely.
@@ -111,6 +121,12 @@ var blockElements = map[string]bool{
 	"figure": true, "figcaption": true,
 }
 
+// sectionBoundaryTags start a new logical section when entered during the walk.
+var sectionBoundaryTags = map[string]bool{
+	"section": true, "article": true, "header": true, "footer": true,
+	"main": true, "nav": true, "aside": true,
+}
+
 // hasBlockChild reports whether node n has any direct child that is a block element.
 func hasBlockChild(n *html.Node) bool {
 	for c := n.FirstChild; c != nil; c = c.NextSibling {
@@ -137,10 +153,45 @@ func ExtractContentBlocks(htmlContent string) []ContentBlock {
 	return w.blocks
 }
 
+// sectionMeta holds the container hints for one logical section.
+type sectionMeta struct {
+	index   int
+	tag     string
+	role    string
+	aria    string
+	class   string
+	heading string
+}
+
 // blockWalker carries the mutable state for a single ExtractContentBlocks DOM walk.
 type blockWalker struct {
-	blocks    []ContentBlock
-	listDepth int
+	blocks       []ContentBlock
+	listDepth    int
+	sectionStack []sectionMeta
+	// sectionSeq starts at 0 and is incremented BEFORE each push, so index 0
+	// means "no section" — a real section never gets index 0.
+	sectionSeq int
+}
+
+// curSection returns the current top-of-stack section metadata (zero value when
+// the block is outside any structural container).
+func (w *blockWalker) curSection() sectionMeta {
+	if len(w.sectionStack) == 0 {
+		return sectionMeta{}
+	}
+	return w.sectionStack[len(w.sectionStack)-1]
+}
+
+// tagBlock stamps the current section metadata onto a block before appending.
+func (w *blockWalker) tagBlock(b ContentBlock) ContentBlock {
+	s := w.curSection()
+	b.SectionIndex = s.index
+	b.SectionTag = s.tag
+	b.SectionRole = s.role
+	b.SectionAria = s.aria
+	b.SectionClass = s.class
+	b.SectionHeading = s.heading
+	return b
 }
 
 // walk performs the recursive DOM traversal, dispatching each element to its
@@ -148,6 +199,24 @@ type blockWalker struct {
 func (w *blockWalker) walk(n *html.Node) {
 	if n.Type == html.ElementNode && contentSkipTags[n.Data] {
 		return
+	}
+
+	// Enter a structural section container — push its metadata for descendants.
+	pushed := false
+	if n.Type == html.ElementNode && sectionBoundaryTags[n.Data] {
+		w.sectionSeq++
+		w.sectionStack = append(w.sectionStack, sectionMeta{
+			index:   w.sectionSeq,
+			tag:     n.Data,
+			role:    getAttr(n, "role"),
+			aria:    getAttr(n, "aria-label"),
+			class:   getAttr(n, "class"),
+			heading: firstHeadingText(n),
+		})
+		pushed = true
+	}
+	if pushed {
+		defer func() { w.sectionStack = w.sectionStack[:len(w.sectionStack)-1] }()
 	}
 
 	if n.Type == html.ElementNode {
@@ -159,6 +228,10 @@ func (w *blockWalker) walk(n *html.Node) {
 	// Transparent containers (div, section, span, etc.) — if they contain only
 	// inline content (no block-level children), emit as a paragraph block so
 	// text in non-semantic markup isn't lost.
+	// Note: section-boundary tags (section, article, header, etc.) also appear in
+	// transparentContainers. When we reach this branch for them, the section push
+	// above has already run, so tagBlock stamps the correct section metadata onto the
+	// emitted paragraph before the early return.
 	if n.Type == html.ElementNode && isTransparentContainer(n.Data) && !hasBlockChild(n) {
 		w.appendText(BlockParagraph, normalizeText(collectText(n)))
 		return
@@ -166,6 +239,31 @@ func (w *blockWalker) walk(n *html.Node) {
 
 	// For all other nodes, recurse into children.
 	w.walkChildren(n)
+}
+
+// firstHeadingText returns the text of the first heading descendant of n, or "".
+func firstHeadingText(n *html.Node) string {
+	var found string
+	var rec func(*html.Node)
+	rec = func(node *html.Node) {
+		if found != "" {
+			return
+		}
+		if node.Type == html.ElementNode && contentSkipTags[node.Data] {
+			return
+		}
+		if node.Type == html.ElementNode && headingLevel(node.Data) > 0 {
+			found = normalizeText(collectText(node))
+			return
+		}
+		for c := node.FirstChild; c != nil; c = c.NextSibling {
+			rec(c)
+		}
+	}
+	for c := n.FirstChild; c != nil; c = c.NextSibling {
+		rec(c)
+	}
+	return found
 }
 
 // emitElement handles a single element node, returning true when the element
@@ -176,7 +274,7 @@ func (w *blockWalker) emitElement(n *html.Node) bool {
 	// Headings
 	if lvl := headingLevel(tag); lvl > 0 {
 		if text := normalizeText(collectText(n)); text != "" {
-			w.blocks = append(w.blocks, ContentBlock{Type: BlockHeading, Level: lvl, Text: text})
+			w.blocks = append(w.blocks, w.tagBlock(ContentBlock{Type: BlockHeading, Level: lvl, Text: text}))
 		}
 		return true // don't recurse into heading children (already collected)
 	}
@@ -216,7 +314,7 @@ func (w *blockWalker) emitLink(n *html.Node) {
 	text := normalizeText(collectText(n))
 	href := getAttr(n, "href")
 	if text != "" || href != "" {
-		w.blocks = append(w.blocks, ContentBlock{Type: BlockLink, Text: text, Href: href})
+		w.blocks = append(w.blocks, w.tagBlock(ContentBlock{Type: BlockLink, Text: text, Href: href}))
 	}
 }
 
@@ -225,7 +323,7 @@ func (w *blockWalker) emitImage(n *html.Node) {
 	src := getAttr(n, "src")
 	alt := getAttr(n, "alt")
 	if src != "" || alt != "" {
-		w.blocks = append(w.blocks, ContentBlock{Type: BlockImage, Src: src, Alt: alt})
+		w.blocks = append(w.blocks, w.tagBlock(ContentBlock{Type: BlockImage, Src: src, Alt: alt}))
 	}
 }
 
@@ -242,7 +340,7 @@ func (w *blockWalker) emitListItem(n *html.Node) {
 		}
 	}
 	if text := normalizeText(ownText.String()); text != "" {
-		w.blocks = append(w.blocks, ContentBlock{Type: BlockListItem, Level: w.listDepth, Text: text})
+		w.blocks = append(w.blocks, w.tagBlock(ContentBlock{Type: BlockListItem, Level: w.listDepth, Text: text}))
 	}
 	if hasNestedList {
 		for c := n.FirstChild; c != nil; c = c.NextSibling {
@@ -270,7 +368,7 @@ func (w *blockWalker) walkChildren(n *html.Node) {
 // appendText appends a block of the given type when text is non-empty.
 func (w *blockWalker) appendText(t BlockType, text string) {
 	if text != "" {
-		w.blocks = append(w.blocks, ContentBlock{Type: t, Text: text})
+		w.blocks = append(w.blocks, w.tagBlock(ContentBlock{Type: t, Text: text}))
 	}
 }
 

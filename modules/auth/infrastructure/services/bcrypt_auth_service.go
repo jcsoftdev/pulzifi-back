@@ -39,6 +39,10 @@ func (s *BcryptAuthService) Authenticate(ctx context.Context, email, password st
 		return nil, err
 	}
 
+	if user.Status == entities.UserStatusSuspended {
+		return nil, errors.New("account suspended")
+	}
+
 	return user, nil
 }
 

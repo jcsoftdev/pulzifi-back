@@ -9,6 +9,7 @@ import (
 const (
 	UserStatusApproved     = "approved"
 	UserStatusTrialExpired = "trial_expired"
+	UserStatusSuspended    = "suspended"
 )
 
 // User represents a user in the system

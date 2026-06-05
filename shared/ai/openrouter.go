@@ -20,8 +20,8 @@ type Message struct {
 // ContentBlock represents a single content block in a multimodal message.
 type ContentBlock struct {
 	Type     string    `json:"type"`                // "text" or "image_url"
-	Text     string    `json:"text,omitempty"`       // for type "text"
-	ImageURL *ImageURL `json:"image_url,omitempty"`  // for type "image_url"
+	Text     string    `json:"text,omitempty"`      // for type "text"
+	ImageURL *ImageURL `json:"image_url,omitempty"` // for type "image_url"
 }
 
 // ImageURL holds the URL for an image content block (supports base64 data URIs).
@@ -53,6 +53,17 @@ func NewOpenRouterClient(apiKey, model string) *OpenRouterClient {
 			Timeout: 120 * time.Second,
 		},
 	}
+}
+
+// WithBaseURL overrides the API base URL and returns the client for chaining.
+// An empty value keeps the default (OpenRouter). Use it to target any
+// OpenAI-compatible endpoint: a pay-per-token provider (DeepInfra, Together) or
+// a self-hosted Ollama at http://ollama:11434/v1.
+func (c *OpenRouterClient) WithBaseURL(baseURL string) *OpenRouterClient {
+	if baseURL != "" {
+		c.baseURL = baseURL
+	}
+	return c
 }
 
 // Complete sends a chat completion request and returns the assistant message content.

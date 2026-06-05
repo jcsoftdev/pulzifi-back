@@ -156,6 +156,9 @@ func proxyDirector(originalDirector func(*http.Request)) func(*http.Request) {
 		req.Header.Set("X-Forwarded-Host", origHost)
 
 		proto := "http"
+		if req.TLS != nil {
+			proto = "https"
+		}
 		if fp := req.Header.Get("X-Forwarded-Proto"); fp != "" {
 			proto = fp
 		}

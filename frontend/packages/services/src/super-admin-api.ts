@@ -1,5 +1,51 @@
 import { getHttpClient } from '@workspace/shared-http'
 
+export interface AdminUser {
+  id: string
+  email: string
+  firstName: string
+  lastName: string
+  isSuperAdmin: boolean
+  status: string
+  emailVerified: boolean
+  orgCount: number
+}
+
+export interface AdminMembership {
+  orgId: string
+  orgName: string
+  subdomain: string
+  role: string
+  invitationStatus: string
+  isOwner: boolean
+}
+
+export interface AdminUserDetail {
+  id: string
+  email: string
+  firstName: string
+  lastName: string
+  status: string
+  emailVerified: boolean
+  isSuperAdmin: boolean
+  memberships: AdminMembership[]
+}
+
+export interface ListUsersResponse {
+  users: AdminUser[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+export interface ListUsersParams {
+  search?: string
+  page?: number
+  pageSize?: number
+  orgId?: string
+  status?: string
+}
+
 export interface AdminPlan {
   id: string
   code: string
@@ -48,6 +94,48 @@ export const SuperAdminApi = {
   // balance. Always one month (monthly price), never yearly. Does not change
   // the org's plan. Balance auto-applies to upcoming invoices and carries any
   // leftover forward. Requires an existing Stripe customer.
+  async listUsers(params: ListUsersParams = {}): Promise<ListUsersResponse> {
+    const http = await getHttpClient()
+    const { search = '', page = 1, pageSize = 5, orgId = '', status = '' } = params
+    const query = new URLSearchParams({
+      search,
+      page: String(page),
+      pageSize: String(pageSize),
+      orgId,
+      status,
+    }).toString()
+    return http.get<ListUsersResponse>(`/api/v1/auth/admin/users?${query}`)
+  },
+
+  async getUser(userId: string): Promise<AdminUserDetail> {
+    const http = await getHttpClient()
+    return http.get<AdminUserDetail>(`/api/v1/auth/admin/users/${userId}`)
+  },
+
+  async setUserStatus(userId: string, status: 'approved' | 'suspended'): Promise<void> {
+    const http = await getHttpClient()
+    await http.patch(`/api/v1/auth/admin/users/${userId}/status`, { status })
+  },
+
+  async setMembershipRole(
+    userId: string,
+    orgId: string,
+    role: 'OWNER' | 'ADMIN' | 'MEMBER'
+  ): Promise<void> {
+    const http = await getHttpClient()
+    await http.patch(`/api/v1/auth/admin/users/${userId}/memberships/${orgId}`, { role })
+  },
+
+  async removeMembership(userId: string, orgId: string): Promise<void> {
+    const http = await getHttpClient()
+    await http.delete(`/api/v1/auth/admin/users/${userId}/memberships/${orgId}`)
+  },
+
+  async promoteUser(userId: string): Promise<AdminUser> {
+    const http = await getHttpClient()
+    return http.post<AdminUser>(`/api/v1/auth/admin/users/${userId}/promote`, {})
+  },
+
   async giftMonth(
     organizationId: string,
     planCode: string
@@ -69,5 +157,4 @@ export const SuperAdminApi = {
       plan_code: planCode,
     })
   },
-
 }

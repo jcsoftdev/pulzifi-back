@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from '@workspace/ui/components/atoms'
 import { Gift, Loader2 } from 'lucide-react'
+import Link from 'next/link'
 import { useCallback, useEffect, useState, useTransition } from 'react'
 import { notification } from '@/lib/notification'
 
@@ -91,7 +92,7 @@ export function PlanManagement() {
 
 if (loadError) {
     return (
-      <div className="flex-1 p-8 max-w-7xl mx-auto w-full">
+      <div className="w-full">
         <Card>
           <CardHeader>
             <CardTitle>Super Admin Access</CardTitle>
@@ -103,7 +104,7 @@ if (loadError) {
   }
 
   return (
-    <div className="flex-1 p-8 max-w-7xl mx-auto w-full">
+    <div className="w-full">
       <div className="flex flex-col gap-6">
         <div className="flex items-center justify-between">
           <div>
@@ -164,7 +165,7 @@ if (loadError) {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <Button
                     variant="outline"
                     size="sm"
@@ -183,6 +184,12 @@ if (loadError) {
                     <Gift className="w-4 h-4 mr-2" />
                     Gift Pro
                   </Button>
+                  <Link
+                    href={`/admin?tab=users&org=${org.id}`}
+                    className="text-sm text-primary hover:underline"
+                  >
+                    View members
+                  </Link>
                 </div>
               </CardContent>
             </Card>

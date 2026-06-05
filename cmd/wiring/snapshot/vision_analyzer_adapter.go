@@ -21,7 +21,7 @@ func NewVisionAnalyzer(cfg *config.Config) snapServices.VisionAnalyzer {
 	if cfg.OpenRouterAPIKey == "" || cfg.OpenRouterVisionModel == "" {
 		return nil
 	}
-	visionClient := sharedAI.NewOpenRouterClient(cfg.OpenRouterAPIKey, cfg.OpenRouterVisionModel)
+	visionClient := sharedAI.NewOpenRouterClient(cfg.OpenRouterAPIKey, cfg.OpenRouterVisionModel).WithBaseURL(cfg.AIBaseURL)
 	inner := insightAI.NewOpenRouterVisionAnalyzer(visionClient)
 	return &visionAnalyzerAdapter{inner: inner}
 }

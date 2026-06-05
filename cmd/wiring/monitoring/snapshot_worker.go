@@ -16,6 +16,7 @@ import (
 	snapshotapp "github.com/jcsoftdev/pulzifi-back/modules/snapshot/application"
 	snapshotextractor "github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/extractor"
 	snapshotstorage "github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/storage"
+	sharedAI "github.com/jcsoftdev/pulzifi-back/shared/ai"
 	"github.com/jcsoftdev/pulzifi-back/shared/config"
 	"github.com/jcsoftdev/pulzifi-back/shared/eventbus"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
@@ -69,6 +70,9 @@ func NewSnapshotWorker(deps SnapshotWorkerDeps) (*snapshotapp.SnapshotWorker, er
 
 	storageFlagReader := snapshotwiring.NewStorageFlagReader(deps.DB)
 
+	ollamaClient := sharedAI.NewOllamaClient(cfg.OllamaURL, cfg.OllamaModel, cfg.OllamaEnabled)
+	sectionNamer := sharedAI.NewOllamaSectionNamer(ollamaClient)
+
 	workerDeps := snapshotapp.SnapshotWorkerDeps{
 		ObjectStorage:       objectStorage,
 		ExtractorClient:     extractorClient,
@@ -78,6 +82,7 @@ func NewSnapshotWorker(deps SnapshotWorkerDeps) (*snapshotapp.SnapshotWorker, er
 		NotificationEmailer: notificationEmailer,
 		InsightDispatcher:   insightDispatcher,
 		StorageFlagReader:   storageFlagReader,
+		SectionNamer:        sectionNamer,
 		FrontendURL:         deps.FrontendURL,
 	}
 

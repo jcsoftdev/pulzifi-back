@@ -1,5 +1,8 @@
+import { extractTenantFromHostname } from '@workspace/shared-http'
 import type { Metadata } from 'next'
+import { headers } from 'next/headers'
 import { notFound } from 'next/navigation'
+import { redirectAuthenticatedUser } from '@/features/auth/application/redirect-authenticated.server'
 import { BlocksRenderer } from '@/features/cms'
 import { FooterSection, Navbar, SmoothScroll } from '@/features/landing'
 import { getPayloadClient } from '@/lib/payload'
@@ -122,6 +125,25 @@ export default async function DynamicPage({ params }: Props) {
   }
   if (!page) notFound()
 
+  // Auth surfaces (login) must never render for an already-authenticated visitor.
+  // The CMS [slug] route doesn't go through the (auth) layout, so we replicate
+  // its redirect here when the page embeds a login-form block.
+  const blocks =
+    (page.blocks as { blockType: string; id?: string; [key: string]: unknown }[]) ?? []
+  if (blocks.some((b) => b.blockType === 'login-form')) {
+    const incomingHeaders = await headers()
+    const host = incomingHeaders.get('x-forwarded-host') || incomingHeaders.get('host') || ''
+    const protocol = (() => {
+      const p = incomingHeaders.get('x-forwarded-proto')
+      return p ? `${p}:` : 'http:'
+    })()
+    await redirectAuthenticatedUser({
+      host,
+      protocol,
+      tenant: extractTenantFromHostname(host),
+    })
+  }
+
   const nav = navbar as Record<string, unknown> | null
   const foot = footer as Record<string, unknown> | null
   const themeStyle = theme
@@ -187,7 +209,7 @@ export default async function DynamicPage({ params }: Props) {
         logoUrl={(nav?.logo as { url?: string } | undefined)?.url}
       />
       <main className="flex flex-1 flex-col">
-        <BlocksRenderer blocks={(page.blocks as { blockType: string; id?: string; [key: string]: unknown }[]) ?? []} />
+        <BlocksRenderer blocks={blocks} />
       </main>
       <FooterSection
         links={footerGroups}

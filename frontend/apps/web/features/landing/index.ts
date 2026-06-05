@@ -1,4 +1,5 @@
 export { SmoothScroll } from './lib/smooth-scroll'
+export { SmoothScrollLazy } from './lib/smooth-scroll-lazy'
 export { AiIntelligenceSection } from './ui/ai-intelligence-section'
 export { CtaSection } from './ui/cta-section'
 export { FaqSection } from './ui/faq-section'

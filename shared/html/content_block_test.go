@@ -237,9 +237,114 @@ func TestHashContentBlocks_DiffersOnChange(t *testing.T) {
 	}
 }
 
+func TestExtractContentBlocks_NestedAndOutsideSections(t *testing.T) {
+	htmlContent := `<html><body>
+		<p>Outside paragraph</p>
+		<section>
+			<article>
+				<p>Nested paragraph</p>
+			</article>
+		</section>
+		<section>
+			<p>Sibling paragraph</p>
+		</section>
+	</body></html>`
+
+	blocks := ExtractContentBlocks(htmlContent)
+
+	find := func(text string) *ContentBlock {
+		for i := range blocks {
+			if blocks[i].Text == text {
+				return &blocks[i]
+			}
+		}
+		return nil
+	}
+
+	outside := find("Outside paragraph")
+	if outside == nil {
+		t.Fatalf("block 'Outside paragraph' not found; all blocks: %+v", blocks)
+	}
+	if outside.SectionIndex != 0 {
+		t.Errorf("outside block: SectionIndex = %d, want 0", outside.SectionIndex)
+	}
+	if outside.SectionTag != "" {
+		t.Errorf("outside block: SectionTag = %q, want empty", outside.SectionTag)
+	}
+
+	nested := find("Nested paragraph")
+	if nested == nil {
+		t.Fatalf("block 'Nested paragraph' not found; all blocks: %+v", blocks)
+	}
+	if nested.SectionTag != "article" {
+		t.Errorf("nested block: SectionTag = %q, want \"article\" (innermost section)", nested.SectionTag)
+	}
+
+	sibling := find("Sibling paragraph")
+	if sibling == nil {
+		t.Fatalf("block 'Sibling paragraph' not found; all blocks: %+v", blocks)
+	}
+
+	// The two top-level <section> elements must get distinct SectionIndex values.
+	// nested.SectionIndex reflects the inner <article>; sibling.SectionIndex reflects
+	// the second <section>. All three must be non-zero and mutually distinct.
+	if nested.SectionIndex == 0 {
+		t.Errorf("nested block: SectionIndex = 0, want > 0")
+	}
+	if sibling.SectionIndex == 0 {
+		t.Errorf("sibling block: SectionIndex = 0, want > 0")
+	}
+	if nested.SectionIndex == sibling.SectionIndex {
+		t.Errorf("nested and sibling blocks share SectionIndex %d; want distinct values",
+			nested.SectionIndex)
+	}
+}
+
 func TestHashContentBlocks_Empty(t *testing.T) {
 	h := HashContentBlocks(nil)
 	if h == "" {
 		t.Error("expected non-empty hash for nil blocks")
+	}
+}
+
+func TestExtractContentBlocks_SectionMetadata(t *testing.T) {
+	htmlContent := `<html><body>
+		<header><h1>Title</h1></header>
+		<section class="stats" aria-label="Numbers"><p>+$900K</p><p>137.000</p></section>
+		<footer><p>Contact us</p></footer>
+	</body></html>`
+
+	blocks := ExtractContentBlocks(htmlContent)
+
+	var header, stats, footer *ContentBlock
+	for i := range blocks {
+		switch blocks[i].Text {
+		case "Title":
+			header = &blocks[i]
+		case "+$900K":
+			stats = &blocks[i]
+		case "Contact us":
+			footer = &blocks[i]
+		}
+	}
+	if header == nil || stats == nil || footer == nil {
+		t.Fatalf("missing blocks: header=%v stats=%v footer=%v", header, stats, footer)
+	}
+	if header.SectionTag != "header" {
+		t.Errorf("header.SectionTag = %q, want header", header.SectionTag)
+	}
+	if stats.SectionTag != "section" || stats.SectionClass != "stats" || stats.SectionAria != "Numbers" {
+		t.Errorf("stats section meta wrong: tag=%q class=%q aria=%q", stats.SectionTag, stats.SectionClass, stats.SectionAria)
+	}
+	if footer.SectionTag != "footer" {
+		t.Errorf("footer.SectionTag = %q, want footer", footer.SectionTag)
+	}
+}
+
+func TestHashContentBlocks_IgnoresSectionMetadata(t *testing.T) {
+	a := []ContentBlock{{Type: BlockParagraph, Text: "x"}}
+	b := []ContentBlock{{Type: BlockParagraph, Text: "x", SectionTag: "section", SectionClass: "card", SectionIndex: 3}}
+	if HashContentBlocks(a) != HashContentBlocks(b) {
+		t.Error("hash changed due to section metadata; must hash content only")
 	}
 }

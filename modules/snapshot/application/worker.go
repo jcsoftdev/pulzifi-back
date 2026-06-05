@@ -32,6 +32,7 @@ type SnapshotWorker struct {
 	visionAnalyzer      snapServices.VisionAnalyzer
 	bus                 eventbus.MessageBus
 	storageFlagReader   repositories.StorageFlagReader
+	sectionNamer        sharedHTML.SectionNamer
 	frontendURL         string
 	pixelDiffThreshold  float64
 	onCheckDone         func(pageID uuid.UUID, checkJSON []byte)
@@ -104,6 +105,7 @@ type SnapshotWorkerDeps struct {
 	NotificationEmailer snapServices.NotificationEmailer
 	InsightDispatcher   snapServices.InsightDispatcher
 	StorageFlagReader   repositories.StorageFlagReader
+	SectionNamer        sharedHTML.SectionNamer
 	FrontendURL         string
 }
 
@@ -117,6 +119,7 @@ func NewSnapshotWorker(deps SnapshotWorkerDeps) *SnapshotWorker {
 		notificationEmailer: deps.NotificationEmailer,
 		insightDispatcher:   deps.InsightDispatcher,
 		storageFlagReader:   deps.StorageFlagReader,
+		sectionNamer:        deps.SectionNamer,
 		frontendURL:         deps.FrontendURL,
 		pixelDiffThreshold:  0.001, // default
 	}
@@ -580,6 +583,7 @@ func (s *SnapshotWorker) detectContentBlockDiff(prevCheck, currCheck *snapEntiti
 		prevBlocks := sharedHTML.ExtractContentBlocks(prevHTML)
 		currBlocks := sharedHTML.ExtractContentBlocks(currHTML)
 		contentDiff = sharedHTML.DiffContentBlocks(prevBlocks, currBlocks)
+		sharedHTML.EnrichSections(contentDiff, s.sectionNamer)
 	}
 
 	if contentDiff == nil || !contentDiff.HasChanges {

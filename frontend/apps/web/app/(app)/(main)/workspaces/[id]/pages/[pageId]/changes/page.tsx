@@ -308,27 +308,75 @@ export default function ChangesPage() {
 
   // Build section-grouped text changes for the TextChanges component.
   const textChangeSections = useMemo<TextChangeSection[]>(() => {
-    // "All sections" view: one group per section check (include all, even without text diffs)
+    /** Group an array of BlockDiffDto by section_order, preserving first-seen order. */
+    function groupDiffsBySection(diffs: BlockDiffDto[]): TextChangeSection[] {
+      if (diffs.length === 0) return []
+      const order: number[] = []
+      const byOrder = new Map<number, { name: string; rows: DiffRow[] }>()
+      for (const d of diffs) {
+        const ord = d.section_order ?? 0
+        if (!byOrder.has(ord)) {
+          byOrder.set(ord, { name: d.section_name ?? 'Changes', rows: [] })
+          order.push(ord)
+        }
+        // biome-ignore lint/style/noNonNullAssertion: set above
+        byOrder.get(ord)!.rows.push(blockDiffToDiffRow(d))
+      }
+      return order.map((ord) => {
+        // biome-ignore lint/style/noNonNullAssertion: keys from same loop
+        const g = byOrder.get(ord)!
+        return { sectionName: g.name, changes: g.rows, changeDetected: true }
+      })
+    }
+
+    // "All sections" view: one group per section check (include all, even without text diffs).
+    // Within each section check, further group by section_order from the diffs.
     if (selectedSectionId === 'all' && activeSectionChecks.length > 0) {
-      const sectionDiffs: TextChangeSection[] = activeSectionChecks.map((sc) => ({
-        sectionName: sections.find((s) => s.id === sc.sectionId)?.name,
-        changes: sc.contentDiff?.has_changes ? sc.contentDiff.diffs.map(blockDiffToDiffRow) : [],
-        changeDetected: sc.changeDetected,
-      }))
+      const sectionDiffs: TextChangeSection[] = activeSectionChecks.flatMap((sc) => {
+        if (!sc.contentDiff?.has_changes) {
+          return [
+            {
+              sectionName: sections.find((s) => s.id === sc.sectionId)?.name,
+              changes: [],
+              changeDetected: sc.changeDetected,
+            },
+          ]
+        }
+        const grouped = groupDiffsBySection(sc.contentDiff.diffs)
+        if (grouped.length === 0) {
+          return [
+            {
+              sectionName: sections.find((s) => s.id === sc.sectionId)?.name,
+              changes: [],
+              changeDetected: sc.changeDetected,
+            },
+          ]
+        }
+        // Override the first group's sectionName with the monitored section name when
+        // there is only one backend section (common case before section_name is populated).
+        const firstGroup = grouped[0]
+        if (grouped.length === 1 && firstGroup && firstGroup.sectionName === 'Changes') {
+          firstGroup.sectionName = sections.find((s) => s.id === sc.sectionId)?.name ?? 'Changes'
+        }
+        return grouped.map((g) => ({ ...g, changeDetected: sc.changeDetected }))
+      })
       // At least one section check exists — use section-grouped view.
       // If none have text diffs but parent has a full-page diff, fall through.
       if (sectionDiffs.some((s) => s.changes.length > 0 || s.changeDetected)) return sectionDiffs
     }
-    // Single section or full-page: single group
+
+    // Single section or full-page: group by section_order from the diffs.
     if (!activeCheck?.contentDiff?.has_changes) return []
-    return [
-      {
-        sectionName: activeCheck.sectionId
-          ? sections.find((s) => s.id === activeCheck.sectionId)?.name
-          : undefined,
-        changes: activeCheck.contentDiff.diffs.map(blockDiffToDiffRow),
-      },
-    ]
+    const grouped = groupDiffsBySection(activeCheck.contentDiff.diffs)
+    if (grouped.length === 0) return []
+    // When there is only one group and the diff carries no section_name, fall back to the
+    // monitored-section display name (backward-compatible with old data).
+    const firstGroup = grouped[0]
+    if (grouped.length === 1 && firstGroup && firstGroup.sectionName === 'Changes' && activeCheck.sectionId) {
+      firstGroup.sectionName =
+        sections.find((s) => s.id === activeCheck.sectionId)?.name ?? 'Changes'
+    }
+    return grouped
   }, [
     activeCheck,
     selectedSectionId,

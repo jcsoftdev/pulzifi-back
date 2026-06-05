@@ -10,6 +10,7 @@ volumes:
     driver: local
   redis-data:
     driver: local
+  ollama-models:
 
 services:
 
@@ -143,11 +144,23 @@ services:
       - pulzifi-network
     command: air -c .air.api.toml
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:3000/health"]
+      # Dev may terminate TLS in-process (TLS_CERT_FILE set) or serve plain HTTP — try both.
+      test: ["CMD-SHELL", "curl -skf https://localhost:3000/health || curl -sf http://localhost:3000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: pulzifi-ollama
+    restart: unless-stopped
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - ollama-models:/root/.ollama
+    networks:
+      - pulzifi-network
 
   worker:
     build:
