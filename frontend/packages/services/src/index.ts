@@ -30,6 +30,7 @@ export type {
   Destination,
   Integration,
   IntegrationStatus,
+  ProviderState,
   ScopeType,
   Target,
   UpdateDestinationInput,
