@@ -37,69 +37,6 @@ const HERO = {
   secondaryCtaLabel: 'See how it works',
   secondaryCtaHref: '#how',
   trustLine: 'Trusted by 2,500+ teams across 40+ countries',
-  kpis: [
-    {
-      label: 'Alerts (24h)',
-      value: '128',
-      delta: '+24% vs yesterday',
-      deltaDirection: 'up',
-    },
-    {
-      label: 'Mentions',
-      value: '43',
-      delta: '+8%',
-      deltaDirection: 'up',
-    },
-    {
-      label: 'Pages Changed',
-      value: '17',
-      delta: '-3%',
-      deltaDirection: 'down',
-    },
-    {
-      label: 'Price Changes',
-      value: '5',
-      delta: '+2',
-      deltaDirection: 'up',
-    },
-  ],
-  dashboardAlerts: [
-    {
-      tone: 'signal',
-      icon: '🔴',
-      site: 'competitor.com — Pricing Change',
-      title: 'Pro plan dropped from $89 → $69/mo',
-      detail: '',
-      time: '2m ago',
-    },
-    {
-      tone: 'amber',
-      icon: '⚡',
-      site: 'rival-startup.io — New Feature Page',
-      title: '”AI Automation Suite” launched',
-      detail: '',
-      time: '18m ago',
-    },
-    {
-      tone: 'teal',
-      icon: '📣',
-      site: 'industry-leader.com — Messaging Shift',
-      title: 'Homepage CTA changed to “Free Trial”',
-      detail: '',
-      time: '1h ago',
-    },
-    {
-      tone: 'ink',
-      icon: '📄',
-      site: 'regulator.gov — Policy Update',
-      title: 'New compliance requirements — Q1 2026',
-      detail: '',
-      time: '3h ago',
-    },
-  ],
-  aiInsightTitle: 'AI Insight',
-  aiInsightBody:
-    'Your competitor cut pricing by 22%. This signals aggressive growth targeting — consider reinforcing your value-add messaging before the weekend traffic spike.',
 } as const
 
 const LOGOS = {
