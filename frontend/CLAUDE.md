@@ -78,6 +78,17 @@ Tenant subdomains are the app surface; the public/marketing site lives on the ap
 - `next.config.mjs` allows dev origins: `*.localhost`, `*.lvh.me`, `*.pulzifi.com`
 - `lvh.me` is a public DNS wildcard that resolves all subdomains to `127.0.0.1` — no `/etc/hosts` editing required
 
+## Payload CMS — schema sync
+
+The marketing/landing site is Payload CMS on Postgres (`schemaName: 'cms'`, configured in `apps/web/payload.config.ts`). Two ways the `cms` schema is kept in sync:
+
+- **Dev push** (`@payloadcms/db-postgres` default): on every `bun dev` boot, drizzle introspects the DB, diffs it against the collections, and applies changes directly — the `[⣟] Pulling schema from database...` spinner. It is **stateless**: no record of "already synced" (unlike migrations), so it re-pulls and re-diffs on *every* restart even when nothing changed. This is the per-boot slowness.
+- **Migrations** (production path): versioned files in `apps/web/migrations/*.ts`, tracked in the `payload_migrations` table. `make cms-migrate` (→ `scripts/cms-migrate.ts` → Payload's `migrate` bin) applies them; `--create` generates a migration from the schema diff. `--fresh` drops + rebuilds (refused unless `CMS_ALLOW_DESTRUCTIVE=1`).
+
+Gotcha: the push only runs when `NODE_ENV !== 'production'` AND `PAYLOAD_MIGRATING !== 'true'` AND adapter `push !== false` (see `@payloadcms/db-postgres/dist/connect.js`). **Production never pushes** — it relies on migrations applied at deploy. So the boot cost is dev-only.
+
+To skip the per-boot push (make dev behave like prod), gate it: `push: process.env.PAYLOAD_PUSH === 'true'`. Then `bun dev` is fast; run `PAYLOAD_PUSH=true bun dev` once after changing a collection, or generate a versioned migration with `bun scripts/cms-migrate.ts --create`.
+
 ## Coding Conventions
 
 - Biome for formatting and linting (spaces, indent width 2, line width 100)
