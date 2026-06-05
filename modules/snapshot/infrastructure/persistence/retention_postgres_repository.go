@@ -31,7 +31,6 @@ func (r *RetentionPostgresRepository) GetStoragePeriodDays(ctx context.Context) 
 		err := tx.QueryRowContext(ctx, `
 			SELECT COALESCE(storage_period_days, 0)
 			  FROM usage_tracking
-			 WHERE deleted_at IS NULL
 			 ORDER BY created_at DESC
 			 LIMIT 1
 		`).Scan(&days)
