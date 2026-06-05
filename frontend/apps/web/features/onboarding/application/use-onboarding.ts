@@ -111,6 +111,19 @@ export function useOnboarding() {
     setError(undefined)
     try {
       await AuthApi.submitOnboardingProfile(profile)
+      // The org already exists for this user, but onboarding may run on the apex
+      // domain (e.g. pulzifi.com). Tenant-scoped APIs only resolve on the tenant
+      // subdomain, so redirect there instead of a relative path that would keep
+      // the user on the apex and trigger 403s (no tenant resolvable).
+      try {
+        const user = await AuthApi.getCurrentUser()
+        if (user.tenant) {
+          window.location.assign(buildTenantUrl(user.tenant))
+          return
+        }
+      } catch {
+        // Fall through to relative navigation if the tenant can't be resolved.
+      }
       window.location.assign('/workspaces')
     } catch (err: unknown) {
       const apiError = err as {

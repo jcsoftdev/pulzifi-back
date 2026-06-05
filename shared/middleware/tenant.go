@@ -29,7 +29,11 @@ const (
 // 2. Queries public.organizations to get the schema_name
 // 3. Stores schema_name in context
 // 4. Allows certain paths to bypass tenant requirement (e.g., /swagger, /health)
-func TenantMiddleware(db *sql.DB) func(http.Handler) http.Handler {
+//
+// baseDomain is the apex application domain (e.g. "pulzifi.com"). When set, a
+// request whose host IS the apex carries no tenant, so it is never mis-resolved
+// to a same-named organization. Empty baseDomain keeps the legacy dev heuristic.
+func TenantMiddleware(db *sql.DB, baseDomain string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Chi's Mount() sets rctx.RoutePath to the path with the mount
@@ -47,7 +51,7 @@ func TenantMiddleware(db *sql.DB) func(http.Handler) http.Handler {
 				return
 			}
 
-			subdomain := extractSubdomain(r)
+			subdomain := extractSubdomain(r, baseDomain)
 
 			// For development (localhost/app.local), allow accessing without specific tenant
 			// In production, all requests should have a valid subdomain
@@ -123,7 +127,7 @@ func isPublicPath(path string) bool {
 	return false
 }
 
-func extractSubdomain(r *http.Request) string {
+func extractSubdomain(r *http.Request, baseDomain string) string {
 	// Try X-Tenant header first (set by proxy)
 	if subdomain := r.Header.Get("X-Tenant"); subdomain != "" {
 		return subdomain
@@ -131,18 +135,14 @@ func extractSubdomain(r *http.Request) string {
 
 	// Fallback: try X-Forwarded-Host (passed by Node.js server-side requests or Traefik)
 	if forwardedHost := r.Header.Get("X-Forwarded-Host"); forwardedHost != "" {
-		host := strings.Split(forwardedHost, ":")[0]
-		parts := strings.Split(host, ".")
-		if len(parts) > 1 {
-			return parts[0]
+		if sub := subdomainFromHost(forwardedHost, baseDomain); sub != "" {
+			return sub
 		}
 	}
 
 	// Fallback: extract from Host
-	host := strings.Split(r.Host, ":")[0]
-	parts := strings.Split(host, ".")
-	if len(parts) > 1 {
-		return parts[0]
+	if sub := subdomainFromHost(r.Host, baseDomain); sub != "" {
+		return sub
 	}
 
 	// Debug: log all headers if subdomain empty
@@ -152,6 +152,35 @@ func extractSubdomain(r *http.Request) string {
 		zap.String("x-tenant", r.Header.Get("X-Tenant")),
 		zap.String("x-forwarded-proto", r.Header.Get("X-Forwarded-Proto")))
 
+	return ""
+}
+
+// subdomainFromHost extracts the tenant label from a host. When baseDomain is
+// configured, the apex (host == baseDomain) returns "" so it is never resolved
+// as a tenant, and only a real subdomain of the apex yields a tenant. With no
+// baseDomain (dev), it falls back to the legacy "first label of any multi-label
+// host" heuristic.
+func subdomainFromHost(host, baseDomain string) string {
+	host = strings.ToLower(strings.Split(host, ":")[0])
+	if host == "" {
+		return ""
+	}
+
+	if baseDomain != "" {
+		baseDomain = strings.ToLower(baseDomain)
+		if host == baseDomain {
+			return "" // apex carries no tenant
+		}
+		if strings.HasSuffix(host, "."+baseDomain) {
+			label := strings.TrimSuffix(host, "."+baseDomain)
+			return strings.Split(label, ".")[0]
+		}
+	}
+
+	parts := strings.Split(host, ".")
+	if len(parts) > 1 {
+		return parts[0]
+	}
 	return ""
 }
 
