@@ -5,6 +5,7 @@ import { isRedirectError } from 'next/dist/client/components/redirect-error'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 
+import { buildApexRedirectUrl } from '@/features/auth/application/redirect-authenticated.server'
 import { BlocksRenderer } from '@/features/cms'
 import { FooterSection, Navbar, SmoothScroll } from '@/features/landing'
 import { getPayloadClient } from '@/lib/payload'
@@ -23,8 +24,12 @@ export const metadata: Metadata = {
 
 export default async function PricingPage() {
   const headersList = await headers()
-  const hostname = headersList.get('host') || ''
+  const hostname = headersList.get('x-forwarded-host') || headersList.get('host') || ''
   const tenant = extractTenantFromHostname(hostname)
+  const protocol = (() => {
+    const p = headersList.get('x-forwarded-proto')
+    return p ? `${p}:` : 'http:'
+  })()
 
   if (tenant) {
     try {
@@ -32,10 +37,16 @@ export default async function PricingPage() {
       redirect('/workspaces')
     } catch (error: unknown) {
       if (isRedirectError(error)) throw error
+      // Anonymous on a tenant subdomain — bounce to the apex public site.
+      redirect(buildApexRedirectUrl(hostname, protocol, tenant, '/'))
     }
   }
 
-  let blocks: { blockType: string; id?: string; [key: string]: unknown }[] = []
+  let blocks: {
+    blockType: string
+    id?: string
+    [key: string]: unknown
+  }[] = []
   let navLinks:
     | {
         label: string
@@ -94,7 +105,12 @@ export default async function PricingPage() {
         })
         .catch(() => null),
     ])
-    blocks = (pagesResult.docs[0]?.blocks as { blockType: string; id?: string; [key: string]: unknown }[]) ?? []
+    blocks =
+      (pagesResult.docs[0]?.blocks as {
+        blockType: string
+        id?: string
+        [key: string]: unknown
+      }[]) ?? []
     const nav = navbar as unknown as Record<string, unknown>
     const rawLinks = nav.links as
       | {
@@ -107,7 +123,11 @@ export default async function PricingPage() {
     navSigninHref = nav.signinHref as string | undefined
     navPrimaryCtaLabel = nav.primaryCtaLabel as string | undefined
     navPrimaryCtaHref = nav.primaryCtaHref as string | undefined
-    const navLogo = nav.logo as { url?: string } | undefined
+    const navLogo = nav.logo as
+      | {
+          url?: string
+        }
+      | undefined
     if (navLogo?.url) {
       navLogoUrl = navLogo.url
     }
@@ -133,9 +153,18 @@ export default async function PricingPage() {
       )
     }
     footerTagline = foot.tagline as string | undefined
-    const rawSocial = foot.socialLinks as { platform: string; href: string }[] | undefined
+    const rawSocial = foot.socialLinks as
+      | {
+          platform: string
+          href: string
+        }[]
+      | undefined
     footerSocialLinks = rawSocial?.length ? rawSocial : undefined
-    const footLogo = foot.logo as { url?: string } | undefined
+    const footLogo = foot.logo as
+      | {
+          url?: string
+        }
+      | undefined
     if (footLogo?.url) {
       footerLogoUrl = footLogo.url
     }

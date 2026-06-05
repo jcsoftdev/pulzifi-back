@@ -2,7 +2,10 @@ import { extractTenantFromHostname } from '@workspace/shared-http'
 import type { Metadata } from 'next'
 import { headers } from 'next/headers'
 import { notFound } from 'next/navigation'
-import { redirectAuthenticatedUser } from '@/features/auth/application/redirect-authenticated.server'
+import {
+  redirectAuthenticatedUser,
+  requireAuthOnSubdomain,
+} from '@/features/auth/application/redirect-authenticated.server'
 import { BlocksRenderer } from '@/features/cms'
 import { FooterSection, Navbar, SmoothScroll } from '@/features/landing'
 import { getPayloadClient } from '@/lib/payload'
@@ -125,22 +128,36 @@ export default async function DynamicPage({ params }: Props) {
   }
   if (!page) notFound()
 
-  // Auth surfaces (login) must never render for an already-authenticated visitor.
-  // The CMS [slug] route doesn't go through the (auth) layout, so we replicate
-  // its redirect here when the page embeds a login-form block.
+  // The CMS [slug] route doesn't go through the (auth) layout, so subdomain
+  // access rules are enforced here:
+  // - login-form pages: an authenticated visitor is sent to the app, an
+  //   anonymous one to the apex login (redirectAuthenticatedUser).
+  // - any other marketing page: anonymous traffic is bounced to the apex —
+  //   tenant subdomains are for logged-in users only (requireAuthOnSubdomain).
   const blocks =
-    (page.blocks as { blockType: string; id?: string; [key: string]: unknown }[]) ?? []
+    (page.blocks as {
+      blockType: string
+      id?: string
+      [key: string]: unknown
+    }[]) ?? []
+  const incomingHeaders = await headers()
+  const host = incomingHeaders.get('x-forwarded-host') || incomingHeaders.get('host') || ''
+  const protocol = (() => {
+    const p = incomingHeaders.get('x-forwarded-proto')
+    return p ? `${p}:` : 'http:'
+  })()
+  const tenant = extractTenantFromHostname(host)
   if (blocks.some((b) => b.blockType === 'login-form')) {
-    const incomingHeaders = await headers()
-    const host = incomingHeaders.get('x-forwarded-host') || incomingHeaders.get('host') || ''
-    const protocol = (() => {
-      const p = incomingHeaders.get('x-forwarded-proto')
-      return p ? `${p}:` : 'http:'
-    })()
     await redirectAuthenticatedUser({
       host,
       protocol,
-      tenant: extractTenantFromHostname(host),
+      tenant,
+    })
+  } else {
+    await requireAuthOnSubdomain({
+      host,
+      protocol,
+      tenant,
     })
   }
 
@@ -174,8 +191,8 @@ export default async function DynamicPage({ params }: Props) {
     | undefined
   if ((foot?.groups as unknown[] | undefined)?.length) {
     footerGroups = Object.fromEntries(
+      // biome-ignore lint/style/noNonNullAssertion: narrowed by length check above
       (
-        // biome-ignore lint/style/noNonNullAssertion: narrowed by length check above
         foot!.groups as {
           heading: string
           links: {
@@ -206,7 +223,15 @@ export default async function DynamicPage({ params }: Props) {
         signinHref={nav?.signinHref as string | undefined}
         primaryCtaLabel={nav?.primaryCtaLabel as string | undefined}
         primaryCtaHref={nav?.primaryCtaHref as string | undefined}
-        logoUrl={(nav?.logo as { url?: string } | undefined)?.url}
+        logoUrl={
+          (
+            nav?.logo as
+              | {
+                  url?: string
+                }
+              | undefined
+          )?.url
+        }
       />
       <main className="flex flex-1 flex-col">
         <BlocksRenderer blocks={blocks} />
@@ -214,8 +239,30 @@ export default async function DynamicPage({ params }: Props) {
       <FooterSection
         links={footerGroups}
         tagline={foot?.tagline as string | undefined}
-        socialLinks={(foot?.socialLinks as { platform: string; href: string }[] | undefined)?.length ? (foot?.socialLinks as { platform: string; href: string }[]) : undefined}
-        logoUrl={(foot?.logo as { url?: string } | undefined)?.url}
+        socialLinks={
+          (
+            foot?.socialLinks as
+              | {
+                  platform: string
+                  href: string
+                }[]
+              | undefined
+          )?.length
+            ? (foot?.socialLinks as {
+                platform: string
+                href: string
+              }[])
+            : undefined
+        }
+        logoUrl={
+          (
+            foot?.logo as
+              | {
+                  url?: string
+                }
+              | undefined
+          )?.url
+        }
       />
     </div>
   )

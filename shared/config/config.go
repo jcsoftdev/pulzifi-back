@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -45,6 +46,7 @@ type Config struct {
 	FrontendURL string
 	NextJSURL   string // Internal Next.js server URL for reverse proxy
 	StaticDir   string
+	AppDomain   string // Apex application domain (e.g. "pulzifi.com"); requests on the apex carry no tenant
 
 	// CORS
 	CORSAllowedOrigins string
@@ -246,6 +248,7 @@ func Load() *Config {
 		FrontendURL:           getEnv("FRONTEND_URL", ""),
 		NextJSURL:             getEnv("NEXTJS_URL", "http://localhost:3001"),
 		StaticDir:             getEnv("STATIC_DIR", "./frontend/dist"),
+		AppDomain:             getEnv("APP_DOMAIN", deriveAppDomain(getEnv("FRONTEND_URL", ""))),
 		CORSAllowedOrigins:    getEnv("CORS_ALLOWED_ORIGINS", ""),
 		CORSAllowedMethods:    getEnv("CORS_ALLOWED_METHODS", "GET,POST,PUT,DELETE,OPTIONS,PATCH"),
 		CORSAllowedHeaders:    getEnv("CORS_ALLOWED_HEADERS", "Content-Type,Authorization,X-Tenant"),
@@ -395,6 +398,20 @@ func splitCSV(s string) []string {
 		}
 	}
 	return out
+}
+
+// deriveAppDomain extracts the apex host from a frontend URL (e.g.
+// "https://pulzifi.com" -> "pulzifi.com"). Returns "" when the URL is empty or
+// unparseable, which keeps the legacy dev subdomain heuristic in place.
+func deriveAppDomain(frontendURL string) string {
+	if frontendURL == "" {
+		return ""
+	}
+	u, err := url.Parse(frontendURL)
+	if err != nil {
+		return ""
+	}
+	return u.Hostname()
 }
 
 func getEnv(key, defaultValue string) string {

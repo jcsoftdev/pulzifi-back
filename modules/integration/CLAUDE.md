@@ -10,6 +10,7 @@ Multi-provider notification/delivery system: Slack, Discord, Twilio SMS, email, 
 - `infrastructure/persistence/delivery_postgres.go` — Delivery history and retry
 - `infrastructure/providers/registry.go` — Registry of all `ProviderClient` implementations
 - `domain/services/provider_client.go` — `ProviderClient` interface + `ProviderRegistry`
+- `domain/services/provider_catalog.go` — Canonical provider catalog (`KnownProviders`, auth-type constants, `ProviderAuthType`, `ProviderGateOpen`) — the single source of truth for which providers exist and how they gate/authenticate
 
 ## Domain Entities
 
@@ -23,7 +24,8 @@ Multi-provider notification/delivery system: Slack, Discord, Twilio SMS, email, 
 |-----------|-------------|
 | `connect_byo` | Connect a Bring-Your-Own-Key integration (Twilio, webhook) |
 | `disconnect_integration` | Remove integration and its destinations |
-| `start_oauth` | Build OAuth authorization URL with HMAC-signed state |
+| `list_providers` | Build the provider catalog for an org — per-provider `{key, authType, enabled, connected}` from `KnownProviders` × registry × feature flags × active integrations |
+| `start_oauth` | Build OAuth authorization URL with HMAC-signed state (rejects non-oauth providers with 400) |
 | `handle_oauth_callback` | Exchange OAuth code for token, store integration |
 | `create_destination` | Create a delivery target for an integration |
 | `update_destination` | Rename/reconfigure destination |
@@ -40,9 +42,10 @@ Multi-provider notification/delivery system: Slack, Discord, Twilio SMS, email, 
 
 ### Integrations
 - GET `/integrations` — list connected integrations
+- GET `/integrations/providers` — provider catalog: `{key, authType, enabled, connected}` per known provider (the frontend renders from this; never hardcodes the list)
 - POST `/integrations/connect` — connect BYO (Twilio, etc.)
 - DELETE `/integrations/{id}` — disconnect
-- GET `/integrations/oauth/{provider}/start` — start OAuth flow
+- GET `/integrations/oauth/{provider}/start` — start OAuth flow (400 if the provider's authType is not `oauth`)
 - GET `/integrations/{id}/targets` — list live provider targets
 - GET `/api/v1/integrations/oauth/{provider}/callback` — OAuth callback (root-mounted, no tenant middleware)
 
@@ -87,9 +90,13 @@ Subscribes to `TopicChangeDetected` and `TopicAlertCreated` from `shared/eventbu
 
 - `cmd/wiring/integration/` holds cross-module adapters (email adapter, org plan lookup, quota adapter, tenant repo factory). This is the anti-corruption layer to avoid module-to-module imports.
 - OAuth callback is registered directly on the root Chi router (before tenant middleware) because it arrives on the root domain with no subdomain.
+- **Provider catalog is the single source of truth.** `domain/services/provider_catalog.go` (`KnownProviders`) defines what providers exist + their `authType` (`oauth`/`byo`/`none`). The `list_providers` use case computes `enabled` (registry-registered AND `ProviderGateOpen`) and `connected` (active integration; always `true` for `authType=none` adapters like email). The frontend renders cards purely from `GET /integrations/providers` joined with a presentation map — it must NOT hardcode provider lists or re-derive enablement. Provider keys are canonical service types (`sheets`, not `google_sheets`).
+- `ProviderGateOpen` centralizes the feature-gate (slack/email always visible; others gated by `integrations.<key>` flag; nil flags reader is permissive). Reused by listing, start-oauth, and the catalog. Callers pass a true-nil `services.FlagReader` (via `Module.flagReader()`) to avoid the typed-nil interface pitfall.
 
 ## Watch Out
 
 - `INTEGRATION_TOKEN_KEY` must be a valid 32-byte hex string. Defaults to a dev key that is **insecure in production** — logs a warning.
 - `Teams` OAuth can return `consent_required` if admin consent is missing. The callback handles this with a special redirect to a consent UI.
 - `NewModuleWithDB` is a deprecated shim — always use `NewModule(Deps{...})`.
+- Email is a no-auth adapter (`authType=none`): it never has an `Integration` row, is always `connected` in the catalog, and has NO OAuth flow. `start_oauth` returns 400 for it (and any non-oauth provider) — the UI must route email to destinations config, not a Connect button.
+- Gmail needs `GMAIL_INTEGRATION_ENABLED=true` + Google creds (registry) **and** the org flag `integrations.gmail`. Until all three are set the catalog reports `enabled=false` and the UI shows "coming soon" — honest, not broken.

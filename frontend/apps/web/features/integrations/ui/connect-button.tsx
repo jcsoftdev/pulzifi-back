@@ -17,6 +17,7 @@ const FREE_PLANS = [
 
 interface ConnectButtonProps {
   providerKey: string
+  authType: 'oauth' | 'byo' | 'none'
   integration?: Integration
   label: string
   planCode?: string
@@ -24,6 +25,7 @@ interface ConnectButtonProps {
 
 export function ConnectButton({
   providerKey,
+  authType,
   integration,
   label,
   planCode = '',
@@ -45,7 +47,8 @@ export function ConnectButton({
     )
   }
 
-  if (providerKey === 'email') {
+  // No-auth adapters (email): no OAuth connect, go straight to destinations config.
+  if (authType === 'none') {
     return (
       <Link
         href={`/settings/integrations/${providerKey}`}
@@ -56,8 +59,8 @@ export function ConnectButton({
     )
   }
 
-  // Twilio: tier-aware branching
-  if (providerKey === 'twilio') {
+  // BYO providers (Twilio today): tier-aware branching
+  if (authType === 'byo') {
     const normalizedPlan = planCode.toLowerCase()
 
     // Free tier: disabled with upgrade prompt

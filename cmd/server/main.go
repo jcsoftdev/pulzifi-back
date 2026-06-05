@@ -284,7 +284,7 @@ func main() { //nolint:gocyclo // startup orchestration: complexity is inherent
 
 	// Add tenant middleware FIRST to extract subdomain and resolve to schema
 	// This must come before LoggingMiddleware so tenant is in context for logging
-	v1Router.Use(middlewarex.TenantMiddleware(db))
+	v1Router.Use(middlewarex.TenantMiddleware(db, cfg.AppDomain))
 
 	// Add response logging middleware to capture request/response details
 	v1Router.Use(middlewarex.ResponseLoggerMiddleware)

@@ -23,15 +23,20 @@ export default function ProviderPage({ params }: ProviderPageProps) {
   const [destinations, setDestinations] = useState<Destination[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
+  const [authType, setAuthType] = useState<'oauth' | 'byo' | 'none'>('oauth')
 
   useEffect(() => {
     async function load() {
       try {
-        const [org, integrations] = await Promise.all([
+        const [org, integrations, providers] = await Promise.all([
           OrganizationApi.getCurrentOrganization(),
           IntegrationsApi.list(),
+          IntegrationsApi.listProviders(),
         ])
         setOrgId(org.id)
+
+        const catalog = providers.find((p) => p.key === provider)
+        setAuthType(catalog?.authType ?? 'oauth')
 
         const found = integrations.find((i) => i.serviceType === provider && i.status === 'active')
         setIntegration(found ?? null)
@@ -119,7 +124,7 @@ export default function ProviderPage({ params }: ProviderPageProps) {
             >
               Disconnect
             </button>
-          ) : (
+          ) : authType === 'oauth' ? (
             <button
               type="button"
               onClick={() => {
@@ -129,6 +134,8 @@ export default function ProviderPage({ params }: ProviderPageProps) {
             >
               Connect {providerLabel}
             </button>
+          ) : (
+            <span className="text-xs text-muted-foreground">Configure destinations below</span>
           )}
         </div>
       </div>

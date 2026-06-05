@@ -6,7 +6,12 @@ ERRORS=""
 
 output=$(go build ./... 2>&1) || ERRORS="${ERRORS}[build] ${output}\n"
 output=$(go vet ./... 2>&1) || ERRORS="${ERRORS}[vet] ${output}\n"
-output=$(cd "$PROJECT_DIR/frontend" && bun run type-check 2>&1) || ERRORS="${ERRORS}[types] ${output}\n"
+# Mirror CI's "Frontend lint + types + tests" job (.github/workflows/ci.yml) so a
+# frontend break is caught at commit time, not after push. lint is what CI runs
+# (biome lint, not format) — the gap that let a noDangerouslySetInnerHtml error ship.
+output=$(cd "$PROJECT_DIR/frontend" && bun run lint 2>&1) || ERRORS="${ERRORS}[fe-lint] ${output}\n"
+output=$(cd "$PROJECT_DIR/frontend" && bun run type-check 2>&1) || ERRORS="${ERRORS}[fe-types] ${output}\n"
+output=$(cd "$PROJECT_DIR/frontend" && bun test 2>&1) || ERRORS="${ERRORS}[fe-test] ${output}\n"
 output=$(cd "$PROJECT_DIR" && make check-arch 2>&1) || ERRORS="${ERRORS}[arch] ${output}\n"
 
 if [ -n "$ERRORS" ]; then

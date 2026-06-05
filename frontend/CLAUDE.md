@@ -57,11 +57,19 @@ account-settings, auth, changes-view, dashboard, landing, navigation, notificati
 
 ## Auth Protection
 
-- No Next.js middleware file — auth is handled by `AuthGuard` (async React Server Component)
+- `proxy.ts` (Next.js 16 `proxy` convention — the renamed `middleware`) enforces the subdomain access gate: anonymous requests (no `refresh_token`/`access_token` cookie) on a tenant subdomain are bounced to the apex public site. It only checks cookie presence; per-page `getCurrentUser()` still validates the session.
+- Per-route auth (what an authenticated user sees) is handled by `AuthGuard` (async React Server Component)
 - `AuthGuard` calls `AuthApi.getCurrentUser()` server-side
-- On `UnauthorizedError`, renders `SessionRefresher` client component to attempt client-side token refresh
+- On `UnauthorizedError`, renders `SessionRefresher` client component to attempt client-side token refresh. If the refresh fails on a tenant subdomain, it sends the user to the **apex** `/login` (subdomains require auth) instead of a relative path.
 - After login, users who have not completed onboarding (`onboarding_completed === false`) are redirected to `/onboarding`; users without an org go to the full onboarding wizard.
 - `(auth)` layout checks if user is already authenticated and redirects to tenant subdomain
+
+### Subdomain = authenticated-only
+
+Tenant subdomains are the app surface; the public/marketing site lives on the apex. Enforcement is layered:
+- `proxy.ts` — global, cheap (cookie presence). Anonymous → apex.
+- Per-page server guards for the public routes that render outside `AuthGuard` (`app/(app)/page.tsx`, `pricing/page.tsx`, `(cms)/[slug]/page.tsx`): an authenticated visitor is routed to the app, an anonymous one (cookie present but session dead) is bounced to the apex. CMS login-form pages use `redirectAuthenticatedUser`; other marketing pages use `requireAuthOnSubdomain`.
+- Helpers live in `features/auth/application/redirect-authenticated.server.ts`: `buildApexRedirectUrl` (strip tenant label) and `buildTenantRedirectUrl` (add tenant label). `proxy.ts` re-implements the apex builder inline to keep the edge bundle free of server-only imports.
 
 ## Multi-Tenant Support
 
@@ -69,6 +77,17 @@ account-settings, auth, changes-view, dashboard, landing, navigation, notificati
 - `@workspace/shared-http` extracts tenant from subdomain for API requests
 - `next.config.mjs` allows dev origins: `*.localhost`, `*.lvh.me`, `*.pulzifi.com`
 - `lvh.me` is a public DNS wildcard that resolves all subdomains to `127.0.0.1` — no `/etc/hosts` editing required
+
+## Payload CMS — schema sync
+
+The marketing/landing site is Payload CMS on Postgres (`schemaName: 'cms'`, configured in `apps/web/payload.config.ts`). Two ways the `cms` schema is kept in sync:
+
+- **Dev push** (`@payloadcms/db-postgres` default): on every `bun dev` boot, drizzle introspects the DB, diffs it against the collections, and applies changes directly — the `[⣟] Pulling schema from database...` spinner. It is **stateless**: no record of "already synced" (unlike migrations), so it re-pulls and re-diffs on *every* restart even when nothing changed. This is the per-boot slowness.
+- **Migrations** (production path): versioned files in `apps/web/migrations/*.ts`, tracked in the `payload_migrations` table. `make cms-migrate` (→ `scripts/cms-migrate.ts` → Payload's `migrate` bin) applies them; `--create` generates a migration from the schema diff. `--fresh` drops + rebuilds (refused unless `CMS_ALLOW_DESTRUCTIVE=1`).
+
+Gotcha: the push only runs when `NODE_ENV !== 'production'` AND `PAYLOAD_MIGRATING !== 'true'` AND adapter `push !== false` (see `@payloadcms/db-postgres/dist/connect.js`). **Production never pushes** — it relies on migrations applied at deploy. So the boot cost is dev-only.
+
+To skip the per-boot push (make dev behave like prod), gate it: `push: process.env.PAYLOAD_PUSH === 'true'`. Then `bun dev` is fast; run `PAYLOAD_PUSH=true bun dev` once after changing a collection, or generate a versioned migration with `bun scripts/cms-migrate.ts --create`.
 
 ## Coding Conventions
 

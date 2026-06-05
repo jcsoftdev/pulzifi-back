@@ -127,6 +127,13 @@ export interface DeliveryDetail extends Delivery {
   attemptHistory?: Attempt[]
 }
 
+export interface ProviderState {
+  key: string
+  authType: 'oauth' | 'byo' | 'none'
+  enabled: boolean
+  connected: boolean
+}
+
 export interface CreateDestinationInput {
   integration_id?: string
   service_type: string
@@ -249,6 +256,12 @@ export const IntegrationsApi = {
       credentials,
     })
     return transformIntegration(response)
+  },
+
+  async listProviders(): Promise<ProviderState[]> {
+    const http = await getHttpClient()
+    const response = await http.get<{ data: ProviderState[] }>('/api/v1/integrations/providers')
+    return response.data ?? []
   },
 }
 

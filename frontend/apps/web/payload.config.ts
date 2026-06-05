@@ -27,6 +27,18 @@ function regenerateIds(items: unknown[]): unknown[] {
   })
 }
 
+// MINIO_ENDPOINT is stored scheme-less (host:port) because the Go scraper uses
+// minio-go, which wants the bare host + a separate Secure flag. The AWS SDK v3
+// (used by @payloadcms/storage-s3) instead requires a full URI, so prepend a
+// scheme here. Without it the SDK reads the host as the scheme and throws
+// "Custom endpoint `host://port` was not a valid URI".
+function minioEndpointUrl(): string {
+  const raw = requireEnv('MINIO_ENDPOINT')
+  if (/^https?:\/\//.test(raw)) return raw
+  const secure = (process.env.MINIO_USE_SSL ?? '').toLowerCase() === 'true'
+  return `${secure ? 'https' : 'http'}://${raw}`
+}
+
 function requireEnv(name: string): string {
   const value = process.env[name]
   if (!value || value.trim() === '') {
@@ -38,6 +50,21 @@ function requireEnv(name: string): string {
     throw new Error(`Missing required environment variable: ${name}`)
   }
   return value
+}
+
+// Invalidate the statically-cached blog so CMS edits/deletes show immediately
+// instead of waiting for the ISR `revalidate` window. Dynamically imported and
+// wrapped so it no-ops outside a Next request context (e.g. migrations/build).
+async function revalidateBlog(slug?: unknown): Promise<void> {
+  try {
+    const { revalidatePath } = await import('next/cache')
+    revalidatePath('/blog')
+    if (typeof slug === 'string' && slug) {
+      revalidatePath(`/blog/${slug}`)
+    }
+  } catch {
+    // not in a Next request context — nothing to revalidate
+  }
 }
 
 // CSRF allowlist for cookie-based auth. Payload only honors the auth cookie when the request
@@ -72,7 +99,7 @@ export default buildConfig({
       },
       bucket: requireEnv('MINIO_BUCKET'),
       config: {
-        endpoint: requireEnv('MINIO_ENDPOINT'),
+        endpoint: minioEndpointUrl(),
         credentials: {
           accessKeyId: requireEnv('MINIO_ACCESS_KEY'),
           secretAccessKey: requireEnv('MINIO_SECRET_KEY'),
@@ -295,6 +322,16 @@ export default buildConfig({
               data.readingTime = readingTimeFromContent(data.content)
             }
             return data
+          },
+        ],
+        afterChange: [
+          async ({ doc }) => {
+            await revalidateBlog(doc?.slug)
+          },
+        ],
+        afterDelete: [
+          async ({ doc }) => {
+            await revalidateBlog(doc?.slug)
           },
         ],
       },

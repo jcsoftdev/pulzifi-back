@@ -154,6 +154,7 @@ modules/{name}/
 - PostgreSQL schema-per-tenant: `public` schema holds users/orgs/sessions/roles; tenant schemas hold workspaces/pages/checks/etc.
 - New tenant schema auto-created by `ProvisionTenantSchema()` in `shared/database/migrator.go`
 - Subdomain extraction priority: `X-Tenant` header > `X-Forwarded-Host` > `Host`
+- Apex carries no tenant: `TenantMiddleware(db, cfg.AppDomain)` treats a request whose host *is* the apex (`APP_DOMAIN`, e.g. `pulzifi.com`) as tenant-less, so the apex is never mis-resolved to a same-named org (e.g. `pulzifi.com` -> org `pulzifi` -> 403). Only real subdomains of the apex yield a tenant. `APP_DOMAIN` defaults to `FRONTEND_URL`'s host when unset; empty keeps the legacy dev label heuristic. See `shared/middleware/tenant.go` (`subdomainFromHost`).
 
 ### HTTP Routing
 
@@ -243,7 +244,8 @@ Bun workspace monorepo with Turborepo:
 account-settings, auth, changes-view, dashboard, landing, navigation, notifications, page, page-detail, reports, settings, sidebar, super-admin, team, usage, workspace, workspace-detail
 
 #### Auth Protection
-- No Next.js middleware file — auth is handled by `AuthGuard` (async React Server Component that calls `AuthApi.getCurrentUser()` and redirects to `/login` on unauthorized)
+- `proxy.ts` (Next.js 16 `proxy` convention, formerly `middleware`) enforces the subdomain access gate: anonymous requests (no `refresh_token`/`access_token` cookie) on a tenant subdomain are bounced to the apex public site (subdomains are the authenticated app surface). Cookie-presence only — per-page `getCurrentUser()` validates the session.
+- Per-route auth is handled by `AuthGuard` (async React Server Component that calls `AuthApi.getCurrentUser()` and redirects to `/login` on unauthorized)
 - `(auth)` layout checks if user is already authenticated and redirects to tenant subdomain
 
 ### Docker & Deployment
@@ -275,6 +277,7 @@ See `shared/config/config.go` and `.env.example` for all 43+ variables. Critical
 | **Auth (JWT)** | `JWT_SECRET`, `JWT_EXPIRATION` (15min), `JWT_REFRESH_EXPIRATION` (7d) | `JWT_SECRET` required in production |
 | **CORS** | `CORS_ALLOWED_ORIGINS` | Required. Comma-separated |
 | **Cookie** | `COOKIE_DOMAIN` | Cross-subdomain auth scope |
+| **Tenancy** | `APP_DOMAIN` | Apex application domain (e.g. `pulzifi.com`). Apex requests carry no tenant. Defaults to `FRONTEND_URL`'s host when empty |
 | **Frontend** | `FRONTEND_URL`, `NEXTJS_URL` (default localhost:3001), `STATIC_DIR` | |
 | **Extractor** | `EXTRACTOR_URL` | Required. Playwright service URL |
 | **Object Storage** | `OBJECT_STORAGE_PROVIDER` (minio/cloudinary), `MINIO_*` (6 vars), `CLOUDINARY_*` (4 vars) | |
@@ -334,29 +337,20 @@ All 8 wiring packages are in place:
 <!-- project-brain:start -->
 # Project: pulzifi-back
 
-This project is indexed with [project-brain](https://github.com/jcsoftdev/project-brain).
+This project is indexed with project-brain.
 
 ## project-brain MCP
 
-You have access to the `project-brain` MCP server for codebase knowledge retrieval.
-
-### Available Tools
-
-- `search_context` — semantic search across indexed project knowledge
-- `add_knowledge` — manually add context chunks
-- `list_modules` — see all indexed modules
-- `get_module` — retrieve all chunks for a module
-- `delete_knowledge` — remove chunks by source
-- `check_health` — verify embedding service and index status
+Use the project-brain MCP tools (search_context, add_knowledge, list_modules, get_module, delete_knowledge, check_health) for codebase knowledge retrieval.
 
 ### Usage
 
-When answering questions about this codebase, always run `search_context` first to find semantically relevant context before reading files directly.
+Use `search_context` for semantic/conceptual or cross-file questions (when you don't know the exact symbol); for exact symbol/caller lookups prefer a structural/AST tool or grep. After `search_context`, use `expand_context(chunk_id)` to read full bodies instead of re-reading whole files.
 
 ### Project Context
 
 - **Project ID**: pulzifi-back
-- **Stack**: Go
+- **Stack**: Go — frameworks: Chi
 
 ## Module Documentation
 
@@ -367,6 +361,7 @@ Detected modules:
 - modules
 - shared
 - specs
+- tools
 
 For each module stub in docs/modules/:
 1. Read the stub file.
@@ -374,6 +369,5 @@ For each module stub in docs/modules/:
 3. Call add_knowledge with the filled content, source: "docs/modules/<name>.md",
    tags: ["module", "<name>"].
 Do this automatically when you open a project session and a stub is unfilled.
-
 
 <!-- project-brain:end -->

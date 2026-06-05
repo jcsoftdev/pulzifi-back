@@ -222,19 +222,30 @@ func TestGetTenantFromContextOrError(t *testing.T) {
 
 func TestExtractSubdomain(t *testing.T) {
 	tests := []struct {
-		name      string
-		host      string
-		xTenant   string
-		xFwdHost  string
-		want      string
+		name       string
+		host       string
+		xTenant    string
+		xFwdHost   string
+		baseDomain string
+		want       string
 	}{
-		{"X-Tenant header", "localhost:8080", "acme", "", "acme"},
-		{"X-Forwarded-Host with subdomain", "localhost:8080", "", "acme.example.com", "acme"},
-		{"Host with subdomain", "acme.example.com:443", "", "", "acme"},
-		{"Host with two parts extracts first", "example.com", "", "", "example"},
-		{"localhost no subdomain", "localhost:3000", "", "", ""},
-		{"empty host", "", "", "", ""},
-		{"X-Tenant takes priority", "other.example.com:80", "priority", "", "priority"},
+		// No base domain configured (dev): legacy heuristic preserved.
+		{"X-Tenant header", "localhost:8080", "acme", "", "", "acme"},
+		{"X-Forwarded-Host with subdomain", "localhost:8080", "", "acme.example.com", "", "acme"},
+		{"Host with subdomain", "acme.example.com:443", "", "", "", "acme"},
+		{"Host with two parts extracts first", "example.com", "", "", "", "example"},
+		{"localhost no subdomain", "localhost:3000", "", "", "", ""},
+		{"empty host", "", "", "", "", ""},
+		{"X-Tenant takes priority", "other.example.com:80", "priority", "", "", "priority"},
+
+		// Base domain configured (prod): apex must NOT be treated as a tenant.
+		{"apex equals base domain yields no tenant", "pulzifi.com", "", "", "pulzifi.com", ""},
+		{"apex with port yields no tenant", "pulzifi.com:443", "", "", "pulzifi.com", ""},
+		{"subdomain of base domain", "dania.pulzifi.com", "", "", "pulzifi.com", "dania"},
+		{"deep subdomain takes first label", "a.b.pulzifi.com", "", "", "pulzifi.com", "a"},
+		{"X-Forwarded-Host apex yields no tenant", "internal:3001", "", "pulzifi.com", "pulzifi.com", ""},
+		{"X-Forwarded-Host subdomain of base", "internal:3001", "", "dania.pulzifi.com", "pulzifi.com", "dania"},
+		{"X-Tenant still wins over apex host", "pulzifi.com", "dania", "", "pulzifi.com", "dania"},
 	}
 
 	for _, tt := range tests {
@@ -247,7 +258,7 @@ func TestExtractSubdomain(t *testing.T) {
 			if tt.xFwdHost != "" {
 				r.Header.Set("X-Forwarded-Host", tt.xFwdHost)
 			}
-			got := extractSubdomain(r)
+			got := extractSubdomain(r, tt.baseDomain)
 			if got != tt.want {
 				t.Errorf("extractSubdomain() = %q, want %q", got, tt.want)
 			}
