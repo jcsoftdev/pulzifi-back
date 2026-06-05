@@ -63,8 +63,6 @@ export function PricingSection({
 
   const hasAnnual = items.some((p) => p.priceAnnual)
 
-  // Desktop shows every plan in one row; fewer breakpoints below scale down.
-  const desktopPerView = Math.min(Math.max(items.length, 1), 4)
   const swiperVars = {
     '--swiper-pagination-color': 'var(--pz-accent)',
     '--swiper-pagination-bullet-inactive-color': 'var(--pz-ink-2)',
@@ -145,18 +143,16 @@ export function PricingSection({
 
       <Swiper
         modules={[Pagination, A11y]}
-        className="mx-auto mt-14 w-full max-w-6xl !pb-12"
+        className="mt-14 w-full !pb-12"
         style={swiperVars}
-        slidesPerView={1.1}
+        slidesPerView="auto"
         spaceBetween={24}
+        centerInsufficientSlides
+        grabCursor
         pagination={{ clickable: true }}
-        breakpoints={{
-          640: { slidesPerView: 2, spaceBetween: 24 },
-          1024: { slidesPerView: desktopPerView, spaceBetween: 32 },
-        }}
       >
         {items.map((plan) => (
-          <SwiperSlide key={plan.name} className="!h-auto">
+          <SwiperSlide key={plan.name} className="!h-auto !w-[300px] sm:!w-[340px]">
             <div className="h-full pt-2">
               <PricingCard
                 name={plan.name}
