@@ -27,6 +27,18 @@ function regenerateIds(items: unknown[]): unknown[] {
   })
 }
 
+// MINIO_ENDPOINT is stored scheme-less (host:port) because the Go scraper uses
+// minio-go, which wants the bare host + a separate Secure flag. The AWS SDK v3
+// (used by @payloadcms/storage-s3) instead requires a full URI, so prepend a
+// scheme here. Without it the SDK reads the host as the scheme and throws
+// "Custom endpoint `host://port` was not a valid URI".
+function minioEndpointUrl(): string {
+  const raw = requireEnv('MINIO_ENDPOINT')
+  if (/^https?:\/\//.test(raw)) return raw
+  const secure = (process.env.MINIO_USE_SSL ?? '').toLowerCase() === 'true'
+  return `${secure ? 'https' : 'http'}://${raw}`
+}
+
 function requireEnv(name: string): string {
   const value = process.env[name]
   if (!value || value.trim() === '') {
@@ -72,7 +84,7 @@ export default buildConfig({
       },
       bucket: requireEnv('MINIO_BUCKET'),
       config: {
-        endpoint: requireEnv('MINIO_ENDPOINT'),
+        endpoint: minioEndpointUrl(),
         credentials: {
           accessKeyId: requireEnv('MINIO_ACCESS_KEY'),
           secretAccessKey: requireEnv('MINIO_SECRET_KEY'),
