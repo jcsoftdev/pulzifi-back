@@ -179,11 +179,7 @@ export default async function PricingPage() {
     <div className="min-h-screen bg-[var(--pz-page-bg)]">
       {themeStyle && (
         // biome-ignore lint/security/noDangerouslySetInnerHtml: intentional theme CSS injection — controlled server-side input
-        <style
-          dangerouslySetInnerHTML={{
-            __html: themeStyle,
-          }}
-        />
+        <style dangerouslySetInnerHTML={{ __html: themeStyle }} />
       )}
       <SmoothScroll />
       <Navbar
