@@ -1018,6 +1018,10 @@ export interface Post {
   } | null;
   author?: string | null;
   category?: ('Product' | 'Company' | 'Guide') | null;
+  /**
+   * Auto-calculated from content (minutes).
+   */
+  readingTime?: number | null;
   publishedAt?: string | null;
   meta?: {
     title?: string | null;
@@ -1863,6 +1867,7 @@ export interface PostsSelect<T extends boolean = true> {
   content?: T;
   author?: T;
   category?: T;
+  readingTime?: T;
   publishedAt?: T;
   meta?:
     | T
