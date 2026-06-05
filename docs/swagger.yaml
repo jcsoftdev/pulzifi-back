@@ -353,7 +353,11 @@ definitions:
       checked_at:
         type: string
       content_diff:
-        type: string
+        description: |-
+          ContentDiff is the stored content-diff jsonb embedded as a real JSON object
+          (not a quoted string) so the frontend can read content_diff.has_changes /
+          content_diff.diffs directly without re-parsing.
+        type: object
       diff_image_url:
         type: string
       error_message:
