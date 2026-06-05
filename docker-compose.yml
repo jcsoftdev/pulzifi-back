@@ -144,7 +144,8 @@ services:
       - pulzifi-network
     command: air -c .air.api.toml
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:3000/health"]
+      # Dev may terminate TLS in-process (TLS_CERT_FILE set) or serve plain HTTP — try both.
+      test: ["CMD-SHELL", "curl -skf https://localhost:3000/health || curl -sf http://localhost:3000/health"]
       interval: 30s
       timeout: 10s
       retries: 3

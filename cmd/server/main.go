@@ -376,6 +376,21 @@ func startHTTPServer(ctx context.Context, router chi.Router, port string) {
 		}
 	}()
 
+	// Optional TLS for local dev: when both cert/key files are provided the server
+	// terminates HTTPS directly. Mirrors prod, where Traefik terminates TLS upstream
+	// and these env vars stay unset. HTTPS gives the browser a secure context on custom
+	// dev domains like lvh.me — which Chrome requires before it sends Sec-Fetch-* headers
+	// that Payload's admin cookie auth depends on (otherwise the CMS login loops).
+	certFile := os.Getenv("TLS_CERT_FILE")
+	keyFile := os.Getenv("TLS_KEY_FILE")
+	if certFile != "" && keyFile != "" {
+		logger.Info("HTTPS server starting", zap.String("port", port))
+		if err := server.ListenAndServeTLS(certFile, keyFile); err != nil && err != http.ErrServerClosed {
+			logger.Error("HTTPS server error", zap.Error(err))
+		}
+		return
+	}
+
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		logger.Error("HTTP server error", zap.Error(err))
 	}

@@ -81,7 +81,7 @@ dev-web: check-env ## Start Next.js on configured DEV_WEB_PORT (Go proxies unmat
 		cd frontend/apps/web && PORT=$${DEV_WEB_PORT} bun dev
 
 dev-web-with-prod: check-env ## Start Next.js + CMS connected to production DB
-	@./tools/scripts/assign-dev-ports.sh $(ENV_FILE) web
+	@./tools/scripts/assign-dev-ports.sh $(ENV_FILE) prod-web
 	@set -a; . $(PWD)/$(ENV_FILE); set +a; \
 		echo "$(GREEN)Starting Next.js on :$${DEV_WEB_PORT} (prod DB)...$(NC)"; \
 		echo "$(YELLOW)Access the app at http://<tenant>.localhost:$${HTTP_PORT}$(NC)"; \
