@@ -25,7 +25,7 @@ type NavbarProps = {
 const DEFAULT_NAV_LINKS: ReadonlyArray<NavLink> = [
   {
     label: 'Home',
-    href: '#',
+    href: '/',
   },
   {
     label: 'Product',
@@ -33,7 +33,7 @@ const DEFAULT_NAV_LINKS: ReadonlyArray<NavLink> = [
   },
   {
     label: 'How to use',
-    href: '#industries',
+    href: '#usecases',
   },
   {
     label: 'Pricing',

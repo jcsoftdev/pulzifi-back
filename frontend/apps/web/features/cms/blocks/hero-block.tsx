@@ -1,19 +1,10 @@
 import { HeroSection } from '@/features/landing'
 
-type Alert = {
-  tone?: 'signal' | 'amber' | 'teal' | 'ink' | null
-  icon?: string | null
-  site?: string | null
-  title?: string | null
-  detail?: string | null
-  time?: string | null
-}
-
-type Kpi = {
-  label: string
-  value: string
-  delta?: string | null
-  deltaDirection?: 'up' | 'down' | null
+type MediaRef = {
+  url?: string | null
+  alt?: string | null
+  width?: number | null
+  height?: number | null
 }
 
 type Props = {
@@ -29,14 +20,21 @@ type Props = {
     secondaryCtaLabel?: string | null
     secondaryCtaHref?: string | null
     trustLine?: string | null
-    dashboardAlerts?: Alert[] | null
-    aiInsightTitle?: string | null
-    aiInsightBody?: string | null
-    kpis?: Kpi[] | null
+    image?: MediaRef | number | string | null
   }
 }
 
 export function HeroBlock({ block }: Props) {
+  const image =
+    typeof block.image === 'object' && block.image !== null
+      ? {
+          url: block.image.url ?? undefined,
+          alt: block.image.alt ?? undefined,
+          width: block.image.width ?? undefined,
+          height: block.image.height ?? undefined,
+        }
+      : undefined
+
   return (
     <HeroSection
       eyebrowBadge={block.eyebrowBadge ?? undefined}
@@ -49,26 +47,7 @@ export function HeroBlock({ block }: Props) {
       secondaryCtaLabel={block.secondaryCtaLabel ?? undefined}
       secondaryCtaHref={block.secondaryCtaHref ?? undefined}
       trustLine={block.trustLine ?? undefined}
-      aiInsightTitle={block.aiInsightTitle ?? undefined}
-      aiInsightBody={block.aiInsightBody ?? undefined}
-      kpis={
-        block.kpis?.map((k) => ({
-          label: k.label,
-          value: k.value,
-          delta: k.delta ?? undefined,
-          deltaDirection: (k.deltaDirection ?? 'up') as 'up' | 'down',
-        })) ?? undefined
-      }
-      dashboardAlerts={
-        block.dashboardAlerts?.map((a) => ({
-          tone: (a.tone ?? 'ink') as 'signal' | 'amber' | 'teal' | 'ink',
-          icon: a.icon ?? undefined,
-          site: a.site ?? '',
-          title: a.title ?? '',
-          detail: a.detail ?? undefined,
-          time: a.time ?? undefined,
-        })) ?? undefined
-      }
+      image={image}
     />
   )
 }
