@@ -52,6 +52,21 @@ function requireEnv(name: string): string {
   return value
 }
 
+// Invalidate the statically-cached blog so CMS edits/deletes show immediately
+// instead of waiting for the ISR `revalidate` window. Dynamically imported and
+// wrapped so it no-ops outside a Next request context (e.g. migrations/build).
+async function revalidateBlog(slug?: unknown): Promise<void> {
+  try {
+    const { revalidatePath } = await import('next/cache')
+    revalidatePath('/blog')
+    if (typeof slug === 'string' && slug) {
+      revalidatePath(`/blog/${slug}`)
+    }
+  } catch {
+    // not in a Next request context — nothing to revalidate
+  }
+}
+
 // CSRF allowlist for cookie-based auth. Payload only honors the auth cookie when the request
 // Origin is in this list, or (when no Origin is sent) when Sec-Fetch-Site marks it same-origin.
 // Over plain HTTP on a non-localhost domain (e.g. lvh.me) Chrome sends NEITHER Origin nor
@@ -307,6 +322,16 @@ export default buildConfig({
               data.readingTime = readingTimeFromContent(data.content)
             }
             return data
+          },
+        ],
+        afterChange: [
+          async ({ doc }) => {
+            await revalidateBlog(doc?.slug)
+          },
+        ],
+        afterDelete: [
+          async ({ doc }) => {
+            await revalidateBlog(doc?.slug)
           },
         ],
       },
