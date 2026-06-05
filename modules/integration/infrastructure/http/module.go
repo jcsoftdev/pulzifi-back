@@ -23,6 +23,7 @@ import (
 	listdeliveries "github.com/jcsoftdev/pulzifi-back/modules/integration/application/list_deliveries"
 	listdestinations "github.com/jcsoftdev/pulzifi-back/modules/integration/application/list_destinations"
 	listprovidertargets "github.com/jcsoftdev/pulzifi-back/modules/integration/application/list_provider_targets"
+	listproviders "github.com/jcsoftdev/pulzifi-back/modules/integration/application/list_providers"
 	retrydelivery "github.com/jcsoftdev/pulzifi-back/modules/integration/application/retry_delivery"
 	startoauth "github.com/jcsoftdev/pulzifi-back/modules/integration/application/start_oauth"
 	updatedestination "github.com/jcsoftdev/pulzifi-back/modules/integration/application/update_destination"
@@ -81,6 +82,7 @@ func (m *Module) RegisterHTTPRoutes(r chi.Router) {
 		r.Post("/connect", m.handleConnectBYO)
 		r.Delete("/{id}", m.handleDisconnect)
 		r.Get("/oauth/{provider}/start", m.handleStartOAuth)
+		r.Get("/providers", m.handleListProviders)
 		r.Get("/{id}/targets", m.handleListTargets)
 	})
 	r.Route("/destinations", func(r chi.Router) {
@@ -176,6 +178,16 @@ func (m *Module) orgIDFromTenant(ctx context.Context, tenant string) (uuid.UUID,
 	return orgID, err
 }
 
+// flagReader returns m.deps.Flags as a services.FlagReader, normalizing a nil
+// concrete pointer to a true-nil interface so ProviderGateOpen's nil check works
+// (avoids the typed-nil interface pitfall).
+func (m *Module) flagReader() services.FlagReader {
+	if m.deps.Flags != nil {
+		return m.deps.Flags
+	}
+	return nil
+}
+
 // ---------------------------------------------------------------------------
 // Integration handlers
 // ---------------------------------------------------------------------------
@@ -219,18 +231,36 @@ func (m *Module) handleListIntegrations(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	alwaysVisible := map[string]bool{"slack": true, "email": true}
 	result := make([]integrationResponse, 0, len(integrations))
+	flags := m.flagReader()
 	for _, i := range integrations {
-		if !alwaysVisible[i.ServiceType] && m.deps.Flags != nil {
-			on, _ := m.deps.Flags.IsOn(ctx, orgID, "integrations."+i.ServiceType)
-			if !on {
-				continue
-			}
+		if !services.ProviderGateOpen(ctx, flags, orgID, i.ServiceType) {
+			continue
 		}
 		result = append(result, toIntegrationResponse(i))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"data": result})
+}
+
+// GET /integrations/providers — provider catalog with capability + state.
+func (m *Module) handleListProviders(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	tenant := middleware.GetSubdomainFromContext(ctx)
+	orgID, err := m.orgIDFromTenant(ctx, tenant)
+	if err != nil {
+		logger.Error("Failed to resolve org from tenant", zap.Error(err), zap.String("tenant", tenant))
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+
+	handler := listproviders.NewHandler(m.deps.Registry, m.flagReader(), m.deps.IntRepo)
+	resp, err := handler.Handle(ctx, listproviders.Request{OrgID: orgID})
+	if err != nil {
+		logger.Error("Failed to list providers", zap.Error(err))
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal server error"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"data": resp.Providers})
 }
 
 // DELETE /integrations/{id}
@@ -283,12 +313,16 @@ func (m *Module) handleStartOAuth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if provider != "slack" && provider != "email" && m.deps.Flags != nil {
-		on, _ := m.deps.Flags.IsOn(r.Context(), orgID, "integrations."+provider)
-		if !on {
-			writeJSON(w, http.StatusForbidden, map[string]string{"error": "provider not enabled for this organization"})
-			return
-		}
+	if !services.ProviderGateOpen(r.Context(), m.flagReader(), orgID, provider) {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "provider not enabled for this organization"})
+		return
+	}
+
+	// Reject known non-oauth providers (email=none, twilio=byo) with 400. Unknown
+	// providers fall through to the use case, which returns a 404 "unknown provider".
+	if at := services.ProviderAuthType(provider); at == services.AuthTypeNone || at == services.AuthTypeBYO {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "provider does not support oauth"})
+		return
 	}
 
 	userIDStr, _ := r.Context().Value(contextkeys.UserIDKey).(string)
