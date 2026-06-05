@@ -334,29 +334,20 @@ All 8 wiring packages are in place:
 <!-- project-brain:start -->
 # Project: pulzifi-back
 
-This project is indexed with [project-brain](https://github.com/jcsoftdev/project-brain).
+This project is indexed with project-brain.
 
 ## project-brain MCP
 
-You have access to the `project-brain` MCP server for codebase knowledge retrieval.
-
-### Available Tools
-
-- `search_context` — semantic search across indexed project knowledge
-- `add_knowledge` — manually add context chunks
-- `list_modules` — see all indexed modules
-- `get_module` — retrieve all chunks for a module
-- `delete_knowledge` — remove chunks by source
-- `check_health` — verify embedding service and index status
+Use the project-brain MCP tools (search_context, add_knowledge, list_modules, get_module, delete_knowledge, check_health) for codebase knowledge retrieval.
 
 ### Usage
 
-When answering questions about this codebase, always run `search_context` first to find semantically relevant context before reading files directly.
+Use `search_context` for semantic/conceptual or cross-file questions (when you don't know the exact symbol); for exact symbol/caller lookups prefer a structural/AST tool or grep. After `search_context`, use `expand_context(chunk_id)` to read full bodies instead of re-reading whole files.
 
 ### Project Context
 
 - **Project ID**: pulzifi-back
-- **Stack**: Go
+- **Stack**: Go — frameworks: Chi
 
 ## Module Documentation
 
@@ -367,6 +358,7 @@ Detected modules:
 - modules
 - shared
 - specs
+- tools
 
 For each module stub in docs/modules/:
 1. Read the stub file.
@@ -374,6 +366,5 @@ For each module stub in docs/modules/:
 3. Call add_knowledge with the filled content, source: "docs/modules/<name>.md",
    tags: ["module", "<name>"].
 Do this automatically when you open a project session and a stub is unfilled.
-
 
 <!-- project-brain:end -->
