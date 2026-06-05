@@ -468,7 +468,8 @@ func buildBillingModule(db *sql.DB, cfg *config.Config) router.ModuleRegisterer 
 		customerRepo,
 		webhookRepo,
 		subscriptionRepo,
-	).WithTrialConverter(trialConverter)
+	).WithTrialConverter(trialConverter).
+		WithPlanRepository(planRepo)
 
 	return billing.NewModule(billing.Deps{
 		DB:                  db,
