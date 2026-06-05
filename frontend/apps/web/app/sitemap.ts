@@ -67,12 +67,24 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       }),
     ])
 
-    const pageRoutes: MetadataRoute.Sitemap = pages.docs.map((page: Record<string, unknown>) => ({
-      url: `${baseUrl}/${page.slug}`,
-      lastModified: new Date(),
-      changeFrequency: 'monthly' as const,
-      priority: 0.7,
-    }))
+    // Slugs already emitted as static routes (or served at the apex `/`).
+    // Excluded so the CMS loop doesn't produce `/home` or duplicate /pricing,
+    // /login, /register entries.
+    const reservedSlugs = new Set([
+      'home',
+      'pricing',
+      'login',
+      'register',
+    ])
+
+    const pageRoutes: MetadataRoute.Sitemap = pages.docs
+      .filter((page: Record<string, unknown>) => !reservedSlugs.has(page.slug as string))
+      .map((page: Record<string, unknown>) => ({
+        url: `${baseUrl}/${page.slug}`,
+        lastModified: new Date(),
+        changeFrequency: 'monthly' as const,
+        priority: 0.7,
+      }))
 
     const postRoutes: MetadataRoute.Sitemap = posts.docs.map((post: Record<string, unknown>) => ({
       url: `${baseUrl}/blog/${post.slug}`,

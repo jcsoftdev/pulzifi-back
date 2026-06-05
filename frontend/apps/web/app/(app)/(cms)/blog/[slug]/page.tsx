@@ -1,5 +1,6 @@
 import { RichText } from '@payloadcms/richtext-lexical/react'
 import type { Metadata } from 'next'
+import Image from 'next/image'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { JsonLd } from '@/components/json-ld'
@@ -132,6 +133,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
               ],
             }
           : {}),
+      },
+      robots: {
+        index: true,
+        follow: true,
       },
     }
   } catch {
@@ -312,12 +317,14 @@ export default async function BlogArticlePage({ params }: Props) {
             {/* Hero image */}
             {heroImageUrl && (
               <div className="px-6 pt-10 sm:px-12 lg:px-20">
-                <div className="mx-auto max-w-3xl">
-                  {/* biome-ignore lint/performance/noImgElement: external CMS image, dimensions unknown at build time */}
-                  <img
+                <div className="relative mx-auto h-64 w-full max-w-3xl sm:h-96">
+                  <Image
                     src={heroImageUrl}
-                    alt={title}
-                    className="h-64 w-full rounded-2xl object-cover sm:h-96"
+                    alt={title ?? 'Blog post hero image'}
+                    fill
+                    priority
+                    sizes="(max-width: 768px) 100vw, 768px"
+                    className="rounded-2xl object-cover"
                   />
                 </div>
               </div>
