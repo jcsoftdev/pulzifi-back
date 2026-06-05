@@ -46,3 +46,37 @@ func (r *PlanPostgresRepository) FindStripePriceID(ctx context.Context, planCode
 		return "", nil
 	}
 }
+
+// UpsertStripePricing writes the Stripe price ID + cached amount for one cycle
+// of an existing plan. Only the targeted cycle's columns are updated; the other
+// cycle is preserved. Returns ErrPlanNotFound when the code does not exist.
+func (r *PlanPostgresRepository) UpsertStripePricing(ctx context.Context, planCode, cycle, priceID string, amountCents int64, currency string) error {
+	var column string
+	var amountColumn string
+	switch cycle {
+	case "monthly":
+		column, amountColumn = "stripe_price_id_monthly", "amount_cents_monthly"
+	case "yearly":
+		column, amountColumn = "stripe_price_id_yearly", "amount_cents_yearly"
+	default:
+		return errors.New("billing: invalid billing cycle " + cycle)
+	}
+
+	// #nosec G201 -- column names are from a fixed allowlist above, never user input.
+	query := `
+		UPDATE public.plans
+		SET ` + column + ` = $2, ` + amountColumn + ` = $3, currency = $4, updated_at = NOW()
+		WHERE code = $1`
+	res, err := r.db.ExecContext(ctx, query, planCode, priceID, amountCents, currency)
+	if err != nil {
+		return err
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return repositories.ErrPlanNotFound
+	}
+	return nil
+}

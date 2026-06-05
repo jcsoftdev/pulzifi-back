@@ -18,6 +18,10 @@ func (r *fakePlanRepo) FindStripePriceID(_ context.Context, _, _ string) (string
 	return r.priceID, r.err
 }
 
+func (r *fakePlanRepo) UpsertStripePricing(_ context.Context, _, _, _ string, _ int64, _ string) error {
+	return nil
+}
+
 type fakeSubRepo struct {
 	mu  sync.Mutex
 	sub *entities.Subscription
