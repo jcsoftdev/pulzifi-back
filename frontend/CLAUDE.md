@@ -57,11 +57,19 @@ account-settings, auth, changes-view, dashboard, landing, navigation, notificati
 
 ## Auth Protection
 
-- No Next.js middleware file — auth is handled by `AuthGuard` (async React Server Component)
+- `proxy.ts` (Next.js 16 `proxy` convention — the renamed `middleware`) enforces the subdomain access gate: anonymous requests (no `refresh_token`/`access_token` cookie) on a tenant subdomain are bounced to the apex public site. It only checks cookie presence; per-page `getCurrentUser()` still validates the session.
+- Per-route auth (what an authenticated user sees) is handled by `AuthGuard` (async React Server Component)
 - `AuthGuard` calls `AuthApi.getCurrentUser()` server-side
-- On `UnauthorizedError`, renders `SessionRefresher` client component to attempt client-side token refresh
+- On `UnauthorizedError`, renders `SessionRefresher` client component to attempt client-side token refresh. If the refresh fails on a tenant subdomain, it sends the user to the **apex** `/login` (subdomains require auth) instead of a relative path.
 - After login, users who have not completed onboarding (`onboarding_completed === false`) are redirected to `/onboarding`; users without an org go to the full onboarding wizard.
 - `(auth)` layout checks if user is already authenticated and redirects to tenant subdomain
+
+### Subdomain = authenticated-only
+
+Tenant subdomains are the app surface; the public/marketing site lives on the apex. Enforcement is layered:
+- `proxy.ts` — global, cheap (cookie presence). Anonymous → apex.
+- Per-page server guards for the public routes that render outside `AuthGuard` (`app/(app)/page.tsx`, `pricing/page.tsx`, `(cms)/[slug]/page.tsx`): an authenticated visitor is routed to the app, an anonymous one (cookie present but session dead) is bounced to the apex. CMS login-form pages use `redirectAuthenticatedUser`; other marketing pages use `requireAuthOnSubdomain`.
+- Helpers live in `features/auth/application/redirect-authenticated.server.ts`: `buildApexRedirectUrl` (strip tenant label) and `buildTenantRedirectUrl` (add tenant label). `proxy.ts` re-implements the apex builder inline to keep the edge bundle free of server-only imports.
 
 ## Multi-Tenant Support
 

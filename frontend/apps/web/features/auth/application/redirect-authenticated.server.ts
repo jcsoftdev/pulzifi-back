@@ -39,15 +39,75 @@ export function buildTenantRedirectUrl(host: string, protocol: string, tenant: s
 }
 
 /**
+ * Build the apex (base-domain) URL, stripping any tenant subdomain. Used to
+ * bounce UNauthenticated visitors off tenant subdomains — subdomains require a
+ * logged-in user, so anonymous traffic belongs on the apex (e.g. pulzifi.com).
+ */
+export function buildApexRedirectUrl(
+  host: string,
+  protocol: string,
+  tenant: string,
+  path = '/login'
+): string {
+  if (env.NEXT_PUBLIC_APP_BASE_URL) {
+    const base = new URL(env.NEXT_PUBLIC_APP_BASE_URL)
+    const portSuffix = base.port ? `:${base.port}` : ''
+    return `${base.protocol}//${base.hostname}${portSuffix}${path}`
+  }
+
+  const appDomain = env.NEXT_PUBLIC_APP_DOMAIN
+  const hostWithoutPort = host.split(':')[0] || ''
+  const hostPort = host.includes(':') ? `:${host.split(':')?.[1] ?? ''}` : ''
+
+  let baseDomain: string
+  if (appDomain) {
+    baseDomain = appDomain
+  } else if (hostWithoutPort.toLowerCase().startsWith(`${tenant.toLowerCase()}.`)) {
+    // Dev wildcards (tenant.localhost, tenant.lvh.me): drop the tenant label.
+    baseDomain = hostWithoutPort.slice(tenant.length + 1)
+  } else {
+    baseDomain = hostWithoutPort
+  }
+
+  return `${protocol}//${baseDomain}${hostPort}${path}`
+}
+
+/**
+ * Universal subdomain guard: on a tenant subdomain, bounce an UNauthenticated
+ * visitor to the apex (subdomains are for logged-in users only). No-op on the
+ * apex, or when a session exists — deciding WHERE to send an authenticated user
+ * stays with the caller. Use on public/marketing routes that would otherwise
+ * render under a tenant host for anonymous traffic.
+ */
+export async function requireAuthOnSubdomain(params: {
+  host: string
+  protocol: string
+  tenant: string | null
+}): Promise<void> {
+  const { host, protocol, tenant } = params
+  if (!tenant) return
+  try {
+    await AuthApi.getCurrentUser()
+  } catch (error: unknown) {
+    if (isRedirectError(error)) throw error
+    // Marketing/public route under a tenant host — send anonymous traffic to the
+    // apex root (the public site), not the login page.
+    redirect(buildApexRedirectUrl(host, protocol, tenant, '/'))
+  }
+}
+
+/**
  * Redirects an already-authenticated visitor away from auth surfaces
  * (login page / auth layout) to where they belong:
  *
  * - On the base domain: send to their tenant subdomain (onboarding completed)
  *   or to the onboarding wizard (no org / onboarding pending). Falls back to a
  *   `tenant_hint` cookie when the session lookup fails.
- * - On a tenant subdomain: send to the app (`/workspaces`).
+ * - On a tenant subdomain: authenticated → the app (`/workspaces`);
+ *   unauthenticated → the apex login (subdomains require a logged-in user).
  *
- * No-op when there is no active session — the caller renders the auth page.
+ * Only a no-op on the base domain with no active session — there the caller
+ * renders the auth page.
  */
 export async function redirectAuthenticatedUser(params: {
   host: string
@@ -85,6 +145,9 @@ export async function redirectAuthenticatedUser(params: {
     redirect('/workspaces')
   } catch (error: unknown) {
     if (isRedirectError(error)) throw error
-    // Any other error (401, etc.) — allow auth pages to render
+    // Unauthenticated on a tenant subdomain. Subdomains are for logged-in users
+    // only, so bounce anonymous traffic to the apex login instead of rendering
+    // an auth page under the tenant host.
+    redirect(buildApexRedirectUrl(host, protocol, tenant))
   }
 }

@@ -154,6 +154,7 @@ modules/{name}/
 - PostgreSQL schema-per-tenant: `public` schema holds users/orgs/sessions/roles; tenant schemas hold workspaces/pages/checks/etc.
 - New tenant schema auto-created by `ProvisionTenantSchema()` in `shared/database/migrator.go`
 - Subdomain extraction priority: `X-Tenant` header > `X-Forwarded-Host` > `Host`
+- Apex carries no tenant: `TenantMiddleware(db, cfg.AppDomain)` treats a request whose host *is* the apex (`APP_DOMAIN`, e.g. `pulzifi.com`) as tenant-less, so the apex is never mis-resolved to a same-named org (e.g. `pulzifi.com` -> org `pulzifi` -> 403). Only real subdomains of the apex yield a tenant. `APP_DOMAIN` defaults to `FRONTEND_URL`'s host when unset; empty keeps the legacy dev label heuristic. See `shared/middleware/tenant.go` (`subdomainFromHost`).
 
 ### HTTP Routing
 
@@ -243,7 +244,8 @@ Bun workspace monorepo with Turborepo:
 account-settings, auth, changes-view, dashboard, landing, navigation, notifications, page, page-detail, reports, settings, sidebar, super-admin, team, usage, workspace, workspace-detail
 
 #### Auth Protection
-- No Next.js middleware file — auth is handled by `AuthGuard` (async React Server Component that calls `AuthApi.getCurrentUser()` and redirects to `/login` on unauthorized)
+- `proxy.ts` (Next.js 16 `proxy` convention, formerly `middleware`) enforces the subdomain access gate: anonymous requests (no `refresh_token`/`access_token` cookie) on a tenant subdomain are bounced to the apex public site (subdomains are the authenticated app surface). Cookie-presence only — per-page `getCurrentUser()` validates the session.
+- Per-route auth is handled by `AuthGuard` (async React Server Component that calls `AuthApi.getCurrentUser()` and redirects to `/login` on unauthorized)
 - `(auth)` layout checks if user is already authenticated and redirects to tenant subdomain
 
 ### Docker & Deployment
@@ -275,6 +277,7 @@ See `shared/config/config.go` and `.env.example` for all 43+ variables. Critical
 | **Auth (JWT)** | `JWT_SECRET`, `JWT_EXPIRATION` (15min), `JWT_REFRESH_EXPIRATION` (7d) | `JWT_SECRET` required in production |
 | **CORS** | `CORS_ALLOWED_ORIGINS` | Required. Comma-separated |
 | **Cookie** | `COOKIE_DOMAIN` | Cross-subdomain auth scope |
+| **Tenancy** | `APP_DOMAIN` | Apex application domain (e.g. `pulzifi.com`). Apex requests carry no tenant. Defaults to `FRONTEND_URL`'s host when empty |
 | **Frontend** | `FRONTEND_URL`, `NEXTJS_URL` (default localhost:3001), `STATIC_DIR` | |
 | **Extractor** | `EXTRACTOR_URL` | Required. Playwright service URL |
 | **Object Storage** | `OBJECT_STORAGE_PROVIDER` (minio/cloudinary), `MINIO_*` (6 vars), `CLOUDINARY_*` (4 vars) | |
