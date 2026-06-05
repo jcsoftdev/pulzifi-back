@@ -57,21 +57,37 @@ export const metadata: Metadata = {
 
 export default async function BlogIndexPage() {
   const siteUrl = process.env.NEXT_PUBLIC_APP_BASE_URL || 'https://pulzifi.com'
-  const payload = await getPayloadClient()
-  const [posts, chrome] = await Promise.all([
-    payload.find({
-      collection: 'posts',
-      where: {
-        _status: {
-          equals: 'published',
+
+  // Payload is unavailable at build time (getPayloadClient throws). Fall back to
+  // an empty list so the static shell prerenders; ISR (revalidate) then fills in
+  // real posts on the first runtime revalidation.
+  let posts = { docs: [] as PostDoc[] }
+  let chrome = {
+    themeStyle: '',
+    navbar: {},
+    footer: {},
+  } as Awaited<ReturnType<typeof fetchCmsChrome>>
+  try {
+    const payload = await getPayloadClient()
+    const [postsResult, cmsChrome] = await Promise.all([
+      payload.find({
+        collection: 'posts',
+        where: {
+          _status: {
+            equals: 'published',
+          },
         },
-      },
-      sort: '-publishedAt',
-      limit: 50,
-      depth: 1,
-    }),
-    fetchCmsChrome(),
-  ])
+        sort: '-publishedAt',
+        limit: 50,
+        depth: 1,
+      }),
+      fetchCmsChrome(),
+    ])
+    posts = postsResult as unknown as { docs: PostDoc[] }
+    chrome = cmsChrome
+  } catch {
+    // build-time fallback — keep defaults
+  }
 
   const blogJsonLd: Record<string, unknown> = {
     '@context': 'https://schema.org',
