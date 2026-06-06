@@ -75,6 +75,46 @@ export function useParallaxBlob<T extends HTMLElement = HTMLDivElement>(options?
   return ref
 }
 
+/** Subtle scroll parallax for a decorative texture overlay. Transform-only
+ *  (`yPercent`, GPU-composited) so it never triggers layout or paint. The
+ *  overlay must overflow its section box (e.g. `-inset-y-[15%]`) to hide the
+ *  travel. Triggers on the overlay's parent section so the scrub spans the
+ *  whole section. No-ops on reduced motion / preview mode. */
+export function useParallaxPattern<T extends HTMLElement = HTMLDivElement>(options?: {
+  range?: number
+}): RefObject<T | null> {
+  const ref = useRef<T | null>(null)
+  const previewMode = usePreviewMode()
+  ensureRegistered()
+  useGSAP(
+    () => {
+      if (previewMode || prefersReducedMotion() || !ref.current) return
+      const el = ref.current
+      const range = options?.range ?? 6
+      gsap.fromTo(
+        el,
+        {
+          yPercent: -range,
+        },
+        {
+          yPercent: range,
+          ease: 'none',
+          scrollTrigger: {
+            trigger: el.parentElement ?? el,
+            start: 'top bottom',
+            end: 'bottom top',
+            scrub: true,
+          },
+        }
+      )
+    },
+    {
+      scope: ref,
+    }
+  )
+  return ref
+}
+
 /** GSAP-powered stagger reveal for card grids.
  *  Targets children with `data-pz-card` inside the scoped container. */
 export function useCardStagger<T extends HTMLElement = HTMLDivElement>(options?: {

@@ -35,6 +35,10 @@
   --pz-accent-pale: color-mix(in srgb, var(--pz-accent) 12%, white);
   --pz-shadow-accent: 0 4px 20px color-mix(in srgb, var(--pz-accent) 30%, transparent);
   --pz-shadow-accent-lg: 0 24px 60px color-mix(in srgb, var(--pz-accent) 18%, transparent);
+  /* Decorative section-texture lines. card-border on light surfaces; a faint
+     white mix on dark surfaces where the hairline would vanish. */
+  --pz-pattern-line: var(--pz-card-border);
+  --pz-pattern-line-on-dark: color-mix(in srgb, #ffffff 7%, transparent);
 
   --background: #FFFFFF;
   --foreground: rgba(0, 0, 0, 0.88);

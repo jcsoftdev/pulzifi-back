@@ -68,6 +68,27 @@ export function PricingSection({
     '--swiper-pagination-bullet-inactive-color': 'var(--pz-ink-2)',
   } as CSSProperties
 
+  const renderCard = (plan: PricingPlan) => (
+    <PricingCard
+      name={plan.name}
+      price={plan.price}
+      priceAnnual={plan.priceAnnual}
+      period={plan.period}
+      description={plan.tagline}
+      cta={plan.ctaLabel ?? 'Get Started'}
+      ctaHref={plan.ctaHref ?? '/register'}
+      features={(plan.features ?? []).map((f) => ({
+        text: f.text ?? '',
+        included: f.included ?? true,
+      }))}
+      popular={plan.highlighted ?? false}
+      popularBadge={plan.popularBadge}
+      billingCycle={cycle}
+      annualNote={billing?.annualNote}
+      featuresLabel={featuresLabel}
+    />
+  )
+
   const tableColumns = items.map((plan) => ({
     name: plan.name,
     cta: plan.ctaLabel ?? 'Get Started',
@@ -141,9 +162,19 @@ export function PricingSection({
         )}
       </div>
 
+      {/* Mobile: stacked cards on the Y axis (no slider) */}
+      <div className="mt-14 flex flex-col gap-6 md:hidden">
+        {items.map((plan) => (
+          <div key={plan.name} className="pt-2">
+            {renderCard(plan)}
+          </div>
+        ))}
+      </div>
+
+      {/* Desktop: slider */}
       <Swiper
         modules={[Pagination, A11y]}
-        className="mt-14 w-full !pb-12"
+        className="mt-14 hidden w-full !overflow-visible !pb-12 md:block"
         style={swiperVars}
         slidesPerView="auto"
         spaceBetween={24}
@@ -153,26 +184,7 @@ export function PricingSection({
       >
         {items.map((plan) => (
           <SwiperSlide key={plan.name} className="!h-auto !w-[300px] sm:!w-[340px]">
-            <div className="h-full pt-2">
-              <PricingCard
-                name={plan.name}
-                price={plan.price}
-                priceAnnual={plan.priceAnnual}
-                period={plan.period}
-                description={plan.tagline}
-                cta={plan.ctaLabel ?? 'Get Started'}
-                ctaHref={plan.ctaHref ?? '/register'}
-                features={(plan.features ?? []).map((f) => ({
-                  text: f.text ?? '',
-                  included: f.included ?? true,
-                }))}
-                popular={plan.highlighted ?? false}
-                popularBadge={plan.popularBadge}
-                billingCycle={cycle}
-                annualNote={billing?.annualNote}
-                featuresLabel={featuresLabel}
-              />
-            </div>
+            <div className="h-full pt-2">{renderCard(plan)}</div>
           </SwiperSlide>
         ))}
       </Swiper>
