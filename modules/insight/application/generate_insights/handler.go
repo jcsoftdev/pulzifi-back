@@ -96,6 +96,14 @@ func (h *GenerateInsightsHandler) quotaExhausted(ctx context.Context, schemaName
 			zap.Error(err))
 		return false
 	}
+	// Allowed <= 0 means the period row has no configured cap (e.g. a stale
+	// usage_tracking row created before the ai_insights_allowed backfill, whose
+	// column default is 0). No real plan grants 0 insights — the lowest (free)
+	// is 1 — so a 0 here is misconfiguration, not a genuine limit. Treat it as
+	// "no cap" and fail-open rather than silently blocking ALL generation.
+	if snap.Allowed <= 0 {
+		return false
+	}
 	return !snap.Unlimited && snap.Used >= snap.Allowed
 }
 
@@ -121,7 +129,7 @@ func (h *GenerateInsightsHandler) persistInsights(ctx context.Context, req *Requ
 					zap.Error(incErr))
 				continue
 			}
-			if !post.Unlimited && post.Used >= post.Allowed {
+			if !post.Unlimited && post.Allowed > 0 && post.Used >= post.Allowed {
 				logger.Info("insight quota reached cap mid-batch — dropping remaining insights",
 					zap.String("tenant", req.SchemaName),
 					zap.Int("used", post.Used),
