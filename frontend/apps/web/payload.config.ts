@@ -481,6 +481,10 @@ export default buildConfig({
           required: true,
           options: [
             {
+              label: 'Free',
+              value: 'free',
+            },
+            {
               label: 'Starter',
               value: 'starter',
             },
