@@ -14,6 +14,7 @@ import (
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/application/workers"
 	"github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/persistence"
 	snapshotapp "github.com/jcsoftdev/pulzifi-back/modules/snapshot/application"
+	snapServices "github.com/jcsoftdev/pulzifi-back/modules/snapshot/domain/services"
 	snapshotextractor "github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/extractor"
 	snapshotstorage "github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/storage"
 	sharedAI "github.com/jcsoftdev/pulzifi-back/shared/ai"
@@ -61,7 +62,17 @@ func NewSnapshotWorker(deps SnapshotWorkerDeps) (*snapshotapp.SnapshotWorker, er
 	monitoringReader := snapshotwiring.NewMonitoringReader(deps.DB)
 	checkRepoFactory := snapshotwiring.NewCheckRepoFactory(deps.DB)
 	alertCreator := snapshotwiring.NewAlertCreator(deps.DB)
-	insightDispatcher := snapshotwiring.NewInsightDispatcher(deps.DB, cfg)
+
+	// Auto insight generation on detected changes is OFF by default — insights
+	// are produced only from the frontend on-demand endpoint so the worker never
+	// spends LLM quota on every monitored change. Opt in with AUTO_INSIGHTS_ENABLED.
+	var insightDispatcher snapServices.InsightDispatcher
+	if cfg.AutoInsightsEnabled {
+		insightDispatcher = snapshotwiring.NewInsightDispatcher(deps.DB, cfg)
+		logger.Info("Auto insight generation ENABLED (AUTO_INSIGHTS_ENABLED=true)")
+	} else {
+		logger.Info("Auto insight generation disabled — insights are frontend on-demand only")
+	}
 
 	var notificationEmailer snapshotapp.NotificationEmailerPort
 	if deps.EmailProvider != nil {
