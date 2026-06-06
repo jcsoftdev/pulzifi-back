@@ -132,12 +132,19 @@ const payload = await getPayload({
   config: builtConfig,
 })
 
-// Seed default content after migrations
-const result = await seedCMSIfEmpty(payload)
-if (result.seeded) {
-  console.log('[cms] seeded default content (block-library, pages, globals)')
-} else {
-  console.log('[cms] seed skipped:', result.reason)
+// Seed default content after migrations. Best-effort: a seed failure must NOT
+// abort the deploy — migrations (above) already succeeded, so the schema is
+// correct and `next start` can serve. Crashing here would take the whole
+// frontend down over non-critical content seeding.
+try {
+  const result = await seedCMSIfEmpty(payload)
+  if (result.seeded) {
+    console.log('[cms] seeded default content (block-library, pages, globals)')
+  } else {
+    console.log('[cms] seed skipped:', result.reason)
+  }
+} catch (err) {
+  console.error('[cms] seed failed (non-fatal — migrations applied, continuing):', err)
 }
 
 await payload.db.destroy?.()
