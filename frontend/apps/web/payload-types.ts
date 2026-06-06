@@ -557,7 +557,18 @@ export interface BlockLibrary {
 export interface Plan {
   id: number;
   name: string;
-  price: string;
+  /**
+   * Links this plan to public.plans. Price is read from Stripe — not editable here.
+   */
+  planCode: 'starter' | 'pro' | 'enterprise';
+  /**
+   * Monthly price, synced from Stripe via public.plans.
+   */
+  resolvedPrice?: string | null;
+  /**
+   * Annual price, synced from Stripe via public.plans.
+   */
+  resolvedPriceAnnual?: string | null;
   period?: string | null;
   tagline?: string | null;
   features?:
@@ -567,10 +578,6 @@ export interface Plan {
         id?: string | null;
       }[]
     | null;
-  /**
-   * Annual price (e.g. "$16"). Leave blank to hide toggle.
-   */
-  priceAnnual?: string | null;
   ctaLabel?: string | null;
   ctaHref?: string | null;
   highlighted?: boolean | null;
@@ -1798,7 +1805,9 @@ export interface PostsSelect<T extends boolean = true> {
  */
 export interface PlansSelect<T extends boolean = true> {
   name?: T;
-  price?: T;
+  planCode?: T;
+  resolvedPrice?: T;
+  resolvedPriceAnnual?: T;
   period?: T;
   tagline?: T;
   features?:
@@ -1808,7 +1817,6 @@ export interface PlansSelect<T extends boolean = true> {
         included?: T;
         id?: T;
       };
-  priceAnnual?: T;
   ctaLabel?: T;
   ctaHref?: T;
   highlighted?: T;

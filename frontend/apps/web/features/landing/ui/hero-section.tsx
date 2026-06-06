@@ -29,14 +29,6 @@ type HeroSectionProps = {
   image?: HeroImage
 }
 
-const AVATAR_COLORS = [
-  'var(--pz-accent)',
-  'var(--pz-dark-surface)',
-  'var(--pz-accent-teal)',
-  'var(--pz-accent-gold)',
-  '#0ea5e9',
-]
-
 export function HeroSection({
   eyebrowBadge,
   eyebrowText,
@@ -166,17 +158,13 @@ export function HeroSection({
             {/* Trust strip */}
             {trustLine && (
               <div data-pz-hero-trust className="flex flex-wrap items-center gap-4">
-                <div className="flex -space-x-2" aria-hidden>
-                  {AVATAR_COLORS.map((c) => (
-                    <span
-                      key={c}
-                      className="size-7 rounded-full border-2 border-white"
-                      style={{
-                        background: c,
-                      }}
-                    />
-                  ))}
-                </div>
+                <Image
+                  src="/images/landing/clients-smiling.png"
+                  alt="Pulzifi customers"
+                  width={140}
+                  height={40}
+                  className="h-10 w-auto"
+                />
                 <div className="flex items-center gap-1" aria-hidden>
                   {[
                     1,
@@ -212,10 +200,6 @@ export function HeroSection({
                   className="h-auto w-full rounded-2xl"
                   priority
                   sizes="(max-width: 768px) 100vw, 50vw"
-                />
-                <div
-                  className="absolute -inset-6 -z-10 rounded-3xl bg-[var(--pz-accent)]/10 blur-3xl"
-                  aria-hidden
                 />
               </div>
             </div>

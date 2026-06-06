@@ -8,6 +8,7 @@ interface WorkspaceBackendDto {
   tags: string[]
   created_by: string
   created_at: string
+  pages_count: number
 }
 
 interface ListWorkspacesBackendResponse {
@@ -22,6 +23,7 @@ export interface Workspace {
   tags: string[]
   createdBy: string
   createdAt: string
+  pagesCount: number
 }
 
 export interface ListWorkspacesResponse {
@@ -47,6 +49,7 @@ function transformWorkspace(backend: WorkspaceBackendDto): Workspace {
     tags: backend.tags || [],
     createdBy: backend.created_by,
     createdAt: backend.created_at,
+    pagesCount: backend.pages_count ?? 0,
   }
 }
 

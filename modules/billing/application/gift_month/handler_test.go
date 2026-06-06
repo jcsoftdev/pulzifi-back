@@ -47,6 +47,10 @@ func (r *fakePlanRepo) FindStripePriceID(_ context.Context, code, cycle string) 
 	return r.byCycle[code+"/"+cycle], nil
 }
 
+func (r *fakePlanRepo) UpsertStripePricing(_ context.Context, _, _, _ string, _ int64, _ string) error {
+	return nil
+}
+
 func activeSub(orgID uuid.UUID, cycle string) *fakeSubRepo {
 	return &fakeSubRepo{sub: &entities.Subscription{
 		OrgID:                orgID,

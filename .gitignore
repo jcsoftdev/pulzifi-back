@@ -145,3 +145,6 @@ frontend/test-results/
 
 # Local dev TLS certs (mkcert) — never commit
 tools/dev-certs/
+
+# Internal planning docs — never commit
+*.docx

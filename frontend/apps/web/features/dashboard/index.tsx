@@ -20,6 +20,8 @@ export interface DashboardFeatureProps {
   monthlyChecks?: number
   maxMonthlyChecks?: number
   usagePercent?: number
+  maxPages?: number
+  maxWorkspaces?: number
 }
 
 function formatDate(isoString: string): string {
@@ -162,11 +164,19 @@ function LoadingPlaceholder() {
   )
 }
 
+const UNLIMITED_SENTINEL = 2147483647
+
+function resolveMaxDisplay(value: number): string {
+  return value >= UNLIMITED_SENTINEL ? '∞' : value.toString()
+}
+
 export function DashboardFeature({
   userName = '',
   monthlyChecks = 0,
   maxMonthlyChecks = 2000,
   usagePercent = 0,
+  maxPages = 0,
+  maxWorkspaces = 0,
 }: Readonly<DashboardFeatureProps>) {
   const router = useRouter()
   const { stats, loading, refetch } = useDashboardStats()
@@ -189,9 +199,9 @@ export function DashboardFeature({
 
   const headerStats: DashboardStats = {
     workplaces: stats?.workspacesCount ?? 0,
-    maxWorkplaces: 10,
+    maxWorkplaces: resolveMaxDisplay(maxWorkspaces),
     pages: stats?.pagesCount ?? 0,
-    maxPages: 200,
+    maxPages: resolveMaxDisplay(maxPages),
     todayChecks: stats?.todayChecksCount ?? 0,
     monthlyChecks,
     maxMonthlyChecks,

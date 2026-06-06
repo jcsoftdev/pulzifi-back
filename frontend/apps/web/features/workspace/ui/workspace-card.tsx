@@ -122,7 +122,7 @@ export function WorkspaceCard({
       </div>
 
       {/* Footer */}
-      <div className="flex justify-between items-center self-stretch gap-1 p-3 py-2 border-t border-black/6">
+      <div className="flex justify-between items-center self-stretch gap-1 p-3 py-2 border-t border-border">
         <div className="flex items-center gap-1">
           <div className="flex justify-center items-center gap-1 p-1 w-6 h-6">
             <svg
@@ -139,7 +139,9 @@ export function WorkspaceCard({
             </svg>
           </div>
           <div className="flex flex-col">
-            <p className="text-base font-normal text-black/65">0 pages</p>
+            <p className="text-base font-normal text-muted-foreground">
+              {workspace.pageCount} {workspace.pageCount === 1 ? 'page' : 'pages'}
+            </p>
           </div>
         </div>
         <Button

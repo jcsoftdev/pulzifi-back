@@ -3,8 +3,9 @@ import { PricingSection } from '@/features/landing'
 type PlanDoc = {
   id: string | number
   name: string
-  price: string
-  priceAnnual?: string | null
+  planCode?: string | null
+  resolvedPrice?: string | null
+  resolvedPriceAnnual?: string | null
   period?: string | null
   tagline?: string | null
   features?:
@@ -67,8 +68,8 @@ export function PricingBlock({ block }: Props) {
       featuresLabel={block.featuresLabel ?? undefined}
       plans={populated.map((p) => ({
         name: p.name,
-        price: p.price,
-        priceAnnual: p.priceAnnual ?? undefined,
+        price: p.resolvedPrice ?? 'Custom',
+        priceAnnual: p.resolvedPriceAnnual ?? undefined,
         period: p.period ?? undefined,
         tagline: p.tagline ?? undefined,
         features:

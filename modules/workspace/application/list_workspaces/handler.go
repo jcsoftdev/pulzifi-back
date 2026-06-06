@@ -34,6 +34,7 @@ func (h *ListWorkspacesHandler) Handle(ctx context.Context) (*ListWorkspacesResp
 			Tags:      ws.Tags,
 			CreatedBy: ws.CreatedBy,
 			CreatedAt: ws.CreatedAt,
+			PageCount: ws.PageCount,
 		}
 	}
 

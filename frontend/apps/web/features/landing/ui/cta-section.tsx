@@ -2,6 +2,8 @@ import { AnimatedSection } from './components/animated-section'
 import { Eyebrow } from './components/eyebrow'
 import { Highlight } from './components/highlight'
 import { LandingButton } from './components/landing-button'
+import { SectionAura } from './components/section-aura'
+import { SectionPattern } from './components/section-pattern'
 
 type CtaSectionProps = {
   eyebrow?: string
@@ -24,8 +26,16 @@ export function CtaSection({
 }: Readonly<CtaSectionProps> = {}) {
   return (
     // biome-ignore lint/correctness/useUniqueElementIds: static nav anchor ID
-    <section id="cta" className="bg-[var(--pz-dark-surface)] py-24 text-white lg:py-32">
-      <AnimatedSection animation="fade-up" className="mx-auto max-w-[900px] px-6 text-center">
+    <section
+      id="cta"
+      className="relative overflow-hidden bg-[var(--pz-dark-surface)] py-24 text-white lg:py-32"
+    >
+      <SectionAura intensity="bold" />
+      <SectionPattern url="/images/landing/pattern-grid.svg" color="var(--pz-pattern-line-on-dark)" />
+      <AnimatedSection
+        animation="fade-up"
+        className="relative z-10 mx-auto max-w-[900px] px-6 text-center"
+      >
         {eyebrow && (
           <Eyebrow tone="muted" className="mb-6 text-white/60">
             {eyebrow}

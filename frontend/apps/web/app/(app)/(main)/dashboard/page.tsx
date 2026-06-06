@@ -6,6 +6,8 @@ export default async function Page() {
   let monthlyChecks = 0
   let maxMonthlyChecks = 2000
   let usagePercent = 0
+  let maxPages = 0
+  let maxWorkspaces = 0
 
   try {
     const [user, checksData] = await Promise.all([
@@ -16,6 +18,8 @@ export default async function Page() {
     monthlyChecks = checksData.current
     maxMonthlyChecks = checksData.max || 2000
     usagePercent = checksData.max > 0 ? Math.round((checksData.current / checksData.max) * 100) : 0
+    maxPages = checksData.maxPages
+    maxWorkspaces = checksData.maxWorkspaces
   } catch {
     // Non-critical — feature still renders without this data
   }
@@ -26,6 +30,8 @@ export default async function Page() {
       monthlyChecks={monthlyChecks}
       maxMonthlyChecks={maxMonthlyChecks}
       usagePercent={usagePercent}
+      maxPages={maxPages}
+      maxWorkspaces={maxWorkspaces}
     />
   )
 }

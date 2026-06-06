@@ -212,7 +212,7 @@ export function WorkspaceFeature({
                 key={workspace.id}
                 workspace={{
                   ...workspace,
-                  pageCount: 0,
+                  pageCount: workspace.pagesCount,
                   status: 'Active',
                 }}
                 onSelect={handleSelectWorkspace}

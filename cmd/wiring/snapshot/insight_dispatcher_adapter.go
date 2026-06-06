@@ -11,6 +11,7 @@ import (
 	snapServices "github.com/jcsoftdev/pulzifi-back/modules/snapshot/domain/services"
 	sharedAI "github.com/jcsoftdev/pulzifi-back/shared/ai"
 	"github.com/jcsoftdev/pulzifi-back/shared/config"
+	"github.com/jcsoftdev/pulzifi-back/shared/logger"
 )
 
 // insightDispatcherAdapter implements snapshot's InsightDispatcher port by
@@ -28,6 +29,7 @@ type insightDispatcherAdapter struct {
 // the OpenRouter API key is not configured (insights disabled).
 func NewInsightDispatcher(db *sql.DB, cfg *config.Config) snapServices.InsightDispatcher {
 	if cfg.OpenRouterAPIKey == "" {
+		logger.Warn("OPENROUTER_API_KEY not set — AI insight generation is DISABLED; change detection will run but no insights will be produced")
 		return nil
 	}
 	openRouterClient := sharedAI.NewOpenRouterClient(cfg.OpenRouterAPIKey, cfg.OpenRouterModel).WithBaseURL(cfg.AIBaseURL)
@@ -40,7 +42,7 @@ func (a *insightDispatcherAdapter) Dispatch(ctx context.Context, req snapService
 	// Create a tenant-scoped insight repository per dispatch call.
 	repo := insightpersistence.NewInsightPostgresRepository(a.db, req.SchemaName)
 	handler := generateinsights.NewGenerateInsightsHandler(a.generator, repo, a.quotaReader)
-	return handler.Handle(ctx, &generateinsights.Request{
+	err := handler.Handle(ctx, &generateinsights.Request{
 		PageID:              req.PageID,
 		CheckID:             req.CheckID,
 		PageURL:             req.PageURL,
@@ -50,4 +52,10 @@ func (a *insightDispatcherAdapter) Dispatch(ctx context.Context, req snapService
 		SchemaName:          req.SchemaName,
 		EnabledInsightTypes: req.EnabledInsightTypes,
 	})
+	// Translate the insight module's quota sentinel into the snapshot-domain one
+	// so the worker can treat it as a normal condition without importing insight.
+	if generateinsights.IsQuotaExhausted(err) {
+		return snapServices.ErrInsightQuotaExhausted
+	}
+	return err
 }

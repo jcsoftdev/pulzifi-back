@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -953,10 +954,14 @@ func (s *SnapshotWorker) generateInsightsAsync(check *snapEntities.Check, pageUR
 		SchemaName:          schemaName,
 		EnabledInsightTypes: enabledTypes,
 	})
-	if err != nil {
-		logger.Error("Failed to generate insights", zap.String("check_id", check.ID.String()), zap.Error(err))
-	} else {
+	switch {
+	case err == nil:
 		logger.Info("Insights generated successfully", zap.String("check_id", check.ID.String()))
+	case errors.Is(err, snapServices.ErrInsightQuotaExhausted):
+		// Normal business condition — tenant hit their monthly cap. Not a failure.
+		logger.Info("Insights skipped — monthly AI quota reached", zap.String("check_id", check.ID.String()))
+	default:
+		logger.Error("Failed to generate insights", zap.String("check_id", check.ID.String()), zap.Error(err))
 	}
 }
 

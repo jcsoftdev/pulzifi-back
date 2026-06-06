@@ -15,6 +15,9 @@ Name      string
 	CreatedAt time.Time
 UpdatedAt time.Time
 DeletedAt *time.Time
+// PageCount is the number of non-deleted pages in the workspace. It is only
+// populated by List (the workspace-grid query); other reads leave it 0.
+PageCount int
 }
 
 // NewWorkspace creates a new workspace

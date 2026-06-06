@@ -4,4 +4,5 @@ export const env = {
   NEXT_PUBLIC_APP_BASE_URL: process.env.NEXT_PUBLIC_APP_BASE_URL,
   NODE_ENV: process.env.NODE_ENV,
   COOKIE_DOMAIN: process.env.COOKIE_DOMAIN,
+  NEXT_PUBLIC_GA_ID: process.env.NEXT_PUBLIC_GA_ID,
 } as const

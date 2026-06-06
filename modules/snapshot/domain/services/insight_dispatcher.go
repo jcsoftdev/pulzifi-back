@@ -2,9 +2,17 @@ package services
 
 import (
 	"context"
+	"errors"
 
 	"github.com/google/uuid"
 )
+
+// ErrInsightQuotaExhausted signals that generation was skipped because the
+// tenant hit its monthly AI-insight cap. It is a normal business condition, not
+// a failure — callers should log it at info level, not error. The adapter
+// translates the insight module's equivalent sentinel into this one so the
+// snapshot worker never imports the insight package.
+var ErrInsightQuotaExhausted = errors.New("snapshot: insight quota exhausted")
 
 // InsightRequest holds the data needed to trigger AI insight generation.
 type InsightRequest struct {

@@ -190,6 +190,39 @@ func TestHandle_QuotaExhausted_ShortCircuitsBeforeLLM(t *testing.T) {
 	}
 }
 
+func TestHandle_QuotaAllowedZero_FailsOpen(t *testing.T) {
+	// A stale usage_tracking row (created before the ai_insights_allowed
+	// backfill) has Allowed=0. No real plan grants 0 insights, so this must be
+	// treated as "no cap" and NOT block generation.
+	gen := &mocks.MockInsightGenerator{
+		GenerateResult: []*entities.Insight{{InsightType: "marketing"}},
+	}
+	repo := &fakeInsightRepo{}
+	quota := &mocks.MockInsightQuotaReader{
+		ReadResult:      services.InsightQuotaSnapshot{Used: 0, Allowed: 0, Unlimited: false},
+		IncrementResult: services.InsightQuotaSnapshot{Used: 1, Allowed: 0, Unlimited: false},
+	}
+
+	h := NewGenerateInsightsHandler(gen, repo, quota)
+	err := h.Handle(context.Background(), &Request{
+		PageID:     uuid.New(),
+		CheckID:    uuid.New(),
+		PageURL:    "https://example.com",
+		PrevText:   "old",
+		NewText:    "new",
+		SchemaName: "tenant_stale_zero",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gen.GenerateCalls == 0 {
+		t.Error("LLM must be called when Allowed=0 (fail-open), got 0 calls")
+	}
+	if len(repo.created) != 1 {
+		t.Errorf("want 1 insight persisted, got %d", len(repo.created))
+	}
+}
+
 func TestHandle_QuotaPartial_StopsBatchOnOverflow(t *testing.T) {
 	insights := []*entities.Insight{
 		{InsightType: "marketing"},

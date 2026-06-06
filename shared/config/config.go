@@ -79,6 +79,11 @@ type Config struct {
 	OpenRouterAPIKey      string
 	OpenRouterModel       string
 	OpenRouterVisionModel string
+	// AutoInsightsEnabled gates the background worker's automatic insight
+	// generation on detected changes. Default false: insights are generated
+	// ONLY from the frontend on-demand endpoint to avoid spending LLM quota on
+	// every monitored change. Set AUTO_INSIGHTS_ENABLED=true to opt in.
+	AutoInsightsEnabled bool
 	// AIBaseURL overrides the OpenAI-compatible endpoint for insight/vision
 	// generation. Empty = OpenRouter default. Set it to target a pay-per-token
 	// provider (e.g. https://api.deepinfra.com/v1/openai) or self-hosted Ollama
@@ -269,6 +274,7 @@ func Load() *Config {
 		OpenRouterAPIKey:      getEnv("OPENROUTER_API_KEY", ""),
 		OpenRouterModel:       getEnv("OPENROUTER_MODEL", "mistralai/mistral-7b-instruct:free"),
 		OpenRouterVisionModel: getEnv("OPENROUTER_VISION_MODEL", ""),
+		AutoInsightsEnabled:   getEnvBool("AUTO_INSIGHTS_ENABLED", false),
 		AIBaseURL:             getEnv("AI_BASE_URL", ""),
 		PixelDiffThreshold:    getEnvFloat("PIXEL_DIFF_THRESHOLD", 0.001),
 		ResendAPIKey:          getEnv("RESEND_API_KEY", ""),

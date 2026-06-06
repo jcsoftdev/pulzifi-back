@@ -81,6 +81,10 @@ func (r *fakePlanRepo) FindStripePriceID(_ context.Context, code, cycle string) 
 	return "", repositories.ErrPlanNotFound
 }
 
+func (r *fakePlanRepo) UpsertStripePricing(_ context.Context, _, _, _ string, _ int64, _ string) error {
+	return nil
+}
+
 func TestCreateCheckoutSessionHandler_Handle(t *testing.T) {
 	const (
 		priceMonthly = "price_monthly_123"

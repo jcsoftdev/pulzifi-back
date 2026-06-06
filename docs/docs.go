@@ -2665,6 +2665,9 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
+                "pages_count": {
+                    "type": "integer"
+                },
                 "tags": {
                     "type": "array",
                     "items": {

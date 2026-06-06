@@ -36,6 +36,13 @@ type OrgPlanInfo struct {
 	// plan (Enterprise = unlimited) is resolved to the INT max sentinel
 	// (2147483647) by the repository so callers never see a raw NULL.
 	AIInsightsAllowed int
+	// MaxPages mirrors plans.max_pages. NULL (Enterprise/trial = unlimited) is
+	// resolved to the INT max sentinel (2147483647) by the repository.
+	MaxPages int
+	// MaxWorkspaces mirrors plans.max_workspaces. NULL (Enterprise/trial =
+	// unlimited) is resolved to the INT max sentinel (2147483647) by the
+	// repository.
+	MaxWorkspaces int
 }
 
 // OrganizationPlanRepository manages organization_plans in the public schema.

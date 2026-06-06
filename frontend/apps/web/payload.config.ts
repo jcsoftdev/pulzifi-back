@@ -424,7 +424,7 @@ export default buildConfig({
         useAsTitle: 'name',
         defaultColumns: [
           'name',
-          'price',
+          'planCode',
           'highlighted',
         ],
         description:
@@ -433,6 +433,42 @@ export default buildConfig({
       access: {
         read: () => true,
       },
+      hooks: {
+        afterRead: [
+          async ({
+            doc,
+            req,
+          }: {
+            doc: Record<string, unknown>
+            req: {
+              payload: {
+                db: unknown
+              }
+            }
+          }) => {
+            const pool = (
+              req.payload.db as {
+                pool: {
+                  query: (
+                    text: string,
+                    params: unknown[]
+                  ) => Promise<{
+                    rows: Array<Record<string, unknown>>
+                  }>
+                }
+              }
+            ).pool
+            const { resolvePlanPrice } = await import('./features/cms/lib/resolve-plan-price')
+            const resolved = await resolvePlanPrice(
+              pool as import('pg').Pool,
+              doc?.planCode as string | null | undefined
+            )
+            doc.resolvedPrice = resolved.price
+            doc.resolvedPriceAnnual = resolved.priceAnnual
+            return doc
+          },
+        ],
+      },
       fields: [
         {
           name: 'name',
@@ -440,9 +476,45 @@ export default buildConfig({
           required: true,
         },
         {
-          name: 'price',
-          type: 'text',
+          name: 'planCode',
+          type: 'select',
           required: true,
+          options: [
+            {
+              label: 'Starter',
+              value: 'starter',
+            },
+            {
+              label: 'Pro',
+              value: 'pro',
+            },
+            {
+              label: 'Enterprise',
+              value: 'enterprise',
+            },
+          ],
+          admin: {
+            description:
+              'Links this plan to public.plans. Price is read from Stripe — not editable here.',
+          },
+        },
+        {
+          name: 'resolvedPrice',
+          type: 'text',
+          virtual: true,
+          admin: {
+            readOnly: true,
+            description: 'Monthly price, synced from Stripe via public.plans.',
+          },
+        },
+        {
+          name: 'resolvedPriceAnnual',
+          type: 'text',
+          virtual: true,
+          admin: {
+            readOnly: true,
+            description: 'Annual price, synced from Stripe via public.plans.',
+          },
         },
         {
           name: 'period',
@@ -466,13 +538,6 @@ export default buildConfig({
               defaultValue: true,
             },
           ],
-        },
-        {
-          name: 'priceAnnual',
-          type: 'text',
-          admin: {
-            description: 'Annual price (e.g. "$16"). Leave blank to hide toggle.',
-          },
         },
         {
           name: 'ctaLabel',
