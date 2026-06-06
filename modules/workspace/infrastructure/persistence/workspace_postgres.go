@@ -103,10 +103,11 @@ func (r *WorkspacePostgresRepository) GetByID(ctx context.Context, id uuid.UUID)
 // List retrieves all workspaces in tenant schema
 func (r *WorkspacePostgresRepository) List(ctx context.Context) ([]*entities.Workspace, error) {
 	query := `
-		SELECT id, name, type, tags, created_by, created_at, updated_at, deleted_at
-		FROM workspaces
-		WHERE deleted_at IS NULL
-		ORDER BY created_at DESC
+		SELECT w.id, w.name, w.type, w.tags, w.created_by, w.created_at, w.updated_at, w.deleted_at,
+		       (SELECT COUNT(*) FROM pages p WHERE p.workspace_id = w.id AND p.deleted_at IS NULL) AS page_count
+		FROM workspaces w
+		WHERE w.deleted_at IS NULL
+		ORDER BY w.created_at DESC
 	`
 
 	var workspaces []*entities.Workspace
@@ -132,6 +133,7 @@ func (r *WorkspacePostgresRepository) List(ctx context.Context) ([]*entities.Wor
 				&workspace.CreatedAt,
 				&workspace.UpdatedAt,
 				&deletedAt,
+				&workspace.PageCount,
 			); err != nil {
 				logger.Error("Failed to scan workspace", zap.Error(err))
 				return err

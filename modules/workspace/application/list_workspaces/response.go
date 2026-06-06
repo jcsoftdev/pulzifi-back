@@ -13,6 +13,7 @@ type Workspace struct {
 	Tags      []string  `json:"tags"`
 	CreatedBy uuid.UUID `json:"created_by"`
 	CreatedAt time.Time `json:"created_at"`
+	PageCount int       `json:"pages_count"`
 }
 
 type ListWorkspacesResponse struct {
