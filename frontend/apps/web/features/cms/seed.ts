@@ -493,6 +493,37 @@ const COMPARISON = {
 // Migrated from https://pulzifi.com/pricing.
 const PLANS = [
   {
+    name: 'Free',
+    planCode: 'free',
+    period: '',
+    tagline: 'No credit card required',
+    features: [
+      {
+        text: '1 Workspace',
+        included: true,
+      },
+      {
+        text: '1 single page',
+        included: true,
+      },
+      {
+        text: '1 AI insight / month',
+        included: true,
+      },
+      {
+        text: '3 days storage',
+        included: true,
+      },
+      {
+        text: 'Email alerts',
+        included: true,
+      },
+    ],
+    ctaLabel: 'Get Started Free',
+    ctaHref: '/register',
+    highlighted: false,
+  },
+  {
     name: 'Starter',
     planCode: 'starter',
     period: '/month',
@@ -503,7 +534,7 @@ const PLANS = [
         included: true,
       },
       {
-        text: 'Up to 5 single pages',
+        text: 'Up to 22 single pages',
         included: true,
       },
       {
@@ -511,7 +542,7 @@ const PLANS = [
         included: true,
       },
       {
-        text: 'Advanced 4 AI Insights',
+        text: '22 AI insights / month',
         included: true,
       },
       {
@@ -534,11 +565,11 @@ const PLANS = [
     tagline: 'Perfect for Growing Businesses Ready to Scale',
     features: [
       {
-        text: 'Unlimited Workspaces',
+        text: '10 workspaces',
         included: true,
       },
       {
-        text: 'Up to 25 single pages',
+        text: 'Up to 45 single pages',
         included: true,
       },
       {
