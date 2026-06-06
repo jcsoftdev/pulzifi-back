@@ -18,14 +18,16 @@ func TestGetQuotasHandler_Handle(t *testing.T) {
 	refillTime := time.Date(2025, 4, 15, 0, 0, 0, 0, time.UTC)
 
 	tests := []struct {
-		name           string
-		setup          func(*mocks.MockUsageTrackingRepository, *mocks.MockOrganizationPlanRepository)
-		wantChecksUsed int
-		wantAllowed    int
-		wantErr        bool
+		name              string
+		setup             func(*mocks.MockUsageTrackingRepository, *mocks.MockOrganizationPlanRepository)
+		wantChecksUsed    int
+		wantAllowed       int
+		wantMaxPages      int
+		wantMaxWorkspaces int
+		wantErr           bool
 	}{
 		{
-			name: "returns quota from existing period",
+			name: "returns quota from existing period with plan limits",
 			setup: func(u *mocks.MockUsageTrackingRepository, o *mocks.MockOrganizationPlanRepository) {
 				u.FindCurrentResult = &entities.UsageTracking{
 					ChecksUsed:        300,
@@ -33,9 +35,18 @@ func TestGetQuotasHandler_Handle(t *testing.T) {
 					NextRefillAt:      &refillTime,
 					StoragePeriodDays: 7,
 				}
+				o.GetActivePlanTenResult = &repositories.OrgPlanInfo{
+					ChecksAllowed:     1000,
+					StoragePeriodDays: 7,
+					MaxPages:          45,
+					MaxWorkspaces:     10,
+					StartedAt:         time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC),
+				}
 			},
-			wantChecksUsed: 300,
-			wantAllowed:    1000,
+			wantChecksUsed:    300,
+			wantAllowed:       1000,
+			wantMaxPages:      45,
+			wantMaxWorkspaces: 10,
 		},
 		{
 			name: "creates period from plan when none exists",
@@ -44,11 +55,48 @@ func TestGetQuotasHandler_Handle(t *testing.T) {
 				o.GetActivePlanTenResult = &repositories.OrgPlanInfo{
 					ChecksAllowed:     500,
 					StoragePeriodDays: 14,
+					MaxPages:          22,
+					MaxWorkspaces:     1,
 					StartedAt:         time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC),
 				}
 			},
-			wantChecksUsed: 0,
-			wantAllowed:    500,
+			wantChecksUsed:    0,
+			wantAllowed:       500,
+			wantMaxPages:      22,
+			wantMaxWorkspaces: 1,
+		},
+		{
+			name: "unlimited plan returns sentinel for max_pages and max_workspaces",
+			setup: func(u *mocks.MockUsageTrackingRepository, o *mocks.MockOrganizationPlanRepository) {
+				u.FindCurrentResult = nil
+				o.GetActivePlanTenResult = &repositories.OrgPlanInfo{
+					ChecksAllowed:     500,
+					StoragePeriodDays: 30,
+					MaxPages:          2147483647, // NULL resolved to sentinel by repo
+					MaxWorkspaces:     2147483647,
+					StartedAt:         time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC),
+				}
+			},
+			wantChecksUsed:    0,
+			wantAllowed:       500,
+			wantMaxPages:      2147483647,
+			wantMaxWorkspaces: 2147483647,
+		},
+		{
+			name: "plan fetch error with existing period degrades gracefully to sentinel",
+			setup: func(u *mocks.MockUsageTrackingRepository, o *mocks.MockOrganizationPlanRepository) {
+				u.FindCurrentResult = &entities.UsageTracking{
+					ChecksUsed:        100,
+					ChecksAllowed:     500,
+					NextRefillAt:      &refillTime,
+					StoragePeriodDays: 7,
+				}
+				o.GetActivePlanTenErr = errors.New("db error")
+			},
+			wantChecksUsed:    100,
+			wantAllowed:       500,
+			wantMaxPages:      2147483647,
+			wantMaxWorkspaces: 2147483647,
 		},
 		{
 			name: "error when find current fails",
@@ -90,6 +138,12 @@ func TestGetQuotasHandler_Handle(t *testing.T) {
 			}
 			if resp.ChecksAllowed != tt.wantAllowed {
 				t.Errorf("checks_allowed: want %d, got %d", tt.wantAllowed, resp.ChecksAllowed)
+			}
+			if resp.MaxPages != tt.wantMaxPages {
+				t.Errorf("max_pages: want %d, got %d", tt.wantMaxPages, resp.MaxPages)
+			}
+			if resp.MaxWorkspaces != tt.wantMaxWorkspaces {
+				t.Errorf("max_workspaces: want %d, got %d", tt.wantMaxWorkspaces, resp.MaxWorkspaces)
 			}
 		})
 	}

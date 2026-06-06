@@ -11,6 +11,8 @@ export interface ChecksData {
   max: number
   refillDate: string
   storagePeriodDays: number
+  maxPages: number
+  maxWorkspaces: number
 }
 
 interface UsageQuotasResponse {
@@ -19,6 +21,8 @@ interface UsageQuotasResponse {
     checks_allowed?: number
     next_refill_at?: string | null
     storage_period_days?: number
+    max_pages?: number
+    max_workspaces?: number
   }
 }
 
@@ -70,12 +74,16 @@ export const UsageApi = {
     }
 
     const storagePeriodDays = response.quotas?.storage_period_days ?? 7
+    const maxPages = response.quotas?.max_pages ?? 0
+    const maxWorkspaces = response.quotas?.max_workspaces ?? 0
 
     return {
       current,
       max,
       refillDate,
       storagePeriodDays,
+      maxPages,
+      maxWorkspaces,
     }
   },
 

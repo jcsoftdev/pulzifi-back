@@ -1,8 +1,10 @@
 export interface DashboardStats {
   workplaces: number
-  maxWorkplaces: number
+  /** Plan cap for workplaces. "∞" when the plan is unlimited. */
+  maxWorkplaces: string
   pages: number
-  maxPages: number
+  /** Plan cap for pages. "∞" when the plan is unlimited. */
+  maxPages: string
   todayChecks: number
   monthlyChecks: number
   maxMonthlyChecks: number
