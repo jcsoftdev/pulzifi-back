@@ -1,9 +1,13 @@
+import { extractTenantFromHostname } from '@workspace/shared-http'
 import type { Metadata } from 'next'
 import { DM_Sans, DM_Serif_Display, Geist, Geist_Mono, Outfit, Syne } from 'next/font/google'
+import { headers } from 'next/headers'
+import Script from 'next/script'
 
 import '@workspace/ui/globals.css'
 import { JsonLd } from '@/components/json-ld'
 import { Providers } from '@/components/providers'
+import { env } from '@/lib/env'
 import { NotificationProvider } from '@/lib/notification'
 
 const metadataBase = process.env.NEXT_PUBLIC_APP_BASE_URL
@@ -129,11 +133,19 @@ const websiteJsonLd = {
   },
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  // GA only on the apex (public marketing site, e.g. pulzifi.com), never on
+  // tenant subdomains (the authenticated app surface).
+  const headersList = await headers()
+  const hostname = headersList.get('x-forwarded-host') || headersList.get('host') || ''
+  const isApex = extractTenantFromHostname(hostname) === null
+  const gaId = env.NEXT_PUBLIC_GA_ID
+  const enableGa = isApex && Boolean(gaId)
+
   return (
     <html lang="en" suppressHydrationWarning>
       <body
@@ -144,6 +156,21 @@ export default function RootLayout({
         <JsonLd data={websiteJsonLd} />
         <Providers>{children}</Providers>
         <NotificationProvider />
+        {enableGa && (
+          <>
+            <Script
+              src={`https://www.googletagmanager.com/gtag/js?id=${gaId}`}
+              strategy="afterInteractive"
+            />
+            {/* biome-ignore lint/correctness/useUniqueElementIds: next/script inline tag needs a stable, single-use id for GA */}
+            <Script id="ga-gtag" strategy="afterInteractive">
+              {`window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+gtag('js', new Date());
+gtag('config', '${gaId}');`}
+            </Script>
+          </>
+        )}
       </body>
     </html>
   )
