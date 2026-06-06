@@ -11,12 +11,12 @@ import (
 )
 
 type Request struct {
-	IntegrationID *uuid.UUID
-	ServiceType   string
-	ScopeType     entities.ScopeType
-	ScopeID       uuid.UUID
-	Target        map[string]any
-	Events        []string
+	IntegrationID *uuid.UUID         `json:"integration_id"`
+	ServiceType   string             `json:"service_type"`
+	ScopeType     entities.ScopeType `json:"scope_type"`
+	ScopeID       uuid.UUID          `json:"scope_id"`
+	Target        map[string]any     `json:"target"`
+	Events        []string           `json:"events"`
 }
 
 type Response struct {

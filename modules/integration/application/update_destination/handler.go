@@ -11,10 +11,10 @@ import (
 )
 
 type Request struct {
-	ID      uuid.UUID
-	Target  map[string]any // optional; nil = no change
-	Events  []string       // optional; nil = no change
-	Enabled *bool          // optional; nil = no change
+	ID      uuid.UUID      `json:"-"`       // set from URL param, never the body
+	Target  map[string]any `json:"target"`  // optional; nil = no change
+	Events  []string       `json:"events"`  // optional; nil = no change
+	Enabled *bool          `json:"enabled"` // optional; nil = no change
 }
 
 type Response struct {
