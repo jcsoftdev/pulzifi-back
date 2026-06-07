@@ -96,6 +96,21 @@ export function PricingCard({
     max: 5,
   })
 
+  // A plan only has a real annual offer when its annual price is a positive
+  // amount. Free ($0) has priceAnnual set but no annual concept, so it must not
+  // get the annual treatment.
+  const hasPaidAnnual =
+    billingCycle === 'annual' && !!priceAnnual && extractNumeric(priceAnnual) > 0
+  // priceAnnual is the full yearly total (Stripe unit_amount for the yearly
+  // price). When annual is selected we show the per-month equivalent as the big
+  // number (total / 12) and surface the yearly total in the small note below.
+  const annualPrefix = priceAnnual ? priceAnnual.replace(/[\d,]+.*/, '') : ''
+  const annualPerMonth = hasPaidAnnual
+    ? `${annualPrefix}${Math.round(extractNumeric(priceAnnual as string) / 12)}`
+    : undefined
+  // Per-month framing always reads "/month" (annual just bills 12 of them up front).
+  const periodLabel = period
+
   return (
     <div className="relative flex h-full flex-col pt-5">
       {popular && (
@@ -135,29 +150,29 @@ export function PricingCard({
           <div className="flex items-end gap-2">
             <PriceDisplay
               price={price}
-              priceAnnual={priceAnnual}
+              priceAnnual={annualPerMonth}
               period={period}
               billingCycle={billingCycle}
             />
-            {period && (
+            {periodLabel && (
               <span
                 className={cn(
                   'pb-1.5 text-lg font-medium tracking-[-0.4px]',
                   popular ? 'text-white/50' : 'text-[#777]'
                 )}
               >
-                {period}
+                {periodLabel}
               </span>
             )}
           </div>
-          {billingCycle === 'annual' && priceAnnual && (
+          {hasPaidAnnual && (
             <p
               className={cn(
                 'text-xs font-medium',
                 popular ? 'text-[var(--pz-accent-gold,#f59e0b)]' : 'text-[var(--pz-accent)]'
               )}
             >
-              {annualNote ?? 'Billed annually · 2 months free'}
+              {annualNote ?? `Billed annually (${priceAnnual}/yr)`}
             </p>
           )}
           {description && (
