@@ -244,6 +244,19 @@ export default async function HomePage() {
     })
     .filter((item) => item.question && item.answer)
 
+  // Entity graph for SEO: Organization is the root node referenced by blog
+  // posts (publisher) and WebSite (publisher). Logo + sameAs come from CMS.
+  const baseUrl = process.env.NEXT_PUBLIC_APP_BASE_URL || 'https://pulzifi.com'
+  const orgLogoRaw = footerLogoUrl || navLogoUrl
+  const orgLogo = orgLogoRaw
+    ? orgLogoRaw.startsWith('http')
+      ? orgLogoRaw
+      : `${baseUrl}${orgLogoRaw}`
+    : undefined
+  const sameAs = (footerSocialLinks ?? [])
+    .map((s) => s.href)
+    .filter((href): href is string => Boolean(href) && href.startsWith('http'))
+
   return (
     <div className="min-h-screen bg-[var(--pz-page-bg)]">
       {themeStyle && (
@@ -272,9 +285,35 @@ export default async function HomePage() {
       <JsonLd
         data={{
           '@context': 'https://schema.org',
+          '@type': 'Organization',
+          '@id': `${baseUrl}/#organization`,
+          name: 'Pulzifi',
+          url: baseUrl,
+          description:
+            'Web change monitor and competitive intelligence platform. Pulzifi tracks competitor websites for pricing, copy, and visual changes and turns each one into an AI strategic insight.',
+          ...(orgLogo ? { logo: orgLogo } : {}),
+          ...(sameAs.length ? { sameAs } : {}),
+        }}
+      />
+      <JsonLd
+        data={{
+          '@context': 'https://schema.org',
+          '@type': 'WebSite',
+          '@id': `${baseUrl}/#website`,
+          name: 'Pulzifi',
+          url: baseUrl,
+          description:
+            'Web change monitor and competitive intelligence — track any competitor site 24/7 and get AI insights on every change.',
+          publisher: { '@id': `${baseUrl}/#organization` },
+        }}
+      />
+      <JsonLd
+        data={{
+          '@context': 'https://schema.org',
           '@type': 'SoftwareApplication',
           name: 'Pulzifi',
-          url: process.env.NEXT_PUBLIC_APP_BASE_URL || 'https://pulzifi.com',
+          url: baseUrl,
+          publisher: { '@id': `${baseUrl}/#organization` },
           applicationCategory: 'BusinessApplication',
           operatingSystem: 'Web',
           description:

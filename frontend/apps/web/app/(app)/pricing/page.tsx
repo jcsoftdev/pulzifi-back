@@ -5,6 +5,7 @@ import { isRedirectError } from 'next/dist/client/components/redirect-error'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 
+import { JsonLd } from '@/components/json-ld'
 import { buildApexRedirectUrl } from '@/features/auth/application/redirect-authenticated.server'
 import { BlocksRenderer } from '@/features/cms'
 import { FooterSection, Navbar, SmoothScroll } from '@/features/landing'
@@ -202,6 +203,21 @@ export default async function PricingPage() {
     // DB unavailable — fall through to defaults
   }
 
+  // Product + Offer JSON-LD for the pricing page, sourced from the CMS pricing
+  // block so the structured data stays in sync with the displayed plans.
+  const baseUrl = process.env.NEXT_PUBLIC_APP_BASE_URL || 'https://pulzifi.com'
+  const pricingBlock = blocks.find((b) => b.blockType === 'pricing')
+  const pricingPlans =
+    (pricingBlock?.plans as { name?: string; price?: string }[] | undefined) ?? []
+  const offers = pricingPlans
+    .map((p) => ({
+      '@type': 'Offer' as const,
+      name: p.name ?? '',
+      price: (p.price ?? '').replace(/[^0-9.]/g, ''),
+      priceCurrency: 'USD',
+    }))
+    .filter((o) => o.name && o.price)
+
   return (
     <div className="min-h-screen bg-[var(--pz-page-bg)]">
       {themeStyle && (
@@ -230,6 +246,20 @@ export default async function PricingPage() {
         socialLinks={footerSocialLinks}
         logoUrl={footerLogoUrl}
       />
+      {offers.length > 0 && (
+        <JsonLd
+          data={{
+            '@context': 'https://schema.org',
+            '@type': 'Product',
+            name: 'Pulzifi',
+            description:
+              'AI-powered competitive intelligence and website change monitoring. Plans scale pages monitored, AI insights, and alerts.',
+            brand: { '@type': 'Brand', name: 'Pulzifi' },
+            url: `${baseUrl}/pricing`,
+            offers,
+          }}
+        />
+      )}
     </div>
   )
 }
