@@ -1790,8 +1790,8 @@ const docTemplate = `{
                             }
                         }
                     },
-                    "402": {
-                        "description": "Daily quota exceeded",
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -1799,8 +1799,8 @@ const docTemplate = `{
                             }
                         }
                     },
-                    "404": {
-                        "description": "Not Found",
+                    "429": {
+                        "description": "Daily quota exceeded",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {

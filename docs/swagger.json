@@ -1788,8 +1788,8 @@
                             }
                         }
                     },
-                    "402": {
-                        "description": "Daily quota exceeded",
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -1797,8 +1797,8 @@
                             }
                         }
                     },
-                    "404": {
-                        "description": "Not Found",
+                    "429": {
+                        "description": "Daily quota exceeded",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {

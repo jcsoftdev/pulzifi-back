@@ -46,9 +46,9 @@ type Deps struct {
 	// PostsPerCheck is the number of posts fetched per check (SOCIAL_POSTS_PER_CHECK).
 	PostsPerCheck int
 
-	// ChecksPerDay is the plan-level daily limit; 0 = unlimited.
-	// For the HTTP manual-check trigger, pass 0 here — the run_check handler
-	// resolves the real limit via PlanLimits.GetChecksPerDay internally.
+	// ChecksPerDay is kept for compatibility but is unused by the HTTP manual-check
+	// path. handleRunCheck uses NewHandlerWithPlanLimits which resolves the real
+	// limit via PlanLimits.GetChecksPerDay at call time (REQ-QUOTA-CONSUME-01/02/03).
 	ChecksPerDay int
 }
 
@@ -295,7 +295,7 @@ func (m *Module) handleDeleteProfile(w http.ResponseWriter, r *http.Request) {
 // @Param id path string true "Profile ID"
 // @Success 200 {object} runcheck.Response
 // @Failure 400 {object} map[string]string
-// @Failure 402 {object} map[string]string "Daily quota exceeded"
+// @Failure 429 {object} map[string]string "Daily quota exceeded"
 // @Failure 404 {object} map[string]string
 // @Router /social-profiles/{id}/check [post]
 func (m *Module) handleRunCheck(w http.ResponseWriter, r *http.Request) {
@@ -311,7 +311,7 @@ func (m *Module) handleRunCheck(w http.ResponseWriter, r *http.Request) {
 	changeRepo := postgres.NewChangePostgresRepository(m.db, tenant)
 	quotaRepo := postgres.NewCheckQuotaPostgresRepository(m.db, tenant)
 
-	handler := runcheck.NewHandler(
+	handler := runcheck.NewHandlerWithPlanLimits(
 		profileRepo,
 		snapshotRepo,
 		changeRepo,
@@ -319,8 +319,8 @@ func (m *Module) handleRunCheck(w http.ResponseWriter, r *http.Request) {
 		m.fetcher,
 		m.mediaStore,
 		m.alertCreator,
+		m.planLimits,
 		m.postsPerCheck,
-		m.checksPerDay,
 	)
 
 	resp, err := handler.Handle(r.Context(), id)
@@ -493,7 +493,7 @@ func mapDomainError(w http.ResponseWriter, err error) {
 	case errors.Is(err, domainerrors.ErrProfileLimitReached):
 		sharedhttp.RespondError(w, http.StatusUnprocessableEntity, err.Error())
 	case errors.Is(err, domainerrors.ErrQuotaExceeded):
-		sharedhttp.RespondError(w, http.StatusPaymentRequired, "daily check quota exceeded")
+		sharedhttp.RespondError(w, http.StatusTooManyRequests, "daily check quota exceeded")
 	case errors.Is(err, domainerrors.ErrPlatformNotSupported):
 		sharedhttp.RespondError(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, domainerrors.ErrFetchFailed):
