@@ -203,6 +203,20 @@ type Config struct {
 	OllamaURL     string
 	OllamaModel   string
 	OllamaEnabled bool
+
+	// Social media monitoring (Apify-backed). Gated by SOCIAL_ENABLED.
+	// SocialEnabled gates module registration and the scheduler (same pattern as BillingEnabled).
+	SocialEnabled bool // SOCIAL_ENABLED — default false
+	// ApifyToken is the Apify API token used to authenticate actor run requests.
+	ApifyToken string // APIFY_TOKEN
+	// ApifyActorInstagram is the Apify actor ID for Instagram scraping (Phase 1).
+	ApifyActorInstagram string // APIFY_ACTOR_INSTAGRAM — default "apidojo~instagram-scraper"
+	// ApifyActorTikTok is the Apify actor ID for TikTok scraping (Phase 2).
+	ApifyActorTikTok string // APIFY_ACTOR_TIKTOK — phase 2, empty by default
+	// ApifyActorFacebook is the Apify actor ID for Facebook scraping (Phase 2).
+	ApifyActorFacebook string // APIFY_ACTOR_FACEBOOK — phase 2, empty by default
+	// SocialPostsPerCheck caps the number of posts fetched per check run for cost control.
+	SocialPostsPerCheck int // SOCIAL_POSTS_PER_CHECK — default 5
 }
 
 func Load() *Config {
@@ -345,6 +359,13 @@ func Load() *Config {
 		OllamaURL:     getEnv("OLLAMA_URL", ""),
 		OllamaModel:   getEnv("OLLAMA_MODEL", "qwen3:4b"),
 		OllamaEnabled: getEnvBool("OLLAMA_ENABLED", false),
+
+		SocialEnabled:       getEnvBool("SOCIAL_ENABLED", false),
+		ApifyToken:          getEnv("APIFY_TOKEN", ""),
+		ApifyActorInstagram: getEnv("APIFY_ACTOR_INSTAGRAM", "apidojo~instagram-scraper"),
+		ApifyActorTikTok:    getEnv("APIFY_ACTOR_TIKTOK", ""),
+		ApifyActorFacebook:  getEnv("APIFY_ACTOR_FACEBOOK", ""),
+		SocialPostsPerCheck: getEnvInt("SOCIAL_POSTS_PER_CHECK", 5),
 	}
 }
 
