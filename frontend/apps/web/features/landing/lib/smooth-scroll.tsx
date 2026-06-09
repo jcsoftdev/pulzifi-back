@@ -9,13 +9,15 @@ export function SmoothScroll() {
   useEffect(() => {
     if (typeof window === 'undefined') return
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    // Smooth scroll (Lenis) is desktop-only. On touch devices the RAF-driven
-    // scroll sync runs every frame and thrashes the mobile compositor; combined
-    // with the GPU layers from the blobs and scroll reveals it exhausts layer
-    // memory and paints the viewport black (iOS Safari / Android Chrome). Native
-    // scroll still drives ScrollTrigger, so the reveals keep working on mobile.
-    const coarsePointer = window.matchMedia('(pointer: coarse)').matches
-    if (reduced || coarsePointer) return
+    // Smooth scroll (Lenis) is desktop-only. On touch-primary devices the
+    // RAF-driven scroll sync runs every frame and thrashes the mobile compositor;
+    // combined with the GPU layers from the blobs and scroll reveals it exhausts
+    // layer memory and paints the viewport black (iOS Safari / Android Chrome).
+    // Native scroll still drives ScrollTrigger, so the reveals keep working.
+    // Uses (hover:none) AND (pointer:coarse) — standard touch-primary detection,
+    // matching the same query used in gsap.ts useParallaxBlob.
+    const isTouchPrimary = window.matchMedia('(hover: none) and (pointer: coarse)').matches
+    if (reduced || isTouchPrimary) return
 
     gsap.registerPlugin(ScrollTrigger)
 
