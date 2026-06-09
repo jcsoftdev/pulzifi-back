@@ -1,7 +1,9 @@
 // Package storage provides the MediaStore implementation for the social module.
 // It downloads CDN media URLs (which expire) and re-uploads them to the project's
-// configured object storage (MinIO or Cloudinary) via the same provider selection
-// as modules/snapshot/infrastructure/storage/provider.go.
+// configured object storage. The underlying storage backend is injected via the
+// ObjectUploader interface — the concrete implementation (MinIO or Cloudinary) is
+// constructed by cmd/wiring/social and passed in, keeping cross-module imports out
+// of the social module (REQ-WIRING-01).
 package storage
 
 import (
@@ -15,56 +17,33 @@ import (
 	"time"
 
 	"github.com/jcsoftdev/pulzifi-back/modules/social/domain/services"
-	snapshotcloudinary "github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/cloudinary"
-	snapshotminio "github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/minio"
-	"github.com/jcsoftdev/pulzifi-back/shared/config"
 )
 
 // Compile-time interface check.
 var _ services.MediaStore = (*MediaStore)(nil)
 
-// objectStorage is the subset of the snapshot ObjectStorage interface used here.
-// We only need Upload; the social module does not presign or delete via this path.
-type objectStorage interface {
+// ObjectUploader is a minimal abstraction over the object storage upload operation.
+// Implementors: modules/snapshot/infrastructure/minio.Client and
+// modules/snapshot/infrastructure/cloudinary.Client (injected from cmd/wiring/social).
+type ObjectUploader interface {
 	Upload(ctx context.Context, objectName string, reader io.Reader, size int64, contentType string) (string, error)
 }
 
-// MediaStore implements services.MediaStore over MinIO or Cloudinary.
+// MediaStore implements services.MediaStore over an injected ObjectUploader.
 type MediaStore struct {
-	storage    objectStorage
+	uploader   ObjectUploader
 	httpClient *http.Client
 }
 
-// NewMediaStore creates a MediaStore backed by the configured object storage provider.
-// Provider selection mirrors modules/snapshot/infrastructure/storage/provider.go:
-// "" | "minio" | "s3" → MinIO; "cloudinary" → Cloudinary.
-func NewMediaStore(cfg *config.Config) (*MediaStore, error) {
-	provider := strings.ToLower(strings.TrimSpace(cfg.ObjectStorageProvider))
-
-	var stor objectStorage
-	var err error
-
-	switch provider {
-	case "", "minio", "s3":
-		stor, err = snapshotminio.NewClient(cfg)
-		if err != nil {
-			return nil, fmt.Errorf("social media store: minio client: %w", err)
-		}
-	case "cloudinary":
-		stor, err = snapshotcloudinary.NewClient(cfg)
-		if err != nil {
-			return nil, fmt.Errorf("social media store: cloudinary client: %w", err)
-		}
-	default:
-		return nil, fmt.Errorf("social media store: unsupported provider %q", cfg.ObjectStorageProvider)
-	}
-
+// NewMediaStore creates a MediaStore backed by the given ObjectUploader.
+// The concrete uploader is created by cmd/wiring/social to avoid cross-module imports.
+func NewMediaStore(uploader ObjectUploader) *MediaStore {
 	return &MediaStore{
-		storage: stor,
+		uploader: uploader,
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
-	}, nil
+	}
 }
 
 // Store downloads the asset at sourceURL and uploads it to object storage
@@ -99,7 +78,7 @@ func (m *MediaStore) Store(ctx context.Context, sourceURL, key string) (string, 
 	}
 
 	// Upload to object storage.
-	storedURL, err := m.storage.Upload(ctx, key, bytes.NewReader(data), int64(len(data)), contentType)
+	storedURL, err := m.uploader.Upload(ctx, key, bytes.NewReader(data), int64(len(data)), contentType)
 	if err != nil {
 		return "", fmt.Errorf("social media store: upload %q: %w", key, err)
 	}
