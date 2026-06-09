@@ -99,6 +99,7 @@ func (m *Module) RegisterHTTPRoutes(r chi.Router) {
 		r.Post("/workspaces/{workspaceID}/social-profiles", m.handleCreateProfile)
 		r.Get("/workspaces/{workspaceID}/social-profiles", m.handleListProfiles)
 		r.Get("/workspaces/{workspaceID}/social-quota", m.handleGetQuotaStatus)
+		r.Get("/workspaces/{workspaceID}/social-changes", m.handleListWorkspaceChanges)
 
 		// Profile-scoped routes (REQ-HTTP-03 through REQ-HTTP-08)
 		r.Get("/social-profiles/{id}", m.handleGetProfile)
@@ -299,6 +300,39 @@ func (m *Module) handleListChanges(w http.ResponseWriter, r *http.Request) {
 	resp, err := handler.Handle(r.Context(), req)
 	if err != nil {
 		sharedhttp.RespondError(w, http.StatusInternalServerError, "failed to list changes")
+		return
+	}
+
+	sharedhttp.RespondJSON(w, http.StatusOK, resp)
+}
+
+// handleListWorkspaceChanges lists all social changes for a workspace (across all profiles).
+// GET /workspaces/{workspaceID}/social-changes
+// Satisfies: REQ-FE-05 — feeds the unified changes-view feed on the frontend.
+func (m *Module) handleListWorkspaceChanges(w http.ResponseWriter, r *http.Request) {
+	workspaceID, err := parsePathUUID(r, "workspaceID")
+	if err != nil {
+		sharedhttp.RespondError(w, http.StatusBadRequest, "invalid workspace id")
+		return
+	}
+
+	q := r.URL.Query()
+	limit := parseIntQuery(q.Get("limit"), 50)
+	offset := parseIntQuery(q.Get("offset"), 0)
+
+	req := &listchanges.Request{
+		WorkspaceID: &workspaceID,
+		Limit:       limit,
+		Offset:      offset,
+	}
+
+	tenant := middleware.GetTenantFromContext(r.Context())
+	changeRepo := postgres.NewChangePostgresRepository(m.db, tenant)
+
+	handler := listchanges.NewHandler(changeRepo)
+	resp, err := handler.Handle(r.Context(), req)
+	if err != nil {
+		sharedhttp.RespondError(w, http.StatusInternalServerError, "failed to list workspace social changes")
 		return
 	}
 
