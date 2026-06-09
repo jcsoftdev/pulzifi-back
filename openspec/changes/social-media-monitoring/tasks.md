@@ -85,15 +85,15 @@ All use cases in `modules/social/application/`. Each directory: `handler.go`, `r
 ## Batch 4: Infrastructure (parallel sub-tasks after Batch 2; sequential within each component)
 
 - [x] 4.1 Create `infrastructure/persistence/memory/` in-memory implementations for all three repos (profile, snapshot, change) + in-memory `CheckQuota`. Used by Batch 3 tests. Satisfies: test isolation requirement.
-- [ ] 4.2 Create `infrastructure/persistence/postgres/profile_repo.go` — tenant-aware (`tenant string` param, `middleware.GetSetSearchPathSQL`); all CRUD + `ListDue` (`FOR UPDATE SKIP LOCKED`). Satisfies: REQ-DB-01, REQ-SCHED-02.
-- [ ] 4.3 Create `infrastructure/persistence/postgres/snapshot_repo.go` — `Save`, `GetLatestByProfile`, `GetByID`. Satisfies: REQ-CHECK-05, REQ-FEED-03.
-- [ ] 4.4 Create `infrastructure/persistence/postgres/change_repo.go` — `Save`, `ListByProfile`, `ListByWorkspace` (paginated, desc order), `GetByID`. Satisfies: REQ-FEED-01, REQ-FEED-02.
-- [ ] 4.5 Create `infrastructure/persistence/postgres/check_quota_repo.go` — atomic upsert SQL (`ON CONFLICT DO UPDATE WHERE checks_used < $limit RETURNING checks_used`) + compensation decrement. Satisfies: REQ-QUOTA-CONSUME-01, REQ-QUOTA-CONSUME-04, REQ-QUOTA-CONSUME-05.
-- [ ] 4.6 Create `infrastructure/apify/client.go` — `POST /v2/acts/{actor}/run-sync-get-dataset-items?token=...` with `resultsLimit`, `context.WithTimeout` (90s), one retry on 5xx. Satisfies: REQ-CHECK-02, REQ-FAIL-01.
-- [ ] 4.7 Create `infrastructure/apify/instagram_mapper.go` — normalizes Apify actor JSON output → `ProfileData`. Satisfies: REQ-CHECK-02.
-- [ ] 4.8 Create `infrastructure/storage/media_store.go` — `MediaStore` impl over MinIO/Cloudinary (reuses `shared/config` `OBJECT_STORAGE_PROVIDER`). Downloads source URL, uploads under `social/{profileID}/{key}`. Satisfies: REQ-CHECK-03, D4.
-- [ ] 4.9 Create `infrastructure/scheduler/scheduler.go` — 30s poll, per-tenant due-profile query, bounded worker pool dispatching `run_check`; `ErrQuotaExceeded` → set `next_check_at` to next UTC midnight. Gated by `SOCIAL_ENABLED`. Satisfies: REQ-SCHED-01 through REQ-SCHED-06.
-- [ ] 4.10 Create `infrastructure/http/module.go` — `ModuleRegisterer` with all 9 routes; gated by `SOCIAL_ENABLED` (no routes registered when false). Satisfies: REQ-FLAG-01, REQ-HTTP-01 through REQ-HTTP-10.
+- [x] 4.2 Create `infrastructure/persistence/postgres/profile_repo.go` — tenant-aware (`tenant string` param, `middleware.GetSetSearchPathSQL`); all CRUD + `ListDue` (`FOR UPDATE SKIP LOCKED`). Satisfies: REQ-DB-01, REQ-SCHED-02.
+- [x] 4.3 Create `infrastructure/persistence/postgres/snapshot_repo.go` — `Save`, `GetLatestByProfile`, `GetByID`. Satisfies: REQ-CHECK-05, REQ-FEED-03.
+- [x] 4.4 Create `infrastructure/persistence/postgres/change_repo.go` — `Save`, `ListByProfile`, `ListByWorkspace` (paginated, desc order), `GetByID`. Satisfies: REQ-FEED-01, REQ-FEED-02.
+- [x] 4.5 Create `infrastructure/persistence/postgres/check_quota_repo.go` — atomic upsert SQL (`ON CONFLICT DO UPDATE WHERE checks_used < $limit RETURNING checks_used`) + compensation decrement. Satisfies: REQ-QUOTA-CONSUME-01, REQ-QUOTA-CONSUME-04, REQ-QUOTA-CONSUME-05.
+- [x] 4.6 Create `infrastructure/apify/client.go` — `POST /v2/acts/{actor}/run-sync-get-dataset-items?token=...` with `resultsLimit`, `context.WithTimeout` (90s), one retry on 5xx. Satisfies: REQ-CHECK-02, REQ-FAIL-01.
+- [x] 4.7 Create `infrastructure/apify/instagram_mapper.go` — normalizes Apify actor JSON output → `ProfileData`. Satisfies: REQ-CHECK-02.
+- [x] 4.8 Create `infrastructure/storage/media_store.go` — `MediaStore` impl over MinIO/Cloudinary (reuses `shared/config` `OBJECT_STORAGE_PROVIDER`). Downloads source URL, uploads under `social/{profileID}/{key}`. Satisfies: REQ-CHECK-03, D4.
+- [x] 4.9 Create `infrastructure/scheduler/scheduler.go` — 30s poll, per-tenant due-profile query, bounded worker pool dispatching `run_check`; `ErrQuotaExceeded` → set `next_check_at` to next UTC midnight. Gated by `SOCIAL_ENABLED`. Satisfies: REQ-SCHED-01 through REQ-SCHED-06.
+- [x] 4.10 Create `infrastructure/http/module.go` — `ModuleRegisterer` with all 9 routes; gated by `SOCIAL_ENABLED` (no routes registered when false). Satisfies: REQ-FLAG-01, REQ-HTTP-01 through REQ-HTTP-10.
 
 ---
 

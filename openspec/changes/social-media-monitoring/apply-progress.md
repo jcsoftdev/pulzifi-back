@@ -4,7 +4,7 @@
 - Batch 1: DB migrations + config
 - Batch 2: Domain Layer (complete)
 - Batch 3: Application Use Cases (complete)
-- Task 4.1: In-memory repository implementations (done as Batch 3 prerequisite)
+- Batch 4: Infrastructure (complete — postgres repos, Apify client+mapper, media store, scheduler, HTTP module)
 
 ## Tasks Done
 
@@ -186,7 +186,44 @@ New domain ports added:
 - `domain/repositories/mocks/profile_repository_mock.go` — added LastUpdatedProfile field
 
 ## Next Batch
-**Batch 4 (partial): Infrastructure — Postgres repos, Apify client, storage, scheduler, HTTP module**
+**Batch 5: Wiring + Server Registration**
 
-Tasks remaining: 4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 4.8, 4.9, 4.10
-Then: Batch 5 (wiring + server registration), Batch 6 (frontend), Batch 7 (quality gate)
+Tasks remaining: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6
+Then: Batch 7 (quality gate)
+
+### Batch 4 Tasks (all done)
+- [x] 4.1 — `infrastructure/persistence/memory/` — ProfileRepo, SnapshotRepo, ChangeRepo, CheckQuota (done in Batch 3)
+- [x] 4.2 — `infrastructure/persistence/postgres/profile_repo.go` — tenant-aware CRUD + ListDue (FOR UPDATE SKIP LOCKED)
+- [x] 4.3 — `infrastructure/persistence/postgres/snapshot_repo.go` — Save, GetLatestByProfile, GetByID; Data as JSONB
+- [x] 4.4 — `infrastructure/persistence/postgres/change_repo.go` — Save, List (profile+workspace filter), GetByID; change_types as TEXT[]
+- [x] 4.5 — `infrastructure/persistence/postgres/check_quota_repo.go` — atomic ON CONFLICT WHERE upsert + compensate + GetUsageForDate
+- [x] 4.6 — `infrastructure/apify/client.go` — SocialFetcher impl; 90s timeout; one retry on 5xx; per-platform adapter resolution
+- [x] 4.7 — `infrastructure/apify/instagram_mapper.go` — TDD RED→GREEN; 5 tests; maps actor JSON → ProfileData
+- [x] 4.8 — `infrastructure/storage/media_store.go` — MediaStore impl over MinIO/Cloudinary; download+reupload pattern
+- [x] 4.9 — `infrastructure/scheduler/scheduler.go` — 30s poll; ListDue; bounded pool (10); quota exhausted → push to next midnight; SOCIAL_ENABLED gate
+- [x] 4.10 — `infrastructure/http/module.go` — ModuleRegisterer; 9 routes; SOCIAL_ENABLED gate; domain error → HTTP status mapping
+
+### Batch 4 Files Created
+| File | Action |
+|------|--------|
+| `modules/social/infrastructure/persistence/postgres/profile_repo.go` | New — ProfilePostgresRepository (tenant-aware, database.WithTenant) |
+| `modules/social/infrastructure/persistence/postgres/snapshot_repo.go` | New — SnapshotPostgresRepository (JSONB data serialization) |
+| `modules/social/infrastructure/persistence/postgres/change_repo.go` | New — ChangePostgresRepository (pq.Array for TEXT[]) |
+| `modules/social/infrastructure/persistence/postgres/check_quota_repo.go` | New — CheckQuotaPostgresRepository (atomic upsert + compensate + GetUsageForDate) |
+| `modules/social/infrastructure/apify/client.go` | New — Apify SocialFetcher (90s timeout, one retry on 5xx) |
+| `modules/social/infrastructure/apify/instagram_mapper.go` | New — Instagram actor JSON → ProfileData |
+| `modules/social/infrastructure/apify/instagram_mapper_test.go` | New — 5 TDD tests (RED→GREEN) |
+| `modules/social/infrastructure/storage/media_store.go` | New — MediaStore over MinIO/Cloudinary |
+| `modules/social/infrastructure/scheduler/scheduler.go` | New — 30s poll scheduler; 10-worker pool; quota → midnight push |
+| `modules/social/infrastructure/http/module.go` | New — ModuleRegisterer with all 9 routes gated by SOCIAL_ENABLED |
+
+### Batch 4 Commits
+- `31d0e34` — `✨ feat(social): add postgres repos — profile, snapshot, change, check quota (tenant-aware)`
+- `53f2dfa` — `✨ feat(social): add Apify client + Instagram mapper (TDD RED→GREEN)`
+- `b41510e` — `✨ feat(social): add media store, scheduler, and HTTP module`
+
+### Batch 4 Verification
+- `go build ./...` — PASS (569 files)
+- `go test ./modules/social/...` — PASS (all packages + 5 new mapper tests)
+- `go test -race ./modules/social/...` — PASS (race detector clean)
+- `./tools/scripts/check-architecture.sh` — PASS (569 files scanned, 0 violations)
