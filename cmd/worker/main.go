@@ -11,6 +11,7 @@ import (
 
 	intwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/integration"
 	monitoringwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/monitoring"
+	socialwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/social"
 	workerjobs "github.com/jcsoftdev/pulzifi-back/cmd/worker/jobs"
 	emailproviders "github.com/jcsoftdev/pulzifi-back/modules/email/infrastructure/providers"
 	"github.com/jcsoftdev/pulzifi-back/modules/integration/domain/services"
@@ -26,6 +27,7 @@ import (
 	twilioprovider "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers/twilio"
 	deliveryworker "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/worker"
 	monitoring "github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/http"
+	socialscheduler "github.com/jcsoftdev/pulzifi-back/modules/social/infrastructure/scheduler"
 	"github.com/jcsoftdev/pulzifi-back/shared/cache"
 	"github.com/jcsoftdev/pulzifi-back/shared/config"
 	"github.com/jcsoftdev/pulzifi-back/shared/crypto"
@@ -76,6 +78,9 @@ func main() {
 
 	// Monitoring background processes
 	startMonitoringWithBus(db, cfg, emailProvider, bus)
+
+	// Social scheduler (REQ-SCHED-05) — gated by SOCIAL_ENABLED.
+	startSocialScheduler(db, cfg, bus)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -198,6 +203,16 @@ func buildProviderRegistry(db *sql.DB, cfg *config.Config, emailProvider *emailp
 		workerProviders = append(workerProviders, outlookprovider.New(cfg.MicrosoftClientID, cfg.MicrosoftClientSecret, cfg.IntegrationOAuthRedirectBase))
 	}
 	return intproviders.NewRegistry(workerProviders...)
+}
+
+// startSocialScheduler constructs the social scheduler and starts it in a
+// background goroutine. It is a no-op when SOCIAL_ENABLED=false (REQ-SCHED-05).
+func startSocialScheduler(db *sql.DB, cfg *config.Config, bus eventbus.MessageBus) {
+	handlerFactory := socialwiring.NewTenantHandlerFactory(db, bus, cfg)
+	sched := socialscheduler.NewScheduler(db, handlerFactory, cfg.SocialEnabled)
+	go sched.Start(context.Background())
+	logger.Info("Social scheduler started",
+		zap.Bool("social_enabled", cfg.SocialEnabled))
 }
 
 // buildDeliveryWorker wires the integration delivery worker from config.

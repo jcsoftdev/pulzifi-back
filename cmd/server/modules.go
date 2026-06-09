@@ -16,6 +16,7 @@ import (
 	intwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/integration"
 	monitoringwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/monitoring"
 	pagewiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/page"
+	socialwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/social"
 	teamwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/team"
 	alert "github.com/jcsoftdev/pulzifi-back/modules/alert/infrastructure/http"
 	"github.com/jcsoftdev/pulzifi-back/modules/auth/infrastructure/bff"
@@ -62,6 +63,8 @@ import (
 	page "github.com/jcsoftdev/pulzifi-back/modules/page/infrastructure/http"
 	report "github.com/jcsoftdev/pulzifi-back/modules/report/infrastructure/http"
 	snapshotextractor "github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/extractor"
+	socialhttp "github.com/jcsoftdev/pulzifi-back/modules/social/infrastructure/http"
+	socialscheduler "github.com/jcsoftdev/pulzifi-back/modules/social/infrastructure/scheduler"
 	team "github.com/jcsoftdev/pulzifi-back/modules/team/infrastructure/http"
 	trialstatus "github.com/jcsoftdev/pulzifi-back/modules/usage/application/trial_status"
 	usage "github.com/jcsoftdev/pulzifi-back/modules/usage/infrastructure/http"
@@ -191,6 +194,19 @@ func registerAllModulesInternal(
 		logger.Info("Billing module enabled", zap.String("module", "Billing"))
 	}
 
+	// ---------------------------------------------------------------------------
+	// Social module wiring (gated behind SOCIAL_ENABLED — REQ-FLAG-01, REQ-FLAG-02)
+	// ---------------------------------------------------------------------------
+	socialHandlerFactory := socialwiring.NewTenantHandlerFactory(db, eventBus, cfg)
+	socialMod := buildSocialModule(db, eventBus, cfg, socialHandlerFactory)
+	moduleInstances = append(moduleInstances, struct {
+		name   string
+		module router.ModuleRegisterer
+	}{"Social", socialMod})
+	if cfg.SocialEnabled {
+		logger.Info("Social module enabled", zap.String("module", "Social"))
+	}
+
 	logger.Info("Registering all modules", zap.Int("count", len(moduleInstances)))
 
 	for _, m := range moduleInstances {
@@ -203,6 +219,14 @@ func registerAllModulesInternal(
 				monModule.StartBackgroundProcesses()
 				logger.Info("Started background processes for Monitoring module")
 			}
+		}
+
+		// Special handling for Social module to start its scheduler when workers enabled
+		if m.name == "Social" && enableWorkers {
+			sched := socialscheduler.NewScheduler(db, socialHandlerFactory, cfg.SocialEnabled)
+			go sched.Start(context.Background())
+			logger.Info("Started social scheduler",
+				zap.Bool("social_enabled", cfg.SocialEnabled))
 		}
 	}
 
@@ -481,5 +505,43 @@ func buildBillingModule(db *sql.DB, cfg *config.Config) router.ModuleRegisterer 
 		CouponHandler:       couponHandler,
 		GiftHandler:         giftHandler,
 		CancelHandler:       cancelHandler,
+	})
+}
+
+// buildSocialModule wires the social module: Apify fetcher, media store, plan
+// limits, alert creator, and HTTP routes. Gated behind SOCIAL_ENABLED by the
+// module's RegisterHTTPRoutes (REQ-FLAG-01, REQ-FLAG-02, REQ-FLAG-03).
+func buildSocialModule(
+	db *sql.DB,
+	bus eventbus.MessageBus,
+	cfg *config.Config,
+	handlerFactory *socialwiring.TenantHandlerFactory,
+) router.ModuleRegisterer {
+	_ = handlerFactory // used by the scheduler; not needed for HTTP module construction
+
+	planLimits := socialwiring.NewPlanLimits(db)
+	orgLookup := socialwiring.NewOrgLookup(db)
+
+	// The HTTP manual-check trigger uses a context-aware alert creator because
+	// the tenant is in the request context, not fixed at construction time.
+	alertCreator := socialwiring.NewHTTPAlertCreator(bus, orgLookup)
+
+	// TenantHandlerFactory builds the fetcher and media store internally; reuse
+	// them for the HTTP module so we share the same singletons.
+	fetcher := handlerFactory.Fetcher()
+	mediaStore := handlerFactory.MediaStore()
+
+	// The HTTP module's manual-check trigger passes checksPerDay=0 (unlimited at
+	// construction); the quota repo enforces the real limit at consume time via the
+	// atomic ON CONFLICT WHERE guard in the postgres CheckQuota implementation.
+	return socialhttp.NewModule(socialhttp.Deps{
+		DB:            db,
+		AlertCreator:  alertCreator,
+		PlanLimits:    planLimits,
+		Fetcher:       fetcher,
+		MediaStore:    mediaStore,
+		Enabled:       cfg.SocialEnabled,
+		PostsPerCheck: cfg.SocialPostsPerCheck,
+		ChecksPerDay:  0,
 	})
 }
