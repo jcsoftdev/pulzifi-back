@@ -69,6 +69,33 @@ func TestGetQuotaStatusHandler(t *testing.T) {
 		}
 	})
 
+	t.Run("disabled plan (-1) — returns limit=0, used=0 (not unlimited)", func(t *testing.T) {
+		plan := &svcmocks.MockPlanLimits{
+			GetChecksPerDayResult: -1, // -1 = feature disabled
+			GetChecksUsedResult:   3,  // should be overridden to 0
+		}
+		h := getquotastatus.NewHandler(plan)
+
+		resp, err := h.Handle(context.Background(), workspaceID)
+
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if resp == nil {
+			t.Fatal("expected non-nil response")
+		}
+		// Disabled plan must NOT appear as unlimited (nil limit).
+		if resp.ChecksLimit == nil {
+			t.Fatal("checks_limit must be non-nil for disabled plan (should be 0, not unlimited)")
+		}
+		if *resp.ChecksLimit != 0 {
+			t.Errorf("checks_limit: want 0 for disabled plan, got %d", *resp.ChecksLimit)
+		}
+		if resp.ChecksUsed != 0 {
+			t.Errorf("checks_used: want 0 for disabled plan, got %d", resp.ChecksUsed)
+		}
+	})
+
 	t.Run("read-only — does not modify quota", func(t *testing.T) {
 		plan := &svcmocks.MockPlanLimits{
 			GetChecksPerDayResult: 120,

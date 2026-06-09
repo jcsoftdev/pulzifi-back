@@ -40,10 +40,18 @@ func (h *Handler) Handle(ctx context.Context, workspaceID uuid.UUID) (*Response,
 		ResetsAt:   nextUTCMidnight(),
 	}
 
-	// 0 = unlimited → nil in response (REQ-QUOTA-PLAN-02, REQ-QUOTA-STATUS-02)
-	if checksPerDay > 0 {
+	switch {
+	case checksPerDay == -1:
+		// Feature disabled for this plan — report 0 limit, 0 remaining.
+		// Do NOT present as unlimited (REQ-QUOTA-PLAN-03, REQ-QUOTA-STATUS-02).
+		zero := 0
+		resp.ChecksLimit = &zero
+		resp.ChecksUsed = 0
+	case checksPerDay > 0:
+		// Finite daily limit (REQ-QUOTA-PLAN-02, REQ-QUOTA-STATUS-02).
 		limit := checksPerDay
 		resp.ChecksLimit = &limit
+	// checksPerDay == 0: unlimited → ChecksLimit stays nil (REQ-QUOTA-PLAN-02).
 	}
 
 	return resp, nil
