@@ -26,6 +26,17 @@ const nextConfig = {
     turbopackServerFastRefresh: true,
   },
 
+  async redirects() {
+    return [
+      // Slug normalized to lowercase kebab-case (2026-06-09); old URL may be indexed
+      {
+        source: '/blog/What-is-competitive-intelligence',
+        destination: '/blog/what-is-competitive-intelligence',
+        permanent: true,
+      },
+    ]
+  },
+
   async headers() {
     const securityHeaders = [
       { key: 'X-Content-Type-Options', value: 'nosniff' },
