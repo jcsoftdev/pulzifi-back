@@ -9,7 +9,13 @@ export function SmoothScroll() {
   useEffect(() => {
     if (typeof window === 'undefined') return
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    if (reduced) return
+    // Smooth scroll (Lenis) is desktop-only. On touch devices the RAF-driven
+    // scroll sync runs every frame and thrashes the mobile compositor; combined
+    // with the GPU layers from the blobs and scroll reveals it exhausts layer
+    // memory and paints the viewport black (iOS Safari / Android Chrome). Native
+    // scroll still drives ScrollTrigger, so the reveals keep working on mobile.
+    const coarsePointer = window.matchMedia('(pointer: coarse)').matches
+    if (reduced || coarsePointer) return
 
     gsap.registerPlugin(ScrollTrigger)
 

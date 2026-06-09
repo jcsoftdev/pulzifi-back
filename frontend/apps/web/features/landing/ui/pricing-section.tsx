@@ -171,23 +171,27 @@ export function PricingSection({
         ))}
       </div>
 
-      {/* Desktop: slider */}
-      <Swiper
-        modules={[Pagination, A11y]}
-        className="mt-14 hidden w-full !overflow-visible !pb-12 md:block"
-        style={swiperVars}
-        slidesPerView="auto"
-        spaceBetween={24}
-        centerInsufficientSlides
-        grabCursor
-        pagination={{ clickable: true }}
-      >
-        {items.map((plan) => (
-          <SwiperSlide key={plan.name} className="!h-auto !w-[300px] sm:!w-[340px]">
-            <div className="h-full pt-2">{renderCard(plan)}</div>
-          </SwiperSlide>
-        ))}
-      </Swiper>
+      {/* Desktop: slider. The hidden/show toggle lives on a plain wrapper div —
+          putting it on the Swiper root lets Swiper's own .swiper CSS win the
+          cascade and the slider leaks onto mobile. */}
+      <div className="mt-14 hidden md:block">
+        <Swiper
+          modules={[Pagination, A11y]}
+          className="w-full !overflow-visible !pb-12"
+          style={swiperVars}
+          slidesPerView="auto"
+          spaceBetween={24}
+          centerInsufficientSlides
+          grabCursor
+          pagination={{ clickable: true }}
+        >
+          {items.map((plan) => (
+            <SwiperSlide key={plan.name} className="!h-auto !w-[300px] sm:!w-[340px]">
+              <div className="h-full pt-2">{renderCard(plan)}</div>
+            </SwiperSlide>
+          ))}
+        </Swiper>
+      </div>
 
       {guaranteeNote && (
         <p className="mt-10 text-center text-sm leading-5 text-[var(--pz-ink-2)]">
@@ -195,9 +199,9 @@ export function PricingSection({
         </p>
       )}
 
-      {/* Feature comparison table */}
+      {/* Feature comparison table — desktop only; mobile uses the stacked cards above */}
       {tableColumns.length > 0 && (
-        <div className="mt-16">
+        <div className="mt-16 hidden md:block">
           <h3 className="mb-8 text-center text-2xl font-bold tracking-tight text-[var(--pz-ink)]">
             {comparePlansHeadline ?? 'Compare plans'}
           </h3>

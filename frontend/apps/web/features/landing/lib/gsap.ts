@@ -374,6 +374,12 @@ export function useHeadlineReveal<T extends HTMLElement = HTMLHeadingElement>(op
         ease: 'power4.out',
         stagger,
         delay,
+        // Release the GPU layers once the words have landed. Leaving
+        // will-change:transform on every word keeps dozens of promoted layers
+        // alive — a needless drain on mobile compositor memory.
+        onComplete: () => {
+          for (const inner of inners) inner.style.willChange = 'auto'
+        },
       })
 
       const swoosh = el.querySelector<SVGPathElement>('[data-pz-swoosh] path')
