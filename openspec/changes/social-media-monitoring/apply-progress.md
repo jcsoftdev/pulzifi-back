@@ -185,11 +185,80 @@ New domain ports added:
 - `domain/services/mocks/alert_creator_mock.go` — hand-rolled mock
 - `domain/repositories/mocks/profile_repository_mock.go` — added LastUpdatedProfile field
 
-## Next Batch
-**Batch 5: Wiring + Server Registration**
+## Batch 5 Tasks (all done)
+- [x] 5.1 — `cmd/wiring/social/alert_creator.go` — AlertCreator via event bus (scheduler: fixed-tenant; HTTP: context-aware)
+- [x] 5.2 — `cmd/wiring/social/plan_lookup.go` — PlanLimits + orgLookup via raw SQL on public.plans + public.organization_plans
+- [x] 5.3 — `cmd/wiring/social/tenant_repo_factory.go` — TenantHandlerFactory (singleton fetcher+mediaStore; noopMediaStore fallback)
+- [x] 5.4 — `cmd/server/modules.go` — social module registered; scheduler started when ENABLE_WORKERS=true
+- [x] 5.5 — `cmd/worker/main.go` — startSocialScheduler function
+- [x] 5.6 — `./tools/scripts/check-architecture.sh` — PASS (577 files, 0 violations)
 
-Tasks remaining: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6
-Then: Batch 7 (quality gate)
+### Batch 5 Files Created/Modified
+| File | Action |
+|------|--------|
+| `cmd/wiring/social/alert_creator.go` | New — AlertCreator adapter (event bus publish, not DB) |
+| `cmd/wiring/social/plan_lookup.go` | New — PlanLimits + orgLookup + GetChecksPerDayByTenant helper |
+| `cmd/wiring/social/tenant_repo_factory.go` | New — TenantHandlerFactory + TenantRepoFactory + noopMediaStore |
+| `cmd/server/modules.go` | Modified — social module registration + scheduler start |
+| `cmd/worker/main.go` | Modified — startSocialScheduler function |
+
+### Batch 5 Key Decisions
+- AlertCreator uses event bus (TopicAlertCreated) NOT alerts DB table — existing alerts table has NOT NULL FK to checks/pages, incompatible with social alerts
+- PlanLimits reads tenant from request context (not workspace_id FK) — workspaces table is tenant-scoped, no org_id in public schema
+- GetChecksPerDayByTenant standalone helper for scheduler path (no request context available)
+- TenantHandlerFactory singletons reused by HTTP module via Fetcher() + MediaStore() accessors
+
+### Batch 5 Verification
+- `go build ./...` — PASS
+- `go test ./...` — PASS (200+ tests)
+- `./tools/scripts/check-architecture.sh` — PASS (577 files, 0 violations)
+
+### Batch 5 Commits
+- `948a248` — `feat(social): add wiring adapters and register social module + scheduler`
+- `1310fe0` — `feat(social): add GET /workspaces/{id}/social-changes route`
+
+## Batch 6 (Frontend) Tasks — merged from apply-progress-frontend.md
+- [x] 6.1 — `packages/services/src/social-api.ts` — 13th service; all 9 API endpoints
+- [x] 6.2 — `features/social/domain/types.ts` — re-exports + UI constants
+- [x] 6.3 — `features/social/application/` — hooks: useSocialProfiles, useSocialChanges, useSocialQuota, useSocialProfileDetail
+- [x] 6.4 — `features/social/ui/platform-icon.tsx` — IG/TikTok/FB SVG icons
+- [x] 6.5 — `features/social/ui/social-quota-badge.tsx` — quota display
+- [x] 6.6 — `features/social/ui/social-profile-card.tsx` + `social-profile-grid.tsx`
+- [x] 6.7 — `features/social/ui/add-social-profile-dialog.tsx`
+- [x] 6.8 — Modified workspace detail — Pages | Social tab split
+- [x] 6.9 — `features/social/ui/changes/social-change-card.tsx`
+- [x] 6.10 — `features/social/ui/changes/social-change-timeline.tsx`
+- [x] 6.11 — Modified changes view — SocialChangesSection with platform icon + Social badge; SocialChangeCard on click
+- [x] 6.12 — `app/(app)/(main)/workspaces/[id]/social/[profileId]/page.tsx`
+
+### Batch 6 Additional Files (6.11)
+| File | Action |
+|------|--------|
+| `frontend/packages/services/src/social-api.ts` | Modified — added listWorkspaceChanges method |
+| `frontend/apps/web/features/social/application/use-social-workspace-changes.ts` | New — workspace-scoped changes hook |
+| `frontend/apps/web/features/social/ui/changes/social-changes-section.tsx` | New — unified feed panel with platform icon + Social badge |
+| `frontend/apps/web/app/(app)/(main)/workspaces/[id]/pages/[pageId]/changes/page.tsx` | Modified — mounts SocialChangesSection |
+| `modules/social/infrastructure/http/module.go` | Modified — added handleListWorkspaceChanges route |
+
+### Batch 6 Frontend Commits (from apply-progress-frontend.md)
+- `410170e` — `✨ feat(services): add SocialApi — 13th service with all 9 social endpoints`
+- `a017e48` — `✨ feat(social): add feature slice — domain, hooks, and UI components`
+- `2238dd6` — `✨ feat(social): integrate Social tab into workspace detail and add profile detail route`
+- `8891b29` — `feat(social): integrate social changes into changes-view feed (REQ-FE-05, REQ-FE-06)`
+
+### Batch 6 Verification
+- `bun run type-check` — PASS (0 errors)
+- `bun run lint:fix` — 2 warnings (`<img>` element, acceptable — same pattern in other features)
+
+## Next Steps
+**Batch 7: Quality Gate** — all tasks remaining:
+- 7.1 `go test -race ./modules/social/...` (likely already passes)
+- 7.2 `go test -race ./cmd/wiring/social/...`
+- 7.3 `make check-arch`
+- 7.4 `bun run type-check` (done ✓)
+- 7.5 `bun run lint:fix` (done ✓)
+- 7.6 `make swagger`
+- 7.7 coverage gate
 
 ### Batch 4 Tasks (all done)
 - [x] 4.1 — `infrastructure/persistence/memory/` — ProfileRepo, SnapshotRepo, ChangeRepo, CheckQuota (done in Batch 3)

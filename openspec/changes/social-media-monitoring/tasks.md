@@ -99,12 +99,12 @@ All use cases in `modules/social/application/`. Each directory: `handler.go`, `r
 
 ## Batch 5: Wiring + Registration (sequential; after Batches 3–4)
 
-- [ ] 5.1 Create `cmd/wiring/social/alert_creator.go` — implements `social.AlertCreator` port via alert module (mirrors `cmd/wiring/snapshot` pattern). Satisfies: REQ-WIRING-02, REQ-CHECK-07, REQ-FAIL-05.
-- [ ] 5.2 Create `cmd/wiring/social/plan_lookup.go` — implements `social.PlanLimits` (`GetProfilesLimit`, `GetChecksPerDay`) via raw SQL on `public.plans` + `public.organization_plans`. Satisfies: REQ-WIRING-03, REQ-QUOTA-PLAN-01 through REQ-QUOTA-PLAN-03.
-- [ ] 5.3 Create `cmd/wiring/social/tenant_repo_factory.go` — per-tenant repo factory for the worker scheduler (mirrors `cmd/wiring/integration` pattern). Satisfies: REQ-WIRING-04.
-- [ ] 5.4 Register social module in `cmd/server/modules.go` gated by `SOCIAL_ENABLED` (mirrors `BILLING_ENABLED` pattern). Satisfies: REQ-FLAG-01, REQ-FLAG-02.
-- [ ] 5.5 Register social scheduler in `cmd/worker/` and in the monolith when `ENABLE_WORKERS=true`. Satisfies: REQ-SCHED-05.
-- [ ] 5.6 Run `./tools/scripts/check-architecture.sh` — verify no cross-module imports from `modules/social/`. Satisfies: REQ-WIRING-01, REQ-WIRING-05.
+- [x] 5.1 Create `cmd/wiring/social/alert_creator.go` — implements `social.AlertCreator` port via alert module (mirrors `cmd/wiring/snapshot` pattern). Satisfies: REQ-WIRING-02, REQ-CHECK-07, REQ-FAIL-05.
+- [x] 5.2 Create `cmd/wiring/social/plan_lookup.go` — implements `social.PlanLimits` (`GetProfilesLimit`, `GetChecksPerDay`) via raw SQL on `public.plans` + `public.organization_plans`. Satisfies: REQ-WIRING-03, REQ-QUOTA-PLAN-01 through REQ-QUOTA-PLAN-03.
+- [x] 5.3 Create `cmd/wiring/social/tenant_repo_factory.go` — per-tenant repo factory for the worker scheduler (mirrors `cmd/wiring/integration` pattern). Satisfies: REQ-WIRING-04.
+- [x] 5.4 Register social module in `cmd/server/modules.go` gated by `SOCIAL_ENABLED` (mirrors `BILLING_ENABLED` pattern). Satisfies: REQ-FLAG-01, REQ-FLAG-02.
+- [x] 5.5 Register social scheduler in `cmd/worker/` and in the monolith when `ENABLE_WORKERS=true`. Satisfies: REQ-SCHED-05.
+- [x] 5.6 Run `./tools/scripts/check-architecture.sh` — verify no cross-module imports from `modules/social/`. Satisfies: REQ-WIRING-01, REQ-WIRING-05.
 
 ---
 
@@ -120,7 +120,7 @@ All use cases in `modules/social/application/`. Each directory: `handler.go`, `r
 - [ ] 6.8 Modify workspace detail page (`(main)/workspaces/[id]/page.tsx`) — add `Pages | Social` tab split; Pages tab content UNTOUCHED; Social tab renders grid + quota badge + add button. Satisfies: REQ-FE-01, REQ-FE-02, REQ-FE-08.
 - [ ] 6.9 Create `features/social/ui/changes/social-change-card.tsx` — per-`change_type` renderer: `new_post` (thumb + caption + date), `bio_changed` (inline diff), `followers_changed` (delta badge), others (summary string). Satisfies: REQ-FE-07.
 - [ ] 6.10 Create `features/social/ui/changes/social-change-timeline.tsx`. Satisfies: REQ-FE-06, REQ-FE-10.
-- [ ] 6.11 Modify changes view (existing) — render `SocialChange` items in the same feed with platform icon + `Social` badge; clicking opens `social-change-card` instead of screenshot slider. Satisfies: REQ-FE-05, REQ-FE-06.
+- [x] 6.11 Modify changes view (existing) — render `SocialChange` items in the same feed with platform icon + `Social` badge; clicking opens `social-change-card` instead of screenshot slider. Satisfies: REQ-FE-05, REQ-FE-06.
 - [ ] 6.12 Create profile detail route `(main)/workspaces/[id]/social/[profileId]/page.tsx` — header (avatar, handle, platform badge, followers), latest posts grid, change timeline. Satisfies: REQ-FE-10.
 
 ---
