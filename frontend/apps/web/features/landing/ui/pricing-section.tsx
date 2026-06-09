@@ -1,6 +1,6 @@
 'use client'
 
-import { type CSSProperties, useState } from 'react'
+import { type CSSProperties, useEffect, useState } from 'react'
 import 'swiper/css'
 import 'swiper/css/pagination'
 import { A11y, Pagination } from 'swiper/modules'
@@ -10,6 +10,23 @@ import { Highlight } from './components/highlight'
 import { PricingCard } from './components/pricing-card'
 import { PricingComparisonTable } from './components/pricing-comparison-table'
 import { SectionFrame } from './components/section-frame'
+
+/**
+ * Returns true only after mount AND when the viewport is ≥ 768px (md breakpoint).
+ * Initialises to false so the server render and the first client paint agree —
+ * prevents hydration mismatches while keeping mobile stacked cards SSR-rendered.
+ */
+function useIsMdOrAbove(): boolean {
+  const [isMd, setIsMd] = useState(false)
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)')
+    setIsMd(mq.matches)
+    const handler = (e: MediaQueryListEvent) => setIsMd(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
+  return isMd
+}
 
 type PricingFeature = {
   text?: string
@@ -60,6 +77,7 @@ export function PricingSection({
 }: Readonly<PricingSectionProps> = {}) {
   const items = plans ?? []
   const [cycle, setCycle] = useState<'monthly' | 'annual'>('monthly')
+  const isMd = useIsMdOrAbove()
 
   const hasAnnual = items.some((p) => p.priceAnnual)
 
@@ -171,27 +189,29 @@ export function PricingSection({
         ))}
       </div>
 
-      {/* Desktop: slider. The hidden/show toggle lives on a plain wrapper div —
-          putting it on the Swiper root lets Swiper's own .swiper CSS win the
-          cascade and the slider leaks onto mobile. */}
-      <div className="mt-14 hidden md:block">
-        <Swiper
-          modules={[Pagination, A11y]}
-          className="w-full !overflow-visible !pb-12"
-          style={swiperVars}
-          slidesPerView="auto"
-          spaceBetween={24}
-          centerInsufficientSlides
-          grabCursor
-          pagination={{ clickable: true }}
-        >
-          {items.map((plan) => (
-            <SwiperSlide key={plan.name} className="!h-auto !w-[300px] sm:!w-[340px]">
-              <div className="h-full pt-2">{renderCard(plan)}</div>
-            </SwiperSlide>
-          ))}
-        </Swiper>
-      </div>
+      {/* Desktop: slider. Swiper is only rendered after mount + md breakpoint match
+          to prevent Swiper JS from initialising on mobile (GPU layer / layout cost).
+          The mobile stacked cards above are SSR-rendered and keep showing on mobile. */}
+      {isMd && (
+        <div className="mt-14">
+          <Swiper
+            modules={[Pagination, A11y]}
+            className="w-full !overflow-visible !pb-12"
+            style={swiperVars}
+            slidesPerView="auto"
+            spaceBetween={24}
+            centerInsufficientSlides
+            grabCursor
+            pagination={{ clickable: true }}
+          >
+            {items.map((plan) => (
+              <SwiperSlide key={plan.name} className="!h-auto !w-[300px] sm:!w-[340px]">
+                <div className="h-full pt-2">{renderCard(plan)}</div>
+              </SwiperSlide>
+            ))}
+          </Swiper>
+        </div>
+      )}
 
       {guaranteeNote && (
         <p className="mt-10 text-center text-sm leading-5 text-[var(--pz-ink-2)]">
@@ -199,9 +219,11 @@ export function PricingSection({
         </p>
       )}
 
-      {/* Feature comparison table — desktop only; mobile uses the stacked cards above */}
-      {tableColumns.length > 0 && (
-        <div className="mt-16 hidden md:block">
+      {/* Feature comparison table — desktop only; mobile uses the stacked cards above.
+          Rendered only after mount + md match so the table DOM is never in the mobile
+          document (avoids the hidden-but-present layout cost). */}
+      {isMd && tableColumns.length > 0 && (
+        <div className="mt-16">
           <h3 className="mb-8 text-center text-2xl font-bold tracking-tight text-[var(--pz-ink)]">
             {comparePlansHeadline ?? 'Compare plans'}
           </h3>
