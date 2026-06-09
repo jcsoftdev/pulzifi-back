@@ -244,18 +244,9 @@ export default async function HomePage() {
     })
     .filter((item) => item.question && item.answer)
 
-  // Entity graph for SEO: Organization is the root node referenced by blog
-  // posts (publisher) and WebSite (publisher). Logo + sameAs come from CMS.
+  // Organization + WebSite JSON-LD are emitted by layout.tsx (shared across all
+  // pages).  Only page-specific structured data is added here.
   const baseUrl = process.env.NEXT_PUBLIC_APP_BASE_URL || 'https://pulzifi.com'
-  const orgLogoRaw = footerLogoUrl || navLogoUrl
-  const orgLogo = orgLogoRaw
-    ? orgLogoRaw.startsWith('http')
-      ? orgLogoRaw
-      : `${baseUrl}${orgLogoRaw}`
-    : undefined
-  const sameAs = (footerSocialLinks ?? [])
-    .map((s) => s.href)
-    .filter((href): href is string => Boolean(href) && href.startsWith('http'))
 
   return (
     <div className="min-h-screen bg-[var(--pz-page-bg)]">
@@ -282,31 +273,19 @@ export default async function HomePage() {
         logoUrl={footerLogoUrl}
       />
 
-      <JsonLd
-        data={{
-          '@context': 'https://schema.org',
-          '@type': 'Organization',
-          '@id': `${baseUrl}/#organization`,
-          name: 'Pulzifi',
-          url: baseUrl,
-          description:
-            'Web change monitor and competitive intelligence platform. Pulzifi tracks competitor websites for pricing, copy, and visual changes and turns each one into an AI strategic insight.',
-          ...(orgLogo ? { logo: orgLogo } : {}),
-          ...(sameAs.length ? { sameAs } : {}),
-        }}
-      />
-      <JsonLd
-        data={{
-          '@context': 'https://schema.org',
-          '@type': 'WebSite',
-          '@id': `${baseUrl}/#website`,
-          name: 'Pulzifi',
-          url: baseUrl,
-          description:
-            'Web change monitor and competitive intelligence — track any competitor site 24/7 and get AI insights on every change.',
-          publisher: { '@id': `${baseUrl}/#organization` },
-        }}
-      />
+      {/*
+       * Organization (#organization) and WebSite (#website) JSON-LD nodes are
+       * emitted once by app/(app)/layout.tsx (hardcoded, static) and are shared
+       * across ALL pages including this home page and blog posts.  Emitting them
+       * here again would produce duplicate @id nodes in the home-page graph.
+       *
+       * CMS-sourced logo / sameAs: the layout uses /icon.png (matches what
+       * blog/[slug]/page.tsx already hardcodes for the BlogPosting publisher).
+       * The CMS media URL (footerLogoUrl / navLogoUrl) is intentionally not
+       * merged here to keep the entity graph consistent across pages.
+       */}
+      {/* SoftwareApplication: no hardcoded offers — pricing/page.tsx emits
+          CMS-sourced Product+Offer structured data that stays in sync. */}
       <JsonLd
         data={{
           '@context': 'https://schema.org',
@@ -318,22 +297,6 @@ export default async function HomePage() {
           operatingSystem: 'Web',
           description:
             'AI-powered competitive intelligence platform that monitors websites for changes and delivers strategic insights.',
-          offers: [
-            {
-              '@type': 'Offer',
-              name: 'Starter Plan',
-              price: '20',
-              priceCurrency: 'USD',
-              priceValidUntil: '2027-12-31',
-            },
-            {
-              '@type': 'Offer',
-              name: 'Professional Plan',
-              price: '62',
-              priceCurrency: 'USD',
-              priceValidUntil: '2027-12-31',
-            },
-          ],
         }}
       />
       {faqItems.length > 0 && (
