@@ -232,27 +232,44 @@ func (r *ProfilePostgresRepository) CountActiveByWorkspace(ctx context.Context, 
 	return count, nil
 }
 
-// ListDue returns active profiles whose next_check_at is at or before now,
-// using FOR UPDATE SKIP LOCKED to prevent duplicate processing across instances.
+// claimWindow is how far into the future next_check_at is pushed during the
+// atomic claim step. This prevents a second worker from re-selecting the same
+// row before run_check sets the real next_check_at on completion (REQ-SCHED-02).
+const claimWindow = 10 * time.Minute
+
+// ListDue atomically claims and returns active profiles whose next_check_at is
+// at or before now. The claim is implemented via a single UPDATE … WHERE id IN
+// (SELECT … FOR UPDATE SKIP LOCKED) RETURNING statement so that the row lock,
+// the next_check_at bump, and the row read happen in one implicit transaction —
+// no separate BEGIN/COMMIT is needed. This ensures cross-instance safety even
+// with multiple concurrent worker processes (REQ-SCHED-02).
 func (r *ProfilePostgresRepository) ListDue(ctx context.Context, now time.Time, limit int) ([]*entities.SocialProfile, error) {
 	qTenant := pq.QuoteIdentifier(r.tenant)
 
-	q := fmt.Sprintf(`
-		SELECT id, workspace_id, platform, handle, display_name, avatar_url,
-		       is_active, check_interval_minutes, next_check_at, last_checked_at,
-		       consecutive_failures, created_at, updated_at
-		FROM %s.social_profiles
-		WHERE is_active = TRUE
-		  AND next_check_at IS NOT NULL
-		  AND next_check_at <= $1
-		ORDER BY next_check_at ASC
-		LIMIT $2
-		FOR UPDATE SKIP LOCKED`, qTenant)
+	// next_check_at is advanced by claimWindow so that concurrent workers using
+	// SKIP LOCKED will skip these rows until run_check sets the real value.
+	provisional := now.Add(claimWindow)
 
-	// ListDue uses a raw QueryContext (not WithTenant) because FOR UPDATE SKIP LOCKED
-	// must stay open across the caller's usage; the lock is released by the caller's
-	// own transaction or when the rows are closed.
-	rows, err := r.db.QueryContext(ctx, q, now, limit)
+	q := fmt.Sprintf(`
+		UPDATE %s.social_profiles
+		SET    next_check_at = $3,
+		       updated_at    = $1
+		WHERE  id IN (
+		    SELECT id
+		    FROM   %s.social_profiles
+		    WHERE  is_active      = TRUE
+		      AND  next_check_at IS NOT NULL
+		      AND  next_check_at <= $1
+		    ORDER BY next_check_at ASC
+		    LIMIT  $2
+		    FOR UPDATE SKIP LOCKED
+		)
+		RETURNING id, workspace_id, platform, handle, display_name, avatar_url,
+		          is_active, check_interval_minutes, next_check_at, last_checked_at,
+		          consecutive_failures, created_at, updated_at`,
+		qTenant, qTenant)
+
+	rows, err := r.db.QueryContext(ctx, q, now, limit, provisional)
 	if err != nil {
 		return nil, fmt.Errorf("profile repo: list due: %w", err)
 	}
