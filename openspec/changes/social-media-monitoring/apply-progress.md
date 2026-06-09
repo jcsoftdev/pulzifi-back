@@ -251,14 +251,32 @@ New domain ports added:
 - `bun run lint:fix` — 2 warnings (`<img>` element, acceptable — same pattern in other features)
 
 ## Next Steps
-**Batch 7: Quality Gate** — all tasks remaining:
-- 7.1 `go test -race ./modules/social/...` (likely already passes)
-- 7.2 `go test -race ./cmd/wiring/social/...`
-- 7.3 `make check-arch`
-- 7.4 `bun run type-check` (done ✓)
-- 7.5 `bun run lint:fix` (done ✓)
-- 7.6 `make swagger`
-- 7.7 coverage gate
+All batches complete. Ready for sdd-verify.
+
+## Batch 7: Quality Gate (COMPLETE)
+- [x] 7.1 — `go test -race ./modules/social/...` — PASS (all packages, race-clean)
+- [x] 7.2 — `go test -race ./cmd/wiring/social/...` — PASS (no test files, consistent with other wiring packages)
+- [x] 7.3 — `make check-arch` — PASS (580 files, 0 violations)
+- [x] 7.4 — `bun run type-check` — PASS (0 errors, FULL TURBO cache hit)
+- [x] 7.5 — `bun run lint:fix` — PASS (2 warnings: noImgElement — acceptable, same pattern as page/changes-view/landing features)
+- [x] 7.6 — `make swagger` — PASS (10 handler annotations added; all 7 social route paths appear in docs/swagger.json)
+- [x] 7.7 — coverage gate — PASS (29.0% >= 15% floor)
+
+### Lint Fixes Applied (golangci-lint 4 issues → 0)
+| Issue | File | Fix |
+|-------|------|-----|
+| gocritic: ifElseChain | `infrastructure/persistence/postgres/change_repo.go` | Rewrote if-else to switch statement |
+| gocyclo: complexity 17 > 15 | `domain/services/differ.go` | Extracted `diffScalarFields`, `diffPosts`, `indexPostsByID` helpers |
+| staticcheck: SA9003 empty branch | `application/run_check/handler_test.go` | Replaced empty branch with proper `t.Errorf` assertion |
+| unused: workspaceIDFromUUID | `application/create_profile/handler.go` | Removed unused function + uuid import |
+
+### Swagger Annotations Added
+All 10 handlers in `modules/social/infrastructure/http/module.go` annotated with:
+`@Summary`, `@Description`, `@Tags social`, `@Security BearerAuth`, `@Accept/@Produce json`, `@Param`, `@Success`, `@Failure`, `@Router`
+
+### Batch 7 Commits
+- `d5b8db0` — `fix(social): fix golangci-lint issues in social module`
+- `b091c6a` — `feat(social): add swagger annotations to social HTTP module and regenerate docs`
 
 ### Batch 4 Tasks (all done)
 - [x] 4.1 — `infrastructure/persistence/memory/` — ProfileRepo, SnapshotRepo, ChangeRepo, CheckQuota (done in Batch 3)
