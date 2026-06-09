@@ -116,7 +116,19 @@ func (m *Module) RegisterHTTPRoutes(r chi.Router) {
 // --- Route handlers ---
 
 // handleCreateProfile creates a new social profile.
-// POST /workspaces/{workspaceID}/social-profiles
+// @Summary Create Social Profile
+// @Description Add a new social profile to a workspace for monitoring
+// @Tags social
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param workspaceID path string true "Workspace ID"
+// @Param request body createprofile.Request true "Create Profile Request"
+// @Success 201 {object} createprofile.Response
+// @Failure 400 {object} map[string]string
+// @Failure 409 {object} map[string]string
+// @Failure 422 {object} map[string]string
+// @Router /workspaces/{workspaceID}/social-profiles [post]
 func (m *Module) handleCreateProfile(w http.ResponseWriter, r *http.Request) {
 	workspaceID, err := parsePathUUID(r, "workspaceID")
 	if err != nil {
@@ -145,7 +157,15 @@ func (m *Module) handleCreateProfile(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleListProfiles lists social profiles for a workspace.
-// GET /workspaces/{workspaceID}/social-profiles
+// @Summary List Social Profiles
+// @Description List all social profiles for a workspace
+// @Tags social
+// @Security BearerAuth
+// @Produce json
+// @Param workspaceID path string true "Workspace ID"
+// @Success 200 {array} listprofiles.ProfileSummary
+// @Failure 400 {object} map[string]string
+// @Router /workspaces/{workspaceID}/social-profiles [get]
 func (m *Module) handleListProfiles(w http.ResponseWriter, r *http.Request) {
 	workspaceID, err := parsePathUUID(r, "workspaceID")
 	if err != nil {
@@ -167,7 +187,16 @@ func (m *Module) handleListProfiles(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleGetProfile retrieves a profile and its latest snapshot.
-// GET /social-profiles/{id}
+// @Summary Get Social Profile
+// @Description Get a social profile by ID, including its latest snapshot
+// @Tags social
+// @Security BearerAuth
+// @Produce json
+// @Param id path string true "Profile ID"
+// @Success 200 {object} getprofile.Response
+// @Failure 400 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Router /social-profiles/{id} [get]
 func (m *Module) handleGetProfile(w http.ResponseWriter, r *http.Request) {
 	id, err := parsePathUUID(r, "id")
 	if err != nil {
@@ -190,7 +219,18 @@ func (m *Module) handleGetProfile(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleUpdateProfile updates a profile's interval or active status.
-// PATCH /social-profiles/{id}
+// @Summary Update Social Profile
+// @Description Update a social profile's check interval or active flag
+// @Tags social
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param id path string true "Profile ID"
+// @Param request body updateprofile.Request true "Update Profile Request"
+// @Success 200 {object} updateprofile.Response
+// @Failure 400 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Router /social-profiles/{id} [patch]
 func (m *Module) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 	id, err := parsePathUUID(r, "id")
 	if err != nil {
@@ -218,7 +258,15 @@ func (m *Module) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleDeleteProfile deletes a profile and its cascade data.
-// DELETE /social-profiles/{id}
+// @Summary Delete Social Profile
+// @Description Delete a social profile and all its associated snapshots and changes
+// @Tags social
+// @Security BearerAuth
+// @Param id path string true "Profile ID"
+// @Success 204
+// @Failure 400 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Router /social-profiles/{id} [delete]
 func (m *Module) handleDeleteProfile(w http.ResponseWriter, r *http.Request) {
 	id, err := parsePathUUID(r, "id")
 	if err != nil {
@@ -239,7 +287,17 @@ func (m *Module) handleDeleteProfile(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleRunCheck triggers a manual check for a profile.
-// POST /social-profiles/{id}/check
+// @Summary Run Social Check
+// @Description Trigger an immediate profile check (fetches latest data and detects changes)
+// @Tags social
+// @Security BearerAuth
+// @Produce json
+// @Param id path string true "Profile ID"
+// @Success 200 {object} runcheck.Response
+// @Failure 400 {object} map[string]string
+// @Failure 402 {object} map[string]string "Daily quota exceeded"
+// @Failure 404 {object} map[string]string
+// @Router /social-profiles/{id}/check [post]
 func (m *Module) handleRunCheck(w http.ResponseWriter, r *http.Request) {
 	id, err := parsePathUUID(r, "id")
 	if err != nil {
@@ -275,7 +333,17 @@ func (m *Module) handleRunCheck(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleListChanges lists changes for a profile or workspace.
-// GET /social-profiles/{id}/changes
+// @Summary List Profile Changes
+// @Description List social changes for a specific profile, paginated
+// @Tags social
+// @Security BearerAuth
+// @Produce json
+// @Param id path string true "Profile ID"
+// @Param limit query int false "Page size (default 20)"
+// @Param offset query int false "Page offset (default 0)"
+// @Success 200 {object} listchanges.Response
+// @Failure 400 {object} map[string]string
+// @Router /social-profiles/{id}/changes [get]
 func (m *Module) handleListChanges(w http.ResponseWriter, r *http.Request) {
 	profileID, err := parsePathUUID(r, "id")
 	if err != nil {
@@ -309,6 +377,17 @@ func (m *Module) handleListChanges(w http.ResponseWriter, r *http.Request) {
 // handleListWorkspaceChanges lists all social changes for a workspace (across all profiles).
 // GET /workspaces/{workspaceID}/social-changes
 // Satisfies: REQ-FE-05 — feeds the unified changes-view feed on the frontend.
+// @Summary List Workspace Social Changes
+// @Description List all social changes across all profiles in a workspace, paginated
+// @Tags social
+// @Security BearerAuth
+// @Produce json
+// @Param workspaceID path string true "Workspace ID"
+// @Param limit query int false "Page size (default 50)"
+// @Param offset query int false "Page offset (default 0)"
+// @Success 200 {object} listchanges.Response
+// @Failure 400 {object} map[string]string
+// @Router /workspaces/{workspaceID}/social-changes [get]
 func (m *Module) handleListWorkspaceChanges(w http.ResponseWriter, r *http.Request) {
 	workspaceID, err := parsePathUUID(r, "workspaceID")
 	if err != nil {
@@ -340,7 +419,16 @@ func (m *Module) handleListWorkspaceChanges(w http.ResponseWriter, r *http.Reque
 }
 
 // handleGetChange retrieves a single change with full before/after payload.
-// GET /social-changes/{changeID}
+// @Summary Get Social Change
+// @Description Get a social change by ID with full before/after snapshot data
+// @Tags social
+// @Security BearerAuth
+// @Produce json
+// @Param changeID path string true "Change ID"
+// @Success 200 {object} getchange.Response
+// @Failure 400 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Router /social-changes/{changeID} [get]
 func (m *Module) handleGetChange(w http.ResponseWriter, r *http.Request) {
 	changeID, err := parsePathUUID(r, "changeID")
 	if err != nil {
@@ -367,7 +455,15 @@ func (m *Module) handleGetChange(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleGetQuotaStatus returns quota usage for the workspace.
-// GET /workspaces/{workspaceID}/social-quota
+// @Summary Get Social Quota Status
+// @Description Get the daily check quota usage for a workspace
+// @Tags social
+// @Security BearerAuth
+// @Produce json
+// @Param workspaceID path string true "Workspace ID"
+// @Success 200 {object} getquotastatus.Response
+// @Failure 400 {object} map[string]string
+// @Router /workspaces/{workspaceID}/social-quota [get]
 func (m *Module) handleGetQuotaStatus(w http.ResponseWriter, r *http.Request) {
 	workspaceID, err := parsePathUUID(r, "workspaceID")
 	if err != nil {
