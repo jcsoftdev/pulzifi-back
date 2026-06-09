@@ -374,6 +374,18 @@ export const SocialApi = {
     return (response.changes ?? []).map(transformChange)
   },
 
+  async listWorkspaceChanges(
+    workspaceId: string,
+    limit = 50,
+    offset = 0
+  ): Promise<SocialChange[]> {
+    const http = await getHttpClient()
+    const response = await http.get<{ changes: SocialChangeBackendDto[] }>(
+      `/api/v1/workspaces/${workspaceId}/social-changes?limit=${limit}&offset=${offset}`
+    )
+    return (response.changes ?? []).map(transformChange)
+  },
+
   async getChange(changeId: string): Promise<SocialChangeDetail> {
     const http = await getHttpClient()
     const response = await http.get<GetChangeBackendDto>(`/api/v1/social-changes/${changeId}`)

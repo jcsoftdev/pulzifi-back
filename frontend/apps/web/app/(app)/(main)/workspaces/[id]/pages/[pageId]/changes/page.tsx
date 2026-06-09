@@ -20,6 +20,9 @@ import { type TextChangeSection, TextChanges } from '@/features/changes-view/ui/
 import { VisualPulse } from '@/features/changes-view/ui/visual-pulse'
 import type { DiffRow } from '@/features/changes-view/utils/simple-diff'
 import { diffWords } from '@/features/changes-view/utils/simple-diff'
+import { useSocialWorkspaceChanges } from '@/features/social/application/use-social-workspace-changes'
+import { useSocialProfiles } from '@/features/social/application/use-social-profiles'
+import { SocialChangesSection } from '@/features/social/ui/changes/social-changes-section'
 
 function VisualPulseSkeleton() {
   return (
@@ -145,6 +148,14 @@ export default function ChangesPage() {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('visual')
   const [storagePeriodDays, setStoragePeriodDays] = useState(7)
+
+  // Social changes feed — workspace-scoped (REQ-FE-05)
+  const { changes: socialChanges, isLoading: socialLoading } = useSocialWorkspaceChanges(workspaceId)
+  const { profiles: socialProfiles, fetchProfiles } = useSocialProfiles(workspaceId)
+
+  useEffect(() => {
+    fetchProfiles()
+  }, [fetchProfiles])
 
   const hasSections = sections.length > 0
 
@@ -508,6 +519,13 @@ export default function ChangesPage() {
           />
         )}
       </ChangesViewLayout>
+
+      {/* Social changes feed — platform icon + Social badge (REQ-FE-05, REQ-FE-06) */}
+      <SocialChangesSection
+        changes={socialChanges}
+        profiles={socialProfiles}
+        isLoading={socialLoading}
+      />
     </div>
   )
 }
