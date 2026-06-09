@@ -108,7 +108,7 @@ export function ProblemSection({
     <SectionFrame bg="alt" id="problem" className="relative overflow-hidden">
       <div className="pointer-events-none absolute inset-0 -z-10" aria-hidden>
         <div
-          className="absolute right-0 top-0 h-[350px] w-[350px] translate-x-1/4 -translate-y-1/4"
+          className="pz-blob-soft absolute right-0 top-0 h-[350px] w-[350px] translate-x-1/4 -translate-y-1/4"
           style={{
             background:
               'radial-gradient(circle, color-mix(in srgb, var(--pz-accent-gold) 15%, transparent) 0%, transparent 65%)',

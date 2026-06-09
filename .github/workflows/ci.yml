@@ -86,6 +86,77 @@ jobs:
           path: coverage.out
           retention-days: 14
 
+  cms-migrations:
+    name: CMS migration drift guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: pulzifi
+          POSTGRES_USER: pulzifi_user
+          POSTGRES_PASSWORD: pulzifi_password
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U pulzifi_user -d pulzifi"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DB_HOST: localhost
+      DB_PORT: '5432'
+      DB_NAME: pulzifi
+      DB_USER: pulzifi_user
+      DB_PASSWORD: pulzifi_password
+      PAYLOAD_SECRET: ci-dummy-secret
+      NEXT_PUBLIC_SERVER_URL: http://localhost:3001
+      MINIO_ENDPOINT: http://localhost:9000
+      MINIO_ACCESS_KEY: dummy
+      MINIO_SECRET_KEY: dummy
+      MINIO_BUCKET: dummy
+      MINIO_REGION: us-east-1
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Install deps
+        working-directory: frontend
+        run: bun install --frozen-lockfile
+      - name: Apply CMS migrations
+        working-directory: frontend/apps/web
+        run: bun --conditions=production scripts/cms-migrate.ts
+      - name: Fail if a collection changed without a migration
+        working-directory: frontend/apps/web
+        run: |
+          set -uo pipefail
+          # Payload's migrate:create ALWAYS writes a migration file, so we can't detect
+          # drift by file presence. `skipEmpty` is broken in this @payloadcms/db-postgres
+          # version (the migrate bin passes `skipEmpty` but createMigration reads `n`), so
+          # with forceAcceptWarning it emits an EMPTY `// Migration code` migration when
+          # nothing changed. Detect drift by SQL CONTENT instead. A genuinely ambiguous
+          # diff makes drizzle prompt interactively for enum/column renames; with no TTY
+          # that hangs, so bound it with a timeout and treat a hang as drift.
+          timeout 180 bun --conditions=production scripts/cms-migrate.ts --create </dev/null
+          code=$?
+          if [ "$code" -eq 124 ]; then
+            echo "::error::CMS migration drift — migrate:create hung on an interactive rename prompt, which means a Payload collection changed. Run locally: cd frontend/apps/web && bun scripts/cms-migrate.ts --create, answer the prompts, then commit migrations/."
+            exit 1
+          fi
+          drift=0
+          for f in $(git ls-files --others --exclude-standard -- 'migrations/*.ts'; git diff --name-only -- 'migrations/*.ts'); do
+            if grep -q 'execute(sql' "$f"; then
+              echo "::error::CMS schema drift — $f has schema changes with no committed migration."
+              drift=1
+            fi
+          done
+          if [ "$drift" -eq 1 ]; then
+            echo "Fix: cd frontend/apps/web && bun scripts/cms-migrate.ts --create, then commit migrations/."
+            git --no-pager diff -- migrations/
+            git ls-files --others --exclude-standard -- migrations/
+            exit 1
+          fi
+          echo "OK — CMS collections match the committed migrations."
+
   frontend:
     name: Frontend lint + types + tests
     runs-on: ubuntu-latest

@@ -499,7 +499,7 @@ const PLANS = [
     tagline: 'No credit card required',
     features: [
       {
-        text: '1 Workspace',
+        text: '1 workspace',
         included: true,
       },
       {
@@ -507,7 +507,7 @@ const PLANS = [
         included: true,
       },
       {
-        text: '1 AI insight / month',
+        text: '1 AI insights / month',
         included: true,
       },
       {
@@ -516,6 +516,10 @@ const PLANS = [
       },
       {
         text: 'Email alerts',
+        included: true,
+      },
+      {
+        text: '50 checks / month',
         included: true,
       },
     ],
@@ -527,10 +531,11 @@ const PLANS = [
     name: 'Starter',
     planCode: 'starter',
     period: '/month',
-    tagline: 'Perfect for individual users and business owners',
+    tagline:
+      'For solo founders and individual operators watching a focused set of competitors, web design agencies, or real estate units',
     features: [
       {
-        text: '1 Workspace',
+        text: 'Unlimited workspaces',
         included: true,
       },
       {
@@ -538,7 +543,7 @@ const PLANS = [
         included: true,
       },
       {
-        text: 'Up to 1 user account',
+        text: '1 user account',
         included: true,
       },
       {
@@ -546,11 +551,19 @@ const PLANS = [
         included: true,
       },
       {
-        text: '1 Week Storage',
+        text: 'From 30 min frequency',
         included: true,
       },
       {
-        text: 'Email and Messages alerts',
+        text: '5,000 checks / month',
+        included: true,
+      },
+      {
+        text: 'Email and messages alerts',
+        included: true,
+      },
+      {
+        text: '1 weeks storage',
         included: true,
       },
     ],
@@ -562,10 +575,11 @@ const PLANS = [
     name: 'Professional',
     planCode: 'pro',
     period: '/month',
-    tagline: 'Perfect for Growing Businesses Ready to Scale',
+    tagline:
+      'For marketing teams, SaaS companies, and agencies managing multiple competitors and clients or real estate teams/investors',
     features: [
       {
-        text: '10 workspaces',
+        text: 'Unlimited workspaces',
         included: true,
       },
       {
@@ -577,19 +591,23 @@ const PLANS = [
         included: true,
       },
       {
-        text: 'Advanced unlimited AI Insights',
+        text: 'Unlimited AI insights',
         included: true,
       },
       {
-        text: 'Multi-channel alerts (Email, Messages, Teams, Slack, Telegram)',
+        text: 'From 5 min frequency',
+        included: true,
+      },
+      {
+        text: 'Multi-channel alerts',
+        included: true,
+      },
+      {
+        text: 'Email, Messages, Teams, Slack',
         included: true,
       },
       {
         text: '1 month storage',
-        included: true,
-      },
-      {
-        text: 'Priority support',
         included: true,
       },
     ],
@@ -602,34 +620,46 @@ const PLANS = [
     name: 'Enterprise',
     planCode: 'enterprise',
     period: '',
-    tagline: 'Comprehensive and Scalable Solutions for Large Organizations',
+    tagline: 'Tailored to your team',
     features: [
       {
-        text: 'Unlimited Workspaces',
+        text: 'Unlimited workspaces',
         included: true,
       },
       {
-        text: 'Unlimited user accounts',
+        text: 'Custom sub-tenants',
         included: true,
       },
       {
-        text: 'Unlimited single pages',
+        text: 'Unlimited pages',
         included: true,
       },
       {
-        text: 'Advanced unlimited AI Insights',
+        text: 'Unlimited users',
         included: true,
       },
       {
-        text: 'Multi-channel alerts',
+        text: 'Unlimited AI insights',
         included: true,
       },
       {
-        text: '3 month storage',
+        text: 'Custom check frequency',
         included: true,
       },
       {
-        text: 'Priority support',
+        text: 'Custom checks volume',
+        included: true,
+      },
+      {
+        text: 'All alert channels',
+        included: true,
+      },
+      {
+        text: 'Dedicated support',
+        included: true,
+      },
+      {
+        text: 'Custom storage',
         included: true,
       },
     ],
@@ -1004,6 +1034,47 @@ export type SeedResult = {
 
 type PlanId = string | number
 
+// Shape of a `plans` doc as read back from Payload (fields PLANS owns).
+type ExistingPlanDoc = {
+  id: PlanId
+  name: string
+  planCode?: string | null
+  tagline?: string | null
+  period?: string | null
+  features?: ({ text?: string | null; included?: boolean | null } | null)[] | null
+  ctaLabel?: string | null
+  ctaHref?: string | null
+  highlighted?: boolean | null
+  popularBadge?: string | null
+}
+
+// Normalized, comparable card content that PLANS is the source of truth for.
+// Excludes `price` (owned by Stripe via the price hook). Used to drift-check
+// existing docs against PLANS and as the update payload when they differ.
+function planContent(p: {
+  planCode?: string | null
+  tagline?: string | null
+  period?: string | null
+  features?: readonly ({ text?: string | null; included?: boolean | null } | null)[] | null
+  ctaLabel?: string | null
+  ctaHref?: string | null
+  highlighted?: boolean | null
+  popularBadge?: string | null
+}) {
+  return {
+    planCode: p.planCode ?? null,
+    tagline: p.tagline ?? '',
+    period: p.period ?? '',
+    features: (p.features ?? [])
+      .filter((f): f is { text?: string | null; included?: boolean | null } => Boolean(f))
+      .map((f) => ({ text: f.text ?? '', included: f.included ?? true })),
+    ctaLabel: p.ctaLabel ?? '',
+    ctaHref: p.ctaHref ?? '',
+    highlighted: p.highlighted ?? false,
+    popularBadge: p.popularBadge ?? null,
+  }
+}
+
 export async function seedCMSIfEmpty(payload: Payload): Promise<SeedResult> {
   // seedAll is create-only: it fills in MISSING globals/blocks/pages and never
   // overwrites existing content. That makes it safe to run on every boot or
@@ -1045,13 +1116,33 @@ export async function seedPlans(payload: Payload): Promise<PlanId[]> {
     limit: 100,
   })
   if (existing.totalDocs > 0) {
-    const byName = new Map<string, PlanId>(
-      existing.docs.map((d: { id: PlanId; name: string }) => [
-        d.name,
-        d.id,
-      ])
+    // Match by trimmed name (legacy rows had trailing whitespace). Sync the card
+    // CONTENT (planCode, tagline, period, features, CTA, highlight) from PLANS
+    // onto existing docs whenever it has drifted. PLANS is the source of truth
+    // ("migrated from prod"), so this self-heals rows seeded before a field
+    // existed — e.g. a NULL planCode that made the CMS price hook resolve to
+    // "Custom", or stale feature lists. Drift-checked: only writes when the
+    // normalized content actually differs, so a clean boot makes no writes.
+    // `price` is intentionally NOT touched — it comes from Stripe via the price
+    // hook, not from PLANS.
+    const byName = new Map<string, ExistingPlanDoc>(
+      (existing.docs as ExistingPlanDoc[]).map((d) => [d.name.trim(), d])
     )
-    return PLANS.map((p) => byName.get(p.name)).filter((id): id is PlanId => id !== undefined)
+    const ids: PlanId[] = []
+    for (const plan of PLANS) {
+      const match = byName.get(plan.name.trim())
+      if (!match) continue
+      const desired = planContent(plan)
+      if (JSON.stringify(planContent(match)) !== JSON.stringify(desired)) {
+        await payload.update({
+          collection: 'plans',
+          id: match.id,
+          data: JSON.parse(JSON.stringify(desired)),
+        })
+      }
+      ids.push(match.id)
+    }
+    return ids
   }
   const created: {
     id: PlanId

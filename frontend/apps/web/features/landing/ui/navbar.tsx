@@ -208,7 +208,7 @@ export function Navbar({
             'transition-all duration-[450ms] ease-[cubic-bezier(0.22,1,0.36,1)]',
             'mx-auto',
             scrolled
-              ? 'max-w-[880px] border border-black/5 bg-white/70 backdrop-blur-xl supports-[not_(backdrop-filter:blur(1px))]:bg-white'
+              ? 'max-w-[880px] border border-black/5 bg-white/70 backdrop-blur-xl max-md:bg-white max-md:backdrop-blur-none supports-[not_(backdrop-filter:blur(1px))]:bg-white'
               : 'max-w-[1200px] border border-transparent bg-transparent'
           )}
         >

@@ -23,8 +23,8 @@ command -v jq >/dev/null || { err "jq required"; exit 1; }
 # Plan catalog — single source of truth
 # Format: code|product_name|description|monthly_cents|yearly_cents|statement_descriptor
 read -r -d '' PLANS_TABLE <<'EOF' || true
-starter|Pulzifi Starter|Perfect for solopreneurs, individual users and business owners. 1 workspace, up to 5 pages, 1 user account, 4 AI insights, 1 week storage, email + messages alerts.|2700|27000|PULZIFI STARTER
-pro|Pulzifi Professional|Perfect for growing businesses ready to scale. Unlimited workspaces, up to 25 pages, 5 users, unlimited AI insights, multi-channel alerts (Email, Messages, Teams, Slack, Telegram), 1 month storage, priority support.|6200|62000|PULZIFI PRO
+starter|Pulzifi Starter|Perfect for solopreneurs, individual users and business owners. 1 workspace, up to 5 pages, 1 user account, 4 AI insights, 1 week storage, email + messages alerts.|2700|26400|PULZIFI STARTER
+pro|Pulzifi Professional|Perfect for growing businesses ready to scale. Unlimited workspaces, up to 25 pages, 5 users, unlimited AI insights, multi-channel alerts (Email, Messages, Teams, Slack, Telegram), 1 month storage, priority support.|5400|55200|PULZIFI PRO
 EOF
 
 TAX_CODE="txcd_10000000"

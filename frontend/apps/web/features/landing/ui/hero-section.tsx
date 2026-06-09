@@ -68,7 +68,7 @@ export function HeroSection({
         <div
           data-pz-blob
           data-pz-blob-speed="0.12"
-          className="absolute right-0 top-0 h-[600px] w-[600px] -translate-y-1/4 translate-x-1/4"
+          className="pz-blob-soft absolute right-0 top-0 h-[600px] w-[600px] -translate-y-1/4 translate-x-1/4"
           style={{
             background: 'radial-gradient(circle, var(--pz-accent-tint) 0%, transparent 60%)',
             filter: 'blur(120px)',
@@ -78,7 +78,7 @@ export function HeroSection({
         <div
           data-pz-blob
           data-pz-blob-speed="0.08"
-          className="absolute bottom-0 left-0 h-[400px] w-[400px] translate-y-1/4 -translate-x-1/4"
+          className="pz-blob-soft absolute bottom-0 left-0 h-[400px] w-[400px] translate-y-1/4 -translate-x-1/4"
           style={{
             background:
               'radial-gradient(circle, color-mix(in srgb, var(--pz-accent-teal) 15%, transparent) 0%, transparent 60%)',

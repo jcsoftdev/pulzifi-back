@@ -560,7 +560,7 @@ export interface Plan {
   /**
    * Links this plan to public.plans. Price is read from Stripe — not editable here.
    */
-  planCode: 'starter' | 'pro' | 'enterprise';
+  planCode: 'free' | 'starter' | 'pro' | 'enterprise';
   /**
    * Monthly price, synced from Stripe via public.plans.
    */
