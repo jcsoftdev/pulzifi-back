@@ -188,10 +188,9 @@ func TestRunCheck_ChangeDetected(t *testing.T) {
 	if snapshotRepo.SaveCalls != 1 {
 		t.Errorf("expected 1 snapshot save, got %d", snapshotRepo.SaveCalls)
 	}
-	if resp.ChangeCreated {
-		// good
+	if !resp.ChangeCreated {
+		t.Errorf("expected ChangeCreated=true when diff detected, got false")
 	}
-	_ = resp
 }
 
 // --- Test: no change ---

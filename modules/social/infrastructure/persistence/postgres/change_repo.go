@@ -79,7 +79,8 @@ func (r *ChangePostgresRepository) List(ctx context.Context, filter repositories
 	}
 	offset := filter.Offset
 
-	if filter.ProfileID != nil {
+	switch {
+	case filter.ProfileID != nil:
 		q = `
 			SELECT id, profile_id, from_snapshot_id, to_snapshot_id, change_types, summary, created_at
 			FROM social_changes
@@ -87,7 +88,7 @@ func (r *ChangePostgresRepository) List(ctx context.Context, filter repositories
 			ORDER BY created_at DESC
 			LIMIT $2 OFFSET $3`
 		args = []interface{}{*filter.ProfileID, limit, offset}
-	} else if filter.WorkspaceID != nil {
+	case filter.WorkspaceID != nil:
 		// Join via social_profiles to scope to workspace
 		q = `
 			SELECT sc.id, sc.profile_id, sc.from_snapshot_id, sc.to_snapshot_id,
@@ -98,7 +99,7 @@ func (r *ChangePostgresRepository) List(ctx context.Context, filter repositories
 			ORDER BY sc.created_at DESC
 			LIMIT $2 OFFSET $3`
 		args = []interface{}{*filter.WorkspaceID, limit, offset}
-	} else {
+	default:
 		q = `
 			SELECT id, profile_id, from_snapshot_id, to_snapshot_id, change_types, summary, created_at
 			FROM social_changes

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/google/uuid"
 	"github.com/jcsoftdev/pulzifi-back/modules/social/domain/entities"
 	domainerrors "github.com/jcsoftdev/pulzifi-back/modules/social/domain/errors"
 	"github.com/jcsoftdev/pulzifi-back/modules/social/domain/repositories"
@@ -148,7 +147,3 @@ func profileToResponse(p *entities.SocialProfile) *Response {
 	}
 }
 
-// workspaceIDFromUUID is a helper for the plan limits port signature (takes string).
-func workspaceIDFromUUID(id uuid.UUID) string {
-	return id.String()
-}
