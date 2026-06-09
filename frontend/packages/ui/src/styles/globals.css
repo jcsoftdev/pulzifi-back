@@ -204,6 +204,21 @@
 
 /* ── Pulzifi landing utilities ──────────────────────────────────────────── */
 @layer utilities {
+  /* Decorative aura blobs. A large filter:blur() layer is GPU-expensive on
+     mobile; when scroll-animated it makes the iOS/Android compositor run out
+     of layer memory and paint the whole viewport black. On small screens we
+     cap the blur (the !important beats the inline filter) and drop layer
+     promotion. The scroll parallax itself is disabled on touch in
+     useParallaxBlob — this is the second line of defence for the static ones. */
+  .pz-blob-soft {
+    will-change: auto;
+  }
+  @media (max-width: 768px) {
+    .pz-blob-soft {
+      filter: blur(40px) !important;
+    }
+  }
+
   .pz-display {
     font-family: var(--font-display), "Syne", ui-sans-serif, system-ui, sans-serif;
     font-weight: 700;

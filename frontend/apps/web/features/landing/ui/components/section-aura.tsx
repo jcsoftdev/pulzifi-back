@@ -20,7 +20,7 @@ export function SectionAura({ intensity = 'soft' }: SectionAuraProps) {
       <div
         data-pz-blob
         data-pz-blob-speed="0.12"
-        className="absolute -top-1/3 right-[-12%] h-[520px] w-[520px] rounded-full"
+        className="pz-blob-soft absolute -top-1/3 right-[-12%] h-[520px] w-[520px] rounded-full"
         style={{
           background: `radial-gradient(circle, color-mix(in srgb, var(--pz-accent) ${accentPct}%, transparent) 0%, transparent 70%)`,
           filter: 'blur(100px)',
@@ -29,7 +29,7 @@ export function SectionAura({ intensity = 'soft' }: SectionAuraProps) {
       <div
         data-pz-blob
         data-pz-blob-speed="0.07"
-        className="absolute bottom-[-30%] left-[-12%] h-[460px] w-[460px] rounded-full"
+        className="pz-blob-soft absolute bottom-[-30%] left-[-12%] h-[460px] w-[460px] rounded-full"
         style={{
           background: `radial-gradient(circle, color-mix(in srgb, var(--pz-accent-muted) ${mutedPct}%, transparent) 0%, transparent 70%)`,
           filter: 'blur(100px)',

@@ -127,7 +127,7 @@ export function AiIntelligenceSection({
       {/* Teal blob — bottom left */}
       <div className="pointer-events-none absolute inset-0 -z-10" aria-hidden>
         <div
-          className="absolute bottom-0 left-0 h-[400px] w-[500px] translate-y-1/4 -translate-x-1/4"
+          className="pz-blob-soft absolute bottom-0 left-0 h-[400px] w-[500px] translate-y-1/4 -translate-x-1/4"
           style={{
             background:
               'radial-gradient(circle, color-mix(in srgb, var(--pz-accent-teal) 18%, transparent) 0%, transparent 65%)',

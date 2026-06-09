@@ -106,7 +106,7 @@ export function PricingSection({
       {/* Gold blob — top center */}
       <div className="pointer-events-none absolute inset-0 -z-10 flex justify-center" aria-hidden>
         <div
-          className="h-[400px] w-[600px] -translate-y-1/3"
+          className="pz-blob-soft h-[400px] w-[600px] -translate-y-1/3"
           style={{
             background:
               'radial-gradient(circle, color-mix(in srgb, var(--pz-accent-gold) 18%, transparent) 0%, transparent 65%)',
