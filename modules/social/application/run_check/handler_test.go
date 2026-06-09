@@ -362,6 +362,131 @@ func TestRunCheck_ConsecutiveFailuresThreshold(t *testing.T) {
 	}
 }
 
+// --- C1 fix tests: NewHandlerWithPlanLimits resolves real limit at call time ---
+
+// TestRunCheck_PlanLimits_EnforcesRealLimit verifies that when a handler is
+// created with NewHandlerWithPlanLimits, the plan limit from PlanLimits is
+// used for quota enforcement rather than checksPerDay=0 (REQ-QUOTA-CONSUME-01).
+func TestRunCheck_PlanLimits_EnforcesRealLimit(t *testing.T) {
+	profileID := uuid.New()
+	profile := makeProfile(profileID, 0)
+
+	// PlanLimits returns 2 checks/day
+	planLimits := &svcmocks.MockPlanLimits{
+		GetChecksPerDayResult: 2,
+	}
+
+	// Quota mock: simulate exhaustion (used=2 of limit=2)
+	quotaMock := &svcmocks.MockCheckQuota{
+		ConsumeResult: services.QuotaResult{Allowed: false, Used: 2, Limit: 2},
+		ConsumeErr:    domainerrors.ErrQuotaExceeded,
+	}
+
+	profileRepo := &repomocks.MockProfileRepository{GetByIDResult: profile}
+	snapshotRepo := &repomocks.MockSnapshotRepository{}
+	changeRepo := &repomocks.MockChangeRepository{}
+	fetcher := &svcmocks.MockSocialFetcher{}
+	mediaStore := &svcmocks.MockMediaStore{}
+	alertCreator := &svcmocks.MockAlertCreator{}
+
+	h := runcheck.NewHandlerWithPlanLimits(
+		profileRepo, snapshotRepo, changeRepo,
+		quotaMock, fetcher, mediaStore, alertCreator,
+		planLimits, 5,
+	)
+
+	_, err := h.Handle(context.Background(), profileID)
+
+	if !errors.Is(err, domainerrors.ErrQuotaExceeded) {
+		t.Errorf("expected ErrQuotaExceeded when plan limit is 2 and used=2, got %v", err)
+	}
+	// PlanLimits must have been consulted
+	if planLimits.GetChecksPerDayCalls != 1 {
+		t.Errorf("expected 1 GetChecksPerDay call, got %d", planLimits.GetChecksPerDayCalls)
+	}
+	// Quota Consume must have been called with limit=2 (not 0)
+	if quotaMock.ConsumeCalls != 1 {
+		t.Errorf("expected 1 Consume call, got %d", quotaMock.ConsumeCalls)
+	}
+	// Fetcher must NOT be called when quota exceeded
+	if fetcher.FetchProfileCalls != 0 {
+		t.Errorf("fetcher should not be called when quota exceeded, got %d calls", fetcher.FetchProfileCalls)
+	}
+}
+
+// TestRunCheck_PlanLimits_DisabledPlanReturnsQuotaExceeded verifies that when
+// a plan has the social feature disabled (GetChecksPerDay returns -1), the
+// manual check is immediately rejected with ErrQuotaExceeded.
+func TestRunCheck_PlanLimits_DisabledPlanReturnsQuotaExceeded(t *testing.T) {
+	profileID := uuid.New()
+	profile := makeProfile(profileID, 0)
+
+	planLimits := &svcmocks.MockPlanLimits{
+		GetChecksPerDayResult: -1, // -1 = feature disabled
+	}
+	quotaMock := &svcmocks.MockCheckQuota{}
+
+	profileRepo := &repomocks.MockProfileRepository{GetByIDResult: profile}
+	snapshotRepo := &repomocks.MockSnapshotRepository{}
+	changeRepo := &repomocks.MockChangeRepository{}
+	fetcher := &svcmocks.MockSocialFetcher{}
+	mediaStore := &svcmocks.MockMediaStore{}
+	alertCreator := &svcmocks.MockAlertCreator{}
+
+	h := runcheck.NewHandlerWithPlanLimits(
+		profileRepo, snapshotRepo, changeRepo,
+		quotaMock, fetcher, mediaStore, alertCreator,
+		planLimits, 5,
+	)
+
+	_, err := h.Handle(context.Background(), profileID)
+
+	if !errors.Is(err, domainerrors.ErrQuotaExceeded) {
+		t.Errorf("expected ErrQuotaExceeded for disabled plan, got %v", err)
+	}
+	// Quota.Consume must NOT be called — disabled path short-circuits before consume.
+	if quotaMock.ConsumeCalls != 0 {
+		t.Errorf("Consume should not be called for disabled plan, got %d calls", quotaMock.ConsumeCalls)
+	}
+}
+
+// TestRunCheck_PlanLimits_UnlimitedPlan verifies that when PlanLimits returns 0
+// (unlimited), the handler proceeds normally without blocking on quota.
+func TestRunCheck_PlanLimits_UnlimitedPlan(t *testing.T) {
+	profileID := uuid.New()
+	profile := makeProfile(profileID, 0)
+
+	planLimits := &svcmocks.MockPlanLimits{
+		GetChecksPerDayResult: 0, // 0 = unlimited
+	}
+
+	quota := memory.NewCheckQuota()
+	profileRepo := &repomocks.MockProfileRepository{GetByIDResult: profile}
+	snapshotRepo := &repomocks.MockSnapshotRepository{GetLatestByProfileResult: nil}
+	changeRepo := &repomocks.MockChangeRepository{}
+	fetcher := &svcmocks.MockSocialFetcher{FetchProfileResult: makeProfileData()}
+	mediaStore := &svcmocks.MockMediaStore{StoreResult: "https://stored.example.com/p.jpg"}
+	alertCreator := &svcmocks.MockAlertCreator{}
+
+	h := runcheck.NewHandlerWithPlanLimits(
+		profileRepo, snapshotRepo, changeRepo,
+		quota, fetcher, mediaStore, alertCreator,
+		planLimits, 5,
+	)
+
+	resp, err := h.Handle(context.Background(), profileID)
+
+	if err != nil {
+		t.Fatalf("unexpected error for unlimited plan: %v", err)
+	}
+	if resp == nil {
+		t.Fatal("expected non-nil response")
+	}
+	if fetcher.FetchProfileCalls != 1 {
+		t.Errorf("expected fetcher called once, got %d", fetcher.FetchProfileCalls)
+	}
+}
+
 // --- Test: backoff tiers ---
 
 func TestRunCheck_BackoffTiers(t *testing.T) {

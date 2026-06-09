@@ -27,11 +27,13 @@ type Handler struct {
 	fetcher       services.SocialFetcher
 	mediaStore    services.MediaStore
 	alertCreator  services.AlertCreator
+	planLimits    services.PlanLimits // optional; when non-nil, limit is resolved per-plan at runtime
 	postsPerCheck int
-	checksPerDay  int // 0 = unlimited
+	checksPerDay  int // 0 = unlimited; overridden at runtime when planLimits is set
 }
 
-// NewHandler creates a new Handler.
+// NewHandler creates a new Handler with a pre-resolved checksPerDay limit.
+// Used by the scheduler path where the limit is resolved once at factory time.
 func NewHandler(
 	profiles repositories.ProfileRepository,
 	snapshots repositories.SnapshotRepository,
@@ -56,6 +58,34 @@ func NewHandler(
 	}
 }
 
+// NewHandlerWithPlanLimits creates a Handler that resolves the daily check limit
+// from the PlanLimits port at call time (using the profile's workspaceID).
+// Used by the HTTP manual-check path where no pre-resolved limit is available.
+func NewHandlerWithPlanLimits(
+	profiles repositories.ProfileRepository,
+	snapshots repositories.SnapshotRepository,
+	changes repositories.ChangeRepository,
+	quota services.CheckQuota,
+	fetcher services.SocialFetcher,
+	mediaStore services.MediaStore,
+	alertCreator services.AlertCreator,
+	planLimits services.PlanLimits,
+	postsPerCheck int,
+) *Handler {
+	return &Handler{
+		profiles:      profiles,
+		snapshots:     snapshots,
+		changes:       changes,
+		quota:         quota,
+		fetcher:       fetcher,
+		mediaStore:    mediaStore,
+		alertCreator:  alertCreator,
+		planLimits:    planLimits,
+		postsPerCheck: postsPerCheck,
+		checksPerDay:  0, // resolved at call time via planLimits
+	}
+}
+
 // Handle executes a single check cycle for the given profile.
 //
 // Flow (REQ-CHECK-01 through REQ-CHECK-10, REQ-FAIL-01 through REQ-FAIL-06):
@@ -73,9 +103,27 @@ func (h *Handler) Handle(ctx context.Context, profileID uuid.UUID) (*Response, e
 		return nil, fmt.Errorf("loading profile: %w", err)
 	}
 
+	// Resolve the effective daily limit.
+	// When planLimits is set (HTTP path), resolve the real limit per-plan at call
+	// time — this prevents the pre-wired checksPerDay=0 from being treated as
+	// unlimited (REQ-QUOTA-CONSUME-01/02/03). The scheduler path pre-resolves the
+	// limit at factory time (via GetChecksPerDayByTenant) and leaves planLimits nil.
+	checksPerDay := h.checksPerDay
+	if h.planLimits != nil {
+		resolved, limErr := h.planLimits.GetChecksPerDay(ctx, profile.WorkspaceID.String())
+		if limErr != nil {
+			return nil, fmt.Errorf("resolving plan limit: %w", limErr)
+		}
+		// -1 = feature disabled; treat as 0-remaining limit → ErrQuotaExceeded path.
+		if resolved == -1 {
+			return nil, domainerrors.ErrQuotaExceeded
+		}
+		checksPerDay = resolved
+	}
+
 	// --- Step 1: Consume quota (REQ-CHECK-01, REQ-QUOTA-CONSUME-03) ---
 	now := time.Now().UTC()
-	result, err := h.quota.Consume(ctx, now, h.checksPerDay)
+	result, err := h.quota.Consume(ctx, now, checksPerDay)
 	if err != nil {
 		return nil, err // ErrQuotaExceeded — do not proceed
 	}
