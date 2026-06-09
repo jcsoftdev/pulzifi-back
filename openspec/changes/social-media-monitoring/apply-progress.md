@@ -250,8 +250,40 @@ New domain ports added:
 - `bun run type-check` — PASS (0 errors)
 - `bun run lint:fix` — 2 warnings (`<img>` element, acceptable — same pattern in other features)
 
+## Verify Fixes (post sdd-verify findings)
+
+### Findings resolved
+- [x] **C1** — Manual `POST /social-profiles/{id}/check` bypassed quota (checksPerDay=0 treated as unlimited). Fixed by adding `NewHandlerWithPlanLimits` constructor to `run_check.Handler`; HTTP `handleRunCheck` now uses it. Real limit resolved via `m.planLimits.GetChecksPerDay` at call time. Disabled plans (-1) short-circuit before Consume with ErrQuotaExceeded.
+- [x] **C2** — `ErrQuotaExceeded` mapped to HTTP 402 instead of 429. Fixed `mapDomainError` → `http.StatusTooManyRequests`; updated swagger `@Failure 402` annotation → `429`; swagger regenerated.
+- [x] **W1** — `ListDue` held no transaction for `FOR UPDATE SKIP LOCKED`. Fixed via atomic `UPDATE … WHERE id IN (SELECT … FOR UPDATE SKIP LOCKED) RETURNING` — lock, provisional next_check_at bump (+10 min), and row read happen in one implicit transaction.
+- [x] **W2** — Disabled plan (checksPerDay=-1) reported as unlimited (nil limit) in `get_quota_status`. Fixed: `-1` case now returns `ChecksLimit=0, ChecksUsed=0`.
+- [x] **S1** — `isQuotaExceeded` in scheduler compared by `.Error()` string. Fixed to use `errors.Is`.
+
+### New tests added (TDD GREEN)
+- `run_check/handler_test.go` — 3 new tests:
+  - `TestRunCheck_PlanLimits_EnforcesRealLimit` — plan limit=2, quota mock returns ErrQuotaExceeded; verifies GetChecksPerDay was consulted
+  - `TestRunCheck_PlanLimits_DisabledPlanReturnsQuotaExceeded` — plan=-1, verify ErrQuotaExceeded without calling Consume
+  - `TestRunCheck_PlanLimits_UnlimitedPlan` — plan=0, verify handler proceeds normally
+- `get_quota_status/handler_test.go` — 1 new test:
+  - `disabled plan (-1) — returns limit=0, used=0 (not unlimited)`
+
+### Verify-fix commits
+- `5e92d00` — `fix(social): enforce real plan limit on manual run_check (C1)`
+- `4cdf94f` — `fix(social): return 429 on quota exceeded, update swagger annotation (C2)`
+- `001bc5b` — `fix(social): make ListDue atomic via UPDATE...RETURNING claim pattern (W1)`
+- `b1d7b12` — `fix(social): report disabled plan as limit=0 in get_quota_status (W2)`
+- `b04227c` — `fix(social): use errors.Is for quota-exceeded check in scheduler (S1)`
+
+### Verify-fix verification results
+- `go build ./...` — PASS
+- `go test -race ./modules/social/...` — PASS (all packages, race-clean)
+- `go vet ./...` — PASS
+- `./tools/scripts/check-architecture.sh` — PASS (580 files, 0 violations)
+- `golangci-lint run ./modules/social/... ./cmd/...` — 0 issues
+- `make swagger` / `swag init` — PASS (429 confirmed in swagger.json; sole remaining 402 is in monitoring module, unrelated)
+
 ## Next Steps
-All batches complete. Ready for sdd-verify.
+All verify findings resolved. Ready for sdd-verify re-run or PR.
 
 ## Batch 7: Quality Gate (COMPLETE)
 - [x] 7.1 — `go test -race ./modules/social/...` — PASS (all packages, race-clean)
