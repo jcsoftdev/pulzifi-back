@@ -128,11 +128,29 @@ jobs:
       - name: Fail if a collection changed without a migration
         working-directory: frontend/apps/web
         run: |
-          bun --conditions=production scripts/cms-migrate.ts --create
-          if [ -n "$(git status --porcelain migrations/)" ]; then
-            echo "::error::CMS schema drift — a Payload collection changed but no migration was generated."
-            echo "Fix locally: cd frontend/apps/web && bun scripts/cms-migrate.ts --create, then commit migrations/."
-            git status --porcelain migrations/
+          set -uo pipefail
+          # Payload's migrate:create ALWAYS writes a migration file, so we can't detect
+          # drift by file presence. `skipEmpty` is broken in this @payloadcms/db-postgres
+          # version (the migrate bin passes `skipEmpty` but createMigration reads `n`), so
+          # with forceAcceptWarning it emits an EMPTY `// Migration code` migration when
+          # nothing changed. Detect drift by SQL CONTENT instead. A genuinely ambiguous
+          # diff makes drizzle prompt interactively for enum/column renames; with no TTY
+          # that hangs, so bound it with a timeout and treat a hang as drift.
+          timeout 180 bun --conditions=production scripts/cms-migrate.ts --create </dev/null
+          code=$?
+          if [ "$code" -eq 124 ]; then
+            echo "::error::CMS migration drift — migrate:create hung on an interactive rename prompt, which means a Payload collection changed. Run locally: cd frontend/apps/web && bun scripts/cms-migrate.ts --create, answer the prompts, then commit migrations/."
+            exit 1
+          fi
+          drift=0
+          for f in $(git ls-files --others --exclude-standard -- 'migrations/*.ts'; git diff --name-only -- 'migrations/*.ts'); do
+            if grep -q 'execute(sql' "$f"; then
+              echo "::error::CMS schema drift — $f has schema changes with no committed migration."
+              drift=1
+            fi
+          done
+          if [ "$drift" -eq 1 ]; then
+            echo "Fix: cd frontend/apps/web && bun scripts/cms-migrate.ts --create, then commit migrations/."
             git --no-pager diff -- migrations/
             git ls-files --others --exclude-standard -- migrations/
             exit 1
