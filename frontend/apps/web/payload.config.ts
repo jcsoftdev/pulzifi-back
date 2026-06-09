@@ -67,6 +67,16 @@ async function revalidateBlog(slug?: unknown): Promise<void> {
   }
 }
 
+// Normalize slugs to lowercase kebab-case so URLs stay consistent for SEO
+// (prevents mixed-case slugs like "What-is-competitive-intelligence").
+function normalizeSlug({ value }: { value?: unknown }): unknown {
+  if (typeof value !== 'string' || !value) return value
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
 // CSRF allowlist for cookie-based auth. Payload only honors the auth cookie when the request
 // Origin is in this list, or (when no Origin is sent) when Sec-Fetch-Site marks it same-origin.
 // Over plain HTTP on a non-localhost domain (e.g. lvh.me) Chrome sends NEITHER Origin nor
@@ -270,6 +280,9 @@ export default buildConfig({
           type: 'text',
           required: true,
           unique: true,
+          hooks: {
+            beforeValidate: [normalizeSlug],
+          },
           admin: {
             position: 'sidebar',
           },
@@ -346,6 +359,9 @@ export default buildConfig({
           type: 'text',
           required: true,
           unique: true,
+          hooks: {
+            beforeValidate: [normalizeSlug],
+          },
           admin: {
             position: 'sidebar',
           },
