@@ -53,6 +53,8 @@ export const metadata: Metadata = {
     description:
       'Monitor competitor sites for text and visual changes. Pulzifi turns each one into an AI insight in Slack — know what rivals do before it impacts your business.',
     card: 'summary_large_image',
+    site: '@pulzifi',
+    creator: '@pulzifi',
     images: [
       '/images/landing/hero-dashboard.png',
     ],

@@ -40,6 +40,8 @@ export const metadata: Metadata = {
     description:
       'Simple, transparent pricing for AI-powered competitive intelligence. Start with a free trial, then scale pages, AI insights, and alerts as your team grows.',
     card: 'summary_large_image',
+    site: '@pulzifi',
+    creator: '@pulzifi',
     images: [
       '/opengraph-image',
     ],

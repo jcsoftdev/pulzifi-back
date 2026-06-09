@@ -1,0 +1,220 @@
+# Pulzifi — Extended Product Documentation
+
+> AI-powered website change monitoring and competitive intelligence platform.
+> Short version: https://pulzifi.com/llms.txt
+
+---
+
+## Product Overview
+
+Pulzifi is a SaaS platform that monitors any publicly accessible website 24/7 using a
+headless browser (Playwright/Chromium). When a change is detected — whether in visible
+text, pricing copy, layout, or visual appearance — Pulzifi's AI model analyzes the diff
+and generates a plain-language strategic insight. That insight is then delivered to the
+team via Slack, Discord, email, webhooks, Microsoft Teams, Google Sheets, Gmail, or
+Outlook.
+
+The product is built for teams that need to know what competitors, partners, regulators,
+or market signals are doing — before it impacts their business.
+
+---
+
+## Key Features (Detailed)
+
+### 1. Headless-Browser Monitoring
+Pulzifi uses a Playwright/Chromium scraper to render pages exactly as a real browser
+would, capturing JavaScript-rendered content, dynamic pricing widgets, and visual layout.
+Checks run on a configurable schedule.
+
+### 2. Visual + Text Change Detection
+Every page snapshot is compared pixel-by-pixel and text-by-text against the previous
+version. Pulzifi detects both content diffs (copy, pricing, navigation links) and visual
+diffs (layout shifts, image swaps, color changes). Diff images are stored and viewable
+inside the dashboard.
+
+### 3. AI-Generated Strategic Insights
+When a change is detected, an OpenRouter LLM (configurable model, with optional vision
+analysis) reads the diff and produces a short strategic insight in plain language — for
+example: "Competitor updated pricing page — new enterprise tier added at a lower price
+point than the previous plan." Teams do not need to manually review every change.
+
+### 4. Multi-Channel Alert Delivery
+Alerts and insights are delivered via:
+- Slack (webhook or OAuth)
+- Discord (webhook)
+- Email (via Resend provider)
+- Microsoft Teams (webhook)
+- Google Sheets (append rows)
+- Gmail (OAuth)
+- Outlook (OAuth)
+- Generic webhooks
+
+Each destination can be configured independently per workspace or page.
+
+### 5. Multi-Tenant Workspaces
+Organizations get isolated workspaces on their own subdomain (e.g., acme.pulzifi.com).
+Multiple team members can be invited and assigned roles. Each workspace contains its own
+monitored pages, check history, reports, and alert destinations.
+
+### 6. Monitoring Reports
+Pulzifi generates stored monitoring reports per workspace, giving teams a historical
+record of all detected changes and insights over time.
+
+### 7. Usage Quotas and Plan Management
+Each plan defines quotas for monitored pages, AI insights, and alert deliveries per
+billing period. Usage is tracked in real time and surfaced in the dashboard.
+
+### 8. Section-Level Monitoring
+Teams can configure monitored sections within a page — targeting specific DOM regions
+(by coordinates or selector) rather than the whole page — to reduce noise and focus on
+what matters.
+
+---
+
+## How It Works
+
+Step 1 — Add a URL
+Enter any public URL into Pulzifi. The system captures an initial snapshot using a
+headless Chromium browser, rendering the page as a real visitor would.
+
+Step 2 — Automated Monitoring
+On the configured schedule, Pulzifi's worker re-renders the page and compares it against
+the stored snapshot. Both visual (pixel diff) and text (content diff) comparisons run
+automatically, 24/7.
+
+Step 3 — AI Analysis and Alerts
+When a meaningful change is detected, an AI model analyzes the diff in context and
+generates a strategic insight. The insight is immediately dispatched to the team's
+configured channels (Slack, email, Discord, etc.).
+
+---
+
+## Use Cases / Who It's For
+
+### Product Teams
+Track competitor feature releases, changelog pages, and product announcements. Know when
+a rival ships a feature before your users start asking about it.
+
+### Marketing Teams
+Monitor competitor messaging, campaign copy, landing page headlines, and promotional
+offers. React quickly when a competitor repositions or launches a new campaign.
+
+### Business Analysts
+Watch regulatory pages, government portals, pricing pages, and supply-chain partner
+sites. Get notified the moment a policy, tariff, or terms document changes.
+
+### Agencies
+Manage competitive landscape monitoring for multiple clients from a single multi-tenant
+dashboard. Deliver automated intelligence reports to each client.
+
+### E-commerce and Retail
+Track competitor product pricing, stock status, and promotional banners in real time.
+React to price changes before losing sales.
+
+### Legal and Compliance Teams
+Monitor terms-of-service pages, privacy policies, and compliance documentation for
+partners or regulators. Maintain an audit trail of all changes detected.
+
+---
+
+## Pricing Plans
+
+Pulzifi offers simple, transparent pricing with a free trial. Plans are billed monthly
+or annually (annual billing includes two months free).
+
+Pricing data is managed in the CMS and may be updated independently of this file.
+Refer to https://pulzifi.com/pricing for current plan names, prices, and feature limits.
+
+The hardcoded fallback prices visible in the codebase at time of last update:
+- Starter: $20/month
+- Professional: $62/month
+
+Annual billing reduces the effective monthly cost by the equivalent of two free months.
+
+Plan tiers are differentiated by:
+- Number of monitored pages
+- AI insight generation limits
+- Alert delivery volume (monthly send quota per integration provider)
+- Team member seats
+- Access to advanced features (section-level monitoring, comparison table, etc.)
+
+---
+
+## Key Pages
+
+- Home: https://pulzifi.com/
+- Pricing: https://pulzifi.com/pricing
+- Blog: https://pulzifi.com/blog
+- Contact: https://pulzifi.com/contact
+- Register (start free trial): https://pulzifi.com/register
+- Login: https://pulzifi.com/login
+
+---
+
+## FAQ
+
+Q: What types of websites can Pulzifi monitor?
+A: Any publicly accessible website. Pulzifi uses a headless Chromium browser, so it
+renders JavaScript-heavy pages (SPAs, React apps, dynamic pricing widgets) the same way
+a real visitor would. Password-protected or login-gated pages are not supported.
+
+Q: How often does Pulzifi check pages for changes?
+A: Check frequency depends on your plan. The scheduler runs on a configurable interval.
+Refer to the pricing page for per-plan check frequency details.
+
+Q: What happens when a change is detected?
+A: Pulzifi stores the new snapshot, generates a pixel and text diff, runs the diff
+through an AI model to produce a plain-language insight, and dispatches alerts to all
+configured notification destinations (Slack, email, Discord, webhooks, etc.).
+
+Q: Does Pulzifi store screenshots of monitored pages?
+A: Yes. Every snapshot is stored (MinIO in development, Cloudinary or MinIO in
+production) and viewable inside the dashboard's changes view, including visual diff
+overlays.
+
+Q: Can multiple team members access the same workspace?
+A: Yes. Organization owners can invite team members and assign roles. All members share
+the same monitored pages, check history, and alert configuration within the workspace.
+
+Q: What AI model does Pulzifi use for insights?
+A: Pulzifi routes through OpenRouter, which allows the model to be configured. Both text
+analysis and optional vision analysis (pixel diff review) are supported. The specific
+model is configurable per deployment.
+
+Q: Is there a free trial?
+A: Yes. Users can register at https://pulzifi.com/register to start a free trial without
+a credit card.
+
+Q: What notification channels are supported?
+A: Slack, Discord, email (Resend), Microsoft Teams, Google Sheets, Gmail, Outlook, and
+generic webhooks. Each can be configured with either OAuth (for supported providers) or
+a bring-your-own-key approach.
+
+Q: Is multi-tenancy supported?
+A: Yes. Each organization gets its own isolated subdomain (e.g., acme.pulzifi.com) with
+a dedicated PostgreSQL schema, separate from all other tenants.
+
+Q: Where is data stored?
+A: Snapshots and diff images are stored in object storage (MinIO or Cloudinary). All
+structured data (pages, checks, insights, users, organizations) lives in PostgreSQL with
+a schema-per-tenant isolation model.
+
+---
+
+## Technology Stack
+
+Backend: Go 1.25 monolith, Chi router, hexagonal architecture, PostgreSQL
+(schema-per-tenant multi-tenancy), Redis, Playwright/Chromium scraper service.
+Frontend: Next.js 16 App Router, React 19, Tailwind CSS v4, Payload CMS, Bun, Turborepo.
+AI: OpenRouter LLM with configurable model; optional vision analysis for pixel diffs.
+Infrastructure: Dokploy on self-hosted VPS, Traefik for SSL, MinIO or Cloudinary for
+object storage.
+
+---
+
+## Social and Contact
+
+- X (Twitter): https://x.com/pulzifi
+- LinkedIn: https://linkedin.com/company/pulzifi
+- YouTube: https://youtube.com/@pulzifi
+- Contact page: https://pulzifi.com/contact

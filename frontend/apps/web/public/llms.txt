@@ -24,3 +24,8 @@ Pulzifi monitors websites 24/7 using a headless browser and detects visual and c
 Backend: Go 1.25 monolith with hexagonal architecture, PostgreSQL (schema-per-tenant multi-tenancy), Redis, Playwright-based scraper.
 Frontend: Next.js 16 App Router, React 19, Tailwind CSS v4, Payload CMS.
 AI: OpenRouter LLM (configurable model) for change analysis and insight generation.
+
+## Extended Documentation
+
+Full product details, feature descriptions, pricing tiers, use cases, and FAQ:
+[/llms-full.txt](https://pulzifi.com/llms-full.txt)
