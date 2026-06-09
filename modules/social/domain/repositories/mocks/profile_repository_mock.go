@@ -41,6 +41,10 @@ type MockProfileRepository struct {
 	DeleteCalls                 int
 	CountActiveByWorkspaceCalls int
 	ListDueCalls                int
+
+	// LastUpdatedProfile captures the last profile passed to Update — useful for
+	// asserting state changes in run_check tests.
+	LastUpdatedProfile *entities.SocialProfile
 }
 
 func (m *MockProfileRepository) Create(ctx context.Context, profile *entities.SocialProfile) error {
@@ -69,6 +73,8 @@ func (m *MockProfileRepository) ListByWorkspace(ctx context.Context, workspaceID
 
 func (m *MockProfileRepository) Update(ctx context.Context, profile *entities.SocialProfile) error {
 	m.UpdateCalls++
+	cp := *profile
+	m.LastUpdatedProfile = &cp
 	if m.UpdateFn != nil {
 		return m.UpdateFn(ctx, profile)
 	}
