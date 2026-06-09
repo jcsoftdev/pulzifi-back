@@ -7,6 +7,7 @@ package scheduler
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"sync"
 	"time"
 
@@ -241,5 +242,5 @@ func listExistingTenantSchemas(ctx context.Context, db *sql.DB) ([]string, error
 
 // isQuotaExceeded reports whether err is domainerrors.ErrQuotaExceeded.
 func isQuotaExceeded(err error) bool {
-	return err != nil && err.Error() == domainerrors.ErrQuotaExceeded.Error()
+	return errors.Is(err, domainerrors.ErrQuotaExceeded)
 }
