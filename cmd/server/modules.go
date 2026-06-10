@@ -29,6 +29,7 @@ import (
 	getsubscription "github.com/jcsoftdev/pulzifi-back/modules/billing/application/get_subscription"
 	billinggiftmonth "github.com/jcsoftdev/pulzifi-back/modules/billing/application/gift_month"
 	handlewebhook "github.com/jcsoftdev/pulzifi-back/modules/billing/application/handle_webhook"
+	listplans "github.com/jcsoftdev/pulzifi-back/modules/billing/application/list_plans"
 	managecoupons "github.com/jcsoftdev/pulzifi-back/modules/billing/application/manage_coupons"
 	reconcilesubscription "github.com/jcsoftdev/pulzifi-back/modules/billing/application/reconcile_subscription"
 	updatesubscription "github.com/jcsoftdev/pulzifi-back/modules/billing/application/update_subscription"
@@ -471,6 +472,7 @@ func buildBillingModule(db *sql.DB, cfg *config.Config) router.ModuleRegisterer 
 	webhookRepo := billingpostgres.NewWebhookEventPostgresRepository(db)
 	customerRepo := billingpostgres.NewCustomerPostgresRepository(db)
 	planRepo := billingpostgres.NewPlanPostgresRepository(db)
+	listPlansHandler := listplans.NewHandler(planRepo)
 
 	reconcileHandler := reconcilesubscription.NewHandler(stripeGateway, planAssigner, webhookRepo)
 
@@ -505,6 +507,7 @@ func buildBillingModule(db *sql.DB, cfg *config.Config) router.ModuleRegisterer 
 		CouponHandler:       couponHandler,
 		GiftHandler:         giftHandler,
 		CancelHandler:       cancelHandler,
+		ListPlansHandler:    listPlansHandler,
 	})
 }
 
