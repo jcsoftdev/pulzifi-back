@@ -1,5 +1,8 @@
 ALTER TABLE public.plans ADD COLUMN IF NOT EXISTS is_popular BOOLEAN NOT NULL DEFAULT FALSE;
 
+-- Enterprise tier has unlimited checks/pages/insights; drop NOT NULL so those cols can be NULL.
+ALTER TABLE public.plans ALTER COLUMN checks_allowed_monthly DROP NOT NULL;
+
 UPDATE public.plans SET
     checks_allowed_monthly      = 500,
     max_pages                   = 10,
