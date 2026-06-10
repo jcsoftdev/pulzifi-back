@@ -1485,6 +1485,439 @@ const docTemplate = `{
                 }
             }
         },
+        "/social-changes/{changeID}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get a social change by ID with full before/after snapshot data",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "social"
+                ],
+                "summary": "Get Social Change",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Change ID",
+                        "name": "changeID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/getchange.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/social-profiles/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get a social profile by ID, including its latest snapshot",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "social"
+                ],
+                "summary": "Get Social Profile",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Profile ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/getprofile.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Delete a social profile and all its associated snapshots and changes",
+                "tags": [
+                    "social"
+                ],
+                "summary": "Delete Social Profile",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Profile ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Update a social profile's check interval or active flag",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "social"
+                ],
+                "summary": "Update Social Profile",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Profile ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update Profile Request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/updateprofile.Request"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/updateprofile.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/social-profiles/{id}/changes": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "List social changes for a specific profile, paginated",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "social"
+                ],
+                "summary": "List Profile Changes",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Profile ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size (default 20)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page offset (default 0)",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/listchanges.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/social-profiles/{id}/check": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Trigger an immediate profile check (fetches latest data and detects changes)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "social"
+                ],
+                "summary": "Run Social Check",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Profile ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/runcheck.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Daily quota exceeded",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/social-profiles/{id}/snapshots": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "List scraping run history for a specific profile, paginated, newest first",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "social"
+                ],
+                "summary": "List Profile Snapshots",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Profile ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size (default 20, max 100)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page offset (default 0)",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/listsnapshots.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/social-snapshots/{snapshotID}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get a social snapshot by ID with full captured profile data",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "social"
+                ],
+                "summary": "Get Social Snapshot",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Snapshot ID",
+                        "name": "snapshotID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/getsnapshot.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/workspaces": {
             "get": {
                 "security": [
@@ -1955,6 +2388,221 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/workspaces/{workspaceID}/social-changes": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "List all social changes across all profiles in a workspace, paginated",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "social"
+                ],
+                "summary": "List Workspace Social Changes",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Workspace ID",
+                        "name": "workspaceID",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size (default 50)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page offset (default 0)",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/listchanges.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/workspaces/{workspaceID}/social-profiles": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "List all social profiles for a workspace",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "social"
+                ],
+                "summary": "List Social Profiles",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Workspace ID",
+                        "name": "workspaceID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/listprofiles.ProfileSummary"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Add a new social profile to a workspace for monitoring",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "social"
+                ],
+                "summary": "Create Social Profile",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Workspace ID",
+                        "name": "workspaceID",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Create Profile Request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/createprofile.Request"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/createprofile.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/workspaces/{workspaceID}/social-quota": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get the daily check quota usage for a workspace",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "social"
+                ],
+                "summary": "Get Social Quota Status",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Workspace ID",
+                        "name": "workspaceID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/getquotastatus.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -2326,6 +2974,64 @@ const docTemplate = `{
                 }
             }
         },
+        "createprofile.Request": {
+            "type": "object",
+            "properties": {
+                "check_interval_minutes": {
+                    "type": "integer"
+                },
+                "handle": {
+                    "type": "string"
+                },
+                "platform": {
+                    "type": "string"
+                },
+                "workspace_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "createprofile.Response": {
+            "type": "object",
+            "properties": {
+                "avatar_url": {
+                    "type": "string"
+                },
+                "check_interval_minutes": {
+                    "type": "integer"
+                },
+                "consecutive_failures": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "handle": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "next_check_at": {
+                    "type": "string"
+                },
+                "platform": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "workspace_id": {
+                    "type": "string"
+                }
+            }
+        },
         "createworkspace.CreateWorkspaceRequest": {
             "type": "object",
             "required": [
@@ -2373,9 +3079,196 @@ const docTemplate = `{
                 }
             }
         },
+        "entities.CaptionDiff": {
+            "type": "object",
+            "properties": {
+                "external_id": {
+                    "type": "string"
+                },
+                "from": {
+                    "type": "string"
+                },
+                "to": {
+                    "type": "string"
+                }
+            }
+        },
+        "entities.ChangeSummary": {
+            "type": "object",
+            "properties": {
+                "avatar_changed": {
+                    "description": "AvatarChanged is true when the stored avatar URL differs.",
+                    "type": "boolean"
+                },
+                "bio": {
+                    "description": "Bio holds before/after text when ChangeTypeBioChanged is present.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/entities.TextDiff"
+                        }
+                    ]
+                },
+                "display_name": {
+                    "description": "DisplayName holds before/after text when ChangeTypeDisplayNameChanged is present.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/entities.TextDiff"
+                        }
+                    ]
+                },
+                "edited_captions": {
+                    "description": "EditedCaptions maps ExternalID → TextDiff for posts whose caption changed.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/entities.CaptionDiff"
+                    }
+                },
+                "followers_delta": {
+                    "description": "FollowersDelta is set when ChangeTypeFollowersChanged is present.\nPositive = gained followers, negative = lost followers.",
+                    "type": "integer"
+                },
+                "new_posts": {
+                    "description": "NewPosts contains the ExternalIDs of posts added since the previous snapshot.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "removed_posts": {
+                    "description": "RemovedPosts contains the ExternalIDs of posts removed since the previous snapshot.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
         "entities.Metadata": {
             "type": "object",
             "additionalProperties": true
+        },
+        "entities.Post": {
+            "type": "object",
+            "properties": {
+                "caption": {
+                    "description": "Caption is the post text / description.",
+                    "type": "string"
+                },
+                "comments_count": {
+                    "description": "CommentsCount is the number of comments at capture time.",
+                    "type": "integer"
+                },
+                "external_id": {
+                    "description": "ExternalID is the platform-native post identifier (used for deduplication).",
+                    "type": "string"
+                },
+                "likes_count": {
+                    "description": "LikesCount is the number of likes at capture time.",
+                    "type": "integer"
+                },
+                "media_url": {
+                    "description": "MediaURL is the CDN URL of the post thumbnail (expires; do not persist).",
+                    "type": "string"
+                },
+                "posted_at": {
+                    "description": "PostedAt is the time the post was published on the platform.",
+                    "type": "string"
+                },
+                "stored_media_url": {
+                    "description": "StoredMediaURL is the object-storage URL (MinIO/Cloudinary) written by\nMediaStore.Store. Persisted alongside the snapshot.",
+                    "type": "string"
+                }
+            }
+        },
+        "entities.ProfileData": {
+            "type": "object",
+            "properties": {
+                "avatar_url": {
+                    "description": "AvatarURL is the stored (MinIO/Cloudinary) URL of the profile picture.\nCDN URLs expire; the infrastructure layer downloads and re-uploads them.",
+                    "type": "string"
+                },
+                "bio": {
+                    "description": "Bio is the profile biography / description text.",
+                    "type": "string"
+                },
+                "display_name": {
+                    "description": "DisplayName is the human-readable name shown on the profile.",
+                    "type": "string"
+                },
+                "followers_count": {
+                    "description": "FollowersCount is the number of followers at capture time.",
+                    "type": "integer"
+                },
+                "following_count": {
+                    "description": "FollowingCount is the number of accounts the profile follows.",
+                    "type": "integer"
+                },
+                "posts": {
+                    "description": "Posts contains the most recent posts (capped by SOCIAL_POSTS_PER_CHECK).",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/entities.Post"
+                    }
+                },
+                "posts_count": {
+                    "description": "PostsCount is the total number of posts reported by the platform.",
+                    "type": "integer"
+                }
+            }
+        },
+        "entities.TextDiff": {
+            "type": "object",
+            "properties": {
+                "from": {
+                    "type": "string"
+                },
+                "to": {
+                    "type": "string"
+                }
+            }
+        },
+        "getchange.ChangeDetail": {
+            "type": "object",
+            "properties": {
+                "change_types": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "from_snapshot_id": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "profile_id": {
+                    "type": "string"
+                },
+                "summary": {
+                    "$ref": "#/definitions/entities.ChangeSummary"
+                },
+                "to_snapshot_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "getchange.Response": {
+            "type": "object",
+            "properties": {
+                "after_data": {
+                    "$ref": "#/definitions/entities.ProfileData"
+                },
+                "before_data": {
+                    "$ref": "#/definitions/entities.ProfileData"
+                },
+                "change": {
+                    "$ref": "#/definitions/getchange.ChangeDetail"
+                }
+            }
         },
         "getpage.GetPageResponse": {
             "type": "object",
@@ -2420,6 +3313,133 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "workspace_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "getprofile.ProfileDetail": {
+            "type": "object",
+            "properties": {
+                "avatar_url": {
+                    "type": "string"
+                },
+                "check_interval_minutes": {
+                    "type": "integer"
+                },
+                "consecutive_failures": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "handle": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "last_checked_at": {
+                    "type": "string"
+                },
+                "next_check_at": {
+                    "type": "string"
+                },
+                "platform": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "workspace_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "getprofile.Response": {
+            "type": "object",
+            "properties": {
+                "latest_snapshot": {
+                    "$ref": "#/definitions/getprofile.SnapshotDetail"
+                },
+                "profile": {
+                    "$ref": "#/definitions/getprofile.ProfileDetail"
+                }
+            }
+        },
+        "getprofile.SnapshotDetail": {
+            "type": "object",
+            "properties": {
+                "captured_at": {
+                    "type": "string"
+                },
+                "data": {
+                    "$ref": "#/definitions/entities.ProfileData"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "followers_count": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "posts_count": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "getquotastatus.Response": {
+            "type": "object",
+            "properties": {
+                "checks_limit": {
+                    "description": "ChecksLimit is the plan's daily cap. nil means unlimited (REQ-QUOTA-STATUS-02).",
+                    "type": "integer"
+                },
+                "checks_used": {
+                    "description": "ChecksUsed is the number of social checks consumed today.",
+                    "type": "integer"
+                },
+                "resets_at": {
+                    "description": "ResetsAt is the ISO-8601 timestamp of the next UTC midnight,\nwhen the quota pool resets (REQ-QUOTA-STATUS-02).",
+                    "type": "string"
+                }
+            }
+        },
+        "getsnapshot.Response": {
+            "type": "object",
+            "properties": {
+                "captured_at": {
+                    "type": "string"
+                },
+                "data": {
+                    "$ref": "#/definitions/entities.ProfileData"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "followers_count": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "posts_count": {
+                    "type": "integer"
+                },
+                "profile_id": {
+                    "type": "string"
+                },
+                "status": {
                     "type": "string"
                 }
             }
@@ -2475,6 +3495,43 @@ const docTemplate = `{
                 },
                 "user_id": {
                     "type": "string"
+                }
+            }
+        },
+        "listchanges.ChangeSummaryItem": {
+            "type": "object",
+            "properties": {
+                "change_types": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "from_snapshot_id": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "profile_id": {
+                    "type": "string"
+                },
+                "to_snapshot_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "listchanges.Response": {
+            "type": "object",
+            "properties": {
+                "changes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/listchanges.ChangeSummaryItem"
+                    }
                 }
             }
         },
@@ -2635,6 +3692,87 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "workspace_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "listprofiles.ProfileSummary": {
+            "type": "object",
+            "properties": {
+                "avatar_url": {
+                    "type": "string"
+                },
+                "check_interval_minutes": {
+                    "type": "integer"
+                },
+                "consecutive_failures": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "handle": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "last_checked_at": {
+                    "type": "string"
+                },
+                "next_check_at": {
+                    "type": "string"
+                },
+                "platform": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "workspace_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "listsnapshots.Response": {
+            "type": "object",
+            "properties": {
+                "snapshots": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/listsnapshots.SnapshotSummary"
+                    }
+                }
+            }
+        },
+        "listsnapshots.SnapshotSummary": {
+            "type": "object",
+            "properties": {
+                "captured_at": {
+                    "type": "string"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "followers_count": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "posts_count": {
+                    "type": "integer"
+                },
+                "profile_id": {
+                    "type": "string"
+                },
+                "status": {
                     "type": "string"
                 }
             }
@@ -2866,6 +4004,39 @@ const docTemplate = `{
                 }
             }
         },
+        "runcheck.Response": {
+            "type": "object",
+            "properties": {
+                "change_created": {
+                    "description": "ChangeCreated is true when a SocialChange was persisted (diff was non-empty).",
+                    "type": "boolean"
+                },
+                "change_id": {
+                    "description": "ChangeID is the UUID of the persisted change, when ChangeCreated is true.",
+                    "type": "string"
+                },
+                "data": {
+                    "description": "Data is the captured ProfileData (nil on failure).",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/entities.ProfileData"
+                        }
+                    ]
+                },
+                "next_check_at": {
+                    "description": "NextCheckAt is the updated next_check_at on the profile.",
+                    "type": "string"
+                },
+                "snapshot_id": {
+                    "description": "SnapshotID is the UUID of the persisted snapshot.",
+                    "type": "string"
+                },
+                "status": {
+                    "description": "Status is the snapshot status (\"success\" or \"failed\").",
+                    "type": "string"
+                }
+            }
+        },
         "update_member_role.UpdateMemberRoleRequest": {
             "type": "object",
             "properties": {
@@ -3030,6 +4201,63 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "url": {
+                    "type": "string"
+                }
+            }
+        },
+        "updateprofile.Request": {
+            "type": "object",
+            "properties": {
+                "check_interval_minutes": {
+                    "description": "CheckIntervalMinutes, when non-nil, updates the check cadence.\nMust be one of the allowed presets (720, 1440). Minimum cadence is 12h.",
+                    "type": "integer"
+                },
+                "is_active": {
+                    "description": "IsActive, when non-nil, enables or disables the profile in the scheduler.\nSetting to false sets next_check_at=nil; setting to true resets next_check_at=now().",
+                    "type": "boolean"
+                }
+            }
+        },
+        "updateprofile.Response": {
+            "type": "object",
+            "properties": {
+                "avatar_url": {
+                    "type": "string"
+                },
+                "check_interval_minutes": {
+                    "type": "integer"
+                },
+                "consecutive_failures": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "handle": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "last_checked_at": {
+                    "type": "string"
+                },
+                "next_check_at": {
+                    "type": "string"
+                },
+                "platform": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "workspace_id": {
                     "type": "string"
                 }
             }

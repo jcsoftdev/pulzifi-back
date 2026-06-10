@@ -205,13 +205,17 @@ export function VisualPulse({
             <line x1="12" y1="8" x2="12" y2="12" />
             <line x1="12" y1="16" x2="12.01" y2="16" />
           </svg>
-          <span>No previous snapshot to compare — this is the first recorded check.</span>
+          <span>
+            {diffImageUrl
+              ? 'Previous snapshot is no longer stored — showing the detected changes overlay.'
+              : 'No previous snapshot to compare — this is the first recorded check.'}
+          </span>
         </div>
         <div className="relative w-full max-w-4xl mx-auto border border-border rounded-xl overflow-hidden shadow-sm">
           {/* biome-ignore lint/performance/noImgElement: screenshot URLs are dynamic external URLs with unknown dimensions */}
           <img
-            src={currentScreenshotUrl}
-            alt="Current snapshot"
+            src={diffImageUrl || currentScreenshotUrl}
+            alt={diffImageUrl ? 'Diff overlay highlighting changed regions' : 'Current snapshot'}
             className="w-full h-auto object-contain"
           />
         </div>

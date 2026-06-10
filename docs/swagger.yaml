@@ -244,6 +244,44 @@ definitions:
       workspace_id:
         type: string
     type: object
+  createprofile.Request:
+    properties:
+      check_interval_minutes:
+        type: integer
+      handle:
+        type: string
+      platform:
+        type: string
+      workspace_id:
+        type: string
+    type: object
+  createprofile.Response:
+    properties:
+      avatar_url:
+        type: string
+      check_interval_minutes:
+        type: integer
+      consecutive_failures:
+        type: integer
+      created_at:
+        type: string
+      display_name:
+        type: string
+      handle:
+        type: string
+      id:
+        type: string
+      is_active:
+        type: boolean
+      next_check_at:
+        type: string
+      platform:
+        type: string
+      updated_at:
+        type: string
+      workspace_id:
+        type: string
+    type: object
   createworkspace.CreateWorkspaceRequest:
     properties:
       name:
@@ -275,8 +313,145 @@ definitions:
       type:
         type: string
     type: object
+  entities.CaptionDiff:
+    properties:
+      external_id:
+        type: string
+      from:
+        type: string
+      to:
+        type: string
+    type: object
+  entities.ChangeSummary:
+    properties:
+      avatar_changed:
+        description: AvatarChanged is true when the stored avatar URL differs.
+        type: boolean
+      bio:
+        allOf:
+        - $ref: '#/definitions/entities.TextDiff'
+        description: Bio holds before/after text when ChangeTypeBioChanged is present.
+      display_name:
+        allOf:
+        - $ref: '#/definitions/entities.TextDiff'
+        description: DisplayName holds before/after text when ChangeTypeDisplayNameChanged
+          is present.
+      edited_captions:
+        description: EditedCaptions maps ExternalID → TextDiff for posts whose caption
+          changed.
+        items:
+          $ref: '#/definitions/entities.CaptionDiff'
+        type: array
+      followers_delta:
+        description: |-
+          FollowersDelta is set when ChangeTypeFollowersChanged is present.
+          Positive = gained followers, negative = lost followers.
+        type: integer
+      new_posts:
+        description: NewPosts contains the ExternalIDs of posts added since the previous
+          snapshot.
+        items:
+          type: string
+        type: array
+      removed_posts:
+        description: RemovedPosts contains the ExternalIDs of posts removed since
+          the previous snapshot.
+        items:
+          type: string
+        type: array
+    type: object
   entities.Metadata:
     additionalProperties: true
+    type: object
+  entities.Post:
+    properties:
+      caption:
+        description: Caption is the post text / description.
+        type: string
+      comments_count:
+        description: CommentsCount is the number of comments at capture time.
+        type: integer
+      external_id:
+        description: ExternalID is the platform-native post identifier (used for deduplication).
+        type: string
+      likes_count:
+        description: LikesCount is the number of likes at capture time.
+        type: integer
+      media_url:
+        description: MediaURL is the CDN URL of the post thumbnail (expires; do not
+          persist).
+        type: string
+      posted_at:
+        description: PostedAt is the time the post was published on the platform.
+        type: string
+      stored_media_url:
+        description: |-
+          StoredMediaURL is the object-storage URL (MinIO/Cloudinary) written by
+          MediaStore.Store. Persisted alongside the snapshot.
+        type: string
+    type: object
+  entities.ProfileData:
+    properties:
+      avatar_url:
+        description: |-
+          AvatarURL is the stored (MinIO/Cloudinary) URL of the profile picture.
+          CDN URLs expire; the infrastructure layer downloads and re-uploads them.
+        type: string
+      bio:
+        description: Bio is the profile biography / description text.
+        type: string
+      display_name:
+        description: DisplayName is the human-readable name shown on the profile.
+        type: string
+      followers_count:
+        description: FollowersCount is the number of followers at capture time.
+        type: integer
+      following_count:
+        description: FollowingCount is the number of accounts the profile follows.
+        type: integer
+      posts:
+        description: Posts contains the most recent posts (capped by SOCIAL_POSTS_PER_CHECK).
+        items:
+          $ref: '#/definitions/entities.Post'
+        type: array
+      posts_count:
+        description: PostsCount is the total number of posts reported by the platform.
+        type: integer
+    type: object
+  entities.TextDiff:
+    properties:
+      from:
+        type: string
+      to:
+        type: string
+    type: object
+  getchange.ChangeDetail:
+    properties:
+      change_types:
+        items:
+          type: string
+        type: array
+      created_at:
+        type: string
+      from_snapshot_id:
+        type: string
+      id:
+        type: string
+      profile_id:
+        type: string
+      summary:
+        $ref: '#/definitions/entities.ChangeSummary'
+      to_snapshot_id:
+        type: string
+    type: object
+  getchange.Response:
+    properties:
+      after_data:
+        $ref: '#/definitions/entities.ProfileData'
+      before_data:
+        $ref: '#/definitions/entities.ProfileData'
+      change:
+        $ref: '#/definitions/getchange.ChangeDetail'
     type: object
   getpage.GetPageResponse:
     properties:
@@ -307,6 +482,92 @@ definitions:
       url:
         type: string
       workspace_id:
+        type: string
+    type: object
+  getprofile.ProfileDetail:
+    properties:
+      avatar_url:
+        type: string
+      check_interval_minutes:
+        type: integer
+      consecutive_failures:
+        type: integer
+      created_at:
+        type: string
+      display_name:
+        type: string
+      handle:
+        type: string
+      id:
+        type: string
+      is_active:
+        type: boolean
+      last_checked_at:
+        type: string
+      next_check_at:
+        type: string
+      platform:
+        type: string
+      updated_at:
+        type: string
+      workspace_id:
+        type: string
+    type: object
+  getprofile.Response:
+    properties:
+      latest_snapshot:
+        $ref: '#/definitions/getprofile.SnapshotDetail'
+      profile:
+        $ref: '#/definitions/getprofile.ProfileDetail'
+    type: object
+  getprofile.SnapshotDetail:
+    properties:
+      captured_at:
+        type: string
+      data:
+        $ref: '#/definitions/entities.ProfileData'
+      error:
+        type: string
+      followers_count:
+        type: integer
+      id:
+        type: string
+      posts_count:
+        type: integer
+      status:
+        type: string
+    type: object
+  getquotastatus.Response:
+    properties:
+      checks_limit:
+        description: ChecksLimit is the plan's daily cap. nil means unlimited (REQ-QUOTA-STATUS-02).
+        type: integer
+      checks_used:
+        description: ChecksUsed is the number of social checks consumed today.
+        type: integer
+      resets_at:
+        description: |-
+          ResetsAt is the ISO-8601 timestamp of the next UTC midnight,
+          when the quota pool resets (REQ-QUOTA-STATUS-02).
+        type: string
+    type: object
+  getsnapshot.Response:
+    properties:
+      captured_at:
+        type: string
+      data:
+        $ref: '#/definitions/entities.ProfileData'
+      error:
+        type: string
+      followers_count:
+        type: integer
+      id:
+        type: string
+      posts_count:
+        type: integer
+      profile_id:
+        type: string
+      status:
         type: string
     type: object
   getworkspace.GetWorkspaceResponse:
@@ -343,6 +604,30 @@ definitions:
         type: string
       user_id:
         type: string
+    type: object
+  listchanges.ChangeSummaryItem:
+    properties:
+      change_types:
+        items:
+          type: string
+        type: array
+      created_at:
+        type: string
+      from_snapshot_id:
+        type: string
+      id:
+        type: string
+      profile_id:
+        type: string
+      to_snapshot_id:
+        type: string
+    type: object
+  listchanges.Response:
+    properties:
+      changes:
+        items:
+          $ref: '#/definitions/listchanges.ChangeSummaryItem'
+        type: array
     type: object
   listchecks.CheckResponse:
     properties:
@@ -451,6 +736,59 @@ definitions:
       url:
         type: string
       workspace_id:
+        type: string
+    type: object
+  listprofiles.ProfileSummary:
+    properties:
+      avatar_url:
+        type: string
+      check_interval_minutes:
+        type: integer
+      consecutive_failures:
+        type: integer
+      created_at:
+        type: string
+      display_name:
+        type: string
+      handle:
+        type: string
+      id:
+        type: string
+      is_active:
+        type: boolean
+      last_checked_at:
+        type: string
+      next_check_at:
+        type: string
+      platform:
+        type: string
+      updated_at:
+        type: string
+      workspace_id:
+        type: string
+    type: object
+  listsnapshots.Response:
+    properties:
+      snapshots:
+        items:
+          $ref: '#/definitions/listsnapshots.SnapshotSummary'
+        type: array
+    type: object
+  listsnapshots.SnapshotSummary:
+    properties:
+      captured_at:
+        type: string
+      error:
+        type: string
+      followers_count:
+        type: integer
+      id:
+        type: string
+      posts_count:
+        type: integer
+      profile_id:
+        type: string
+      status:
         type: string
     type: object
   listworkspaces.ListWorkspacesResponse:
@@ -603,6 +941,30 @@ definitions:
     - organization_subdomain
     - password
     type: object
+  runcheck.Response:
+    properties:
+      change_created:
+        description: ChangeCreated is true when a SocialChange was persisted (diff
+          was non-empty).
+        type: boolean
+      change_id:
+        description: ChangeID is the UUID of the persisted change, when ChangeCreated
+          is true.
+        type: string
+      data:
+        allOf:
+        - $ref: '#/definitions/entities.ProfileData'
+        description: Data is the captured ProfileData (nil on failure).
+      next_check_at:
+        description: NextCheckAt is the updated next_check_at on the profile.
+        type: string
+      snapshot_id:
+        description: SnapshotID is the UUID of the persisted snapshot.
+        type: string
+      status:
+        description: Status is the snapshot status ("success" or "failed").
+        type: string
+    type: object
   update_member_role.UpdateMemberRoleRequest:
     properties:
       role:
@@ -711,6 +1073,48 @@ definitions:
       name:
         type: string
       url:
+        type: string
+    type: object
+  updateprofile.Request:
+    properties:
+      check_interval_minutes:
+        description: |-
+          CheckIntervalMinutes, when non-nil, updates the check cadence.
+          Must be one of the allowed presets (720, 1440). Minimum cadence is 12h.
+        type: integer
+      is_active:
+        description: |-
+          IsActive, when non-nil, enables or disables the profile in the scheduler.
+          Setting to false sets next_check_at=nil; setting to true resets next_check_at=now().
+        type: boolean
+    type: object
+  updateprofile.Response:
+    properties:
+      avatar_url:
+        type: string
+      check_interval_minutes:
+        type: integer
+      consecutive_failures:
+        type: integer
+      created_at:
+        type: string
+      display_name:
+        type: string
+      handle:
+        type: string
+      id:
+        type: string
+      is_active:
+        type: boolean
+      last_checked_at:
+        type: string
+      next_check_at:
+        type: string
+      platform:
+        type: string
+      updated_at:
+        type: string
+      workspace_id:
         type: string
     type: object
 host: localhost:3000
@@ -1648,6 +2052,284 @@ paths:
       summary: Bulk Delete Pages
       tags:
       - pages
+  /social-changes/{changeID}:
+    get:
+      description: Get a social change by ID with full before/after snapshot data
+      parameters:
+      - description: Change ID
+        in: path
+        name: changeID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/getchange.Response'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get Social Change
+      tags:
+      - social
+  /social-profiles/{id}:
+    delete:
+      description: Delete a social profile and all its associated snapshots and changes
+      parameters:
+      - description: Profile ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete Social Profile
+      tags:
+      - social
+    get:
+      description: Get a social profile by ID, including its latest snapshot
+      parameters:
+      - description: Profile ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/getprofile.Response'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get Social Profile
+      tags:
+      - social
+    patch:
+      consumes:
+      - application/json
+      description: Update a social profile's check interval or active flag
+      parameters:
+      - description: Profile ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Update Profile Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/updateprofile.Request'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/updateprofile.Response'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update Social Profile
+      tags:
+      - social
+  /social-profiles/{id}/changes:
+    get:
+      description: List social changes for a specific profile, paginated
+      parameters:
+      - description: Profile ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Page size (default 20)
+        in: query
+        name: limit
+        type: integer
+      - description: Page offset (default 0)
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/listchanges.Response'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List Profile Changes
+      tags:
+      - social
+  /social-profiles/{id}/check:
+    post:
+      description: Trigger an immediate profile check (fetches latest data and detects
+        changes)
+      parameters:
+      - description: Profile ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/runcheck.Response'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "429":
+          description: Daily quota exceeded
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Run Social Check
+      tags:
+      - social
+  /social-profiles/{id}/snapshots:
+    get:
+      description: List scraping run history for a specific profile, paginated, newest
+        first
+      parameters:
+      - description: Profile ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Page size (default 20, max 100)
+        in: query
+        name: limit
+        type: integer
+      - description: Page offset (default 0)
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/listsnapshots.Response'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List Profile Snapshots
+      tags:
+      - social
+  /social-snapshots/{snapshotID}:
+    get:
+      description: Get a social snapshot by ID with full captured profile data
+      parameters:
+      - description: Snapshot ID
+        in: path
+        name: snapshotID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/getsnapshot.Response'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get Social Snapshot
+      tags:
+      - social
   /workspaces:
     get:
       description: List all workspaces
@@ -1949,6 +2631,143 @@ paths:
       summary: Update Workspace Member Role
       tags:
       - workspaces
+  /workspaces/{workspaceID}/social-changes:
+    get:
+      description: List all social changes across all profiles in a workspace, paginated
+      parameters:
+      - description: Workspace ID
+        in: path
+        name: workspaceID
+        required: true
+        type: string
+      - description: Page size (default 50)
+        in: query
+        name: limit
+        type: integer
+      - description: Page offset (default 0)
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/listchanges.Response'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List Workspace Social Changes
+      tags:
+      - social
+  /workspaces/{workspaceID}/social-profiles:
+    get:
+      description: List all social profiles for a workspace
+      parameters:
+      - description: Workspace ID
+        in: path
+        name: workspaceID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/listprofiles.ProfileSummary'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List Social Profiles
+      tags:
+      - social
+    post:
+      consumes:
+      - application/json
+      description: Add a new social profile to a workspace for monitoring
+      parameters:
+      - description: Workspace ID
+        in: path
+        name: workspaceID
+        required: true
+        type: string
+      - description: Create Profile Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/createprofile.Request'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/createprofile.Response'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "422":
+          description: Unprocessable Entity
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create Social Profile
+      tags:
+      - social
+  /workspaces/{workspaceID}/social-quota:
+    get:
+      description: Get the daily check quota usage for a workspace
+      parameters:
+      - description: Workspace ID
+        in: path
+        name: workspaceID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/getquotastatus.Response'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get Social Quota Status
+      tags:
+      - social
 schemes:
 - http
 - https

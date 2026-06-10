@@ -97,7 +97,7 @@ export function HeroSection({
             {(eyebrowBadge || eyebrowText) && (
               <div
                 data-pz-hero-eyebrow
-                className="inline-flex w-fit items-center gap-2 rounded-full border border-[var(--pz-card-border)] bg-white/70 px-3 py-1.5 backdrop-blur"
+                className="inline-flex w-fit items-center gap-2 rounded-full border border-[var(--pz-card-border)] bg-white/80 px-3 py-1.5 backdrop-blur max-md:backdrop-blur-none"
               >
                 {eyebrowBadge && (
                   <span className="rounded bg-[var(--pz-accent)] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">

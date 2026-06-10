@@ -40,6 +40,8 @@ export const metadata: Metadata = {
     description:
       'Simple, transparent pricing for AI-powered competitive intelligence. Start with a free trial, then scale pages, AI insights, and alerts as your team grows.',
     card: 'summary_large_image',
+    site: '@pulzifi',
+    creator: '@pulzifi',
     images: [
       '/opengraph-image',
     ],
@@ -210,13 +212,46 @@ export default async function PricingPage() {
   const pricingPlans =
     (pricingBlock?.plans as { name?: string; price?: string }[] | undefined) ?? []
   const offers = pricingPlans
-    .map((p) => ({
-      '@type': 'Offer' as const,
-      name: p.name ?? '',
-      price: (p.price ?? '').replace(/[^0-9.]/g, ''),
-      priceCurrency: 'USD',
-    }))
-    .filter((o) => o.name && o.price)
+    .flatMap((p) => {
+      const rawPrice = (p.price ?? '').trim()
+      const planName = p.name ?? ''
+      if (!planName) return []
+
+      // "Free" / "$0" / "0" → price "0" (valid schema.org Offer)
+      const isFree = /^(free|\$?0(\.0+)?)$/i.test(rawPrice)
+      if (isFree) {
+        return [{ '@type': 'Offer' as const, name: planName, price: '0', priceCurrency: 'USD' }]
+      }
+
+      // Extract numeric price from strings like "$20", "20/mo", etc.
+      const numericPrice = rawPrice.replace(/[^0-9.]/g, '')
+      if (!numericPrice) {
+        // "Custom" / contact-sales plans have no numeric price — omit from offers.
+        return []
+      }
+
+      return [{ '@type': 'Offer' as const, name: planName, price: numericPrice, priceCurrency: 'USD' }]
+    })
+
+  // BreadcrumbList — Home → Pricing, matching blog/[slug]/page.tsx pattern.
+  const breadcrumbJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      {
+        '@type': 'ListItem',
+        position: 1,
+        name: 'Home',
+        item: baseUrl,
+      },
+      {
+        '@type': 'ListItem',
+        position: 2,
+        name: 'Pricing',
+        item: `${baseUrl}/pricing`,
+      },
+    ],
+  }
 
   return (
     <div className="min-h-screen bg-[var(--pz-page-bg)]">
@@ -260,6 +295,7 @@ export default async function PricingPage() {
           }}
         />
       )}
+      <JsonLd data={breadcrumbJsonLd} />
     </div>
   )
 }

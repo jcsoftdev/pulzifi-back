@@ -73,7 +73,7 @@ export const UsageApi = {
       }
     }
 
-    const storagePeriodDays = response.quotas?.storage_period_days ?? 7
+    const storagePeriodDays = response.quotas?.storage_period_days || 7
     const maxPages = response.quotas?.max_pages ?? 0
     const maxWorkspaces = response.quotas?.max_workspaces ?? 0
 

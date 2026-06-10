@@ -63,7 +63,8 @@ func (r *PagePostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (*en
 			p.created_by, p.created_at, p.updated_at, p.deleted_at,
 			COALESCE(mc.check_frequency, 'Off') as check_frequency,
 			COALESCE(
-				(SELECT COUNT(*) FROM ` + r.table("checks") + ` WHERE page_id = p.id AND change_detected = true), 
+				(SELECT COUNT(*) FROM ` + r.table("checks") + ` WHERE page_id = p.id AND change_detected = true
+					AND (COALESCE(screenshot_url, '') <> '' OR COALESCE(diff_image_url, '') <> '' OR content_diff IS NOT NULL)),
 				0
 			) as detected_changes
 		FROM ` + r.table("pages") + ` p
@@ -129,7 +130,8 @@ func (r *PagePostgresRepository) ListByWorkspace(ctx context.Context, workspaceI
 			p.created_by, p.created_at, p.updated_at, p.deleted_at,
 			COALESCE(mc.check_frequency, 'Off') as check_frequency,
 			COALESCE(
-				(SELECT COUNT(*) FROM ` + r.table("checks") + ` c WHERE c.page_id = p.id AND c.change_detected = true), 
+				(SELECT COUNT(*) FROM ` + r.table("checks") + ` c WHERE c.page_id = p.id AND c.change_detected = true
+					AND (COALESCE(c.screenshot_url, '') <> '' OR COALESCE(c.diff_image_url, '') <> '' OR c.content_diff IS NOT NULL)),
 				0
 			) as detected_changes
 		FROM ` + r.table("pages") + ` p

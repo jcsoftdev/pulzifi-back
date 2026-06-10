@@ -377,6 +377,10 @@ export const AiIntelligenceBlock: Block = {
             {
               name: 'image',
               type: 'text',
+              hooks: {
+                // Pasted URLs often carry stray whitespace, which crashes next/image
+                beforeValidate: [({ value }) => (typeof value === 'string' ? value.trim() : value)],
+              },
               admin: {
                 description: 'Image URL or /images/landing/... path',
               },

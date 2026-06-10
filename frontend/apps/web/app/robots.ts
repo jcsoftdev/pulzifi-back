@@ -51,6 +51,31 @@ export default function robots(): MetadataRoute.Robots {
         allow: '/',
         disallow: privateRoutes,
       },
+      {
+        userAgent: 'OAI-SearchBot',
+        allow: '/',
+        disallow: privateRoutes,
+      },
+      {
+        userAgent: 'CCBot',
+        allow: '/',
+        disallow: privateRoutes,
+      },
+      {
+        userAgent: 'meta-externalagent',
+        allow: '/',
+        disallow: privateRoutes,
+      },
+      {
+        userAgent: 'Applebot-Extended',
+        allow: '/',
+        disallow: privateRoutes,
+      },
+      {
+        userAgent: 'Bytespider',
+        allow: '/',
+        disallow: privateRoutes,
+      },
     ],
     sitemap: `${baseUrl}/sitemap.xml`,
   }

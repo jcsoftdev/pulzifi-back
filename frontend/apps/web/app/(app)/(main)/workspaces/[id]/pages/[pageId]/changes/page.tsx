@@ -179,9 +179,11 @@ export default function ChangesPage() {
     (c) =>
       (c.status === 'success' && new Date(c.checkedAt) >= storageCutoff) || c.id === checkIdParam
   )
-  // Resolve active check: checkIdParam (if in current filter) → first dropdown → latest in filter.
+  // Resolve active check: checkIdParam (if in current filter) → latest detected change → first dropdown → latest in filter.
   const paramInFilter = checkIdParam ? filteredChecks.find((c) => c.id === checkIdParam) : undefined
-  const activeCheckId = paramInFilter?.id || dropdownChecks[0]?.id || filteredChecks[0]?.id || ''
+  const latestChangeId = dropdownChecks.find((c) => c.changeDetected)?.id
+  const activeCheckId =
+    paramInFilter?.id || latestChangeId || dropdownChecks[0]?.id || filteredChecks[0]?.id || ''
   const activeCheckIndex = filteredChecks.findIndex((c) => c.id === activeCheckId)
   const activeCheck = filteredChecks[activeCheckIndex]
 

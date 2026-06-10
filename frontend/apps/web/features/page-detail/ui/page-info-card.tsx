@@ -75,11 +75,10 @@ export function PageInfoCard({
             type="button"
             variant="outline"
             onClick={onViewChanges}
-            className="px-3 py-2 h-auto gap-2"
+            className="px-3 py-2 h-auto"
             aria-label="View changes"
           >
             <span className="text-sm">View Changes</span>
-            <span className="w-2 h-2 rounded-full bg-foreground" />
           </Button>
         </div>
       </div>

@@ -3,9 +3,16 @@ import { PageApi } from '@workspace/services/page-api'
 import { Badge } from '@workspace/ui/components/atoms/badge'
 import { Button } from '@workspace/ui/components/atoms/button'
 import { Input } from '@workspace/ui/components/atoms/input'
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@workspace/ui/components/atoms/tabs'
 import { FileText, Settings, SquarePlus, Trash2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
+import { SocialTabContent } from '@/features/social/ui/social-tab-content'
 import type { CreatePageDto, EditPageDto, Page } from '@/features/page/domain/types'
 import { getFrequencyLabel } from '@/features/page/domain/types'
 import { AddPageDialog } from '@/features/page/ui/add-page-dialog'
@@ -368,65 +375,80 @@ export function WorkspaceDetailContent({
         </div>
       </div>
 
-      <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center px-4 md:px-8 lg:px-24 py-2 gap-4">
-        <div className="relative flex-1 w-full md:max-w-sm">
-          <svg
-            width="17"
-            height="17"
-            viewBox="0 0 17 17"
-            fill="none"
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-          >
-            <title>Search</title>
-            <path
-              d="M7.79167 13.4583C10.8292 13.4583 13.2917 10.9958 13.2917 7.95833C13.2917 4.92084 10.8292 2.45833 7.79167 2.45833C4.75418 2.45833 2.29167 4.92084 2.29167 7.95833C2.29167 10.9958 4.75418 13.4583 7.79167 13.4583Z"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            <path
-              d="M14.5833 14.75L11.7292 11.8958"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          <Input
-            type="search"
-            placeholder="Search pages"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
-          />
+      <Tabs defaultValue="pages" className="flex-1 flex flex-col">
+        <div className="px-4 md:px-8 lg:px-24 py-2">
+          <TabsList>
+            <TabsTrigger value="pages">Pages</TabsTrigger>
+            <TabsTrigger value="social">Social</TabsTrigger>
+          </TabsList>
         </div>
 
-        <div className="flex items-center gap-4">
-          <Button
-            variant="default"
-            onClick={() => setIsAddPageOpen(true)}
-            className="h-9 px-4 gap-2 bg-primary w-full md:w-auto"
-          >
-            <SquarePlus className="w-4 h-4" />
-            Add page
-          </Button>
-        </div>
-      </div>
+        <TabsContent value="pages" className="flex-1 flex flex-col mt-0">
+          <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center px-4 md:px-8 lg:px-24 py-2 gap-4">
+            <div className="relative flex-1 w-full md:max-w-sm">
+              <svg
+                width="17"
+                height="17"
+                viewBox="0 0 17 17"
+                fill="none"
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+              >
+                <title>Search</title>
+                <path
+                  d="M7.79167 13.4583C10.8292 13.4583 13.2917 10.9958 13.2917 7.95833C13.2917 4.92084 10.8292 2.45833 7.79167 2.45833C4.75418 2.45833 2.29167 4.92084 2.29167 7.95833C2.29167 10.9958 4.75418 13.4583 7.79167 13.4583Z"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M14.5833 14.75L11.7292 11.8958"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              <Input
+                type="search"
+                placeholder="Search pages"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
 
-      <div className="px-4 md:px-8 lg:px-24 py-2 pb-6">
-        <PagesTable
-          pages={filteredPages}
-          onViewChanges={handleViewChanges}
-          onPageClick={handlePageClick}
-          onCheckFrequencyChange={handleCheckFrequencyChange}
-          onEdit={handleEditPageClick}
-          onDelete={handleDeletePageClick}
-          onRunNow={handleRunNow}
-          onBulkDelete={handleBulkDelete}
-          onBulkFrequencyChange={handleBulkFrequencyChange}
-        />
-      </div>
+            <div className="flex items-center gap-4">
+              <Button
+                variant="default"
+                onClick={() => setIsAddPageOpen(true)}
+                className="h-9 px-4 gap-2 bg-primary w-full md:w-auto"
+              >
+                <SquarePlus className="w-4 h-4" />
+                Add page
+              </Button>
+            </div>
+          </div>
+
+          <div className="px-4 md:px-8 lg:px-24 py-2 pb-6">
+            <PagesTable
+              pages={filteredPages}
+              onViewChanges={handleViewChanges}
+              onPageClick={handlePageClick}
+              onCheckFrequencyChange={handleCheckFrequencyChange}
+              onEdit={handleEditPageClick}
+              onDelete={handleDeletePageClick}
+              onRunNow={handleRunNow}
+              onBulkDelete={handleBulkDelete}
+              onBulkFrequencyChange={handleBulkFrequencyChange}
+            />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="social" className="flex-1 px-4 md:px-8 lg:px-24 py-4">
+          <SocialTabContent workspaceId={workspace.id} />
+        </TabsContent>
+      </Tabs>
 
       <AddPageDialog
         open={isAddPageOpen}

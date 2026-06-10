@@ -1,5 +1,5 @@
 // biome-ignore-all lint/correctness/noUnusedFunctionParameters: generated migration file — payload/req required by interface
-import { type MigrateDownArgs, type MigrateUpArgs } from '@payloadcms/db-postgres'
+import type { MigrateDownArgs, MigrateUpArgs } from '@payloadcms/db-postgres'
 
 /**
  * Snapshot-resync migration (no-op).

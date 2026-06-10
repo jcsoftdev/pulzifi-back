@@ -33,10 +33,11 @@ export function useParallaxBlob<T extends HTMLElement = HTMLDivElement>(options?
   useGSAP(
     () => {
       if (previewMode || prefersReducedMotion() || !ref.current) return
-      // Skip on touch devices. Scroll-animating a large filter:blur() blob
-      // exhausts the mobile GPU's layer memory and paints the viewport black
-      // (iOS Safari / Android Chrome). The blob stays static instead.
-      if (typeof window !== 'undefined' && window.matchMedia('(hover: none)').matches) return
+      // Skip on touch-primary devices (hover:none AND pointer:coarse — same query
+      // as smooth-scroll.tsx so blob parallax and Lenis bail out on exactly the
+      // same devices). Scroll-animating a large filter:blur() blob exhausts the
+      // mobile GPU's layer memory and paints the viewport black (iOS / Android).
+      if (typeof window !== 'undefined' && window.matchMedia('(hover: none) and (pointer: coarse)').matches) return
       const blobs = ref.current.querySelectorAll<HTMLElement>('[data-pz-blob]')
       if (!blobs.length) return
       const drift = options?.drift ?? true

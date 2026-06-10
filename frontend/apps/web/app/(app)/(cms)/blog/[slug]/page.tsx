@@ -11,7 +11,7 @@ import { getPayloadClient } from '@/lib/payload'
 
 type PostDoc = Record<string, unknown>
 
-export const dynamic = 'force-dynamic'
+export const revalidate = 3600
 
 type Props = {
   params: Promise<{
@@ -124,6 +124,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       },
       twitter: {
         card: 'summary_large_image',
+        site: '@pulzifi',
+        creator: '@pulzifi',
         title: title ?? undefined,
         description: description ?? undefined,
         ...(heroImageUrl

@@ -35,7 +35,8 @@ export function AiIntelligenceBlock({ block }: Props) {
           items: t.items.map((item) => ({
             title: item.title,
             body: item.body ?? undefined,
-            image: item.image ?? undefined,
+            // CMS free-text field — trim so stray whitespace can't crash next/image
+            image: item.image?.trim() || undefined,
           })),
         })) ?? undefined
       }

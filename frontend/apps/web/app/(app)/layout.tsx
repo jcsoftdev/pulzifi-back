@@ -37,6 +37,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
+    site: '@pulzifi',
+    creator: '@pulzifi',
     images: [
       '/opengraph-image',
     ],
@@ -118,8 +120,11 @@ const organizationJsonLd = {
   },
   description:
     'AI-powered website change monitoring and competitive intelligence platform. Track competitor moves, pricing changes, and market shifts — automatically, 24/7.',
-  // Add real social profile URLs here when available
-  sameAs: [] as string[],
+  sameAs: [
+    'https://x.com/pulzifi',
+    'https://linkedin.com/company/pulzifi',
+    'https://youtube.com/@pulzifi',
+  ],
 }
 
 const websiteJsonLd = {

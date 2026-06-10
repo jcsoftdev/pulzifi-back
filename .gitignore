@@ -148,3 +148,7 @@ tools/dev-certs/
 
 # Internal planning docs — never commit
 *.docx
+
+# SDD / spec artifacts (local only — never commit)
+specs/
+openspec/

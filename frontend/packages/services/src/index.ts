@@ -60,3 +60,21 @@ export type { ChecksData, TrialStatusDto, UsageStats } from './usage-api'
 export { UsageApi } from './usage-api'
 export type { CreateWorkspaceDto, ListWorkspacesResponse, Workspace } from './workspace-api'
 export { WorkspaceApi } from './workspace-api'
+export type {
+  ChangeType,
+  ChangeSummary,
+  CaptionDiff,
+  CreateSocialProfileDto,
+  Platform,
+  ProfileData,
+  SocialChange,
+  SocialChangeDetail,
+  SocialPost,
+  SocialProfile,
+  SocialProfileDetail,
+  SocialQuotaStatus,
+  SocialSnapshot,
+  TextDiff,
+  UpdateSocialProfileDto,
+} from './social-api'
+export { SocialApi } from './social-api'

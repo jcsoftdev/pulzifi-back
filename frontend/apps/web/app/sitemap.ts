@@ -4,34 +4,35 @@ import { getPayloadClient } from '@/lib/payload'
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = process.env.NEXT_PUBLIC_APP_BASE_URL || 'https://pulzifi.com'
 
+  // Non-CMS routes: omit lastModified rather than faking it with new Date()
   const staticRoutes: MetadataRoute.Sitemap = [
     {
       url: baseUrl,
-      lastModified: new Date(),
       changeFrequency: 'weekly',
       priority: 1,
     },
     {
       url: `${baseUrl}/pricing`,
-      lastModified: new Date(),
       changeFrequency: 'monthly',
       priority: 0.8,
     },
     {
       url: `${baseUrl}/blog`,
-      lastModified: new Date(),
       changeFrequency: 'weekly',
       priority: 0.7,
     },
     {
+      url: `${baseUrl}/contact`,
+      changeFrequency: 'monthly',
+      priority: 0.5,
+    },
+    {
       url: `${baseUrl}/login`,
-      lastModified: new Date(),
       changeFrequency: 'monthly',
       priority: 0.5,
     },
     {
       url: `${baseUrl}/register`,
-      lastModified: new Date(),
       changeFrequency: 'monthly',
       priority: 0.8,
     },
@@ -49,6 +50,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         },
         select: {
           slug: true,
+          updatedAt: true,
         },
         limit: 1000,
       }),
@@ -62,6 +64,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         select: {
           slug: true,
           publishedAt: true,
+          updatedAt: true,
         },
         limit: 1000,
       }),
@@ -81,14 +84,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       .filter((page: Record<string, unknown>) => !reservedSlugs.has(page.slug as string))
       .map((page: Record<string, unknown>) => ({
         url: `${baseUrl}/${page.slug}`,
-        lastModified: new Date(),
+        ...(page.updatedAt ? { lastModified: new Date(page.updatedAt as string) } : {}),
         changeFrequency: 'monthly' as const,
         priority: 0.7,
       }))
 
     const postRoutes: MetadataRoute.Sitemap = posts.docs.map((post: Record<string, unknown>) => ({
       url: `${baseUrl}/blog/${post.slug}`,
-      lastModified: post.publishedAt ? new Date(post.publishedAt as string) : new Date(),
+      // Prefer updatedAt (most recent edit), fall back to publishedAt; omit if neither exists
+      ...(post.updatedAt || post.publishedAt
+        ? { lastModified: new Date((post.updatedAt ?? post.publishedAt) as string) }
+        : {}),
       changeFrequency: 'monthly' as const,
       priority: 0.6,
     }))
