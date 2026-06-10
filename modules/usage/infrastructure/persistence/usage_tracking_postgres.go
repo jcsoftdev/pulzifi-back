@@ -28,6 +28,7 @@ func (r *UsageTrackingPostgresRepository) FindCurrent(ctx context.Context, today
 		err := tx.QueryRowContext(ctx, `
 			SELECT period_start, period_end,
 			       checks_allowed, checks_used,
+			       storage_period_days,
 			       ai_insights_allowed, ai_insights_used,
 			       next_refill_at
 			FROM usage_tracking
@@ -37,6 +38,7 @@ func (r *UsageTrackingPostgresRepository) FindCurrent(ctx context.Context, today
 		`, today).Scan(
 			&ut.PeriodStart, &ut.PeriodEnd,
 			&ut.ChecksAllowed, &ut.ChecksUsed,
+			&ut.StoragePeriodDays,
 			&ut.AIInsightsAllowed, &ut.AIInsightsUsed,
 			&ut.NextRefillAt,
 		)
@@ -58,10 +60,10 @@ func (r *UsageTrackingPostgresRepository) Insert(ctx context.Context, ut *entiti
 	nextRefill := ut.PeriodEnd.AddDate(0, 0, 1)
 	return database.WithTenant(ctx, r.db, r.tenant, func(tx *sql.Tx) error {
 		_, err := tx.ExecContext(ctx, `
-			INSERT INTO usage_tracking (period_start, period_end, checks_allowed, checks_used, ai_insights_allowed, ai_insights_used, last_refill_at, next_refill_at, created_at, updated_at)
-			VALUES ($1, $2, $3, 0, $5, 0, NOW(), $4, NOW(), NOW())
+			INSERT INTO usage_tracking (period_start, period_end, checks_allowed, checks_used, storage_period_days, ai_insights_allowed, ai_insights_used, last_refill_at, next_refill_at, created_at, updated_at)
+			VALUES ($1, $2, $3, 0, COALESCE(NULLIF($6, 0), 7), $5, 0, NOW(), $4, NOW(), NOW())
 			ON CONFLICT DO NOTHING
-		`, ut.PeriodStart, ut.PeriodEnd, ut.ChecksAllowed, nextRefill, ut.AIInsightsAllowed)
+		`, ut.PeriodStart, ut.PeriodEnd, ut.ChecksAllowed, nextRefill, ut.AIInsightsAllowed, ut.StoragePeriodDays)
 		return err
 	})
 }

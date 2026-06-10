@@ -20,9 +20,6 @@ import { type TextChangeSection, TextChanges } from '@/features/changes-view/ui/
 import { VisualPulse } from '@/features/changes-view/ui/visual-pulse'
 import type { DiffRow } from '@/features/changes-view/utils/simple-diff'
 import { diffWords } from '@/features/changes-view/utils/simple-diff'
-import { useSocialWorkspaceChanges } from '@/features/social/application/use-social-workspace-changes'
-import { useSocialProfiles } from '@/features/social/application/use-social-profiles'
-import { SocialChangesSection } from '@/features/social/ui/changes/social-changes-section'
 
 function VisualPulseSkeleton() {
   return (
@@ -149,14 +146,6 @@ export default function ChangesPage() {
   const [activeTab, setActiveTab] = useState('visual')
   const [storagePeriodDays, setStoragePeriodDays] = useState(7)
 
-  // Social changes feed — workspace-scoped (REQ-FE-05)
-  const { changes: socialChanges, isLoading: socialLoading } = useSocialWorkspaceChanges(workspaceId)
-  const { profiles: socialProfiles, fetchProfiles } = useSocialProfiles(workspaceId)
-
-  useEffect(() => {
-    fetchProfiles()
-  }, [fetchProfiles])
-
   const hasSections = sections.length > 0
 
   // All section checks (with sectionId) and all parent/full-page checks (without).
@@ -190,9 +179,11 @@ export default function ChangesPage() {
     (c) =>
       (c.status === 'success' && new Date(c.checkedAt) >= storageCutoff) || c.id === checkIdParam
   )
-  // Resolve active check: checkIdParam (if in current filter) → first dropdown → latest in filter.
+  // Resolve active check: checkIdParam (if in current filter) → latest detected change → first dropdown → latest in filter.
   const paramInFilter = checkIdParam ? filteredChecks.find((c) => c.id === checkIdParam) : undefined
-  const activeCheckId = paramInFilter?.id || dropdownChecks[0]?.id || filteredChecks[0]?.id || ''
+  const latestChangeId = dropdownChecks.find((c) => c.changeDetected)?.id
+  const activeCheckId =
+    paramInFilter?.id || latestChangeId || dropdownChecks[0]?.id || filteredChecks[0]?.id || ''
   const activeCheckIndex = filteredChecks.findIndex((c) => c.id === activeCheckId)
   const activeCheck = filteredChecks[activeCheckIndex]
 
@@ -519,13 +510,6 @@ export default function ChangesPage() {
           />
         )}
       </ChangesViewLayout>
-
-      {/* Social changes feed — platform icon + Social badge (REQ-FE-05, REQ-FE-06) */}
-      <SocialChangesSection
-        changes={socialChanges}
-        profiles={socialProfiles}
-        isLoading={socialLoading}
-      />
     </div>
   )
 }

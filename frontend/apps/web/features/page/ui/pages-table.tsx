@@ -320,15 +320,13 @@ export function PagesTable({
                         {page.detectedChanges}
                       </Badge>
                       {page.detectedChanges > 0 && (
-                        <Button
-                          variant="outline"
-                          size="sm"
+                        <button
+                          type="button"
                           onClick={() => onViewChanges?.(page.id)}
-                          className="px-2 py-1 h-auto text-xs font-medium gap-1 bg-background"
+                          className="text-xs font-medium text-primary hover:underline"
                         >
-                          <RefreshCcw className="w-3.5 h-3.5" />
                           View
-                        </Button>
+                        </button>
                       )}
                     </div>
 
