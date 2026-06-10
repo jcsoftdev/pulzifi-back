@@ -313,20 +313,21 @@ export function PagesTable({
 
                     {/* Detected Changes */}
                     <div className="flex items-center px-2 py-2 flex-[0_0_150px] gap-2">
-                      <Badge
-                        variant={page.detectedChanges > 0 ? 'destructive' : 'secondary'}
-                        className="min-w-8 justify-center"
-                      >
-                        {page.detectedChanges}
-                      </Badge>
-                      {page.detectedChanges > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => onViewChanges?.(page.id)}
-                          className="text-xs font-medium text-primary hover:underline"
-                        >
-                          View
-                        </button>
+                      {page.detectedChanges > 0 ? (
+                        <>
+                          <Badge variant="destructive" className="min-w-8 justify-center tabular-nums">
+                            {page.detectedChanges}
+                          </Badge>
+                          <button
+                            type="button"
+                            onClick={() => onViewChanges?.(page.id)}
+                            className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            View
+                          </button>
+                        </>
+                      ) : (
+                        <span className="text-sm text-muted-foreground/60">—</span>
                       )}
                     </div>
 
@@ -397,12 +398,17 @@ export function PagesTable({
         <div className="flex flex-wrap justify-center items-center gap-4 md:gap-8 w-full md:w-auto">
           {/* Rows per page */}
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-foreground">Rows per page</span>
-            <select className="px-3 py-2 h-9 text-sm border border-border rounded bg-background">
-              <option>10</option>
-              <option>20</option>
-              <option>50</option>
-            </select>
+            <span className="text-sm font-medium text-foreground whitespace-nowrap">Rows per page</span>
+            <Select defaultValue="10">
+              <SelectTrigger className="w-[70px] h-8 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="10">10</SelectItem>
+                <SelectItem value="20">20</SelectItem>
+                <SelectItem value="50">50</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Page info */}
