@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 
+	"github.com/jcsoftdev/pulzifi-back/modules/billing/domain/entities"
 	"github.com/jcsoftdev/pulzifi-back/modules/billing/domain/repositories"
 )
 
@@ -79,4 +80,58 @@ func (r *PlanPostgresRepository) UpsertStripePricing(ctx context.Context, planCo
 		return repositories.ErrPlanNotFound
 	}
 	return nil
+}
+
+// ListForCatalog returns all active, non-trial, non-free plans ordered by
+// checks_allowed_monthly ASC NULLS LAST (natural tier: starter → pro → enterprise).
+func (r *PlanPostgresRepository) ListForCatalog(ctx context.Context) ([]*entities.CatalogPlan, error) {
+	const query = `
+		SELECT
+			id::text,
+			code,
+			name,
+			COALESCE(description, ''),
+			COALESCE(amount_cents_monthly, 0),
+			COALESCE(amount_cents_yearly, 0),
+			COALESCE(currency, 'usd'),
+			checks_allowed_monthly,
+			COALESCE(storage_period_days, 7),
+			ai_insights_allowed_monthly,
+			max_pages,
+			max_workspaces,
+			COALESCE(is_popular, FALSE)
+		FROM public.plans
+		WHERE is_active = TRUE
+		  AND code NOT IN ('trial', 'free')
+		ORDER BY checks_allowed_monthly ASC NULLS LAST
+	`
+	rows, err := r.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var plans []*entities.CatalogPlan
+	for rows.Next() {
+		p := &entities.CatalogPlan{}
+		if err := rows.Scan(
+			&p.ID,
+			&p.Code,
+			&p.Name,
+			&p.Description,
+			&p.PriceMonthlyCents,
+			&p.PriceYearlyCents,
+			&p.Currency,
+			&p.ChecksAllowedMonthly,
+			&p.StoragePeriodDays,
+			&p.AIInsightsAllowedMonthly,
+			&p.MaxPages,
+			&p.MaxWorkspaces,
+			&p.IsPopular,
+		); err != nil {
+			return nil, err
+		}
+		plans = append(plans, p)
+	}
+	return plans, rows.Err()
 }
