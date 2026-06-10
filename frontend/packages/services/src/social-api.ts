@@ -104,6 +104,16 @@ interface GetProfileBackendDto {
   latest_snapshot: SocialSnapshotBackendDto | null
 }
 
+interface SocialSnapshotSummaryBackendDto {
+  id: string
+  profile_id: string
+  captured_at: string
+  status: 'success' | 'failed'
+  error?: string
+  followers_count: number
+  posts_count: number
+}
+
 interface GetChangeBackendDto {
   change: SocialChangeBackendDto
   before_data: ProfileDataBackendDto | null
@@ -196,6 +206,16 @@ export interface SocialSnapshot {
   data: ProfileData | null
 }
 
+export interface SocialSnapshotSummary {
+  id: string
+  profileId: string
+  capturedAt: string
+  status: 'success' | 'failed'
+  error?: string
+  followersCount: number
+  postsCount: number
+}
+
 export interface SocialProfileDetail {
   profile: SocialProfile
   latestSnapshot: SocialSnapshot | null
@@ -237,12 +257,12 @@ function transformPost(p: PostBackendDto): SocialPost {
 
 function transformProfileData(d: ProfileDataBackendDto): ProfileData {
   return {
-    bio: d.bio,
-    displayName: d.display_name,
-    avatarUrl: d.avatar_url,
-    followersCount: d.followers_count,
-    followingCount: d.following_count,
-    postsCount: d.posts_count,
+    bio: d.bio ?? '',
+    displayName: d.display_name ?? '',
+    avatarUrl: d.avatar_url ?? '',
+    followersCount: d.followers_count ?? 0,
+    followingCount: d.following_count ?? 0,
+    postsCount: d.posts_count ?? 0,
     posts: (d.posts ?? []).map(transformPost),
   }
 }
@@ -294,6 +314,18 @@ function transformSnapshot(s: SocialSnapshotBackendDto): SocialSnapshot {
   }
 }
 
+function transformSnapshotSummary(s: SocialSnapshotSummaryBackendDto): SocialSnapshotSummary {
+  return {
+    id: s.id,
+    profileId: s.profile_id,
+    capturedAt: s.captured_at,
+    status: s.status,
+    error: s.error,
+    followersCount: s.followers_count ?? 0,
+    postsCount: s.posts_count ?? 0,
+  }
+}
+
 function transformChange(c: SocialChangeBackendDto): SocialChange {
   return {
     id: c.id,
@@ -324,10 +356,10 @@ export const SocialApi = {
 
   async listProfiles(workspaceId: string): Promise<SocialProfile[]> {
     const http = await getHttpClient()
-    const response = await http.get<{ profiles: SocialProfileBackendDto[] }>(
+    const response = await http.get<SocialProfileBackendDto[]>(
       `/api/v1/workspaces/${workspaceId}/social-profiles`
     )
-    return (response.profiles ?? []).map(transformProfile)
+    return (response ?? []).map(transformProfile)
   },
 
   async getProfile(profileId: string): Promise<SocialProfileDetail> {
@@ -394,6 +426,22 @@ export const SocialApi = {
       beforeData: response.before_data ? transformProfileData(response.before_data) : null,
       afterData: response.after_data ? transformProfileData(response.after_data) : null,
     }
+  },
+
+  async listSnapshots(profileId: string, limit = 20, offset = 0): Promise<SocialSnapshotSummary[]> {
+    const http = await getHttpClient()
+    const response = await http.get<{ snapshots: SocialSnapshotSummaryBackendDto[] }>(
+      `/api/v1/social-profiles/${profileId}/snapshots?limit=${limit}&offset=${offset}`
+    )
+    return (response.snapshots ?? []).map(transformSnapshotSummary)
+  },
+
+  async getSnapshot(snapshotId: string): Promise<SocialSnapshot | null> {
+    const http = await getHttpClient()
+    const response = await http.get<SocialSnapshotBackendDto | null>(
+      `/api/v1/social-snapshots/${snapshotId}`
+    )
+    return response ? transformSnapshot(response) : null
   },
 
   async getQuotaStatus(workspaceId: string): Promise<SocialQuotaStatus> {

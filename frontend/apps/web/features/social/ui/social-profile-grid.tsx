@@ -1,6 +1,4 @@
-'use client'
-
-import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import type { SocialProfile } from '../domain/types'
 import { SocialProfileCard } from './social-profile-card'
 
@@ -13,8 +11,6 @@ export function SocialProfileGrid({
   profiles,
   workspaceId,
 }: Readonly<SocialProfileGridProps>) {
-  const router = useRouter()
-
   if (profiles.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
@@ -27,11 +23,13 @@ export function SocialProfileGrid({
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
       {profiles.map((profile) => (
-        <SocialProfileCard
+        <Link
           key={profile.id}
-          profile={profile}
-          onClick={() => router.push(`/workspaces/${workspaceId}/social/${profile.id}`)}
-        />
+          href={`/workspaces/${workspaceId}/social/${profile.id}`}
+          className="block"
+        >
+          <SocialProfileCard profile={profile} />
+        </Link>
       ))}
     </div>
   )

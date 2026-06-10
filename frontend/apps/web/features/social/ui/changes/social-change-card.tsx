@@ -49,7 +49,7 @@ function NewPostRenderer({
   return (
     <div className="flex gap-3">
       {storedMediaUrl && (
-        // eslint-disable-next-line @next/next/no-img-element
+        // biome-ignore lint/performance/noImgElement: stored media URL is dynamic external URL
         <img
           src={storedMediaUrl}
           alt="Post thumbnail"
@@ -86,9 +86,10 @@ function GenericRenderer({ types }: { types: ChangeType[] }) {
 
 interface SocialChangeCardProps {
   change: SocialChange
+  onClick?: (changeId: string) => void
 }
 
-export function SocialChangeCard({ change }: Readonly<SocialChangeCardProps>) {
+export function SocialChangeCard({ change, onClick }: Readonly<SocialChangeCardProps>) {
   const timeSince = formatRelativeTime(change.createdAt)
   const summary = change.summary
 
@@ -101,7 +102,10 @@ export function SocialChangeCard({ change }: Readonly<SocialChangeCardProps>) {
   )
 
   return (
-    <Card>
+    <Card
+      className={onClick ? 'cursor-pointer hover:border-primary/50 transition-colors' : undefined}
+      onClick={onClick ? () => onClick(change.id) : undefined}
+    >
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-medium flex items-center justify-between gap-2">
           <span>Change detected</span>

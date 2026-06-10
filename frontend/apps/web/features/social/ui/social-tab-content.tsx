@@ -5,8 +5,10 @@ import { SquarePlus } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useSocialProfiles } from '../application/use-social-profiles'
 import { useSocialQuota } from '../application/use-social-quota'
+import { useSocialWorkspaceChanges } from '../application/use-social-workspace-changes'
 import type { CreateSocialProfileDto } from '../domain/types'
 import { AddSocialProfileDialog } from './add-social-profile-dialog'
+import { SocialChangesSection } from './changes/social-changes-section'
 import { SocialProfileGrid } from './social-profile-grid'
 import { SocialQuotaBadge } from './social-quota-badge'
 
@@ -18,6 +20,7 @@ export function SocialTabContent({ workspaceId }: Readonly<SocialTabContentProps
   const { profiles, isLoading: profilesLoading, fetchProfiles, createProfile } =
     useSocialProfiles(workspaceId)
   const { quota, fetchQuota } = useSocialQuota(workspaceId)
+  const { changes, isLoading: changesLoading } = useSocialWorkspaceChanges(workspaceId)
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -60,6 +63,8 @@ export function SocialTabContent({ workspaceId }: Readonly<SocialTabContentProps
       ) : (
         <SocialProfileGrid profiles={profiles} workspaceId={workspaceId} />
       )}
+
+      <SocialChangesSection changes={changes} profiles={profiles} isLoading={changesLoading} />
 
       <AddSocialProfileDialog
         open={isAddOpen}

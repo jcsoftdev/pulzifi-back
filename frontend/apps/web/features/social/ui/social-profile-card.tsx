@@ -9,13 +9,11 @@ import { PlatformIcon } from './platform-icon'
 
 interface SocialProfileCardProps {
   profile: SocialProfile
-  onClick?: () => void
   className?: string
 }
 
 export function SocialProfileCard({
   profile,
-  onClick,
   className,
 }: Readonly<SocialProfileCardProps>) {
   const timeSince = profile.lastCheckedAt
@@ -33,7 +31,6 @@ export function SocialProfileCard({
         !profile.isActive && 'opacity-60',
         className
       )}
-      onClick={onClick}
     >
       <CardContent className="p-4 flex items-start gap-3">
         <Avatar className="h-10 w-10 shrink-0">
@@ -44,15 +41,16 @@ export function SocialProfileCard({
         </Avatar>
 
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="font-medium text-sm truncate">@{profile.handle}</span>
-            <Badge variant="outline" className="flex items-center gap-1 text-xs shrink-0">
+          <p className="font-medium text-sm truncate mb-1">@{profile.handle}</p>
+
+          <div className="flex items-center flex-wrap gap-1 mb-1">
+            <Badge variant="outline" className="flex items-center gap-1 text-xs">
               <PlatformIcon platform={profile.platform} className="w-3 h-3" />
               {PLATFORM_LABELS[profile.platform] ?? profile.platform}
             </Badge>
-            <Badge variant="secondary" className="text-xs shrink-0">
-              Social
-            </Badge>
+            {!profile.isActive && (
+              <Badge variant="destructive" className="text-xs">Inactive</Badge>
+            )}
           </div>
 
           {profile.displayName && (

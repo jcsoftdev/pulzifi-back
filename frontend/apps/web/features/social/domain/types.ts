@@ -19,11 +19,10 @@ export type {
 
 // ─── UI-level models ─────────────────────────────────────────────────────────
 
+// Minimum cadence is 12h — backend rejects anything more frequent.
 export const INTERVAL_PRESETS: { value: number; label: string }[] = [
   { value: 1440, label: 'Daily (every 24h)' },
   { value: 720, label: 'Every 12 hours' },
-  { value: 360, label: 'Every 6 hours' },
-  { value: 120, label: 'Every 2 hours' },
 ]
 
 export const PLATFORM_LABELS: Record<string, string> = {

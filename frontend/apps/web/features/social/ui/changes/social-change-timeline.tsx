@@ -5,11 +5,13 @@ import { SocialChangeCard } from './social-change-card'
 interface SocialChangeTimelineProps {
   changes: SocialChange[]
   isLoading?: boolean
+  onChangeClick?: (changeId: string) => void
 }
 
 export function SocialChangeTimeline({
   changes,
   isLoading = false,
+  onChangeClick,
 }: Readonly<SocialChangeTimelineProps>) {
   if (isLoading) {
     return (
@@ -33,7 +35,7 @@ export function SocialChangeTimeline({
   return (
     <div className="flex flex-col gap-4">
       {changes.map((change) => (
-        <SocialChangeCard key={change.id} change={change} />
+        <SocialChangeCard key={change.id} change={change} onClick={onChangeClick} />
       ))}
     </div>
   )
