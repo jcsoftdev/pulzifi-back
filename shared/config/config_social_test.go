@@ -30,8 +30,8 @@ func TestLoad_SocialDefaults(t *testing.T) {
 	if cfg.ApifyToken != "" {
 		t.Errorf("ApifyToken default = %q, want empty string", cfg.ApifyToken)
 	}
-	if cfg.ApifyActorInstagram != "apidojo~instagram-scraper" {
-		t.Errorf("ApifyActorInstagram default = %q, want %q", cfg.ApifyActorInstagram, "apidojo~instagram-scraper")
+	if cfg.ApifyActorInstagram != "apify~instagram-profile-scraper" {
+		t.Errorf("ApifyActorInstagram default = %q, want %q", cfg.ApifyActorInstagram, "apify~instagram-profile-scraper")
 	}
 	if cfg.ApifyActorTikTok != "" {
 		t.Errorf("ApifyActorTikTok default = %q, want empty string", cfg.ApifyActorTikTok)
