@@ -128,7 +128,7 @@ func (r *SnapshotPostgresRepository) ListByProfile(ctx context.Context, profileI
 		if err != nil {
 			return fmt.Errorf("snapshot repo: list by profile: %w", err)
 		}
-		defer rows.Close()
+		defer func() { _ = rows.Close() }()
 
 		for rows.Next() {
 			var s entities.SocialSnapshot
