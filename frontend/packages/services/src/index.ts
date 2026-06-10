@@ -9,6 +9,7 @@ export type {
   CreateCouponDto,
   CreateCouponInput,
   PaymentStatusDto,
+  PlanDto,
   PortalSessionDto,
   SubscriptionDto,
   UpdateSubscriptionDto,

@@ -83,6 +83,23 @@ export interface UpdateSubscriptionDto {
   preview: boolean
 }
 
+/** One plan from GET /api/v1/billing/plans. Null fields mean "unlimited". */
+export interface PlanDto {
+  id: string
+  code: string
+  name: string
+  description: string
+  price_monthly_cents: number
+  price_yearly_cents: number
+  currency: string
+  checks_allowed_monthly: number | null
+  storage_period_days: number
+  ai_insights_allowed_monthly: number | null
+  max_pages: number | null
+  max_workspaces: number | null
+  is_popular: boolean
+}
+
 // ---- API Object ----
 
 export const BillingApi = {
@@ -194,6 +211,17 @@ export const BillingApi = {
       }
       throw err
     }
+  },
+
+  /**
+   * Fetch the active plan catalog.
+   * Public endpoint — does not require authentication.
+   * Prices come from public.plans kept in sync by the Stripe webhook.
+   */
+  async getPlans(): Promise<PlanDto[]> {
+    const http = await getHttpClient()
+    const response = await http.get<{ plans: PlanDto[] }>('/api/v1/billing/plans')
+    return response.plans ?? []
   },
 }
 
