@@ -210,7 +210,7 @@ type Config struct {
 	// ApifyToken is the Apify API token used to authenticate actor run requests.
 	ApifyToken string // APIFY_TOKEN
 	// ApifyActorInstagram is the Apify actor ID for Instagram scraping (Phase 1).
-	ApifyActorInstagram string // APIFY_ACTOR_INSTAGRAM — default "apidojo~instagram-scraper"
+	ApifyActorInstagram string // APIFY_ACTOR_INSTAGRAM — default "apify~instagram-profile-scraper"
 	// ApifyActorTikTok is the Apify actor ID for TikTok scraping (Phase 2).
 	ApifyActorTikTok string // APIFY_ACTOR_TIKTOK — phase 2, empty by default
 	// ApifyActorFacebook is the Apify actor ID for Facebook scraping (Phase 2).
@@ -362,7 +362,7 @@ func Load() *Config {
 
 		SocialEnabled:       getEnvBool("SOCIAL_ENABLED", false),
 		ApifyToken:          getEnv("APIFY_TOKEN", ""),
-		ApifyActorInstagram: getEnv("APIFY_ACTOR_INSTAGRAM", "apidojo~instagram-scraper"),
+		ApifyActorInstagram: getEnv("APIFY_ACTOR_INSTAGRAM", "apify~instagram-profile-scraper"),
 		ApifyActorTikTok:    getEnv("APIFY_ACTOR_TIKTOK", ""),
 		ApifyActorFacebook:  getEnv("APIFY_ACTOR_FACEBOOK", ""),
 		SocialPostsPerCheck: getEnvInt("SOCIAL_POSTS_PER_CHECK", 5),

@@ -10,8 +10,13 @@ import (
 )
 
 // instagramActorItem is the raw shape returned by the Apify Instagram actor
-// (apidojo~instagram-scraper). Fields are mapped directly from the actor JSON output.
+// (apify~instagram-profile-scraper). Fields are mapped directly from the actor JSON output.
 type instagramActorItem struct {
+	// Error is set by the actor instead of profile data when the profile is
+	// private, nonexistent, or blocked (e.g. "no_items").
+	Error            string `json:"error"`
+	ErrorDescription string `json:"errorDescription"`
+
 	Username      string `json:"username"`
 	FullName      string `json:"fullName"`
 	Biography     string `json:"biography"`
@@ -42,6 +47,11 @@ func mapInstagramItems(items []json.RawMessage) (*entities.ProfileData, error) {
 	var item instagramActorItem
 	if err := json.Unmarshal(items[0], &item); err != nil {
 		return nil, fmt.Errorf("%w: unmarshal instagram item: %v", domainerrors.ErrFetchFailed, err)
+	}
+
+	if item.Error != "" {
+		return nil, fmt.Errorf("%w: actor error %q: %s",
+			domainerrors.ErrFetchFailed, item.Error, item.ErrorDescription)
 	}
 
 	posts := make([]entities.Post, 0, len(item.LatestPosts))

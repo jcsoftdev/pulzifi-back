@@ -213,7 +213,7 @@ func TestCreateProfileHandler(t *testing.T) {
 			WorkspaceID:          workspaceID,
 			Platform:             "instagram",
 			Handle:               "nasa",
-			CheckIntervalMinutes: 120,
+			CheckIntervalMinutes: 720,
 		})
 
 		if err != nil {

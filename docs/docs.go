@@ -1811,6 +1811,113 @@ const docTemplate = `{
                 }
             }
         },
+        "/social-profiles/{id}/snapshots": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "List scraping run history for a specific profile, paginated, newest first",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "social"
+                ],
+                "summary": "List Profile Snapshots",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Profile ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size (default 20, max 100)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page offset (default 0)",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/listsnapshots.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/social-snapshots/{snapshotID}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get a social snapshot by ID with full captured profile data",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "social"
+                ],
+                "summary": "Get Social Snapshot",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Snapshot ID",
+                        "name": "snapshotID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/getsnapshot.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/workspaces": {
             "get": {
                 "security": [
@@ -3047,27 +3154,27 @@ const docTemplate = `{
                     "description": "Caption is the post text / description.",
                     "type": "string"
                 },
-                "commentsCount": {
+                "comments_count": {
                     "description": "CommentsCount is the number of comments at capture time.",
                     "type": "integer"
                 },
-                "externalID": {
+                "external_id": {
                     "description": "ExternalID is the platform-native post identifier (used for deduplication).",
                     "type": "string"
                 },
-                "likesCount": {
+                "likes_count": {
                     "description": "LikesCount is the number of likes at capture time.",
                     "type": "integer"
                 },
-                "mediaURL": {
+                "media_url": {
                     "description": "MediaURL is the CDN URL of the post thumbnail (expires; do not persist).",
                     "type": "string"
                 },
-                "postedAt": {
+                "posted_at": {
                     "description": "PostedAt is the time the post was published on the platform.",
                     "type": "string"
                 },
-                "storedMediaURL": {
+                "stored_media_url": {
                     "description": "StoredMediaURL is the object-storage URL (MinIO/Cloudinary) written by\nMediaStore.Store. Persisted alongside the snapshot.",
                     "type": "string"
                 }
@@ -3076,7 +3183,7 @@ const docTemplate = `{
         "entities.ProfileData": {
             "type": "object",
             "properties": {
-                "avatarURL": {
+                "avatar_url": {
                     "description": "AvatarURL is the stored (MinIO/Cloudinary) URL of the profile picture.\nCDN URLs expire; the infrastructure layer downloads and re-uploads them.",
                     "type": "string"
                 },
@@ -3084,15 +3191,15 @@ const docTemplate = `{
                     "description": "Bio is the profile biography / description text.",
                     "type": "string"
                 },
-                "displayName": {
+                "display_name": {
                     "description": "DisplayName is the human-readable name shown on the profile.",
                     "type": "string"
                 },
-                "followersCount": {
+                "followers_count": {
                     "description": "FollowersCount is the number of followers at capture time.",
                     "type": "integer"
                 },
-                "followingCount": {
+                "following_count": {
                     "description": "FollowingCount is the number of accounts the profile follows.",
                     "type": "integer"
                 },
@@ -3103,7 +3210,7 @@ const docTemplate = `{
                         "$ref": "#/definitions/entities.Post"
                     }
                 },
-                "postsCount": {
+                "posts_count": {
                     "description": "PostsCount is the total number of posts reported by the platform.",
                     "type": "integer"
                 }
@@ -3304,6 +3411,35 @@ const docTemplate = `{
                 },
                 "resets_at": {
                     "description": "ResetsAt is the ISO-8601 timestamp of the next UTC midnight,\nwhen the quota pool resets (REQ-QUOTA-STATUS-02).",
+                    "type": "string"
+                }
+            }
+        },
+        "getsnapshot.Response": {
+            "type": "object",
+            "properties": {
+                "captured_at": {
+                    "type": "string"
+                },
+                "data": {
+                    "$ref": "#/definitions/entities.ProfileData"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "followers_count": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "posts_count": {
+                    "type": "integer"
+                },
+                "profile_id": {
+                    "type": "string"
+                },
+                "status": {
                     "type": "string"
                 }
             }
@@ -3600,6 +3736,43 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "workspace_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "listsnapshots.Response": {
+            "type": "object",
+            "properties": {
+                "snapshots": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/listsnapshots.SnapshotSummary"
+                    }
+                }
+            }
+        },
+        "listsnapshots.SnapshotSummary": {
+            "type": "object",
+            "properties": {
+                "captured_at": {
+                    "type": "string"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "followers_count": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "posts_count": {
+                    "type": "integer"
+                },
+                "profile_id": {
+                    "type": "string"
+                },
+                "status": {
                     "type": "string"
                 }
             }
@@ -4036,7 +4209,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "check_interval_minutes": {
-                    "description": "CheckIntervalMinutes, when non-nil, updates the check cadence.\nMust be one of the allowed presets (120, 360, 720, 1440).",
+                    "description": "CheckIntervalMinutes, when non-nil, updates the check cadence.\nMust be one of the allowed presets (720, 1440). Minimum cadence is 12h.",
                     "type": "integer"
                 },
                 "is_active": {

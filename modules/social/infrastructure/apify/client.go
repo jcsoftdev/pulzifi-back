@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/jcsoftdev/pulzifi-back/modules/social/domain/entities"
@@ -127,16 +128,20 @@ func (c *Client) resolveAdapter(platform valueobjects.Platform) (string, mapperF
 func (c *Client) buildRequestBody(platform valueobjects.Platform, handle string, postsLimit int) ([]byte, error) {
 	switch platform {
 	case valueobjects.PlatformInstagram:
+		// apify~instagram-profile-scraper requires usernames and returns the
+		// profile object (fullName, biography, latestPosts) that
+		// instagram_mapper.go expects. Stored handles carry no leading '@',
+		// but trim defensively.
 		payload := map[string]interface{}{
-			"usernames":      []string{handle},
-			"resultsLimit":   postsLimit,
-			"addParentData":  false,
+			"usernames":     []string{strings.TrimPrefix(handle, "@")},
+			"resultsLimit":  postsLimit,
+			"addParentData": false,
 		}
 		return json.Marshal(payload)
 	default:
 		// Generic fallback for future platforms.
 		payload := map[string]interface{}{
-			"usernames":    []string{handle},
+			"usernames":    []string{strings.TrimPrefix(handle, "@")},
 			"resultsLimit": postsLimit,
 		}
 		return json.Marshal(payload)

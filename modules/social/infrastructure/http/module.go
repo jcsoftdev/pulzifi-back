@@ -15,8 +15,10 @@ import (
 	deleteprofile "github.com/jcsoftdev/pulzifi-back/modules/social/application/delete_profile"
 	getchange "github.com/jcsoftdev/pulzifi-back/modules/social/application/get_change"
 	getprofile "github.com/jcsoftdev/pulzifi-back/modules/social/application/get_profile"
+	getsnapshot "github.com/jcsoftdev/pulzifi-back/modules/social/application/get_snapshot"
 	getquotastatus "github.com/jcsoftdev/pulzifi-back/modules/social/application/get_quota_status"
 	listchanges "github.com/jcsoftdev/pulzifi-back/modules/social/application/list_changes"
+	listsnapshots "github.com/jcsoftdev/pulzifi-back/modules/social/application/list_snapshots"
 	listprofiles "github.com/jcsoftdev/pulzifi-back/modules/social/application/list_profiles"
 	runcheck "github.com/jcsoftdev/pulzifi-back/modules/social/application/run_check"
 	updateprofile "github.com/jcsoftdev/pulzifi-back/modules/social/application/update_profile"
@@ -107,9 +109,13 @@ func (m *Module) RegisterHTTPRoutes(r chi.Router) {
 		r.Delete("/social-profiles/{id}", m.handleDeleteProfile)
 		r.Post("/social-profiles/{id}/check", m.handleRunCheck)
 		r.Get("/social-profiles/{id}/changes", m.handleListChanges)
+		r.Get("/social-profiles/{id}/snapshots", m.handleListSnapshots)
 
 		// Change detail (REQ-HTTP-09, REQ-HTTP-10)
 		r.Get("/social-changes/{changeID}", m.handleGetChange)
+
+		// Snapshot detail
+		r.Get("/social-snapshots/{snapshotID}", m.handleGetSnapshot)
 	})
 }
 
@@ -374,6 +380,42 @@ func (m *Module) handleListChanges(w http.ResponseWriter, r *http.Request) {
 	sharedhttp.RespondJSON(w, http.StatusOK, resp)
 }
 
+// handleListSnapshots lists snapshot run history for a profile.
+// @Summary List Profile Snapshots
+// @Description List scraping run history for a specific profile, paginated, newest first
+// @Tags social
+// @Security BearerAuth
+// @Produce json
+// @Param id path string true "Profile ID"
+// @Param limit query int false "Page size (default 20, max 100)"
+// @Param offset query int false "Page offset (default 0)"
+// @Success 200 {object} listsnapshots.Response
+// @Failure 400 {object} map[string]string
+// @Router /social-profiles/{id}/snapshots [get]
+func (m *Module) handleListSnapshots(w http.ResponseWriter, r *http.Request) {
+	id, err := parsePathUUID(r, "id")
+	if err != nil {
+		sharedhttp.RespondError(w, http.StatusBadRequest, "invalid profile id")
+		return
+	}
+
+	q := r.URL.Query()
+	limit := parseIntQuery(q.Get("limit"), 20)
+	offset := parseIntQuery(q.Get("offset"), 0)
+
+	tenant := middleware.GetTenantFromContext(r.Context())
+	snapshotRepo := postgres.NewSnapshotPostgresRepository(m.db, tenant)
+
+	handler := listsnapshots.NewHandler(snapshotRepo)
+	resp, err := handler.Handle(r.Context(), id, limit, offset)
+	if err != nil {
+		sharedhttp.RespondError(w, http.StatusInternalServerError, "failed to list snapshots")
+		return
+	}
+
+	sharedhttp.RespondJSON(w, http.StatusOK, resp)
+}
+
 // handleListWorkspaceChanges lists all social changes for a workspace (across all profiles).
 // GET /workspaces/{workspaceID}/social-changes
 // Satisfies: REQ-FE-05 — feeds the unified changes-view feed on the frontend.
@@ -448,6 +490,41 @@ func (m *Module) handleGetChange(w http.ResponseWriter, r *http.Request) {
 	}
 	if resp == nil {
 		sharedhttp.RespondError(w, http.StatusNotFound, "change not found")
+		return
+	}
+
+	sharedhttp.RespondJSON(w, http.StatusOK, resp)
+}
+
+// handleGetSnapshot retrieves a single snapshot with full profile data.
+// @Summary Get Social Snapshot
+// @Description Get a social snapshot by ID with full captured profile data
+// @Tags social
+// @Security BearerAuth
+// @Produce json
+// @Param snapshotID path string true "Snapshot ID"
+// @Success 200 {object} getsnapshot.Response
+// @Failure 400 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Router /social-snapshots/{snapshotID} [get]
+func (m *Module) handleGetSnapshot(w http.ResponseWriter, r *http.Request) {
+	snapshotID, err := parsePathUUID(r, "snapshotID")
+	if err != nil {
+		sharedhttp.RespondError(w, http.StatusBadRequest, "invalid snapshot id")
+		return
+	}
+
+	tenant := middleware.GetTenantFromContext(r.Context())
+	snapshotRepo := postgres.NewSnapshotPostgresRepository(m.db, tenant)
+
+	handler := getsnapshot.NewHandler(snapshotRepo)
+	resp, err := handler.Handle(r.Context(), snapshotID)
+	if err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	if resp == nil {
+		sharedhttp.RespondError(w, http.StatusNotFound, "snapshot not found")
 		return
 	}
 

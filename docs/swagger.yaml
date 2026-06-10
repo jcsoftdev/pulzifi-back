@@ -368,23 +368,23 @@ definitions:
       caption:
         description: Caption is the post text / description.
         type: string
-      commentsCount:
+      comments_count:
         description: CommentsCount is the number of comments at capture time.
         type: integer
-      externalID:
+      external_id:
         description: ExternalID is the platform-native post identifier (used for deduplication).
         type: string
-      likesCount:
+      likes_count:
         description: LikesCount is the number of likes at capture time.
         type: integer
-      mediaURL:
+      media_url:
         description: MediaURL is the CDN URL of the post thumbnail (expires; do not
           persist).
         type: string
-      postedAt:
+      posted_at:
         description: PostedAt is the time the post was published on the platform.
         type: string
-      storedMediaURL:
+      stored_media_url:
         description: |-
           StoredMediaURL is the object-storage URL (MinIO/Cloudinary) written by
           MediaStore.Store. Persisted alongside the snapshot.
@@ -392,7 +392,7 @@ definitions:
     type: object
   entities.ProfileData:
     properties:
-      avatarURL:
+      avatar_url:
         description: |-
           AvatarURL is the stored (MinIO/Cloudinary) URL of the profile picture.
           CDN URLs expire; the infrastructure layer downloads and re-uploads them.
@@ -400,13 +400,13 @@ definitions:
       bio:
         description: Bio is the profile biography / description text.
         type: string
-      displayName:
+      display_name:
         description: DisplayName is the human-readable name shown on the profile.
         type: string
-      followersCount:
+      followers_count:
         description: FollowersCount is the number of followers at capture time.
         type: integer
-      followingCount:
+      following_count:
         description: FollowingCount is the number of accounts the profile follows.
         type: integer
       posts:
@@ -414,7 +414,7 @@ definitions:
         items:
           $ref: '#/definitions/entities.Post'
         type: array
-      postsCount:
+      posts_count:
         description: PostsCount is the total number of posts reported by the platform.
         type: integer
     type: object
@@ -549,6 +549,25 @@ definitions:
         description: |-
           ResetsAt is the ISO-8601 timestamp of the next UTC midnight,
           when the quota pool resets (REQ-QUOTA-STATUS-02).
+        type: string
+    type: object
+  getsnapshot.Response:
+    properties:
+      captured_at:
+        type: string
+      data:
+        $ref: '#/definitions/entities.ProfileData'
+      error:
+        type: string
+      followers_count:
+        type: integer
+      id:
+        type: string
+      posts_count:
+        type: integer
+      profile_id:
+        type: string
+      status:
         type: string
     type: object
   getworkspace.GetWorkspaceResponse:
@@ -746,6 +765,30 @@ definitions:
       updated_at:
         type: string
       workspace_id:
+        type: string
+    type: object
+  listsnapshots.Response:
+    properties:
+      snapshots:
+        items:
+          $ref: '#/definitions/listsnapshots.SnapshotSummary'
+        type: array
+    type: object
+  listsnapshots.SnapshotSummary:
+    properties:
+      captured_at:
+        type: string
+      error:
+        type: string
+      followers_count:
+        type: integer
+      id:
+        type: string
+      posts_count:
+        type: integer
+      profile_id:
+        type: string
+      status:
         type: string
     type: object
   listworkspaces.ListWorkspacesResponse:
@@ -1037,7 +1080,7 @@ definitions:
       check_interval_minutes:
         description: |-
           CheckIntervalMinutes, when non-nil, updates the check cadence.
-          Must be one of the allowed presets (120, 360, 720, 1440).
+          Must be one of the allowed presets (720, 1440). Minimum cadence is 12h.
         type: integer
       is_active:
         description: |-
@@ -2216,6 +2259,75 @@ paths:
       security:
       - BearerAuth: []
       summary: Run Social Check
+      tags:
+      - social
+  /social-profiles/{id}/snapshots:
+    get:
+      description: List scraping run history for a specific profile, paginated, newest
+        first
+      parameters:
+      - description: Profile ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Page size (default 20, max 100)
+        in: query
+        name: limit
+        type: integer
+      - description: Page offset (default 0)
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/listsnapshots.Response'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List Profile Snapshots
+      tags:
+      - social
+  /social-snapshots/{snapshotID}:
+    get:
+      description: Get a social snapshot by ID with full captured profile data
+      parameters:
+      - description: Snapshot ID
+        in: path
+        name: snapshotID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/getsnapshot.Response'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get Social Snapshot
       tags:
       - social
   /workspaces:

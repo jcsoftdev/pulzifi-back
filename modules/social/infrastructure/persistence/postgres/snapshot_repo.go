@@ -29,13 +29,15 @@ func NewSnapshotPostgresRepository(db *sql.DB, tenant string) *SnapshotPostgresR
 
 // Save persists a new SocialSnapshot (success or failed).
 func (r *SnapshotPostgresRepository) Save(ctx context.Context, snapshot *entities.SocialSnapshot) error {
-	var dataJSON []byte
+	// dataParam must be untyped nil for failed snapshots — a nil []byte is sent
+	// as an empty string by lib/pq, which jsonb rejects ("invalid input syntax").
+	var dataParam interface{}
 	if snapshot.Data != nil {
-		var err error
-		dataJSON, err = json.Marshal(snapshot.Data)
+		dataJSON, err := json.Marshal(snapshot.Data)
 		if err != nil {
 			return fmt.Errorf("snapshot repo: marshal data: %w", err)
 		}
+		dataParam = dataJSON
 	}
 
 	q := `
@@ -52,7 +54,7 @@ func (r *SnapshotPostgresRepository) Save(ctx context.Context, snapshot *entitie
 			snapshot.Error,
 			snapshot.FollowersCount,
 			snapshot.PostsCount,
-			dataJSON,
+			dataParam,
 		)
 		if err != nil {
 			return fmt.Errorf("snapshot repo: save: %w", err)
@@ -107,6 +109,58 @@ func (r *SnapshotPostgresRepository) GetLatestByProfile(ctx context.Context, pro
 	}
 
 	return &snapshot, nil
+}
+
+// ListByProfile returns snapshots for a profile ordered by captured_at DESC, paginated.
+// The data column is NOT scanned — callers receive summary-only records.
+func (r *SnapshotPostgresRepository) ListByProfile(ctx context.Context, profileID uuid.UUID, limit, offset int) ([]*entities.SocialSnapshot, error) {
+	q := `
+		SELECT id, profile_id, captured_at, status, error, followers_count, posts_count
+		FROM social_snapshots
+		WHERE profile_id = $1
+		ORDER BY captured_at DESC
+		LIMIT $2 OFFSET $3`
+
+	var snapshots []*entities.SocialSnapshot
+
+	err := database.WithTenant(ctx, r.db, r.tenant, func(tx *sql.Tx) error {
+		rows, err := tx.QueryContext(ctx, q, profileID, limit, offset)
+		if err != nil {
+			return fmt.Errorf("snapshot repo: list by profile: %w", err)
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var s entities.SocialSnapshot
+			var status string
+			var errStr sql.NullString
+
+			if err := rows.Scan(
+				&s.ID,
+				&s.ProfileID,
+				&s.CapturedAt,
+				&status,
+				&errStr,
+				&s.FollowersCount,
+				&s.PostsCount,
+			); err != nil {
+				return fmt.Errorf("snapshot repo: list by profile scan: %w", err)
+			}
+
+			s.Status = entities.SnapshotStatus(status)
+			s.Error = errStr.String
+			snapshots = append(snapshots, &s)
+		}
+		return rows.Err()
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if snapshots == nil {
+		snapshots = []*entities.SocialSnapshot{}
+	}
+	return snapshots, nil
 }
 
 // GetByID retrieves a snapshot by its UUID. Returns nil, nil when not found.

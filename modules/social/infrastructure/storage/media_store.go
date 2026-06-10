@@ -55,6 +55,10 @@ func (m *MediaStore) Store(ctx context.Context, sourceURL, key string) (string, 
 	if err != nil {
 		return "", fmt.Errorf("social media store: create download request: %w", err)
 	}
+	// Instagram CDN requires a browser-like User-Agent and Referer; without them it returns 403.
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+	req.Header.Set("Referer", "https://www.instagram.com/")
+	req.Header.Set("Accept", "image/avif,image/webp,image/apng,image/*,*/*;q=0.8")
 
 	resp, err := m.httpClient.Do(req)
 	if err != nil {

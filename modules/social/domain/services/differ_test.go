@@ -170,19 +170,21 @@ func TestDiff_FollowersUnchanged_NoEvent(t *testing.T) {
 }
 
 // --- avatar_changed ---
+// Avatar URL comparison is disabled: Instagram CDN URLs are ephemeral (token in URL
+// changes every Apify call). Until we hash the downloaded image we skip this signal.
 
-func TestDiff_AvatarChanged(t *testing.T) {
+func TestDiff_AvatarURL_NotDetected(t *testing.T) {
 	prev := baseProfile()
 	next := baseProfile()
-	next.AvatarURL = "https://storage.example.com/avatar2.jpg"
+	next.AvatarURL = "https://cdn.instagram.com/avatar2.jpg?se=<new-token>"
 
 	changeTypes, summary := services.Diff(prev, next)
 
-	if !hasChangeType(changeTypes, valueobjects.ChangeTypeAvatarChanged) {
-		t.Errorf("expected avatar_changed in change types, got %v", changeTypes)
+	if hasChangeType(changeTypes, valueobjects.ChangeTypeAvatarChanged) {
+		t.Errorf("avatar_changed must NOT be emitted (ephemeral CDN URL); got %v", changeTypes)
 	}
-	if !summary.AvatarChanged {
-		t.Error("expected summary.AvatarChanged = true")
+	if summary.AvatarChanged {
+		t.Error("summary.AvatarChanged must be false")
 	}
 }
 
@@ -247,7 +249,7 @@ func TestDiff_MultipleChanges(t *testing.T) {
 		valueobjects.ChangeTypeFollowersChanged,
 		valueobjects.ChangeTypeNewPost,
 		valueobjects.ChangeTypeDisplayNameChanged,
-		valueobjects.ChangeTypeAvatarChanged,
+		// avatar_changed omitted — CDN URL comparison disabled (ephemeral tokens)
 	}
 	for _, expected := range expectedTypes {
 		if !hasChangeType(changeTypes, expected) {

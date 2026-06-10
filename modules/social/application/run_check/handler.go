@@ -11,6 +11,8 @@ import (
 	"github.com/jcsoftdev/pulzifi-back/modules/social/domain/repositories"
 	"github.com/jcsoftdev/pulzifi-back/modules/social/domain/services"
 	valueobjects "github.com/jcsoftdev/pulzifi-back/modules/social/domain/value_objects"
+	"github.com/jcsoftdev/pulzifi-back/shared/logger"
+	"go.uber.org/zap"
 )
 
 const (
@@ -191,6 +193,7 @@ func (h *Handler) Handle(ctx context.Context, profileID uuid.UUID) (*Response, e
 	profile.NextCheckAt = &nextCheck
 	profile.LastCheckedAt = &now
 	profile.ConsecutiveFailures = 0
+	profile.IsActive = true // reactivate if previously suspended by failure threshold
 	profile.UpdatedAt = now
 
 	if err := h.profiles.Update(ctx, profile); err != nil {
@@ -212,12 +215,26 @@ func (h *Handler) handleFetchFailure(
 	// REQ-QUOTA-CONSUME-04: compensate quota (best-effort, REQ-QUOTA-CONSUME-05)
 	if compErr := h.quota.Compensate(ctx, now); compErr != nil {
 		// Log only — do not surface as check failure (REQ-QUOTA-CONSUME-05)
-		_ = compErr
+		logger.Warn("run_check: quota compensate failed",
+			zap.String("profile_id", profile.ID.String()),
+			zap.Error(compErr),
+		)
 	}
 
-	// REQ-FAIL-02: persist failed snapshot
+	// REQ-FAIL-02: persist failed snapshot (best-effort)
 	snapshot := entities.NewFailedSnapshot(profile.ID, fetchErr.Error())
-	_ = h.snapshots.Save(ctx, snapshot) // best-effort
+	if saveErr := h.snapshots.Save(ctx, snapshot); saveErr != nil {
+		logger.Warn("run_check: failed-snapshot save failed",
+			zap.String("profile_id", profile.ID.String()),
+			zap.Error(saveErr),
+		)
+	}
+	logger.Warn("run_check: fetch failed",
+		zap.String("profile_id", profile.ID.String()),
+		zap.String("handle", profile.Handle),
+		zap.Int("consecutive_failures", profile.ConsecutiveFailures+1),
+		zap.Error(fetchErr),
+	)
 
 	// REQ-FAIL-04: increment consecutive failures
 	profile.ConsecutiveFailures++
@@ -253,26 +270,34 @@ func (h *Handler) handleFetchFailure(
 	return nil, domainerrors.ErrFetchFailed
 }
 
-// storeNewMedia downloads and re-uploads media for posts that are new
-// relative to the previous snapshot (REQ-CHECK-03).
+// storeNewMedia downloads and re-uploads media for posts that either are new
+// or whose previous download failed (empty StoredMediaURL). Previously-stored
+// URLs are propagated to the new snapshot without re-downloading (REQ-CHECK-03).
 func (h *Handler) storeNewMedia(
 	ctx context.Context,
 	profileID uuid.UUID,
 	data *entities.ProfileData,
 	prevSnapshot *entities.SocialSnapshot,
 ) error {
-	prevPostIDs := make(map[string]bool)
+	prevStoredURLs := make(map[string]string) // externalID -> stored URL
 	if prevSnapshot != nil && prevSnapshot.Data != nil {
 		for _, p := range prevSnapshot.Data.Posts {
-			prevPostIDs[p.ExternalID] = true
+			if p.StoredMediaURL != "" {
+				prevStoredURLs[p.ExternalID] = p.StoredMediaURL
+			}
 		}
 	}
 
 	for i, post := range data.Posts {
-		isNew := !prevPostIDs[post.ExternalID]
-		if !isNew || post.MediaURL == "" {
+		if post.MediaURL == "" {
 			continue
 		}
+		// Reuse a previously stored URL to avoid redundant downloads.
+		if prev := prevStoredURLs[post.ExternalID]; prev != "" {
+			data.Posts[i].StoredMediaURL = prev
+			continue
+		}
+		// New post or previous download failed — attempt download + upload.
 		key := fmt.Sprintf("social/%s/posts/%s", profileID, post.ExternalID)
 		storedURL, err := h.mediaStore.Store(ctx, post.MediaURL, key)
 		if err != nil {

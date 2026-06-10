@@ -13,9 +13,8 @@ import (
 )
 
 // allowedPresets are the valid check_interval_minutes values (REQ-QUOTA-INTERVAL-02).
+// Minimum cadence is 12h to keep scraping costs bounded.
 var allowedPresets = map[int]bool{
-	120:  true, // every 2h
-	360:  true, // every 6h
 	720:  true, // every 12h
 	1440: true, // daily
 }
@@ -50,7 +49,7 @@ func (h *Handler) Handle(ctx context.Context, req *Request) (*Response, error) {
 	// --- 3. Validate interval preset (REQ-PROFILE-05) ---
 	if !allowedPresets[req.CheckIntervalMinutes] {
 		return nil, fmt.Errorf(
-			"invalid check_interval_minutes %d: must be one of 120, 360, 720, 1440",
+			"invalid check_interval_minutes %d: must be one of 720, 1440",
 			req.CheckIntervalMinutes,
 		)
 	}
@@ -112,7 +111,7 @@ func (h *Handler) Handle(ctx context.Context, req *Request) (*Response, error) {
 // states that no preset fits (REQ-QUOTA-INTERVAL-03).
 func buildIntervalError(newActiveCount, checksPerDay int) error {
 	// Try presets from cheapest (fewest checks/day) to most frequent
-	presets := []int{1440, 720, 360, 120}
+	presets := []int{1440, 720}
 	for _, preset := range presets {
 		demand := newActiveCount * (1440 / preset)
 		if demand <= checksPerDay {

@@ -46,14 +46,14 @@ func TestUpdateProfileHandler(t *testing.T) {
 		h := updateprofile.NewHandler(repo, plan)
 
 		resp, err := h.Handle(context.Background(), profileID, &updateprofile.Request{
-			CheckIntervalMinutes: intPtr(360),
+			CheckIntervalMinutes: intPtr(1440),
 		})
 
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if resp.CheckIntervalMinutes != 360 {
-			t.Errorf("interval not updated: want 360, got %d", resp.CheckIntervalMinutes)
+		if resp.CheckIntervalMinutes != 1440 {
+			t.Errorf("interval not updated: want 1440, got %d", resp.CheckIntervalMinutes)
 		}
 		if repo.UpdateCalls != 1 {
 			t.Errorf("expected 1 Update call, got %d", repo.UpdateCalls)

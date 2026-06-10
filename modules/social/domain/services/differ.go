@@ -34,10 +34,12 @@ func diffScalarFields(
 		changeTypes = append(changeTypes, valueobjects.ChangeTypeDisplayNameChanged)
 		summary.DisplayName = &entities.TextDiff{From: prev.DisplayName, To: next.DisplayName}
 	}
-	if prev.AvatarURL != next.AvatarURL {
-		changeTypes = append(changeTypes, valueobjects.ChangeTypeAvatarChanged)
-		summary.AvatarChanged = true
-	}
+	// Avatar URL comparison is intentionally skipped: Instagram CDN URLs contain
+	// expiring tokens that change on every Apify call regardless of whether the
+	// image actually changed. Reliable avatar-change detection requires downloading
+	// and hashing the image, which is not yet implemented.
+	_ = prev.AvatarURL
+	_ = next.AvatarURL
 	if delta := next.FollowersCount - prev.FollowersCount; delta != 0 {
 		changeTypes = append(changeTypes, valueobjects.ChangeTypeFollowersChanged)
 		summary.FollowersDelta = delta

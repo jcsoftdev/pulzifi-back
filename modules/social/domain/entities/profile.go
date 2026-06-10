@@ -30,7 +30,7 @@ type SocialProfile struct {
 	IsActive bool
 
 	// CheckIntervalMinutes is the desired polling cadence.
-	// Allowed presets: 120, 360, 720, 1440 (validated at create/update time).
+	// Allowed presets: 720, 1440 (validated at create/update time). Minimum cadence is 12h.
 	CheckIntervalMinutes int
 
 	// NextCheckAt is the time at which the scheduler should next run a check.

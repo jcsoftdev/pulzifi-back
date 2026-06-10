@@ -11,9 +11,8 @@ import (
 	"github.com/jcsoftdev/pulzifi-back/modules/social/domain/services"
 )
 
+// Minimum cadence is 12h to keep scraping costs bounded.
 var allowedPresets = map[int]bool{
-	120:  true,
-	360:  true,
 	720:  true,
 	1440: true,
 }
@@ -41,7 +40,7 @@ func (h *Handler) Handle(ctx context.Context, id uuid.UUID, req *Request) (*Resp
 		newInterval := *req.CheckIntervalMinutes
 		if !allowedPresets[newInterval] {
 			return nil, fmt.Errorf(
-				"invalid check_interval_minutes %d: must be one of 120, 360, 720, 1440",
+				"invalid check_interval_minutes %d: must be one of 720, 1440",
 				newInterval,
 			)
 		}

@@ -18,4 +18,8 @@ type SnapshotRepository interface {
 
 	// GetByID retrieves a snapshot by its UUID. Returns nil when not found.
 	GetByID(ctx context.Context, id uuid.UUID) (*entities.SocialSnapshot, error)
+
+	// ListByProfile returns snapshots for a profile ordered by captured_at DESC, paginated.
+	// Does NOT return the data JSON field (summary only).
+	ListByProfile(ctx context.Context, profileID uuid.UUID, limit, offset int) ([]*entities.SocialSnapshot, error)
 }
