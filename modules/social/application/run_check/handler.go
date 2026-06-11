@@ -183,44 +183,13 @@ func (h *Handler) Handle(ctx context.Context, profileID uuid.UUID) (*Response, e
 		Data:        data,
 	}
 
-	if prevSnapshot != nil && prevSnapshot.Data != nil {
-		// REQ-CHECK-04: diff only when a previous snapshot exists
-		changeTypes, summary := services.Diff(*prevSnapshot.Data, *data)
-		if len(changeTypes) > 0 {
-			// REQ-CHECK-06: persist change
-			change := entities.NewSocialChange(
-				profileID,
-				prevSnapshot.ID,
-				snapshot.ID,
-				changeTypes,
-				summary,
-			)
-			if err := h.changes.Save(ctx, change); err != nil {
-				return nil, fmt.Errorf("saving change: %w", err)
-			}
-			resp.ChangeCreated = true
-			resp.ChangeID = &change.ID
-
-			// REQ-CHECK-07: alert
-			alertPayload := buildChangeAlert(profile, changeTypes, summary)
-			_ = h.alertCreator.CreateAlert(ctx, alertPayload) // best-effort
-
-			// In-app alert (sync, nil-safe).
-			h.saveInAppAlert(ctx, profile, change.ID, changeTypes, summary)
-
-			// Real-time SSE push (sync, nil-safe).
-			h.publishSSE(profile.ID, change)
-
-			// Email notification (async, best-effort).
-			if h.emailer != nil {
-				go h.sendChangeEmail(profile, summary)
-			}
-
-			// AI insight (async, best-effort).
-			if h.insightGenerator != nil {
-				go h.generateInsight(change.ID, profile, summary)
-			}
-		}
+	change, err := h.detectAndNotifyChange(ctx, profile, prevSnapshot, snapshot, data)
+	if err != nil {
+		return nil, err
+	}
+	if change != nil {
+		resp.ChangeCreated = true
+		resp.ChangeID = &change.ID
 	}
 	// REQ-CHECK-10: baseline (no previous snapshot) — no change, no alert
 
@@ -238,6 +207,55 @@ func (h *Handler) Handle(ctx context.Context, profileID uuid.UUID) (*Response, e
 	resp.NextCheckAt = profile.NextCheckAt
 
 	return resp, nil
+}
+
+// detectAndNotifyChange diffs the fetched data against the previous snapshot and,
+// when changes exist, persists a SocialChange (REQ-CHECK-06) and fires every
+// notification: integration alert (REQ-CHECK-07), in-app alert, SSE push, and the
+// async email + AI insight jobs. Returns the created change, or nil for a baseline
+// (no previous snapshot, REQ-CHECK-10) or no-change result.
+func (h *Handler) detectAndNotifyChange(
+	ctx context.Context,
+	profile *entities.SocialProfile,
+	prevSnapshot *entities.SocialSnapshot,
+	snapshot *entities.SocialSnapshot,
+	data *entities.ProfileData,
+) (*entities.SocialChange, error) {
+	// REQ-CHECK-04: diff only when a previous snapshot exists.
+	if prevSnapshot == nil || prevSnapshot.Data == nil {
+		return nil, nil
+	}
+
+	changeTypes, summary := services.Diff(*prevSnapshot.Data, *data)
+	if len(changeTypes) == 0 {
+		return nil, nil
+	}
+
+	change := entities.NewSocialChange(profile.ID, prevSnapshot.ID, snapshot.ID, changeTypes, summary)
+	if err := h.changes.Save(ctx, change); err != nil {
+		return nil, fmt.Errorf("saving change: %w", err)
+	}
+
+	// REQ-CHECK-07: integration alert (best-effort).
+	_ = h.alertCreator.CreateAlert(ctx, buildChangeAlert(profile, changeTypes, summary))
+
+	// In-app alert (sync, nil-safe).
+	h.saveInAppAlert(ctx, profile, change.ID, changeTypes, summary)
+
+	// Real-time SSE push (sync, nil-safe).
+	h.publishSSE(profile.ID, change)
+
+	// Email notification (async, best-effort).
+	if h.emailer != nil {
+		go h.sendChangeEmail(profile, summary)
+	}
+
+	// AI insight (async, best-effort).
+	if h.insightGenerator != nil {
+		go h.generateInsight(change.ID, profile, summary)
+	}
+
+	return change, nil
 }
 
 // handleFetchFailure handles the error path: compensate quota, persist failed
