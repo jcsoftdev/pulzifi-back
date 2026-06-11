@@ -1,5 +1,6 @@
 import { RichText } from '@payloadcms/richtext-lexical/react'
 import type { Metadata } from 'next'
+import Image from 'next/image'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { JsonLd } from '@/components/json-ld'
@@ -80,7 +81,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         : null
     // Share image prefers the dedicated SEO/OG image (meta.image), falling back
     // to the article hero so posts without a custom OG image still get one.
-    const heroImageUrl = (metaImageObj?.url ?? heroImageObj?.url) as string | undefined
+    const heroImageUrl =
+      ((metaImageObj?.url ?? heroImageObj?.url) as string | undefined)?.trim() || undefined
     const publishedAt = post.publishedAt as string | undefined
     const author = post.author as string | undefined
 
@@ -185,7 +187,8 @@ export default async function BlogArticlePage({ params }: Props) {
     typeof post.heroImage === 'object' && post.heroImage !== null
       ? (post.heroImage as Record<string, unknown>)
       : null
-  const heroImageUrl = heroImageObj?.url as string | null | undefined
+  // CMS url is a free-text field — trim to avoid next/image crashing on stray whitespace
+  const heroImageUrl = (heroImageObj?.url as string | null | undefined)?.trim() || undefined
 
   const postUrl = `${siteUrl}/blog/${slug}`
   const publishedAt = post.publishedAt as string | undefined
@@ -319,11 +322,13 @@ export default async function BlogArticlePage({ params }: Props) {
             {heroImageUrl && (
               <div className="px-6 pt-10 sm:px-12 lg:px-20">
                 <div className="relative mx-auto h-64 w-full max-w-3xl sm:h-96">
-                  {/* biome-ignore lint/performance/noImgElement: CMS image from MinIO — dimensions unknown at build time */}
-                  <img
+                  <Image
                     src={heroImageUrl}
                     alt={title ?? 'Blog post hero image'}
-                    className="h-full w-full rounded-2xl object-cover"
+                    fill
+                    priority
+                    sizes="(max-width: 768px) 100vw, 768px"
+                    className="rounded-2xl object-cover"
                   />
                 </div>
               </div>
