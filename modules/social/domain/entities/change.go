@@ -60,6 +60,10 @@ type SocialChange struct {
 	// Summary is the structured breakdown used by the frontend for typed rendering.
 	Summary ChangeSummary
 
+	// AISummary is an optional OpenRouter-generated natural-language description
+	// of the change. nil until the async insight job populates it.
+	AISummary *string
+
 	CreatedAt time.Time
 }
 
