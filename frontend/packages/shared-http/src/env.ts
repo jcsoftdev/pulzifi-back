@@ -5,4 +5,5 @@ export const env = {
   NODE_ENV: process.env.NODE_ENV,
   COOKIE_DOMAIN: process.env.COOKIE_DOMAIN,
   NEXT_PUBLIC_GA_ID: process.env.NEXT_PUBLIC_GA_ID,
+  NEXT_PUBLIC_META_PIXEL_ID: process.env.NEXT_PUBLIC_META_PIXEL_ID,
 } as const
