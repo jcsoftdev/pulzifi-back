@@ -34,4 +34,7 @@ type ChangeRepository interface {
 
 	// GetByID retrieves a change by its UUID. Returns nil when not found.
 	GetByID(ctx context.Context, id uuid.UUID) (*entities.SocialChange, error)
+
+	// UpdateAISummary sets the ai_summary column for a change. No-op if not found.
+	UpdateAISummary(ctx context.Context, changeID uuid.UUID, summary string) error
 }
