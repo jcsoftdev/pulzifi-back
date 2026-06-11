@@ -198,7 +198,7 @@ func registerAllModulesInternal(
 	// ---------------------------------------------------------------------------
 	// Social module wiring (gated behind SOCIAL_ENABLED — REQ-FLAG-01, REQ-FLAG-02)
 	// ---------------------------------------------------------------------------
-	socialHandlerFactory := socialwiring.NewTenantHandlerFactory(db, eventBus, cfg)
+	socialHandlerFactory := socialwiring.NewTenantHandlerFactory(db, eventBus, cfg, emailProvider)
 	socialMod := buildSocialModule(db, eventBus, cfg, socialHandlerFactory)
 	moduleInstances = append(moduleInstances, struct {
 		name   string
@@ -546,5 +546,6 @@ func buildSocialModule(
 		Enabled:       cfg.SocialEnabled,
 		PostsPerCheck: cfg.SocialPostsPerCheck,
 		ChecksPerDay:  0,
+		SocialBroker:  handlerFactory.Broker(),
 	})
 }
