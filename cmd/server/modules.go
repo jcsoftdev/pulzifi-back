@@ -16,6 +16,7 @@ import (
 	intwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/integration"
 	monitoringwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/monitoring"
 	pagewiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/page"
+	reportwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/report"
 	socialwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/social"
 	teamwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/team"
 	alert "github.com/jcsoftdev/pulzifi-back/modules/alert/infrastructure/http"
@@ -62,6 +63,8 @@ import (
 	orgmessaging "github.com/jcsoftdev/pulzifi-back/modules/organization/infrastructure/messaging"
 	orgpersistence "github.com/jcsoftdev/pulzifi-back/modules/organization/infrastructure/persistence"
 	page "github.com/jcsoftdev/pulzifi-back/modules/page/infrastructure/http"
+	reportservices "github.com/jcsoftdev/pulzifi-back/modules/report/domain/services"
+	reportai "github.com/jcsoftdev/pulzifi-back/modules/report/infrastructure/ai"
 	report "github.com/jcsoftdev/pulzifi-back/modules/report/infrastructure/http"
 	snapshotextractor "github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/extractor"
 	socialhttp "github.com/jcsoftdev/pulzifi-back/modules/social/infrastructure/http"
@@ -71,6 +74,7 @@ import (
 	usage "github.com/jcsoftdev/pulzifi-back/modules/usage/infrastructure/http"
 	usagepersistence "github.com/jcsoftdev/pulzifi-back/modules/usage/infrastructure/persistence"
 	workspace "github.com/jcsoftdev/pulzifi-back/modules/workspace/infrastructure/http"
+	sharedAI "github.com/jcsoftdev/pulzifi-back/shared/ai"
 	"github.com/jcsoftdev/pulzifi-back/shared/config"
 	"github.com/jcsoftdev/pulzifi-back/shared/crypto"
 	"github.com/jcsoftdev/pulzifi-back/shared/eventbus"
@@ -171,7 +175,7 @@ func registerAllModulesInternal(
 		{"Monitoring", buildMonitoringModule(db, eventBus, emailProvider, checkBroker, cfg)},
 		{"Integration", integrationMod},
 		{"Insight", buildInsightModule(db, insightBroker)},
-		{"Report", report.NewModuleWithDB(db)},
+		{"Report", buildReportModule(db, cfg)},
 		{"Usage", buildUsageModule(db)},
 		{"Dashboard", dashboard.NewModuleWithDB(db)},
 		{"Team", team.NewModuleWithDB(
@@ -452,6 +456,24 @@ func buildInsightModule(db *sql.DB, insightBroker pubsub.InsightBroker) router.M
 		func(tenant string) insightservices.PageConfigReader {
 			return insightwiring.NewPageConfigReaderAdapter(db, tenant)
 		},
+	)
+}
+
+// buildReportModule constructs the report module. When an OpenRouter API key is
+// configured, reports summarize the page's AI insights into their content on
+// create; otherwise the module falls back to plain storage.
+func buildReportModule(db *sql.DB, cfg *config.Config) router.ModuleRegisterer {
+	if cfg.OpenRouterAPIKey == "" {
+		return report.NewModuleWithDB(db)
+	}
+	client := sharedAI.NewOpenRouterClient(cfg.OpenRouterAPIKey, cfg.OpenRouterModel).WithBaseURL(cfg.AIBaseURL)
+	summarizer := reportai.NewOpenRouterSummarizer(client)
+	return report.NewModuleWithAI(
+		db,
+		func(tenant string) reportservices.InsightReader {
+			return reportwiring.NewInsightReaderAdapter(db, tenant)
+		},
+		summarizer,
 	)
 }
 

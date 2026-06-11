@@ -33,6 +33,8 @@ export default async function ReportDetailPage({ params }: ReportDetailPageProps
     day: 'numeric',
   })
 
+  const summary = typeof report.content.summary === 'string' ? report.content.summary.trim() : ''
+
   const breadcrumbs: BreadcrumbItem[] = [
     {
       label: 'Workspaces',
@@ -87,13 +89,11 @@ export default async function ReportDetailPage({ params }: ReportDetailPageProps
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Content</CardTitle>
+            <CardTitle className="text-lg">AI insights summary</CardTitle>
           </CardHeader>
           <CardContent>
-            {Object.keys(report.content).length > 0 ? (
-              <pre className="text-sm whitespace-pre-wrap font-mono bg-muted p-4 rounded-md overflow-auto">
-                {JSON.stringify(report.content, null, 2)}
-              </pre>
+            {summary ? (
+              <div className="text-sm leading-relaxed whitespace-pre-wrap text-foreground">{summary}</div>
             ) : (
               <p className="text-muted-foreground">No content available.</p>
             )}
