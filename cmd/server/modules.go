@@ -126,7 +126,7 @@ func registerAllModulesInternal(
 	// from organization and email modules without creating cross-module imports.
 	authOrgDirectory := authwiring.NewOrganizationDirectoryAdapter(orgRepo, orgService)
 	authOnboardingAdapter := authwiring.NewOnboardingProfileAdapter(db)
-	authNotifier := authwiring.NewNotifierAdapter(emailProvider)
+	authNotifier := authwiring.NewNotifierAdapter(emailProvider, cfg.FrontendURL, cfg.TrialDays)
 	authTrialProvisioner := authwiring.NewTrialProvisioner(db, orgService)
 	authMembershipChecker := authwiring.NewMembershipChecker(db)
 

@@ -106,9 +106,13 @@ export const BillingApi = {
   /**
    * Create a Stripe Checkout session for the given plan and billing cycle.
    * Returns a checkout_url to redirect the user to.
+   *
+   * NOTE: the backend expects the plan CODE (e.g. "starter", "pro") in the
+   * `plan_id` field — NOT the catalog UUID. Stripe price IDs are resolved
+   * server-side from public.plans by code.
    */
   async createCheckoutSession(
-    planId: string,
+    planCode: string,
     billingCycle: 'monthly' | 'yearly',
     promotionCode?: string
   ): Promise<{
@@ -116,7 +120,7 @@ export const BillingApi = {
   }> {
     const http = await getHttpClient()
     const response = await http.post<CheckoutSessionDto>('/api/v1/billing/checkout', {
-      plan_id: planId,
+      plan_id: planCode,
       billing_cycle: billingCycle,
       promotion_code: promotionCode ?? '',
     })

@@ -43,6 +43,7 @@ type PricingPlan = {
   ctaHref?: string
   highlighted?: boolean
   popularBadge?: string
+  planCode?: string
 }
 
 type BillingCopy = {
@@ -86,7 +87,13 @@ export function PricingSection({
     '--swiper-pagination-bullet-inactive-color': 'var(--pz-ink-2)',
   } as CSSProperties
 
-  const renderCard = (plan: PricingPlan) => (
+  const renderCard = (plan: PricingPlan) => {
+    const baseHref = plan.ctaHref ?? '/register'
+    const ctaHref =
+      plan.planCode && baseHref.includes('/register')
+        ? `${baseHref}?plan=${encodeURIComponent(plan.planCode)}&cycle=${cycle === 'annual' ? 'yearly' : 'monthly'}`
+        : baseHref
+    return (
     <PricingCard
       name={plan.name}
       price={plan.price}
@@ -94,7 +101,7 @@ export function PricingSection({
       period={plan.period}
       description={plan.tagline}
       cta={plan.ctaLabel ?? 'Get Started'}
-      ctaHref={plan.ctaHref ?? '/register'}
+      ctaHref={ctaHref}
       features={(plan.features ?? []).map((f) => ({
         text: f.text ?? '',
         included: f.included ?? true,
@@ -106,11 +113,16 @@ export function PricingSection({
       featuresLabel={featuresLabel}
     />
   )
+  }
 
   const tableColumns = items.map((plan) => ({
     name: plan.name,
     cta: plan.ctaLabel ?? 'Get Started',
-    ctaHref: plan.ctaHref ?? '/register',
+    ctaHref: (() => {
+      const base = plan.ctaHref ?? '/register'
+      if (!plan.planCode || !base.includes('/register')) return base
+      return `${base}?plan=${encodeURIComponent(plan.planCode)}&cycle=${cycle === 'annual' ? 'yearly' : 'monthly'}`
+    })(),
     popular: plan.highlighted ?? false,
     features: (plan.features ?? []).map((f) => ({
       text: f.text ?? '',

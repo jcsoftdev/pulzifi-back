@@ -3,13 +3,18 @@
 import { Button } from '@workspace/ui/components/atoms/button'
 import { cn } from '@workspace/ui/lib/utils'
 import { useId, useState } from 'react'
-import type { OnboardingProfileValues } from '../domain/types'
 import { AuthLabel, ErrorBanner } from '@/features/auth/ui/form-atoms'
+import type { OnboardingProfileValues } from '../domain/types'
 
 const baseInput =
   'h-10 w-full rounded-xl border border-[var(--pz-ink)]/10 bg-[var(--pz-page-bg,#f9f9f9)] px-4 text-sm text-[var(--pz-ink)] outline-none transition-[border-color,box-shadow] placeholder:text-[var(--pz-ink)]/30 focus:border-[var(--pz-accent)]/40 focus:bg-white focus:ring-2 focus:ring-[var(--pz-accent)]/15'
 
-const COMPANY_SIZES = ['1-10', '11-50', '51-100', '100+']
+const COMPANY_SIZES = [
+  '1-10',
+  '11-50',
+  '51-100',
+  '100+',
+]
 
 const BUSINESS_TYPES = [
   'Marketing agency',
@@ -48,7 +53,12 @@ export function OnboardingProfileForm({ onSubmit, isLoading, error }: Onboarding
 
   const toggleChallenge = (value: string) => {
     setChallenges((prev) =>
-      prev.includes(value) ? prev.filter((c) => c !== value) : [...prev, value]
+      prev.includes(value)
+        ? prev.filter((c) => c !== value)
+        : [
+            ...prev,
+            value,
+          ]
     )
   }
 
@@ -70,9 +80,7 @@ export function OnboardingProfileForm({ onSubmit, isLoading, error }: Onboarding
     >
       {/* Q1 — Company size (single select) */}
       <div className="flex flex-col gap-2">
-        <AuthLabel htmlFor={companySizeGroupId}>
-          How many people work at your company?
-        </AuthLabel>
+        <AuthLabel htmlFor={companySizeGroupId}>How many people work at your company?</AuthLabel>
         <fieldset id={companySizeGroupId} className="flex flex-wrap gap-2 border-0 m-0 p-0">
           <legend className="sr-only">Company size</legend>
           {COMPANY_SIZES.map((size) => (

@@ -4,8 +4,8 @@ import { Button } from '@workspace/ui/components/atoms/button'
 import { cn } from '@workspace/ui/lib/utils'
 import { CheckCircle, Loader2, XCircle } from 'lucide-react'
 import { useId, useState } from 'react'
-import type { SubdomainStatus } from '../application/use-onboarding'
 import { AuthLabel, ErrorBanner, FieldMessage } from '@/features/auth/ui/form-atoms'
+import type { SubdomainStatus } from '../application/use-onboarding'
 
 const baseInput =
   'h-10 w-full rounded-xl border border-[var(--pz-ink)]/10 bg-[var(--pz-page-bg,#f9f9f9)] px-4 text-sm text-[var(--pz-ink)] outline-none transition-[border-color,box-shadow] placeholder:text-[var(--pz-ink)]/30 focus:border-[var(--pz-accent)]/40 focus:bg-white focus:ring-2 focus:ring-[var(--pz-accent)]/15'
@@ -82,7 +82,11 @@ export function OnboardingForm({
       : 'Lowercase, numbers, hyphens only'
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-3" aria-label="Set up your organization">
+    <form
+      onSubmit={handleSubmit}
+      className="flex flex-col gap-3"
+      aria-label="Set up your organization"
+    >
       {/* Organization name */}
       <div className="flex flex-col gap-1.5">
         <AuthLabel htmlFor={orgNameId}>Organization name</AuthLabel>

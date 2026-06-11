@@ -99,8 +99,8 @@ export function PricingCard({
   // A plan only has a real annual offer when its annual price is a positive
   // amount. Free ($0) has priceAnnual set but no annual concept, so it must not
   // get the annual treatment.
-  const hasPaidAnnual =
-    billingCycle === 'annual' && !!priceAnnual && extractNumeric(priceAnnual) > 0
+  const hasAnnualOffer = !!priceAnnual && extractNumeric(priceAnnual) > 0
+  const hasPaidAnnual = billingCycle === 'annual' && hasAnnualOffer
   // priceAnnual is the full yearly total (Stripe unit_amount for the yearly
   // price). When annual is selected we show the per-month equivalent as the big
   // number (total / 12) and surface the yearly total in the small note below.
@@ -165,14 +165,16 @@ export function PricingCard({
               </span>
             )}
           </div>
-          {hasPaidAnnual && (
+          {hasAnnualOffer && (
             <p
               className={cn(
                 'text-xs font-medium',
                 popular ? 'text-[var(--pz-accent-gold,#f59e0b)]' : 'text-[var(--pz-accent)]'
               )}
             >
-              {annualNote ?? `Billed annually (${priceAnnual}/yr)`}
+              {hasPaidAnnual
+                ? (annualNote ?? `Billed annually (${priceAnnual}/yr)`)
+                : `Annual: ${priceAnnual}/yr`}
             </p>
           )}
           {description && (
