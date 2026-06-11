@@ -82,7 +82,7 @@ func (r *ChangePostgresRepository) List(ctx context.Context, filter repositories
 	switch {
 	case filter.ProfileID != nil:
 		q = `
-			SELECT id, profile_id, from_snapshot_id, to_snapshot_id, change_types, summary, created_at
+			SELECT id, profile_id, from_snapshot_id, to_snapshot_id, change_types, summary, created_at, ai_summary
 			FROM social_changes
 			WHERE profile_id = $1
 			ORDER BY created_at DESC
@@ -92,7 +92,7 @@ func (r *ChangePostgresRepository) List(ctx context.Context, filter repositories
 		// Join via social_profiles to scope to workspace
 		q = `
 			SELECT sc.id, sc.profile_id, sc.from_snapshot_id, sc.to_snapshot_id,
-			       sc.change_types, sc.summary, sc.created_at
+			       sc.change_types, sc.summary, sc.created_at, sc.ai_summary
 			FROM social_changes sc
 			JOIN social_profiles sp ON sc.profile_id = sp.id
 			WHERE sp.workspace_id = $1
@@ -101,7 +101,7 @@ func (r *ChangePostgresRepository) List(ctx context.Context, filter repositories
 		args = []interface{}{*filter.WorkspaceID, limit, offset}
 	default:
 		q = `
-			SELECT id, profile_id, from_snapshot_id, to_snapshot_id, change_types, summary, created_at
+			SELECT id, profile_id, from_snapshot_id, to_snapshot_id, change_types, summary, created_at, ai_summary
 			FROM social_changes
 			ORDER BY created_at DESC
 			LIMIT $1 OFFSET $2`
@@ -121,6 +121,7 @@ func (r *ChangePostgresRepository) List(ctx context.Context, filter repositories
 			var c entities.SocialChange
 			var changeTypeStrs []string
 			var summaryJSON []byte
+			var aiSummary sql.NullString
 
 			if err := rows.Scan(
 				&c.ID,
@@ -130,6 +131,7 @@ func (r *ChangePostgresRepository) List(ctx context.Context, filter repositories
 				pq.Array(&changeTypeStrs),
 				&summaryJSON,
 				&c.CreatedAt,
+				&aiSummary,
 			); err != nil {
 				return fmt.Errorf("change repo: list: scan: %w", err)
 			}
@@ -141,6 +143,11 @@ func (r *ChangePostgresRepository) List(ctx context.Context, filter repositories
 
 			if err := json.Unmarshal(summaryJSON, &c.Summary); err != nil {
 				return fmt.Errorf("change repo: list: unmarshal summary: %w", err)
+			}
+
+			if aiSummary.Valid {
+				v := aiSummary.String
+				c.AISummary = &v
 			}
 
 			changes = append(changes, &c)
@@ -156,13 +163,14 @@ func (r *ChangePostgresRepository) List(ctx context.Context, filter repositories
 // GetByID retrieves a change by its UUID. Returns nil, nil when not found.
 func (r *ChangePostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (*entities.SocialChange, error) {
 	q := `
-		SELECT id, profile_id, from_snapshot_id, to_snapshot_id, change_types, summary, created_at
+		SELECT id, profile_id, from_snapshot_id, to_snapshot_id, change_types, summary, created_at, ai_summary
 		FROM social_changes
 		WHERE id = $1`
 
 	var c entities.SocialChange
 	var changeTypeStrs []string
 	var summaryJSON []byte
+	var aiSummary sql.NullString
 
 	err := database.WithTenant(ctx, r.db, r.tenant, func(tx *sql.Tx) error {
 		return tx.QueryRowContext(ctx, q, id).Scan(
@@ -173,6 +181,7 @@ func (r *ChangePostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (*
 			pq.Array(&changeTypeStrs),
 			&summaryJSON,
 			&c.CreatedAt,
+			&aiSummary,
 		)
 	})
 	if errors.Is(err, sql.ErrNoRows) {
@@ -191,5 +200,22 @@ func (r *ChangePostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (*
 		return nil, fmt.Errorf("change repo: get by id: unmarshal summary: %w", err)
 	}
 
+	if aiSummary.Valid {
+		v := aiSummary.String
+		c.AISummary = &v
+	}
+
 	return &c, nil
+}
+
+// UpdateAISummary sets the ai_summary column for a change.
+func (r *ChangePostgresRepository) UpdateAISummary(ctx context.Context, changeID uuid.UUID, summary string) error {
+	q := `UPDATE social_changes SET ai_summary = $1 WHERE id = $2`
+	return database.WithTenant(ctx, r.db, r.tenant, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, q, summary, changeID)
+		if err != nil {
+			return fmt.Errorf("change repo: update ai_summary: %w", err)
+		}
+		return nil
+	})
 }
