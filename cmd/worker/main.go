@@ -13,6 +13,7 @@ import (
 	monitoringwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/monitoring"
 	socialwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/social"
 	workerjobs "github.com/jcsoftdev/pulzifi-back/cmd/worker/jobs"
+	emailservices "github.com/jcsoftdev/pulzifi-back/modules/email/domain/services"
 	emailproviders "github.com/jcsoftdev/pulzifi-back/modules/email/infrastructure/providers"
 	"github.com/jcsoftdev/pulzifi-back/modules/integration/domain/services"
 	intpersistence "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/persistence"
@@ -80,7 +81,7 @@ func main() {
 	startMonitoringWithBus(db, cfg, emailProvider, bus)
 
 	// Social scheduler (REQ-SCHED-05) — gated by SOCIAL_ENABLED.
-	startSocialScheduler(db, cfg, bus)
+	startSocialScheduler(db, cfg, bus, emailProvider)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -207,8 +208,8 @@ func buildProviderRegistry(db *sql.DB, cfg *config.Config, emailProvider *emailp
 
 // startSocialScheduler constructs the social scheduler and starts it in a
 // background goroutine. It is a no-op when SOCIAL_ENABLED=false (REQ-SCHED-05).
-func startSocialScheduler(db *sql.DB, cfg *config.Config, bus eventbus.MessageBus) {
-	handlerFactory := socialwiring.NewTenantHandlerFactory(db, bus, cfg)
+func startSocialScheduler(db *sql.DB, cfg *config.Config, bus eventbus.MessageBus, emailProvider emailservices.EmailProvider) {
+	handlerFactory := socialwiring.NewTenantHandlerFactory(db, bus, cfg, emailProvider)
 	sched := socialscheduler.NewScheduler(db, handlerFactory, cfg.SocialEnabled)
 	go sched.Start(context.Background())
 	logger.Info("Social scheduler started",

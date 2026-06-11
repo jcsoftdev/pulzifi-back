@@ -10,21 +10,15 @@ import type { ChecksData, UsageStats } from '../types'
 export const UsageService = {
   /**
    * Get current checks usage data
-   * Works in both server-side and client-side
+   * Works in both server-side and client-side.
+   * Returns null when quotas are unavailable (e.g. tenant schema still
+   * provisioning right after signup) — callers should render nothing.
    */
-  async getChecksData(): Promise<ChecksData> {
+  async getChecksData(): Promise<ChecksData | null> {
     try {
-      const data = await UsageApi.getChecksData()
-      return data
-    } catch (error) {
-      console.error('Failed to fetch checks data:', error)
-
-      // Fallback to mock data
-      return {
-        current: 300,
-        max: 1000,
-        refillDate: 'Oct 20, 2025',
-      }
+      return await UsageApi.getChecksData()
+    } catch {
+      return null
     }
   },
 

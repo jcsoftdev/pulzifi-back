@@ -185,6 +185,20 @@ func (h *Handler) handleCallback(w http.ResponseWriter, r *http.Request) {
 
 	entry := h.nonceStore.Consume(nonce)
 	if entry == nil {
+		// The nonce is single-use: a duplicate navigation (back button, browser
+		// re-request, double redirect) lands here after the first pass already
+		// set the session cookies. If those cookies exist, the user IS logged
+		// in — continue to the destination instead of bouncing to login.
+		if c, cerr := r.Cookie(cookies.RefreshTokenCookie); cerr == nil && c.Value != "" {
+			redirectTo := r.URL.Query().Get("redirectTo")
+			if redirectTo == "" {
+				redirectTo = "/"
+			}
+			h.logger.Info("BFF callback nonce already consumed but session cookies present — continuing",
+				zap.String("to", redirectTo))
+			http.Redirect(w, r, redirectTo, http.StatusFound)
+			return
+		}
 		h.logger.Warn("BFF callback nonce not found or expired", zap.String("nonce", nonce))
 		http.Redirect(w, r, "/login?error=SessionExpired", http.StatusFound)
 		return

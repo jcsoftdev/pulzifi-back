@@ -42,6 +42,21 @@ export interface RegisterFormProps {
   onSubdomainChange?: (subdomain: string) => void
   subdomainStatus?: SubdomainStatus
   subdomainMessage?: string
+  /**
+   * Paid plan flow: trims the form to email + password + subdomain and changes
+   * the CTA to "Continue to payment". Name and org name are derived (Stripe
+   * collects the real billing name; the user can edit profile later).
+   */
+  paidFlow?: boolean
+}
+
+/** "acme-corp" → "Acme Corp" — placeholder org name for the paid fast path. */
+function prettifySubdomain(subdomain: string): string {
+  return subdomain
+    .split('-')
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ')
 }
 
 export function RegisterForm({
@@ -51,6 +66,7 @@ export function RegisterForm({
   onSubdomainChange,
   subdomainStatus = 'idle',
   subdomainMessage,
+  paidFlow = false,
 }: Readonly<RegisterFormProps>) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -83,16 +99,19 @@ export function RegisterForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setPasswordError(undefined)
-    if (password !== confirmPassword) {
+    if (!paidFlow && password !== confirmPassword) {
       setPasswordError('Passwords do not match')
       return
     }
+    // Paid fast path: derive name/org placeholders — Stripe Checkout collects
+    // the real billing details and the user can edit their profile later.
+    const emailLocal = email.split('@')[0] ?? ''
     await onSubmit({
       email,
       password,
-      firstName,
-      lastName,
-      organizationName,
+      firstName: paidFlow ? emailLocal : firstName,
+      lastName: paidFlow ? '' : lastName,
+      organizationName: paidFlow ? prettifySubdomain(organizationSubdomain) : organizationName,
       organizationSubdomain,
     })
   }
@@ -135,35 +154,37 @@ export function RegisterForm({
 
       {/* Form */}
       <form onSubmit={handleSubmit} className="flex flex-col gap-3" aria-label="Create an account">
-        {/* First / Last name */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="flex flex-col gap-1.5">
-            <AuthLabel htmlFor={firstNameId}>First name</AuthLabel>
-            <input
-              id={firstNameId}
-              type="text"
-              value={firstName}
-              onChange={(e) => setFirstName(e.target.value)}
-              required
-              aria-required="true"
-              placeholder="John"
-              className={baseInput}
-            />
+        {/* First / Last name — hidden in paid flow (Stripe collects billing name) */}
+        {!paidFlow && (
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1.5">
+              <AuthLabel htmlFor={firstNameId}>First name</AuthLabel>
+              <input
+                id={firstNameId}
+                type="text"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                required
+                aria-required="true"
+                placeholder="John"
+                className={baseInput}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <AuthLabel htmlFor={lastNameId}>Last name</AuthLabel>
+              <input
+                id={lastNameId}
+                type="text"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                required
+                aria-required="true"
+                placeholder="Smith"
+                className={baseInput}
+              />
+            </div>
           </div>
-          <div className="flex flex-col gap-1.5">
-            <AuthLabel htmlFor={lastNameId}>Last name</AuthLabel>
-            <input
-              id={lastNameId}
-              type="text"
-              value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
-              required
-              aria-required="true"
-              placeholder="Smith"
-              className={baseInput}
-            />
-          </div>
-        </div>
+        )}
 
         {/* Email */}
         <div className="flex flex-col gap-1.5">
@@ -180,21 +201,23 @@ export function RegisterForm({
           />
         </div>
 
-        {/* Org name + subdomain */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="flex flex-col gap-1.5">
-            <AuthLabel htmlFor={orgNameId}>Organization</AuthLabel>
-            <input
-              id={orgNameId}
-              type="text"
-              value={organizationName}
-              onChange={(e) => setOrganizationName(e.target.value)}
-              required
-              aria-required="true"
-              placeholder="Acme Inc."
-              className={baseInput}
-            />
-          </div>
+        {/* Org name + subdomain — paid flow derives org name from subdomain */}
+        <div className={cn('grid gap-3', paidFlow ? 'grid-cols-1' : 'grid-cols-2')}>
+          {!paidFlow && (
+            <div className="flex flex-col gap-1.5">
+              <AuthLabel htmlFor={orgNameId}>Organization</AuthLabel>
+              <input
+                id={orgNameId}
+                type="text"
+                value={organizationName}
+                onChange={(e) => setOrganizationName(e.target.value)}
+                required
+                aria-required="true"
+                placeholder="Acme Inc."
+                className={baseInput}
+              />
+            </div>
+          )}
           <div className="flex flex-col gap-1.5">
             <AuthLabel htmlFor={subdomainId}>Subdomain</AuthLabel>
             <div className="relative">
@@ -242,8 +265,8 @@ export function RegisterForm({
           </div>
         </div>
 
-        {/* Password */}
-        <div className="grid grid-cols-2 gap-3">
+        {/* Password — paid flow uses a single field (show-password toggle covers typos) */}
+        <div className={cn('grid gap-3', paidFlow ? 'grid-cols-1' : 'grid-cols-2')}>
           <div className="flex flex-col gap-1.5">
             <AuthLabel htmlFor={passwordId}>Password</AuthLabel>
             <div className="relative">
@@ -273,48 +296,52 @@ export function RegisterForm({
             </div>
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <AuthLabel htmlFor={confirmPasswordId}>Confirm password</AuthLabel>
-            <div className="relative">
-              <input
-                id={confirmPasswordId}
-                type={showConfirmPassword ? 'text' : 'password'}
-                value={confirmPassword}
-                onChange={(e) => {
-                  setConfirmPassword(e.target.value)
-                  setPasswordError(undefined)
-                }}
-                required
-                aria-required="true"
-                aria-invalid={!!passwordError}
-                aria-describedby={passwordError ? passwordErrorId : undefined}
-                placeholder="Repeat password"
-                className={cn(
-                  baseInput,
-                  'pr-10',
-                  passwordError &&
-                    'border-destructive/50 focus:border-destructive/50 focus:ring-destructive/15'
-                )}
-              />
-              <button
-                type="button"
-                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--pz-ink)]/40 transition-colors hover:text-[var(--pz-ink)]"
-                aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
-              >
-                {showConfirmPassword ? (
-                  <EyeOff className="size-4" aria-hidden="true" />
-                ) : (
-                  <Eye className="size-4" aria-hidden="true" />
-                )}
-              </button>
+          {!paidFlow && (
+            <div className="flex flex-col gap-1.5">
+              <AuthLabel htmlFor={confirmPasswordId}>Confirm password</AuthLabel>
+              <div className="relative">
+                <input
+                  id={confirmPasswordId}
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  value={confirmPassword}
+                  onChange={(e) => {
+                    setConfirmPassword(e.target.value)
+                    setPasswordError(undefined)
+                  }}
+                  required
+                  aria-required="true"
+                  aria-invalid={!!passwordError}
+                  aria-describedby={passwordError ? passwordErrorId : undefined}
+                  placeholder="Repeat password"
+                  className={cn(
+                    baseInput,
+                    'pr-10',
+                    passwordError &&
+                      'border-destructive/50 focus:border-destructive/50 focus:ring-destructive/15'
+                  )}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--pz-ink)]/40 transition-colors hover:text-[var(--pz-ink)]"
+                  aria-label={
+                    showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'
+                  }
+                >
+                  {showConfirmPassword ? (
+                    <EyeOff className="size-4" aria-hidden="true" />
+                  ) : (
+                    <Eye className="size-4" aria-hidden="true" />
+                  )}
+                </button>
+              </div>
+              {passwordError && (
+                <FieldMessage id={passwordErrorId} variant="error">
+                  {passwordError}
+                </FieldMessage>
+              )}
             </div>
-            {passwordError && (
-              <FieldMessage id={passwordErrorId} variant="error">
-                {passwordError}
-              </FieldMessage>
-            )}
-          </div>
+          )}
         </div>
 
         {/* General error */}
@@ -326,7 +353,13 @@ export function RegisterForm({
           disabled={isLoading || isSubdomainUnavailable || subdomainStatus === 'checking'}
           className="mt-0.5 h-10 w-full rounded-xl bg-[var(--pz-accent)] text-sm font-semibold shadow-[var(--pz-shadow-accent)] transition-[opacity,box-shadow,transform] hover:opacity-90 hover:shadow-[var(--pz-shadow-accent-lg)] hover:scale-[1.01] active:scale-[0.99]"
         >
-          {isLoading ? 'Creating account...' : 'Create free account'}
+          {isLoading
+            ? paidFlow
+              ? 'Setting up your account...'
+              : 'Creating account...'
+            : paidFlow
+              ? 'Continue to payment →'
+              : 'Create free account'}
         </Button>
 
         <p className="text-center text-sm text-[var(--pz-ink-2)]">

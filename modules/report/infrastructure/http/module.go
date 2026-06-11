@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"net/http"
@@ -12,11 +13,16 @@ import (
 	getreport "github.com/jcsoftdev/pulzifi-back/modules/report/application/get_report"
 	listreports "github.com/jcsoftdev/pulzifi-back/modules/report/application/list_reports"
 	"github.com/jcsoftdev/pulzifi-back/modules/report/domain/entities"
+	"github.com/jcsoftdev/pulzifi-back/modules/report/domain/services"
 	"github.com/jcsoftdev/pulzifi-back/modules/report/infrastructure/persistence"
 	"github.com/jcsoftdev/pulzifi-back/shared/contextkeys"
 	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
 	"github.com/jcsoftdev/pulzifi-back/shared/router"
 )
+
+// InsightReaderFactory builds a per-tenant InsightReader. Supplied by the
+// cross-module wiring so the report module never imports the insight module.
+type InsightReaderFactory func(tenant string) services.InsightReader
 
 // ModuleDeps carries all injected dependencies for the Report module.
 type ModuleDeps struct {
@@ -24,6 +30,11 @@ type ModuleDeps struct {
 	CreateReportHandler *createreport.Handler
 	ListReportsHandler  *listreports.Handler
 	GetReportHandler    *getreport.Handler
+
+	// AI summarization (optional). When both are set, creating a report
+	// summarizes the page's insights into the report content.
+	InsightReaderFactory InsightReaderFactory
+	Summarizer           services.ReportSummarizer
 }
 
 // Module implements the router.ModuleRegisterer interface for the Report module.
@@ -40,6 +51,16 @@ func NewModule(deps ModuleDeps) router.ModuleRegisterer {
 // Builds handlers directly from the DB; prefer NewModule for full DI in production.
 func NewModuleWithDB(db *sql.DB) router.ModuleRegisterer {
 	return &Module{deps: ModuleDeps{DB: db}}
+}
+
+// NewModuleWithAI creates a report module that summarizes a page's AI insights
+// into the report content on create.
+func NewModuleWithAI(db *sql.DB, insightFactory InsightReaderFactory, summarizer services.ReportSummarizer) router.ModuleRegisterer {
+	return &Module{deps: ModuleDeps{
+		DB:                   db,
+		InsightReaderFactory: insightFactory,
+		Summarizer:           summarizer,
+	}}
 }
 
 // ModuleName returns the name of the module.
@@ -121,13 +142,25 @@ func (m *Module) handleCreateReport(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var handler *createreport.Handler
-	if m.deps.CreateReportHandler != nil {
+	switch {
+	case m.deps.CreateReportHandler != nil:
 		handler = m.deps.CreateReportHandler
-	} else {
+	case m.deps.InsightReaderFactory != nil && m.deps.Summarizer != nil:
+		handler = createreport.NewHandlerWithAI(
+			persistence.NewReportPostgresRepository(m.deps.DB, tenant),
+			m.deps.InsightReaderFactory(tenant),
+			m.deps.Summarizer,
+		)
+	default:
 		handler = createreport.NewHandler(persistence.NewReportPostgresRepository(m.deps.DB, tenant))
 	}
 
-	resp, err := handler.Handle(r.Context(), req)
+	// Bound the request: creating a report may run a synchronous LLM
+	// summarization. Cap it so a slow model cannot hang the handler.
+	ctx, cancel := context.WithTimeout(r.Context(), 85*time.Second)
+	defer cancel()
+
+	resp, err := handler.Handle(ctx, req)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to create report"})
 		return

@@ -16,6 +16,7 @@ import (
 	intwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/integration"
 	monitoringwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/monitoring"
 	pagewiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/page"
+	reportwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/report"
 	socialwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/social"
 	teamwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/team"
 	alert "github.com/jcsoftdev/pulzifi-back/modules/alert/infrastructure/http"
@@ -29,6 +30,7 @@ import (
 	getsubscription "github.com/jcsoftdev/pulzifi-back/modules/billing/application/get_subscription"
 	billinggiftmonth "github.com/jcsoftdev/pulzifi-back/modules/billing/application/gift_month"
 	handlewebhook "github.com/jcsoftdev/pulzifi-back/modules/billing/application/handle_webhook"
+	listplans "github.com/jcsoftdev/pulzifi-back/modules/billing/application/list_plans"
 	managecoupons "github.com/jcsoftdev/pulzifi-back/modules/billing/application/manage_coupons"
 	reconcilesubscription "github.com/jcsoftdev/pulzifi-back/modules/billing/application/reconcile_subscription"
 	updatesubscription "github.com/jcsoftdev/pulzifi-back/modules/billing/application/update_subscription"
@@ -61,6 +63,8 @@ import (
 	orgmessaging "github.com/jcsoftdev/pulzifi-back/modules/organization/infrastructure/messaging"
 	orgpersistence "github.com/jcsoftdev/pulzifi-back/modules/organization/infrastructure/persistence"
 	page "github.com/jcsoftdev/pulzifi-back/modules/page/infrastructure/http"
+	reportservices "github.com/jcsoftdev/pulzifi-back/modules/report/domain/services"
+	reportai "github.com/jcsoftdev/pulzifi-back/modules/report/infrastructure/ai"
 	report "github.com/jcsoftdev/pulzifi-back/modules/report/infrastructure/http"
 	snapshotextractor "github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/extractor"
 	socialhttp "github.com/jcsoftdev/pulzifi-back/modules/social/infrastructure/http"
@@ -70,6 +74,7 @@ import (
 	usage "github.com/jcsoftdev/pulzifi-back/modules/usage/infrastructure/http"
 	usagepersistence "github.com/jcsoftdev/pulzifi-back/modules/usage/infrastructure/persistence"
 	workspace "github.com/jcsoftdev/pulzifi-back/modules/workspace/infrastructure/http"
+	sharedAI "github.com/jcsoftdev/pulzifi-back/shared/ai"
 	"github.com/jcsoftdev/pulzifi-back/shared/config"
 	"github.com/jcsoftdev/pulzifi-back/shared/crypto"
 	"github.com/jcsoftdev/pulzifi-back/shared/eventbus"
@@ -121,7 +126,7 @@ func registerAllModulesInternal(
 	// from organization and email modules without creating cross-module imports.
 	authOrgDirectory := authwiring.NewOrganizationDirectoryAdapter(orgRepo, orgService)
 	authOnboardingAdapter := authwiring.NewOnboardingProfileAdapter(db)
-	authNotifier := authwiring.NewNotifierAdapter(emailProvider)
+	authNotifier := authwiring.NewNotifierAdapter(emailProvider, cfg.FrontendURL, cfg.TrialDays)
 	authTrialProvisioner := authwiring.NewTrialProvisioner(db, orgService)
 	authMembershipChecker := authwiring.NewMembershipChecker(db)
 
@@ -170,7 +175,7 @@ func registerAllModulesInternal(
 		{"Monitoring", buildMonitoringModule(db, eventBus, emailProvider, checkBroker, cfg)},
 		{"Integration", integrationMod},
 		{"Insight", buildInsightModule(db, insightBroker)},
-		{"Report", report.NewModuleWithDB(db)},
+		{"Report", buildReportModule(db, cfg)},
 		{"Usage", buildUsageModule(db)},
 		{"Dashboard", dashboard.NewModuleWithDB(db)},
 		{"Team", team.NewModuleWithDB(
@@ -197,7 +202,7 @@ func registerAllModulesInternal(
 	// ---------------------------------------------------------------------------
 	// Social module wiring (gated behind SOCIAL_ENABLED — REQ-FLAG-01, REQ-FLAG-02)
 	// ---------------------------------------------------------------------------
-	socialHandlerFactory := socialwiring.NewTenantHandlerFactory(db, eventBus, cfg)
+	socialHandlerFactory := socialwiring.NewTenantHandlerFactory(db, eventBus, cfg, emailProvider)
 	socialMod := buildSocialModule(db, eventBus, cfg, socialHandlerFactory)
 	moduleInstances = append(moduleInstances, struct {
 		name   string
@@ -454,6 +459,24 @@ func buildInsightModule(db *sql.DB, insightBroker pubsub.InsightBroker) router.M
 	)
 }
 
+// buildReportModule constructs the report module. When an OpenRouter API key is
+// configured, reports summarize the page's AI insights into their content on
+// create; otherwise the module falls back to plain storage.
+func buildReportModule(db *sql.DB, cfg *config.Config) router.ModuleRegisterer {
+	if cfg.OpenRouterAPIKey == "" {
+		return report.NewModuleWithDB(db)
+	}
+	client := sharedAI.NewOpenRouterClient(cfg.OpenRouterAPIKey, cfg.OpenRouterModel).WithBaseURL(cfg.AIBaseURL)
+	summarizer := reportai.NewOpenRouterSummarizer(client)
+	return report.NewModuleWithAI(
+		db,
+		func(tenant string) reportservices.InsightReader {
+			return reportwiring.NewInsightReaderAdapter(db, tenant)
+		},
+		summarizer,
+	)
+}
+
 // buildUsageModule constructs the usage module with its trial-status handler.
 func buildUsageModule(db *sql.DB) router.ModuleRegisterer {
 	trialReader := usagepersistence.NewTrialPlanPostgresReader(db)
@@ -471,6 +494,7 @@ func buildBillingModule(db *sql.DB, cfg *config.Config) router.ModuleRegisterer 
 	webhookRepo := billingpostgres.NewWebhookEventPostgresRepository(db)
 	customerRepo := billingpostgres.NewCustomerPostgresRepository(db)
 	planRepo := billingpostgres.NewPlanPostgresRepository(db)
+	listPlansHandler := listplans.NewHandler(planRepo)
 
 	reconcileHandler := reconcilesubscription.NewHandler(stripeGateway, planAssigner, webhookRepo)
 
@@ -505,6 +529,7 @@ func buildBillingModule(db *sql.DB, cfg *config.Config) router.ModuleRegisterer 
 		CouponHandler:       couponHandler,
 		GiftHandler:         giftHandler,
 		CancelHandler:       cancelHandler,
+		ListPlansHandler:    listPlansHandler,
 	})
 }
 
@@ -543,5 +568,6 @@ func buildSocialModule(
 		Enabled:       cfg.SocialEnabled,
 		PostsPerCheck: cfg.SocialPostsPerCheck,
 		ChecksPerDay:  0,
+		SocialBroker:  handlerFactory.Broker(),
 	})
 }

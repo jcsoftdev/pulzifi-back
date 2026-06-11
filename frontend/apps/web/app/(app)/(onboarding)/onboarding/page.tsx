@@ -29,7 +29,9 @@ function buildTenantRedirectUrl(host: string, protocol: string, tenant: string):
   return `${protocol}//${tenant}.${baseDomain}${hostPort}/`
 }
 
-export default async function OnboardingPage() {
+type SearchParams = Promise<{ plan?: string; cycle?: string }>
+
+export default async function OnboardingPage({ searchParams }: { searchParams: SearchParams }) {
   const incomingHeaders = await headers()
   const host = incomingHeaders.get('x-forwarded-host') || incomingHeaders.get('host') || ''
 
@@ -38,12 +40,17 @@ export default async function OnboardingPage() {
     return p ? `${p}:` : 'http:'
   })()
 
+  const params = await searchParams
+  const planCode = params.plan
+  const cycle = params.cycle ?? 'monthly'
+
   let hasOrg = false
 
   try {
     const user = await AuthApi.getCurrentUser()
-    // If user already has an org AND onboarding is complete, redirect to app.
-    if (user.tenant && user.onboardingCompleted) {
+    // If user already has an org AND onboarding is complete, redirect to app —
+    // unless they have a pending plan selection (go to checkout instead).
+    if (user.tenant && user.onboardingCompleted && !planCode) {
       redirect(buildTenantRedirectUrl(host, protocol, user.tenant))
     }
     // hasOrg = true means email-registered user with tenant but onboarding not done.
@@ -56,10 +63,22 @@ export default async function OnboardingPage() {
     // Auth errors are handled by the layout — render the form anyway
   }
 
-  const title = hasOrg ? 'Almost there!' : 'Set up your organization'
-  const subtitle = hasOrg
-    ? 'Tell us a bit about your company so we can personalize your experience.'
-    : 'Choose a name and subdomain to get started.'
+  const isPaidFlow = hasOrg && !!planCode
+  const planLabel = planCode
+    ? `${planCode.charAt(0).toUpperCase()}${planCode.slice(1)} Plan`
+    : null
+
+  const badge = isPaidFlow ? 'Redirecting to payment' : hasOrg ? 'Quick setup' : 'Free 14-day trial'
+  const title = isPaidFlow
+    ? 'Almost ready!'
+    : hasOrg
+      ? 'Almost there!'
+      : 'Set up your organization'
+  const subtitle = isPaidFlow
+    ? `Setting up your ${planLabel} subscription…`
+    : hasOrg
+      ? 'Tell us a bit about your company so we can personalize your experience.'
+      : 'Choose a name and subdomain to get started.'
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[var(--pz-page-bg)] px-4 py-8">
@@ -68,7 +87,7 @@ export default async function OnboardingPage() {
           <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-[var(--pz-accent)]/10 px-3 py-1">
             <span className="size-1.5 rounded-full bg-[var(--pz-accent)]" />
             <span className="text-xs font-semibold uppercase tracking-widest text-[var(--pz-accent)]">
-              {hasOrg ? 'Quick setup' : 'Free 14-day trial'}
+              {badge}
             </span>
           </div>
           <h1 className="font-heading text-2xl font-bold leading-tight text-[var(--pz-ink)]">
@@ -76,7 +95,7 @@ export default async function OnboardingPage() {
           </h1>
           <p className="mt-1 text-sm text-[var(--pz-ink-2)]">{subtitle}</p>
         </div>
-        <OnboardingWizard hasOrg={hasOrg} />
+        <OnboardingWizard hasOrg={hasOrg} planCode={planCode} cycle={cycle} />
       </div>
     </div>
   )

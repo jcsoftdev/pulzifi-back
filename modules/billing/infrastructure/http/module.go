@@ -28,6 +28,7 @@ import (
 	getsubscription "github.com/jcsoftdev/pulzifi-back/modules/billing/application/get_subscription"
 	giftmonth "github.com/jcsoftdev/pulzifi-back/modules/billing/application/gift_month"
 	handlewebhook "github.com/jcsoftdev/pulzifi-back/modules/billing/application/handle_webhook"
+	listplans "github.com/jcsoftdev/pulzifi-back/modules/billing/application/list_plans"
 	managecoupons "github.com/jcsoftdev/pulzifi-back/modules/billing/application/manage_coupons"
 	updatesubscription "github.com/jcsoftdev/pulzifi-back/modules/billing/application/update_subscription"
 	"github.com/jcsoftdev/pulzifi-back/shared/contextkeys"
@@ -73,6 +74,7 @@ type Deps struct {
 	CouponHandler       *managecoupons.Handler
 	GiftHandler         *giftmonth.Handler
 	CancelHandler       *cancelsubscription.Handler
+	ListPlansHandler    *listplans.Handler
 }
 
 // Module is the Billing HTTP module.
@@ -100,6 +102,7 @@ func (m *Module) RegisterHTTPRoutes(r chi.Router) {
 	r.Route("/billing", func(r chi.Router) {
 		// Public route — Stripe webhook must be unauthenticated and receive raw bytes.
 		r.Post("/webhook", m.handleWebhook)
+		r.Get("/plans", m.handleListPlans)
 
 		// Authenticated routes — require valid JWT + org membership.
 		r.Group(func(r chi.Router) {
@@ -631,6 +634,23 @@ func (m *Module) resolveOrgIdentity(ctx context.Context, orgID uuid.UUID) (email
 		return "", ""
 	}
 	return ownerEmail.String, orgName
+}
+
+// handleListPlans handles GET /billing/plans.
+// Public — no authentication required. Returns the active plan catalog with
+// prices sourced from public.plans (synced from Stripe via webhook).
+func (m *Module) handleListPlans(w http.ResponseWriter, r *http.Request) {
+	if m.deps.ListPlansHandler == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "plan catalog unavailable"})
+		return
+	}
+	resp, err := m.deps.ListPlansHandler.Handle(r.Context())
+	if err != nil {
+		logger.Error("billing: list plans error", zap.Error(err))
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to load plans"})
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

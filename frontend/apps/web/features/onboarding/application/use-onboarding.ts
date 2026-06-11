@@ -74,10 +74,29 @@ export function useOnboarding() {
         subdomain: values.subdomain,
         ...(profile ?? {}),
       })
+      const searchParams = new URLSearchParams(window.location.search)
+      const planCode = searchParams.get('plan')
+      const cycle = searchParams.get('cycle') ?? 'monthly'
+      if (planCode) {
+        // Checkout must run on the tenant subdomain (org context is resolved
+        // from the host) — send the user to the tenant onboarding page where
+        // CheckoutLauncher takes over.
+        const tenantUrl = new URL(buildTenantUrl(result.subdomain))
+        tenantUrl.pathname = '/onboarding'
+        tenantUrl.searchParams.set('plan', planCode)
+        tenantUrl.searchParams.set('cycle', cycle)
+        window.location.assign(tenantUrl.toString())
+        return
+      }
       window.location.assign(buildTenantUrl(result.subdomain))
     } catch (err: unknown) {
       const apiError = err as {
-        response?: { data?: { error?: string }; status?: number }
+        response?: {
+          data?: {
+            error?: string
+          }
+          status?: number
+        }
         message?: string
       }
       const status = apiError?.response?.status
@@ -127,7 +146,11 @@ export function useOnboarding() {
       window.location.assign('/workspaces')
     } catch (err: unknown) {
       const apiError = err as {
-        response?: { data?: { error?: string } }
+        response?: {
+          data?: {
+            error?: string
+          }
+        }
         message?: string
       }
       setError(

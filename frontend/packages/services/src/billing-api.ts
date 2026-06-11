@@ -83,15 +83,36 @@ export interface UpdateSubscriptionDto {
   preview: boolean
 }
 
+/** One plan from GET /api/v1/billing/plans. Null fields mean "unlimited". */
+export interface PlanDto {
+  id: string
+  code: string
+  name: string
+  description: string
+  price_monthly_cents: number
+  price_yearly_cents: number
+  currency: string
+  checks_allowed_monthly: number | null
+  storage_period_days: number
+  ai_insights_allowed_monthly: number | null
+  max_pages: number | null
+  max_workspaces: number | null
+  is_popular: boolean
+}
+
 // ---- API Object ----
 
 export const BillingApi = {
   /**
    * Create a Stripe Checkout session for the given plan and billing cycle.
    * Returns a checkout_url to redirect the user to.
+   *
+   * NOTE: the backend expects the plan CODE (e.g. "starter", "pro") in the
+   * `plan_id` field — NOT the catalog UUID. Stripe price IDs are resolved
+   * server-side from public.plans by code.
    */
   async createCheckoutSession(
-    planId: string,
+    planCode: string,
     billingCycle: 'monthly' | 'yearly',
     promotionCode?: string
   ): Promise<{
@@ -99,7 +120,7 @@ export const BillingApi = {
   }> {
     const http = await getHttpClient()
     const response = await http.post<CheckoutSessionDto>('/api/v1/billing/checkout', {
-      plan_id: planId,
+      plan_id: planCode,
       billing_cycle: billingCycle,
       promotion_code: promotionCode ?? '',
     })
@@ -194,6 +215,17 @@ export const BillingApi = {
       }
       throw err
     }
+  },
+
+  /**
+   * Fetch the active plan catalog.
+   * Public endpoint — does not require authentication.
+   * Prices come from public.plans kept in sync by the Stripe webhook.
+   */
+  async getPlans(): Promise<PlanDto[]> {
+    const http = await getHttpClient()
+    const response = await http.get<{ plans: PlanDto[] }>('/api/v1/billing/plans')
+    return response.plans ?? []
   },
 }
 

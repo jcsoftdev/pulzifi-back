@@ -40,6 +40,32 @@ export function getHostInfo(): HostInfo {
   }
 }
 
+const PENDING_PLAN_COOKIE = 'pz_pending_plan'
+
+/**
+ * Persists the pricing-page plan selection in a cross-subdomain cookie so it
+ * survives redirects that drop query params (session-expired bounces, manual
+ * login, OAuth). Read + cleared by the onboarding wizard.
+ */
+export function setPendingPlanCookie(plan: string, cycle: string): void {
+  const { baseDomain } = getHostInfo()
+  const value = encodeURIComponent(`${plan}:${cycle}`)
+  document.cookie = `${PENDING_PLAN_COOKIE}=${value}; domain=.${baseDomain}; path=/; max-age=900; SameSite=Lax`
+}
+
+export function readPendingPlanCookie(): { plan: string; cycle: string } | null {
+  const match = document.cookie.match(new RegExp(`(?:^|; )${PENDING_PLAN_COOKIE}=([^;]+)`))
+  if (!match?.[1]) return null
+  const [plan, cycle] = decodeURIComponent(match[1]).split(':')
+  if (!plan) return null
+  return { plan, cycle: cycle || 'monthly' }
+}
+
+export function clearPendingPlanCookie(): void {
+  const { baseDomain } = getHostInfo()
+  document.cookie = `${PENDING_PLAN_COOKIE}=; domain=.${baseDomain}; path=/; max-age=0; SameSite=Lax`
+}
+
 /**
  * Performs the cross-subdomain session handoff after a successful login.
  *

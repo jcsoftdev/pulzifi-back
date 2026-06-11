@@ -190,6 +190,8 @@ export const AuthApi = {
     lastName: string
     organizationName: string
     organizationSubdomain: string
+    /** Paid plan code chosen on the pricing page — personalizes the welcome email. */
+    selectedPlan?: string
   }): Promise<{
     organizationSubdomain: string
     status: string
@@ -199,10 +201,11 @@ export const AuthApi = {
     const response = await http.post<RegisterBackendResponse>('/api/v1/auth/register', {
       email: data.email,
       password: data.password,
-      firstName: data.firstName,
-      lastName: data.lastName,
+      first_name: data.firstName,
+      last_name: data.lastName,
       organization_name: data.organizationName,
       organization_subdomain: data.organizationSubdomain,
+      selected_plan: data.selectedPlan ?? '',
     })
     return {
       organizationSubdomain: response.organization_subdomain,

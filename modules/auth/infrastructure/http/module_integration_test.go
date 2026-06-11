@@ -47,7 +47,7 @@ func init() {
 
 type stubNotifier struct{}
 
-func (s *stubNotifier) SendRegistrationSubmitted(_ context.Context, _, _, _ string) error {
+func (s *stubNotifier) SendRegistrationSubmitted(_ context.Context, _, _, _, _ string) error {
 	return nil
 }
 

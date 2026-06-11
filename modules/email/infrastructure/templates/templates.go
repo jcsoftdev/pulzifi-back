@@ -73,13 +73,34 @@ func RegistrationSubmitted(firstName, orgName string) (subject, html string) {
 
 // WelcomeTrial is the day-0 onboarding email for users who started a self-serve trial.
 func WelcomeTrial(firstName, orgName, dashboardURL string, trialDays int) (subject, html string) {
+	greeting := "Welcome aboard!"
+	if firstName != "" {
+		greeting = fmt.Sprintf("Welcome aboard, %s!", firstName)
+	}
 	subject = "Welcome to Pulzifi — your trial starts now"
 	html = wrap(subject, fmt.Sprintf(`
-<h2>Welcome aboard, %s!</h2>
+<h2>%s</h2>
 <p>Your <strong>%d-day Pulzifi trial</strong> for <strong>%s</strong> is live. Full access, no card required.</p>
 <p>Tip: connect your first page and we'll start monitoring instantly.</p>
 <p><a href="%s" style="display:inline-block;background:#4F46E5;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;">Open your dashboard</a></p>
-`, firstName, trialDays, orgName, dashboardURL))
+`, greeting, trialDays, orgName, dashboardURL))
+	return
+}
+
+// WelcomePlanSelected is the day-0 email for users who signed up with a paid
+// plan chosen on the pricing page — checkout is the immediate next step.
+func WelcomePlanSelected(firstName, orgName, planName, dashboardURL string) (subject, html string) {
+	greeting := "Welcome to Pulzifi!"
+	if firstName != "" {
+		greeting = fmt.Sprintf("Welcome to Pulzifi, %s!", firstName)
+	}
+	subject = fmt.Sprintf("Your Pulzifi %s plan is one step away", planName)
+	html = wrap(subject, fmt.Sprintf(`
+<h2>%s</h2>
+<p>Your account for <strong>%s</strong> is ready. You picked the <strong>%s plan</strong> — complete the payment to activate it.</p>
+<p>If you already finished checkout, you're all set: monitoring starts the moment you add your first page.</p>
+<p><a href="%s" style="display:inline-block;background:#4F46E5;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;">Open your dashboard</a></p>
+`, greeting, orgName, planName, dashboardURL))
 	return
 }
 

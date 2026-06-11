@@ -51,6 +51,12 @@ func (r *RetentionPostgresRepository) GetStoragePeriodDays(ctx context.Context) 
 // ListExpiredChecks returns checks older than cutoff that still have at least
 // one storage URL to clean up. Only top-level (non-section) checks are targeted
 // to avoid double-counting; section checks share the same bucket path.
+//
+// Predecessor protection: a check that is the direct predecessor (most recent
+// previous check on the same page) of a change-detected check still within the
+// retention window is excluded. Without this guard the "previous snapshot" shown
+// in the before/after view would be deleted before the change itself expires,
+// leaving users with an empty comparison view.
 func (r *RetentionPostgresRepository) ListExpiredChecks(ctx context.Context, cutoff time.Time) ([]repositories.ExpiredCheck, error) {
 	var out []repositories.ExpiredCheck
 	err := database.WithTenant(ctx, r.db, r.schemaName, func(tx *sql.Tx) error {
@@ -67,6 +73,22 @@ func (r *RetentionPostgresRepository) ListExpiredChecks(ctx context.Context, cut
 			      OR html_snapshot_url IS NOT NULL
 			      OR diff_image_url    IS NOT NULL
 			   )
+			   AND id NOT IN (
+			         SELECT prev.id
+			           FROM checks AS change_check
+			           JOIN LATERAL (
+			                  SELECT id
+			                    FROM checks AS p
+			                   WHERE p.page_id    = change_check.page_id
+			                     AND p.section_id IS NULL
+			                     AND p.checked_at < change_check.checked_at
+			                   ORDER BY p.checked_at DESC
+			                   LIMIT 1
+			                ) AS prev ON TRUE
+			          WHERE change_check.change_detected = TRUE
+			            AND change_check.checked_at      >= $1
+			            AND change_check.section_id      IS NULL
+			       )
 		`, cutoff)
 		if err != nil {
 			return fmt.Errorf("retention: list expired checks for %s: %w", r.schemaName, err)

@@ -8,7 +8,7 @@ type MockNotifier struct {
 	SendPasswordResetErr         error
 }
 
-func (m *MockNotifier) SendRegistrationSubmitted(_ context.Context, _, _, _ string) error {
+func (m *MockNotifier) SendRegistrationSubmitted(_ context.Context, _, _, _, _ string) error {
 	return m.SendRegistrationSubmittedErr
 }
 

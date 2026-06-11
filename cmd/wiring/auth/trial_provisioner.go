@@ -126,15 +126,19 @@ func (p *trialProvisioner) Provision(ctx context.Context, in authservices.TrialP
 		return nil, err
 	}
 
-	// Provision tenant schema (DDL — must run outside the transaction).
-	if err = p.provision(p.db, schemaName); err != nil {
-		logger.Error("Failed to provision tenant schema after trial signup — manual migration may be needed",
-			zap.Error(err),
-			zap.String("schema", schemaName),
-		)
-		// Do not roll back the parent commit — the organization row is real;
-		// schema provisioning can be retried out-of-band.
-	}
+	// Provision tenant schema in a background goroutine so registration returns
+	// immediately. The transaction above has already committed the org + plan rows
+	// which the migrations depend on (seed_usage_tracking reads the active plan).
+	// Onboarding takes long enough that the schema is ready before the first
+	// tenant-scoped API call. Failures are logged for manual follow-up.
+	go func() {
+		if provErr := p.provision(p.db, schemaName); provErr != nil {
+			logger.Error("Failed to provision tenant schema after trial signup — manual migration may be needed",
+				zap.Error(provErr),
+				zap.String("schema", schemaName),
+			)
+		}
+	}()
 
 	// Ensure the User entity constants stay referenced (avoid unused-import
 	// drift if downstream changes touch the user status).

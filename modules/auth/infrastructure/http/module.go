@@ -278,7 +278,7 @@ func (m *Module) handleRegister(w http.ResponseWriter, r *http.Request) {
 	}
 
 	go func() {
-		if sendErr := m.notifier.SendRegistrationSubmitted(context.Background(), response.Email, response.FirstName, req.OrganizationName); sendErr != nil {
+		if sendErr := m.notifier.SendRegistrationSubmitted(context.Background(), response.Email, response.FirstName, req.OrganizationName, req.SelectedPlan); sendErr != nil {
 			logger.Error("Failed to send registration confirmation email", zap.Error(sendErr))
 		}
 	}()

@@ -78,7 +78,11 @@ export const ReportApi = {
       report_date: data.reportDate,
       content: data.content ?? {},
     }
-    const response = await http.post<ReportBackendDto>('/api/v1/reports', payload)
+    // Report creation summarizes the page's AI insights via an LLM call, which
+    // can take longer than the default 30s client timeout.
+    const response = await http.post<ReportBackendDto>('/api/v1/reports', payload, {
+      timeout: 90_000,
+    })
     return transformReport(response)
   },
 }

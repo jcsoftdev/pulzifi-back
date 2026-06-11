@@ -3,23 +3,30 @@
 package socialhttp
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	createprofile "github.com/jcsoftdev/pulzifi-back/modules/social/application/create_profile"
 	deleteprofile "github.com/jcsoftdev/pulzifi-back/modules/social/application/delete_profile"
 	getchange "github.com/jcsoftdev/pulzifi-back/modules/social/application/get_change"
 	getprofile "github.com/jcsoftdev/pulzifi-back/modules/social/application/get_profile"
 	getsnapshot "github.com/jcsoftdev/pulzifi-back/modules/social/application/get_snapshot"
 	getquotastatus "github.com/jcsoftdev/pulzifi-back/modules/social/application/get_quota_status"
+	getunreadcount "github.com/jcsoftdev/pulzifi-back/modules/social/application/get_unread_count"
+	listalerts "github.com/jcsoftdev/pulzifi-back/modules/social/application/list_alerts"
 	listchanges "github.com/jcsoftdev/pulzifi-back/modules/social/application/list_changes"
 	listsnapshots "github.com/jcsoftdev/pulzifi-back/modules/social/application/list_snapshots"
 	listprofiles "github.com/jcsoftdev/pulzifi-back/modules/social/application/list_profiles"
+	markalertread "github.com/jcsoftdev/pulzifi-back/modules/social/application/mark_alert_read"
 	runcheck "github.com/jcsoftdev/pulzifi-back/modules/social/application/run_check"
 	updateprofile "github.com/jcsoftdev/pulzifi-back/modules/social/application/update_profile"
 	domainerrors "github.com/jcsoftdev/pulzifi-back/modules/social/domain/errors"
@@ -28,6 +35,7 @@ import (
 	"github.com/jcsoftdev/pulzifi-back/modules/social/infrastructure/persistence/postgres"
 	sharedhttp "github.com/jcsoftdev/pulzifi-back/shared/http"
 	"github.com/jcsoftdev/pulzifi-back/shared/middleware"
+	"github.com/jcsoftdev/pulzifi-back/shared/pubsub"
 	"github.com/jcsoftdev/pulzifi-back/shared/router"
 )
 
@@ -52,6 +60,9 @@ type Deps struct {
 	// path. handleRunCheck uses NewHandlerWithPlanLimits which resolves the real
 	// limit via PlanLimits.GetChecksPerDay at call time (REQ-QUOTA-CONSUME-01/02/03).
 	ChecksPerDay int
+
+	// SocialBroker powers the per-profile SSE stream and builds the SSE publisher.
+	SocialBroker pubsub.SocialBroker
 }
 
 // Module implements router.ModuleRegisterer for the Social module.
@@ -64,6 +75,7 @@ type Module struct {
 	enabled      bool
 	postsPerCheck int
 	checksPerDay  int
+	socialBroker  pubsub.SocialBroker
 }
 
 // NewModule creates a new Social HTTP module.
@@ -77,6 +89,7 @@ func NewModule(deps Deps) *Module {
 		enabled:       deps.Enabled,
 		postsPerCheck: deps.PostsPerCheck,
 		checksPerDay:  deps.ChecksPerDay,
+		socialBroker:  deps.SocialBroker,
 	}
 }
 
@@ -116,6 +129,14 @@ func (m *Module) RegisterHTTPRoutes(r chi.Router) {
 
 		// Snapshot detail
 		r.Get("/social-snapshots/{snapshotID}", m.handleGetSnapshot)
+
+		// In-app alert routes
+		r.Get("/workspaces/{workspaceID}/social-alerts", m.handleListAlerts)
+		r.Get("/workspaces/{workspaceID}/social-alerts/unread-count", m.handleUnreadCount)
+		r.Patch("/social-alerts/{id}/read", m.handleMarkAlertRead)
+
+		// Per-profile SSE stream (same auth+org+tenant group as monitoring's handleCheckSSE)
+		r.Get("/social-profiles/{id}/stream", m.handleProfileSSE)
 	})
 }
 
@@ -556,6 +577,159 @@ func (m *Module) handleGetQuotaStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sharedhttp.RespondJSON(w, http.StatusOK, resp)
+}
+
+// handleListAlerts lists in-app social alerts for a workspace.
+// @Summary List Social Alerts
+// @Tags social
+// @Security BearerAuth
+// @Produce json
+// @Param workspaceID path string true "Workspace ID"
+// @Param limit query int false "Page size (default 50)"
+// @Param offset query int false "Page offset (default 0)"
+// @Success 200 {object} listalerts.Response
+// @Router /workspaces/{workspaceID}/social-alerts [get]
+func (m *Module) handleListAlerts(w http.ResponseWriter, r *http.Request) {
+	workspaceID, err := parsePathUUID(r, "workspaceID")
+	if err != nil {
+		sharedhttp.RespondError(w, http.StatusBadRequest, "invalid workspaceID")
+		return
+	}
+	q := r.URL.Query()
+	limit := parseIntQuery(q.Get("limit"), 50)
+	offset := parseIntQuery(q.Get("offset"), 0)
+
+	tenant := middleware.GetTenantFromContext(r.Context())
+	alertRepo := postgres.NewAlertPostgresRepository(m.db, tenant)
+
+	handler := listalerts.NewHandler(alertRepo)
+	resp, err := handler.Handle(r.Context(), workspaceID, limit, offset)
+	if err != nil {
+		sharedhttp.RespondError(w, http.StatusInternalServerError, "failed to list alerts")
+		return
+	}
+	sharedhttp.RespondJSON(w, http.StatusOK, resp)
+}
+
+// handleUnreadCount returns the unread social-alert count for a workspace.
+// @Summary Get Social Unread Alert Count
+// @Tags social
+// @Security BearerAuth
+// @Produce json
+// @Param workspaceID path string true "Workspace ID"
+// @Success 200 {object} getunreadcount.Response
+// @Router /workspaces/{workspaceID}/social-alerts/unread-count [get]
+func (m *Module) handleUnreadCount(w http.ResponseWriter, r *http.Request) {
+	workspaceID, err := parsePathUUID(r, "workspaceID")
+	if err != nil {
+		sharedhttp.RespondError(w, http.StatusBadRequest, "invalid workspaceID")
+		return
+	}
+	tenant := middleware.GetTenantFromContext(r.Context())
+	alertRepo := postgres.NewAlertPostgresRepository(m.db, tenant)
+
+	handler := getunreadcount.NewHandler(alertRepo)
+	resp, err := handler.Handle(r.Context(), workspaceID)
+	if err != nil {
+		sharedhttp.RespondError(w, http.StatusInternalServerError, "failed to get unread count")
+		return
+	}
+	sharedhttp.RespondJSON(w, http.StatusOK, resp)
+}
+
+// handleMarkAlertRead marks a single social alert as read.
+// @Summary Mark Social Alert Read
+// @Tags social
+// @Security BearerAuth
+// @Param id path string true "Alert ID"
+// @Success 204
+// @Router /social-alerts/{id}/read [patch]
+func (m *Module) handleMarkAlertRead(w http.ResponseWriter, r *http.Request) {
+	id, err := parsePathUUID(r, "id")
+	if err != nil {
+		sharedhttp.RespondError(w, http.StatusBadRequest, "invalid alert id")
+		return
+	}
+	tenant := middleware.GetTenantFromContext(r.Context())
+	alertRepo := postgres.NewAlertPostgresRepository(m.db, tenant)
+
+	handler := markalertread.NewHandler(alertRepo)
+	if err := handler.Handle(r.Context(), id); err != nil {
+		sharedhttp.RespondError(w, http.StatusInternalServerError, "failed to mark alert read")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleProfileSSE streams social change events for a profile to the client.
+// @Summary Social Profile Event Stream
+// @Tags social
+// @Security BearerAuth
+// @Param id path string true "Profile ID"
+// @Router /social-profiles/{id}/stream [get]
+func (m *Module) handleProfileSSE(w http.ResponseWriter, r *http.Request) {
+	profileIDStr := chi.URLParam(r, "id")
+	if _, err := uuid.Parse(profileIDStr); err != nil {
+		http.Error(w, "invalid profile id", http.StatusBadRequest)
+		return
+	}
+
+	if m.socialBroker == nil {
+		http.Error(w, "sse not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	tenant := middleware.GetTenantFromContext(r.Context())
+	if tenant != "" {
+		q := fmt.Sprintf(`SELECT EXISTS(SELECT 1 FROM %s.social_profiles WHERE id = $1)`, pq.QuoteIdentifier(tenant))
+		var exists bool
+		if err := m.db.QueryRowContext(r.Context(), q, profileIDStr).Scan(&exists); err != nil || !exists {
+			http.Error(w, "profile not found", http.StatusNotFound)
+			return
+		}
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+	w.WriteHeader(http.StatusOK)
+
+	rc := http.NewResponseController(w)
+	if err := rc.Flush(); err != nil {
+		return
+	}
+
+	ch, unsubscribe := m.socialBroker.Subscribe(profileIDStr)
+	defer unsubscribe()
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Minute)
+	defer cancel()
+
+	heartbeat := time.NewTicker(30 * time.Second)
+	defer heartbeat.Stop()
+
+	for {
+		select {
+		case payload, ok := <-ch:
+			if !ok {
+				return
+			}
+			_, _ = fmt.Fprintf(w, "event: social:change\ndata: %s\n\n", payload)
+			if err := rc.Flush(); err != nil {
+				return
+			}
+		case <-heartbeat.C:
+			if _, err := fmt.Fprintf(w, ": heartbeat\n\n"); err != nil {
+				return
+			}
+			if err := rc.Flush(); err != nil {
+				return
+			}
+		case <-ctx.Done():
+			return
+		}
+	}
 }
 
 // --- Helpers ---

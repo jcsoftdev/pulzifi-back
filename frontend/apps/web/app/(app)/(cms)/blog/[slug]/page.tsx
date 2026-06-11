@@ -81,7 +81,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         : null
     // Share image prefers the dedicated SEO/OG image (meta.image), falling back
     // to the article hero so posts without a custom OG image still get one.
-    const heroImageUrl = (metaImageObj?.url ?? heroImageObj?.url) as string | undefined
+    const heroImageUrl =
+      ((metaImageObj?.url ?? heroImageObj?.url) as string | undefined)?.trim() || undefined
     const publishedAt = post.publishedAt as string | undefined
     const author = post.author as string | undefined
 
@@ -186,7 +187,8 @@ export default async function BlogArticlePage({ params }: Props) {
     typeof post.heroImage === 'object' && post.heroImage !== null
       ? (post.heroImage as Record<string, unknown>)
       : null
-  const heroImageUrl = heroImageObj?.url as string | null | undefined
+  // CMS url is a free-text field — trim to avoid next/image crashing on stray whitespace
+  const heroImageUrl = (heroImageObj?.url as string | null | undefined)?.trim() || undefined
 
   const postUrl = `${siteUrl}/blog/${slug}`
   const publishedAt = post.publishedAt as string | undefined

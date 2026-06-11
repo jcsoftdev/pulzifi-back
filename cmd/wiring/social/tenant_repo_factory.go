@@ -4,6 +4,9 @@ import (
 	"context"
 	"database/sql"
 
+	"github.com/google/uuid"
+	emailservices "github.com/jcsoftdev/pulzifi-back/modules/email/domain/services"
+	runcheck "github.com/jcsoftdev/pulzifi-back/modules/social/application/run_check"
 	"github.com/jcsoftdev/pulzifi-back/modules/social/domain/repositories"
 	"github.com/jcsoftdev/pulzifi-back/modules/social/domain/services"
 	socialapify "github.com/jcsoftdev/pulzifi-back/modules/social/infrastructure/apify"
@@ -11,10 +14,11 @@ import (
 	socialscheduler "github.com/jcsoftdev/pulzifi-back/modules/social/infrastructure/scheduler"
 	socialstorage "github.com/jcsoftdev/pulzifi-back/modules/social/infrastructure/storage"
 	snapshotstorage "github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/storage"
-	runcheck "github.com/jcsoftdev/pulzifi-back/modules/social/application/run_check"
+	"github.com/jcsoftdev/pulzifi-back/shared/ai"
 	"github.com/jcsoftdev/pulzifi-back/shared/config"
 	"github.com/jcsoftdev/pulzifi-back/shared/eventbus"
 	"github.com/jcsoftdev/pulzifi-back/shared/logger"
+	socialpubsub "github.com/jcsoftdev/pulzifi-back/shared/pubsub"
 	"go.uber.org/zap"
 )
 
@@ -36,12 +40,23 @@ type TenantHandlerFactory struct {
 	fetcher       services.SocialFetcher
 	mediaStore    services.MediaStore
 	orgLookupInst *orgLookup
+	broker        *socialpubsub.MemorySocialBroker
+	emailProvider emailservices.EmailProvider
+	aiClient      completer
+}
+
+// sseBrokerAdapter adapts *MemorySocialBroker to services.SocialSSEPublisher
+// (uuid-keyed Publish), delegating to the string-keyed broker.
+type sseBrokerAdapter struct{ b *socialpubsub.MemorySocialBroker }
+
+func (a sseBrokerAdapter) Publish(profileID uuid.UUID, payload []byte) {
+	a.b.Publish(profileID.String(), payload)
 }
 
 // NewTenantHandlerFactory builds a TenantHandlerFactory from shared dependencies.
 // The Apify fetcher and MediaStore are singletons — they are safe for concurrent
 // use and do not hold tenant-specific state.
-func NewTenantHandlerFactory(db *sql.DB, bus eventbus.MessageBus, cfg *config.Config) *TenantHandlerFactory {
+func NewTenantHandlerFactory(db *sql.DB, bus eventbus.MessageBus, cfg *config.Config, emailProvider emailservices.EmailProvider) *TenantHandlerFactory {
 	fetcher := socialapify.NewClient(
 		cfg.ApifyToken,
 		cfg.ApifyActorInstagram,
@@ -64,6 +79,13 @@ func NewTenantHandlerFactory(db *sql.DB, bus eventbus.MessageBus, cfg *config.Co
 		mediaStore = &noopMediaStore{}
 	}
 
+	broker := socialpubsub.NewSocialBroker()
+
+	var aiClient completer
+	if cfg.OpenRouterAPIKey != "" {
+		aiClient = ai.NewOpenRouterClient(cfg.OpenRouterAPIKey, cfg.OpenRouterModel)
+	}
+
 	return &TenantHandlerFactory{
 		db:            db,
 		bus:           bus,
@@ -71,8 +93,14 @@ func NewTenantHandlerFactory(db *sql.DB, bus eventbus.MessageBus, cfg *config.Co
 		fetcher:       fetcher,
 		mediaStore:    mediaStore,
 		orgLookupInst: newOrgLookup(db),
+		broker:        broker,
+		emailProvider: emailProvider,
+		aiClient:      aiClient,
 	}
 }
+
+// Broker returns the shared SocialBroker (passed to the HTTP module for SSE).
+func (f *TenantHandlerFactory) Broker() *socialpubsub.MemorySocialBroker { return f.broker }
 
 // Fetcher returns the shared SocialFetcher singleton (safe for concurrent use).
 // Exposed so cmd/server/modules.go can pass the same instance to the HTTP module.
@@ -95,7 +123,7 @@ func (f *TenantHandlerFactory) NewHandler(tenant string) *runcheck.Handler {
 	// This is best-effort: unknown tenants / no active plan → 0 (unlimited).
 	checksPerDay, _ := GetChecksPerDayByTenant(context.Background(), f.db, tenant)
 
-	return runcheck.NewHandler(
+	h := runcheck.NewHandler(
 		profileRepo,
 		snapshotRepo,
 		changeRepo,
@@ -106,6 +134,16 @@ func (f *TenantHandlerFactory) NewHandler(tenant string) *runcheck.Handler {
 		f.cfg.SocialPostsPerCheck,
 		checksPerDay,
 	)
+
+	h.SetAlertRepo(socialpostgres.NewAlertPostgresRepository(f.db, tenant))
+	h.SetSSEPublisher(sseBrokerAdapter{b: f.broker})
+	if f.emailProvider != nil {
+		h.SetEmailer(NewEmailer(f.db, f.emailProvider, tenant, f.cfg.FrontendURL))
+	}
+	if f.aiClient != nil {
+		h.SetInsightGenerator(NewInsightGenerator(f.aiClient, f.db, tenant))
+	}
+	return h
 }
 
 // TenantRepoFactory satisfies scheduler.TenantRepoFactory for the scheduled

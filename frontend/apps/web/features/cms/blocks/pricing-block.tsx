@@ -81,6 +81,7 @@ export function PricingBlock({ block }: Props) {
         ctaHref: p.ctaHref ?? undefined,
         highlighted: p.highlighted ?? false,
         popularBadge: p.popularBadge ?? undefined,
+        planCode: p.planCode ?? undefined,
       }))}
     />
   )
