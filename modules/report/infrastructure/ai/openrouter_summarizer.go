@@ -42,7 +42,7 @@ func (s *OpenRouterSummarizer) Summarize(ctx context.Context, pageTitle string, 
 		if title == "" {
 			title = in.Type
 		}
-		b.WriteString(fmt.Sprintf("%d. [%s] %s\n%s\n\n", i+1, in.Type, title, truncate(in.Content, maxInsightContentLen)))
+		fmt.Fprintf(&b, "%d. [%s] %s\n%s\n\n", i+1, in.Type, title, truncate(in.Content, maxInsightContentLen))
 	}
 
 	prompt := fmt.Sprintf(`You are a competitive intelligence analyst. Below are the AI insights generated over time for the monitored page %q.
