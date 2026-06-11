@@ -1,6 +1,5 @@
 import { RichText } from '@payloadcms/richtext-lexical/react'
 import type { Metadata } from 'next'
-import Image from 'next/image'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { JsonLd } from '@/components/json-ld'
@@ -320,13 +319,11 @@ export default async function BlogArticlePage({ params }: Props) {
             {heroImageUrl && (
               <div className="px-6 pt-10 sm:px-12 lg:px-20">
                 <div className="relative mx-auto h-64 w-full max-w-3xl sm:h-96">
-                  <Image
+                  {/* biome-ignore lint/performance/noImgElement: CMS image from MinIO — dimensions unknown at build time */}
+                  <img
                     src={heroImageUrl}
                     alt={title ?? 'Blog post hero image'}
-                    fill
-                    priority
-                    sizes="(max-width: 768px) 100vw, 768px"
-                    className="rounded-2xl object-cover"
+                    className="h-full w-full rounded-2xl object-cover"
                   />
                 </div>
               </div>
