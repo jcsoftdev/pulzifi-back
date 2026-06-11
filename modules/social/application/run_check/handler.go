@@ -2,7 +2,9 @@ package runcheck
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -32,6 +34,12 @@ type Handler struct {
 	planLimits    services.PlanLimits // optional; when non-nil, limit is resolved per-plan at runtime
 	postsPerCheck int
 	checksPerDay  int // 0 = unlimited; overridden at runtime when planLimits is set
+
+	// Optional notification dependencies (nil-safe — skipped if unset).
+	alertRepo        repositories.AlertRepository
+	emailer          services.SocialNotificationEmailer
+	insightGenerator services.SocialInsightGenerator
+	ssePublisher     services.SocialSSEPublisher
 }
 
 // NewHandler creates a new Handler with a pre-resolved checksPerDay limit.
@@ -87,6 +95,18 @@ func NewHandlerWithPlanLimits(
 		checksPerDay:  0, // resolved at call time via planLimits
 	}
 }
+
+// SetAlertRepo injects the in-app alert repository (nil-safe — skipped if unset).
+func (h *Handler) SetAlertRepo(r repositories.AlertRepository) { h.alertRepo = r }
+
+// SetEmailer injects the change-notification emailer (nil-safe).
+func (h *Handler) SetEmailer(e services.SocialNotificationEmailer) { h.emailer = e }
+
+// SetInsightGenerator injects the AI insight generator (nil-safe).
+func (h *Handler) SetInsightGenerator(g services.SocialInsightGenerator) { h.insightGenerator = g }
+
+// SetSSEPublisher injects the real-time SSE publisher (nil-safe).
+func (h *Handler) SetSSEPublisher(p services.SocialSSEPublisher) { h.ssePublisher = p }
 
 // Handle executes a single check cycle for the given profile.
 //
@@ -184,6 +204,22 @@ func (h *Handler) Handle(ctx context.Context, profileID uuid.UUID) (*Response, e
 			// REQ-CHECK-07: alert
 			alertPayload := buildChangeAlert(profile, changeTypes, summary)
 			_ = h.alertCreator.CreateAlert(ctx, alertPayload) // best-effort
+
+			// In-app alert (sync, nil-safe).
+			h.saveInAppAlert(ctx, profile, change.ID, changeTypes, summary)
+
+			// Real-time SSE push (sync, nil-safe).
+			h.publishSSE(profile.ID, change)
+
+			// Email notification (async, best-effort).
+			if h.emailer != nil {
+				go h.sendChangeEmail(profile, summary)
+			}
+
+			// AI insight (async, best-effort).
+			if h.insightGenerator != nil {
+				go h.generateInsight(change.ID, profile, summary)
+			}
 		}
 	}
 	// REQ-CHECK-10: baseline (no previous snapshot) — no change, no alert
@@ -338,4 +374,90 @@ func buildChangeAlert(
 		Summary:     fmt.Sprintf("changes detected on @%s", profile.Handle),
 		Suspended:   false,
 	}
+}
+
+// saveInAppAlert persists an in-app SocialAlert for a detected change. Nil-safe.
+func (h *Handler) saveInAppAlert(
+	ctx context.Context,
+	profile *entities.SocialProfile,
+	changeID uuid.UUID,
+	changeTypes []valueobjects.ChangeType,
+	summary entities.ChangeSummary,
+) {
+	if h.alertRepo == nil {
+		return
+	}
+	title := fmt.Sprintf("@%s changes detected", profile.Handle)
+	desc := changeDescription(summary)
+	alert := entities.NewSocialChangeAlert(profile.ID, profile.WorkspaceID, changeID, title, desc, changeTypes)
+	if err := h.alertRepo.Save(ctx, alert); err != nil {
+		logger.Warn("run_check: save in-app alert failed",
+			zap.String("profile_id", profile.ID.String()), zap.Error(err))
+	}
+}
+
+// publishSSE serializes the change and pushes it to SSE subscribers. Nil-safe.
+func (h *Handler) publishSSE(profileID uuid.UUID, change *entities.SocialChange) {
+	if h.ssePublisher == nil {
+		return
+	}
+	payload, err := json.Marshal(map[string]any{
+		"change_id":    change.ID.String(),
+		"profile_id":   profileID.String(),
+		"change_types": change.ChangeTypes,
+		"created_at":   change.CreatedAt.Format(time.RFC3339),
+	})
+	if err != nil {
+		logger.Warn("run_check: marshal SSE payload failed", zap.Error(err))
+		return
+	}
+	h.ssePublisher.Publish(profileID, payload)
+}
+
+// sendChangeEmail sends a transactional email in the background. Nil-checked by caller.
+func (h *Handler) sendChangeEmail(profile *entities.SocialProfile, summary entities.ChangeSummary) {
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+	defer cancel()
+	desc := changeDescription(summary)
+	if err := h.emailer.SendChangeEmail(ctx, profile.WorkspaceID, profile.Handle, string(profile.Platform), desc, ""); err != nil {
+		logger.Warn("run_check: send change email failed",
+			zap.String("profile_id", profile.ID.String()), zap.Error(err))
+	}
+}
+
+// generateInsight runs AI summary generation in the background. Nil-checked by caller.
+func (h *Handler) generateInsight(changeID uuid.UUID, profile *entities.SocialProfile, summary entities.ChangeSummary) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+	if err := h.insightGenerator.Generate(ctx, changeID, profile.Handle, string(profile.Platform), summary); err != nil {
+		logger.Warn("run_check: generate insight failed",
+			zap.String("change_id", changeID.String()), zap.Error(err))
+	}
+}
+
+// changeDescription renders a short human-readable description from the summary.
+func changeDescription(s entities.ChangeSummary) string {
+	var parts []string
+	if s.FollowersDelta != 0 {
+		parts = append(parts, fmt.Sprintf("followers %+d", s.FollowersDelta))
+	}
+	if len(s.NewPosts) > 0 {
+		parts = append(parts, fmt.Sprintf("%d new post(s)", len(s.NewPosts)))
+	}
+	if len(s.RemovedPosts) > 0 {
+		parts = append(parts, fmt.Sprintf("%d removed post(s)", len(s.RemovedPosts)))
+	}
+	if s.Bio != nil {
+		parts = append(parts, "bio changed")
+	}
+	if s.DisplayName != nil {
+		parts = append(parts, "display name changed")
+	}
+	if len(s.EditedCaptions) > 0 {
+		parts = append(parts, fmt.Sprintf("%d caption edit(s)", len(s.EditedCaptions)))
+	}
+	if len(parts) == 0 {
+		return "profile changed"
+	}
+	return strings.Join(parts, ", ")
 }

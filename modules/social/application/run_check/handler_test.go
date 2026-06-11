@@ -487,6 +487,92 @@ func TestRunCheck_PlanLimits_UnlimitedPlan(t *testing.T) {
 	}
 }
 
+// --- Test: notification side-effects on change detected ---
+
+func TestRunCheck_FiresNotificationsOnChange(t *testing.T) {
+	profileID := uuid.New()
+	profile := makeProfile(profileID, 0)
+
+	prevData := makeProfileData()
+	prev := entities.NewSuccessSnapshot(profileID, prevData)
+
+	newData := makeProfileData()
+	newData.FollowersCount = prevData.FollowersCount + 100 // followers_changed
+
+	profileRepo := &repomocks.MockProfileRepository{GetByIDResult: profile}
+	snapshotRepo := &repomocks.MockSnapshotRepository{GetLatestByProfileResult: prev}
+	changeRepo := &repomocks.MockChangeRepository{}
+	quota := memory.NewCheckQuota()
+	fetcher := &svcmocks.MockSocialFetcher{FetchProfileResult: newData}
+	mediaStore := &svcmocks.MockMediaStore{StoreResult: "https://stored.example.com/p.jpg"}
+	alertCreator := &svcmocks.MockAlertCreator{}
+
+	alertRepo := &repomocks.MockAlertRepository{}
+	emailer := &svcmocks.MockSocialNotificationEmailer{}
+	insight := &svcmocks.MockSocialInsightGenerator{}
+	sse := &svcmocks.MockSocialSSEPublisher{}
+
+	h := makeHandler(profileRepo, snapshotRepo, changeRepo, quota, fetcher, mediaStore, alertCreator, 5, 120)
+	h.SetAlertRepo(alertRepo)
+	h.SetEmailer(emailer)
+	h.SetInsightGenerator(insight)
+	h.SetSSEPublisher(sse)
+
+	resp, err := h.Handle(context.Background(), profileID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !resp.ChangeCreated {
+		t.Fatal("expected ChangeCreated=true")
+	}
+
+	if alertRepo.SaveCalls != 1 {
+		t.Errorf("expected 1 in-app alert save, got %d", alertRepo.SaveCalls)
+	}
+	if sse.Calls() != 1 {
+		t.Errorf("expected 1 SSE publish, got %d", sse.Calls())
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if emailer.Calls() == 1 && insight.Calls() == 1 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if emailer.Calls() != 1 {
+		t.Errorf("expected 1 email send, got %d", emailer.Calls())
+	}
+	if insight.Calls() != 1 {
+		t.Errorf("expected 1 insight generate, got %d", insight.Calls())
+	}
+}
+
+func TestRunCheck_NilNotificationDepsDoNotPanic(t *testing.T) {
+	profileID := uuid.New()
+	profile := makeProfile(profileID, 0)
+
+	prevData := makeProfileData()
+	prev := entities.NewSuccessSnapshot(profileID, prevData)
+	newData := makeProfileData()
+	newData.FollowersCount = prevData.FollowersCount + 5
+
+	profileRepo := &repomocks.MockProfileRepository{GetByIDResult: profile}
+	snapshotRepo := &repomocks.MockSnapshotRepository{GetLatestByProfileResult: prev}
+	changeRepo := &repomocks.MockChangeRepository{}
+	quota := memory.NewCheckQuota()
+	fetcher := &svcmocks.MockSocialFetcher{FetchProfileResult: newData}
+	mediaStore := &svcmocks.MockMediaStore{StoreResult: "x"}
+	alertCreator := &svcmocks.MockAlertCreator{}
+
+	// No SetXxx calls — all four notification deps stay nil.
+	h := makeHandler(profileRepo, snapshotRepo, changeRepo, quota, fetcher, mediaStore, alertCreator, 5, 120)
+
+	if _, err := h.Handle(context.Background(), profileID); err != nil {
+		t.Fatalf("unexpected error with nil deps: %v", err)
+	}
+}
+
 // --- Test: backoff tiers ---
 
 func TestRunCheck_BackoffTiers(t *testing.T) {
