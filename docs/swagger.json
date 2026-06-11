@@ -1483,6 +1483,33 @@
                 }
             }
         },
+        "/social-alerts/{id}/read": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "social"
+                ],
+                "summary": "Mark Social Alert Read",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Alert ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
         "/social-changes/{changeID}": {
             "get": {
                 "security": [
@@ -1862,6 +1889,29 @@
                         }
                     }
                 }
+            }
+        },
+        "/social-profiles/{id}/stream": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "tags": [
+                    "social"
+                ],
+                "summary": "Social Profile Event Stream",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Profile ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {}
             }
         },
         "/social-snapshots/{snapshotID}": {
@@ -2382,6 +2432,84 @@
                             "additionalProperties": {
                                 "type": "string"
                             }
+                        }
+                    }
+                }
+            }
+        },
+        "/workspaces/{workspaceID}/social-alerts": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "social"
+                ],
+                "summary": "List Social Alerts",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Workspace ID",
+                        "name": "workspaceID",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size (default 50)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page offset (default 0)",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/listalerts.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/workspaces/{workspaceID}/social-alerts/unread-count": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "social"
+                ],
+                "summary": "Get Social Unread Alert Count",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Workspace ID",
+                        "name": "workspaceID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/getunreadcount.Response"
                         }
                     }
                 }
@@ -3442,6 +3570,14 @@
                 }
             }
         },
+        "getunreadcount.Response": {
+            "type": "object",
+            "properties": {
+                "unread_count": {
+                    "type": "integer"
+                }
+            }
+        },
         "getworkspace.GetWorkspaceResponse": {
             "type": "object",
             "properties": {
@@ -3493,6 +3629,55 @@
                 },
                 "user_id": {
                     "type": "string"
+                }
+            }
+        },
+        "listalerts.AlertResponse": {
+            "type": "object",
+            "properties": {
+                "alert_type": {
+                    "type": "string"
+                },
+                "change_id": {
+                    "type": "string"
+                },
+                "change_types": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "is_read": {
+                    "type": "boolean"
+                },
+                "profile_id": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "workspace_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "listalerts.Response": {
+            "type": "object",
+            "properties": {
+                "alerts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/listalerts.AlertResponse"
+                    }
                 }
             }
         },
@@ -3999,6 +4184,10 @@
                 "password": {
                     "type": "string",
                     "minLength": 8
+                },
+                "selected_plan": {
+                    "description": "SelectedPlan is the paid plan code chosen on the pricing page (e.g.\n\"starter\"). Empty for the free/trial signup. Used to personalize the\nwelcome email — the actual subscription is created via Stripe checkout.",
+                    "type": "string"
                 }
             }
         },

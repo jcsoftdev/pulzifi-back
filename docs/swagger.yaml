@@ -570,6 +570,11 @@ definitions:
       status:
         type: string
     type: object
+  getunreadcount.Response:
+    properties:
+      unread_count:
+        type: integer
+    type: object
   getworkspace.GetWorkspaceResponse:
     properties:
       created_at:
@@ -604,6 +609,38 @@ definitions:
         type: string
       user_id:
         type: string
+    type: object
+  listalerts.AlertResponse:
+    properties:
+      alert_type:
+        type: string
+      change_id:
+        type: string
+      change_types:
+        items:
+          type: string
+        type: array
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      is_read:
+        type: boolean
+      profile_id:
+        type: string
+      title:
+        type: string
+      workspace_id:
+        type: string
+    type: object
+  listalerts.Response:
+    properties:
+      alerts:
+        items:
+          $ref: '#/definitions/listalerts.AlertResponse'
+        type: array
     type: object
   listchanges.ChangeSummaryItem:
     properties:
@@ -932,6 +969,12 @@ definitions:
         type: string
       password:
         minLength: 8
+        type: string
+      selected_plan:
+        description: |-
+          SelectedPlan is the paid plan code chosen on the pricing page (e.g.
+          "starter"). Empty for the free/trial signup. Used to personalize the
+          welcome email — the actual subscription is created via Stripe checkout.
         type: string
     required:
     - email
@@ -2052,6 +2095,22 @@ paths:
       summary: Bulk Delete Pages
       tags:
       - pages
+  /social-alerts/{id}/read:
+    patch:
+      parameters:
+      - description: Alert ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+      security:
+      - BearerAuth: []
+      summary: Mark Social Alert Read
+      tags:
+      - social
   /social-changes/{changeID}:
     get:
       description: Get a social change by ID with full before/after snapshot data
@@ -2295,6 +2354,20 @@ paths:
       security:
       - BearerAuth: []
       summary: List Profile Snapshots
+      tags:
+      - social
+  /social-profiles/{id}/stream:
+    get:
+      parameters:
+      - description: Profile ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses: {}
+      security:
+      - BearerAuth: []
+      summary: Social Profile Event Stream
       tags:
       - social
   /social-snapshots/{snapshotID}:
@@ -2631,6 +2704,54 @@ paths:
       summary: Update Workspace Member Role
       tags:
       - workspaces
+  /workspaces/{workspaceID}/social-alerts:
+    get:
+      parameters:
+      - description: Workspace ID
+        in: path
+        name: workspaceID
+        required: true
+        type: string
+      - description: Page size (default 50)
+        in: query
+        name: limit
+        type: integer
+      - description: Page offset (default 0)
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/listalerts.Response'
+      security:
+      - BearerAuth: []
+      summary: List Social Alerts
+      tags:
+      - social
+  /workspaces/{workspaceID}/social-alerts/unread-count:
+    get:
+      parameters:
+      - description: Workspace ID
+        in: path
+        name: workspaceID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/getunreadcount.Response'
+      security:
+      - BearerAuth: []
+      summary: Get Social Unread Alert Count
+      tags:
+      - social
   /workspaces/{workspaceID}/social-changes:
     get:
       description: List all social changes across all profiles in a workspace, paginated
