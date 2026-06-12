@@ -18,6 +18,7 @@ import (
 	createdestination "github.com/jcsoftdev/pulzifi-back/modules/integration/application/create_destination"
 	deletedestination "github.com/jcsoftdev/pulzifi-back/modules/integration/application/delete_destination"
 	disconnectintegration "github.com/jcsoftdev/pulzifi-back/modules/integration/application/disconnect_integration"
+	ensuredefaultemaildestination "github.com/jcsoftdev/pulzifi-back/modules/integration/application/ensure_default_email_destination"
 	getdelivery "github.com/jcsoftdev/pulzifi-back/modules/integration/application/get_delivery"
 	handleoauthcallback "github.com/jcsoftdev/pulzifi-back/modules/integration/application/handle_oauth_callback"
 	listdeliveries "github.com/jcsoftdev/pulzifi-back/modules/integration/application/list_deliveries"
@@ -178,6 +179,22 @@ func (m *Module) orgIDFromTenant(ctx context.Context, tenant string) (uuid.UUID,
 	return orgID, err
 }
 
+// ownerEmailByOrgID returns the org owner's email, or "" when unknown.
+// Best effort: callers seed defaults opportunistically and tolerate empties.
+func (m *Module) ownerEmailByOrgID(ctx context.Context, orgID uuid.UUID) string {
+	var email sql.NullString
+	err := m.deps.DB.QueryRowContext(ctx,
+		`SELECT u.email FROM public.organizations o
+		 JOIN public.users u ON u.id = o.owner_user_id
+		 WHERE o.id = $1 AND o.deleted_at IS NULL`,
+		orgID,
+	).Scan(&email)
+	if err != nil {
+		return ""
+	}
+	return email.String
+}
+
 // flagReader returns m.deps.Flags as a services.FlagReader, normalizing a nil
 // concrete pointer to a true-nil interface so ProviderGateOpen's nil check works
 // (avoids the typed-nil interface pitfall).
@@ -265,7 +282,7 @@ func (m *Module) handleListProviders(w http.ResponseWriter, r *http.Request) {
 
 // DELETE /integrations/{id}
 func (m *Module) handleDisconnect(w http.ResponseWriter, r *http.Request) {
-	tenant := middleware.GetSubdomainFromContext(r.Context())
+	tenant := middleware.GetTenantFromContext(r.Context())
 
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
@@ -404,7 +421,7 @@ func (m *Module) handleListTargets(w http.ResponseWriter, r *http.Request) {
 
 // GET /destinations
 func (m *Module) handleListDestinations(w http.ResponseWriter, r *http.Request) {
-	tenant := middleware.GetSubdomainFromContext(r.Context())
+	tenant := middleware.GetTenantFromContext(r.Context())
 	q := r.URL.Query()
 
 	scopeTypeStr := q.Get("scope_type")
@@ -424,6 +441,18 @@ func (m *Module) handleListDestinations(w http.ResponseWriter, r *http.Request) 
 	}
 
 	destRepo := persistence.NewDestinationPostgresRepository(m.deps.DB, tenant)
+
+	// Seed the org's default email destination (owner's email) on first read.
+	if entities.ScopeType(scopeTypeStr) == entities.ScopeOrg {
+		ensureHandler := ensuredefaultemaildestination.NewHandler(destRepo)
+		if _, err := ensureHandler.Handle(r.Context(), ensuredefaultemaildestination.Request{
+			OrgID:      scopeID,
+			OwnerEmail: m.ownerEmailByOrgID(r.Context(), scopeID),
+		}); err != nil {
+			logger.Error("Failed to seed default email destination", zap.Error(err))
+		}
+	}
+
 	handler := listdestinations.NewHandler(destRepo)
 	resp, err := handler.Handle(r.Context(), listdestinations.Request{
 		ScopeType: entities.ScopeType(scopeTypeStr),
@@ -440,7 +469,7 @@ func (m *Module) handleListDestinations(w http.ResponseWriter, r *http.Request) 
 
 // POST /destinations
 func (m *Module) handleCreateDestination(w http.ResponseWriter, r *http.Request) {
-	tenant := middleware.GetSubdomainFromContext(r.Context())
+	tenant := middleware.GetTenantFromContext(r.Context())
 
 	var req createdestination.Request
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -461,7 +490,7 @@ func (m *Module) handleCreateDestination(w http.ResponseWriter, r *http.Request)
 
 // PATCH /destinations/{id}
 func (m *Module) handleUpdateDestination(w http.ResponseWriter, r *http.Request) {
-	tenant := middleware.GetSubdomainFromContext(r.Context())
+	tenant := middleware.GetTenantFromContext(r.Context())
 
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
@@ -495,7 +524,7 @@ func (m *Module) handleUpdateDestination(w http.ResponseWriter, r *http.Request)
 
 // DELETE /destinations/{id}
 func (m *Module) handleDeleteDestination(w http.ResponseWriter, r *http.Request) {
-	tenant := middleware.GetSubdomainFromContext(r.Context())
+	tenant := middleware.GetTenantFromContext(r.Context())
 
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
@@ -521,7 +550,7 @@ func (m *Module) handleDeleteDestination(w http.ResponseWriter, r *http.Request)
 
 // GET /deliveries
 func (m *Module) handleListDeliveries(w http.ResponseWriter, r *http.Request) {
-	tenant := middleware.GetSubdomainFromContext(r.Context())
+	tenant := middleware.GetTenantFromContext(r.Context())
 	q := r.URL.Query()
 
 	destIDStr := q.Get("destination_id")
@@ -567,7 +596,7 @@ func (m *Module) handleListDeliveries(w http.ResponseWriter, r *http.Request) {
 // POST /deliveries/{id}/retry
 // Phase 2: gate behind RequireRole('OWNER').
 func (m *Module) handleRetryDelivery(w http.ResponseWriter, r *http.Request) {
-	tenant := middleware.GetSubdomainFromContext(r.Context())
+	tenant := middleware.GetTenantFromContext(r.Context())
 
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
@@ -643,7 +672,7 @@ func (m *Module) handleGetDelivery(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid id"})
 		return
 	}
-	tenant := middleware.GetSubdomainFromContext(r.Context())
+	tenant := middleware.GetTenantFromContext(r.Context())
 	repo := persistence.NewDeliveryPostgresRepository(m.deps.DB, tenant)
 
 	h := getdelivery.NewHandler(repo)
@@ -669,7 +698,7 @@ func (m *Module) handleBulkRetry(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid body"})
 		return
 	}
-	tenant := middleware.GetSubdomainFromContext(r.Context())
+	tenant := middleware.GetTenantFromContext(r.Context())
 	repo := persistence.NewDeliveryPostgresRepository(m.deps.DB, tenant)
 
 	h := bulkretrydeliveries.NewHandler(repo)
