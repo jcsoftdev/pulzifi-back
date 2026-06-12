@@ -24,6 +24,7 @@ export default function ProviderPage({ params }: ProviderPageProps) {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [authType, setAuthType] = useState<'oauth' | 'byo' | 'none'>('oauth')
+  const [catalogConnected, setCatalogConnected] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -37,6 +38,7 @@ export default function ProviderPage({ params }: ProviderPageProps) {
 
         const catalog = providers.find((p) => p.key === provider)
         setAuthType(catalog?.authType ?? 'oauth')
+        setCatalogConnected(catalog?.connected ?? false)
 
         const found = integrations.find((i) => i.serviceType === provider && i.status === 'active')
         setIntegration(found ?? null)
@@ -113,7 +115,9 @@ export default function ProviderPage({ params }: ProviderPageProps) {
           <div>
             <h2 className="text-base font-semibold text-foreground">{providerLabel}</h2>
             <p className="text-sm text-muted-foreground mt-0.5">
-              {integration ? 'Connected' : 'Not connected'}
+              {/* No-auth providers (email) never have an Integration row; the
+                  catalog already reports them as connected. */}
+              {integration || catalogConnected ? 'Connected' : 'Not connected'}
             </p>
           </div>
           {integration ? (
