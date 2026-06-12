@@ -80,8 +80,10 @@ func (r *UsagePostgresRepository) ensureCurrentPeriodTx(ctx context.Context, tx 
 	}
 
 	// Look up plan info (public schema is always reachable from tenant search_path)
+	// NULL checks limit (Enterprise/unlimited) → INT max sentinel, same
+	// convention as ai_insights below; a raw scan of NULL into int errors out.
 	planQuery := `
-		SELECT p.checks_allowed_monthly, p.ai_insights_allowed_monthly, op.started_at
+		SELECT COALESCE(p.checks_allowed_monthly, 2147483647), p.ai_insights_allowed_monthly, op.started_at
 		FROM public.organizations o
 		JOIN public.organization_plans op ON op.organization_id = o.id
 			AND op.status = 'active' AND op.deleted_at IS NULL
