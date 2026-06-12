@@ -1,6 +1,7 @@
 package database_test
 
 import (
+	"database/sql"
 	"errors"
 	"testing"
 
@@ -41,11 +42,18 @@ func TestDeprovisionTenantSchema_InvalidNames(t *testing.T) {
 }
 
 // TestDeprovisionTenantSchema_ValidNamesPassValidation verifies that valid schema
-// names pass the regex check. We cannot use nil db here because valid names proceed
-// to make DB calls; instead we verify by wrapping in recover — a panic from a nil
-// db confirms the validation gate was passed (the code reached DB call logic).
+// names pass the regex gate. The db points at an unreachable address (lib/pq
+// connects lazily), so the function proceeds past validation and fails with a
+// connection error on the DROP step — proving the only rejection path exercised
+// is the regex, never a panic.
 func TestDeprovisionTenantSchema_ValidNamesPassValidation(t *testing.T) {
 	t.Parallel()
+
+	db, err := sql.Open("postgres", "host=127.0.0.1 port=1 user=x dbname=x sslmode=disable connect_timeout=1")
+	if err != nil {
+		t.Fatalf("sql.Open: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
 
 	cases := []struct {
 		name       string
@@ -62,26 +70,13 @@ func TestDeprovisionTenantSchema_ValidNamesPassValidation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			// We expect a panic (nil pointer on the db) because the schema name is valid
-			// and the code proceeds past the validation gate to make a DB call.
-			// A panic proves the validation passed (no ErrInvalidSchemaName was returned).
-			didPanic := func() (panicked bool) {
-				defer func() {
-					if r := recover(); r != nil {
-						panicked = true
-					}
-				}()
-				err := database.DeprovisionTenantSchema(nil, tt.schemaName)
-				// If we reach here without panic, it must not be ErrInvalidSchemaName.
-				if errors.Is(err, database.ErrInvalidSchemaName) {
-					t.Errorf("DeprovisionTenantSchema(%q): unexpected ErrInvalidSchemaName", tt.schemaName)
-				}
-				return false
-			}()
-
-			// Either we got a panic (nil db → DB call reached) or a non-validation error.
-			// Both confirm the schema name passed validation.
-			_ = didPanic // either path is acceptable; the test goal is no ErrInvalidSchemaName
+			err := database.DeprovisionTenantSchema(db, tt.schemaName)
+			if err == nil {
+				t.Fatalf("DeprovisionTenantSchema(%q): expected connection error, got nil", tt.schemaName)
+			}
+			if errors.Is(err, database.ErrInvalidSchemaName) {
+				t.Errorf("DeprovisionTenantSchema(%q): valid name rejected by validation", tt.schemaName)
+			}
 		})
 	}
 }

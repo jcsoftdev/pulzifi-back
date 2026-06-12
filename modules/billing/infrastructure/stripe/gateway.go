@@ -4,7 +4,9 @@ package stripe
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	stripe "github.com/stripe/stripe-go/v79"
@@ -607,12 +609,19 @@ func (g *Gateway) FindPromotionCodeByCode(_ context.Context, code string) (billi
 func (g *Gateway) CancelSubscriptionNow(_ context.Context, subID string) (billingservices.StripeSubscription, error) {
 	canceled, err := subscription.Cancel(subID, nil)
 	if err != nil {
-		// Stripe returns a 404/invalid_request_error when the subscription is already
-		// canceled. Treat that as a benign no-op — the goal (subscription inactive)
-		// is already achieved.
-		stripeErr, ok := err.(*stripe.Error)
-		if ok && (stripeErr.Code == stripe.ErrorCodeResourceMissing || stripeErr.HTTPStatusCode == 404) {
-			return billingservices.StripeSubscription{ID: subID, Status: "canceled"}, nil
+		// Already-inactive subscriptions surface as either a 404/resource_missing
+		// (purged/unknown id) or an invalid_request_error mentioning the canceled
+		// state, depending on API version. Both mean the goal (subscription
+		// inactive) is already achieved — treat as a benign no-op.
+		var stripeErr *stripe.Error
+		if errors.As(err, &stripeErr) {
+			alreadyInactive := stripeErr.Code == stripe.ErrorCodeResourceMissing ||
+				stripeErr.HTTPStatusCode == 404 ||
+				(stripeErr.Type == stripe.ErrorTypeInvalidRequest &&
+					strings.Contains(strings.ToLower(stripeErr.Msg), "cancel"))
+			if alreadyInactive {
+				return billingservices.StripeSubscription{ID: subID, Status: "canceled"}, nil
+			}
 		}
 		return billingservices.StripeSubscription{}, fmt.Errorf("billing: stripe cancel subscription now: %w", err)
 	}

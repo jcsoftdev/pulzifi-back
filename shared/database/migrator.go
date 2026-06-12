@@ -113,17 +113,22 @@ func DeprovisionTenantSchema(db *sql.DB, schemaName string) error {
 
 	ctx := context.Background()
 
-	// Terminate backends whose recent query contains the schema name.
-	// Best-effort: ignore errors (OQ-2); the soft-delete + worker-release window is
-	// the primary protection; this is belt-and-suspenders.
+	// Terminate backends whose last statement pinned search_path to this schema
+	// (the pattern every tenant-scoped repo emits via WithTenant/GetSetSearchPathSQL).
+	// Heuristic: pg_stat_activity cannot tell which schema a backend is "in", so this
+	// narrows on the SET statement instead of any query mentioning the name, avoiding
+	// killing unrelated backends. Best-effort: ignore errors (OQ-2); the soft-delete +
+	// worker-release window is the primary protection.
 	_, _ = db.ExecContext(ctx, `
 		SELECT pg_terminate_backend(pid)
 		FROM pg_stat_activity
 		WHERE pid <> pg_backend_pid()
 		  AND datname = current_database()
-		  AND query ILIKE '%' || $1 || '%'`, schemaName)
+		  AND query ILIKE 'SET%search_path%' || $1 || '%'`, schemaName)
 
-	// Drop the schema and all objects inside it.
+	// Drop the schema and all objects inside it. The regex gate above is the
+	// authoritative injection guard; pq.QuoteIdentifier is defense-in-depth in
+	// case the validation is ever loosened.
 	if _, err := db.ExecContext(ctx,
 		fmt.Sprintf("DROP SCHEMA IF EXISTS %s CASCADE", pq.QuoteIdentifier(schemaName)),
 	); err != nil {
