@@ -27,14 +27,12 @@ const nextConfig = {
   },
 
   async redirects() {
-    return [
-      // Slug normalized to lowercase kebab-case (2026-06-09); old URL may be indexed
-      {
-        source: '/blog/What-is-competitive-intelligence',
-        destination: '/blog/what-is-competitive-intelligence',
-        permanent: true,
-      },
-    ]
+    // NOTE: redirect `source` matching is case-INSENSITIVE (path-to-regexp
+    // sensitive:false), so a source that only differs from its destination by
+    // case matches the destination too and loops forever. The old indexed
+    // `/blog/What-is-competitive-intelligence` URL is handled in proxy.ts with
+    // a case-SENSITIVE check instead.
+    return []
   },
 
   async headers() {
