@@ -1,3 +1,4 @@
+import { getDemoState } from '@/lib/demo-store'
 import { Badge } from '@workspace/ui/components/atoms/badge'
 import { Button } from '@workspace/ui/components/atoms/button'
 import {
@@ -17,8 +18,10 @@ import type { ReactNode } from 'react'
 import { CompareBars } from './compare-bars'
 import { WaveBars } from './wave-bars'
 
+export const dynamic = 'force-dynamic'
+
 export default function LectureAiLandingPage() {
-  const v = '2'
+  const { lectureAiVersion: v } = getDemoState()
 
   const isV2 = v === '2'
 
