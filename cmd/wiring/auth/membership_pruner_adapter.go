@@ -24,9 +24,18 @@ func NewMembershipPrunerAdapter(db *sql.DB) authservices.UserCleanup {
 	return &membershipPrunerAdapter{db: db}
 }
 
-// PruneMemberships soft-deletes all active organization memberships for userID.
-// Called after CascadeSolelyOwnedOrgs so solely-owned orgs are already gone;
-// this cleans up remaining member/co-owner records (OQ-1, DAO-13 member path).
+// PruneMemberships soft-deletes all active organization memberships for userID
+// and hard-deletes the user's role grants from public.user_roles.
+//
+// Invariant: this is called after CascadeSolelyOwnedOrgs, so solely-owned orgs
+// are already gone. Any surviving 'owner' row in organization_members belongs to
+// a co-owned org — another active owner row still exists there, so pruning this
+// user's row cannot create an ownerless org (OQ-1, DAO-13 member path).
+//
+// user_roles cleanup is necessary because UserRepository.Delete performs a
+// soft-delete (sets deleted_at) rather than a hard-delete, so the
+// "user_roles.user_id ON DELETE CASCADE" FK never fires. Without this explicit
+// DELETE, role rows would orphan for soft-deleted users (design §5, DAO-14).
 func (a *membershipPrunerAdapter) PruneMemberships(ctx context.Context, userID uuid.UUID) error {
 	_, err := a.db.ExecContext(ctx, `
 		UPDATE public.organization_members
@@ -37,5 +46,36 @@ func (a *membershipPrunerAdapter) PruneMemberships(ctx context.Context, userID u
 	if err != nil {
 		return fmt.Errorf("membership_pruner_adapter: prune memberships: %w", err)
 	}
+
+	// Remove role grants for the user. Hard-delete is correct here: role rows
+	// have no soft-delete column and carry no audit value after account deletion.
+	_, err = a.db.ExecContext(ctx, `
+		DELETE FROM public.user_roles
+		 WHERE user_id = $1
+	`, userID)
+	if err != nil {
+		return fmt.Errorf("membership_pruner_adapter: delete user_roles: %w", err)
+	}
+
+	// Revoke all sessions and refresh tokens. Same rationale as user_roles:
+	// the user row is soft-deleted, so the ON DELETE CASCADE FKs never fire,
+	// and a deleted account must not keep usable credentials (spec scenarios
+	// 5-8: auth artifacts absent after self-delete).
+	_, err = a.db.ExecContext(ctx, `
+		DELETE FROM public.sessions
+		 WHERE user_id = $1
+	`, userID)
+	if err != nil {
+		return fmt.Errorf("membership_pruner_adapter: delete sessions: %w", err)
+	}
+
+	_, err = a.db.ExecContext(ctx, `
+		DELETE FROM public.refresh_tokens
+		 WHERE user_id = $1
+	`, userID)
+	if err != nil {
+		return fmt.Errorf("membership_pruner_adapter: delete refresh_tokens: %w", err)
+	}
+
 	return nil
 }

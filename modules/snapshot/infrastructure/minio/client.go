@@ -224,7 +224,12 @@ func (c *Client) DeleteByPrefix(ctx context.Context, prefix string) error {
 			if firstErr == nil {
 				firstErr = fmt.Errorf("minio ListObjects: %w", object.Err)
 			}
-			continue
+			// Stop iteration on a listing error: the stream may be incomplete or
+			// repeating after an error, so continuing would risk processing a
+			// corrupted object list. Drain the channel to avoid goroutine leaks.
+			for range objectCh { //nolint:revive // drain intentional
+			}
+			break
 		}
 		if err := c.minioClient.RemoveObject(ctx, c.bucketName, object.Key, minio.RemoveObjectOptions{}); err != nil {
 			resp := minio.ToErrorResponse(err)

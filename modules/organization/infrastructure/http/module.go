@@ -46,9 +46,10 @@ func NewModule(orgRepo repositories.OrganizationRepository) router.ModuleRegiste
 	}
 }
 
-// NewModuleWithDeleteHandler creates a Module with the full cascade delete use case injected.
-// This is the constructor used in production (cmd/server/modules.go after PR3).
-func NewModuleWithDeleteHandler(deleteHandler DeleteOrgHandler) *Module {
+// newModuleWithDeleteHandler creates a Module with only the delete handler injected.
+// orgRepo is intentionally nil; callers must not invoke routes that require it.
+// Used only by package-internal tests — not for production wiring (use NewModuleWithAll).
+func newModuleWithDeleteHandler(deleteHandler DeleteOrgHandler) *Module {
 	return &Module{
 		deleteOrgHandler: deleteHandler,
 	}
@@ -82,8 +83,15 @@ func (m *Module) RegisterHTTPRoutes(router chi.Router) {
 		r.Get("/", m.handleListOrganizations)
 		r.Get("/{id}", m.handleGetOrganization)
 		r.Put("/{id}", m.handleUpdateOrganization)
-		r.Delete("/{id}", m.handleDeleteOrganization)
 	})
+
+	// DELETE /organizations/{id} is intentionally outside the membership group.
+	// Its only legitimate caller is SUPER_ADMIN acting from the apex domain (no
+	// tenant subdomain), so RequireOrganizationMembership would 403 before the
+	// in-handler SUPER_ADMIN guard could run (DAO-12). Authentication is still
+	// enforced; the SUPER_ADMIN role check inside handleDeleteOrganization is the
+	// sole authz gate.
+	router.With(middleware.AuthMiddleware.Authenticate).Delete("/organizations/{id}", m.handleDeleteOrganization)
 
 	router.Route("/organization", func(r chi.Router) {
 		r.Use(middleware.AuthMiddleware.Authenticate)

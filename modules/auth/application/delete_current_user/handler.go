@@ -43,8 +43,10 @@ func (h *Handler) WithUserCleanup(cleanup authservices.UserCleanup) *Handler {
 //
 //  1. If orgCascade is set: cascade solely-owned orgs first.
 //     On ErrBillingActive: abort, user is NOT deleted (caller returns 409).
-//  2. If userCleanup is set: prune remaining non-owned memberships (best-effort).
-//  3. Hard-delete the user row (FK cascades sessions, tokens, roles).
+//  2. If userCleanup is set: prune remaining memberships and hard-delete the
+//     user's role grants, sessions, and refresh tokens (the soft-delete in
+//     step 3 never fires the ON DELETE CASCADE FKs).
+//  3. Soft-delete the user row (sets deleted_at; login blocked).
 //  4. Publish user.deleted event (non-destructive listeners only).
 //
 // The ordering (orgs first, user second) ensures a billing block never leaves
