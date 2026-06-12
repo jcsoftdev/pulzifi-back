@@ -292,7 +292,7 @@ func Load() *Config {
 		AIBaseURL:             getEnv("AI_BASE_URL", ""),
 		PixelDiffThreshold:    getEnvFloat("PIXEL_DIFF_THRESHOLD", 0.001),
 		ResendAPIKey:          getEnv("RESEND_API_KEY", ""),
-		EmailFromAddress:      getEnv("EMAIL_FROM_ADDRESS", "hello@pulzifi.com"),
+		EmailFromAddress:      getEnv("EMAIL_FROM_ADDRESS", "noreply@pulzifi.com"),
 		EmailFromName:         getEnv("EMAIL_FROM_NAME", "Pulzifi"),
 		GoogleClientID:        getEnv("GOOGLE_CLIENT_ID", ""),
 		GoogleClientSecret:    getEnv("GOOGLE_CLIENT_SECRET", ""),
