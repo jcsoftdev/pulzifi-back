@@ -15,6 +15,7 @@ import (
 	insightwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/insight"
 	intwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/integration"
 	monitoringwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/monitoring"
+	orgwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/organization"
 	pagewiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/page"
 	reportwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/report"
 	socialwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/social"
@@ -58,6 +59,7 @@ import (
 	teamsprovider "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers/teams"
 	twilioprovider "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers/twilio"
 	monitoring "github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/http"
+	deleteorganization "github.com/jcsoftdev/pulzifi-back/modules/organization/application/delete_organization"
 	orgservices "github.com/jcsoftdev/pulzifi-back/modules/organization/domain/services"
 	organization "github.com/jcsoftdev/pulzifi-back/modules/organization/infrastructure/http"
 	orgmessaging "github.com/jcsoftdev/pulzifi-back/modules/organization/infrastructure/messaging"
@@ -67,6 +69,7 @@ import (
 	reportai "github.com/jcsoftdev/pulzifi-back/modules/report/infrastructure/ai"
 	report "github.com/jcsoftdev/pulzifi-back/modules/report/infrastructure/http"
 	snapshotextractor "github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/extractor"
+	snapshotminio "github.com/jcsoftdev/pulzifi-back/modules/snapshot/infrastructure/minio"
 	socialhttp "github.com/jcsoftdev/pulzifi-back/modules/social/infrastructure/http"
 	socialscheduler "github.com/jcsoftdev/pulzifi-back/modules/social/infrastructure/scheduler"
 	team "github.com/jcsoftdev/pulzifi-back/modules/team/infrastructure/http"
@@ -122,8 +125,48 @@ func registerAllModulesInternal(
 	// Composed org-context lookup for /me (flags + plan + identity in one query).
 	orgContextLookup := intwiring.NewOrgContextLookup(db)
 
-	// Auth wiring adapters — bridge auth module ports to concrete implementations
-	// from organization and email modules without creating cross-module imports.
+	// ── delete_organization use case wiring (DAO-12, DAO-13, DAO-16) ─────────
+	// Build the cascade deletion adapters. All ports are defined in
+	// modules/organization/domain/services; concrete impls live in
+	// cmd/wiring/organization/ so no cross-module imports occur.
+
+	orgDeletionRepo := orgpersistence.NewOrgDeletionPostgres(db)
+
+	// BillingCanceller: use real adapter when BILLING_ENABLED; nop otherwise (OQ-5).
+	var billingCanceller orgservices.BillingCanceller
+	if cfg.BillingEnabled {
+		stripeGW := billingstripe.NewGateway(cfg.StripeSecretKey, cfg.StripeWebhookSecret)
+		billingCanceller = orgwiring.NewBillingCancelAdapter(db, stripeGW)
+	} else {
+		billingCanceller = orgwiring.NopBillingCanceller()
+	}
+
+	// StorageSweeper: build a MinIO client when the provider is MinIO; nop otherwise.
+	var storageSweeper orgservices.StorageSweeper
+	flagsReader := featureflags.NewReader(db)
+	if cfg.MinIOEndpoint != "" {
+		minioClient, minioErr := snapshotminio.NewClient(cfg)
+		if minioErr != nil {
+			logger.Warn("delete_organization: failed to init MinIO client for storage sweep; using nop",
+				zap.Error(minioErr))
+			storageSweeper = orgwiring.NopStorageSweeper()
+		} else {
+			storageSweeper = orgwiring.NewStorageSweepAdapter(minioClient, flagsReader)
+		}
+	} else {
+		storageSweeper = orgwiring.NopStorageSweeper()
+	}
+
+	schemaDropper := orgwiring.NewSchemaDropperAdapter(db)
+	deleteOrgHandler := deleteorganization.NewHandler(orgDeletionRepo, billingCanceller, storageSweeper, schemaDropper)
+
+	// Auth→organization bridge adapters (cmd/wiring/auth, DAO-16).
+	orgCascadeAdapter := authwiring.NewOrgCascadeAdapter(deleteOrgHandler, orgDeletionRepo)
+	membershipPruner := authwiring.NewMembershipPrunerAdapter(db)
+
+	// ── Auth wiring adapters ───────────────────────────────────────────────
+	// Bridge auth module ports to concrete implementations from organization and
+	// email modules without creating cross-module imports.
 	authOrgDirectory := authwiring.NewOrganizationDirectoryAdapter(orgRepo, orgService)
 	authOnboardingAdapter := authwiring.NewOnboardingProfileAdapter(db)
 	authNotifier := authwiring.NewNotifierAdapter(emailProvider, cfg.FrontendURL, cfg.TrialDays)
@@ -139,18 +182,20 @@ func registerAllModulesInternal(
 		OrgDirectory:        authOrgDirectory,
 		OnboardingWriter:    authOnboardingAdapter,
 		OnboardingOrgFinder: authOnboardingAdapter,
-		TrialProvisioner:  authTrialProvisioner,
-		MembershipChecker: authMembershipChecker,
-		TrialDays:         cfg.TrialDays,
-		AuthService:       authService,
-		TokenService:      jwtService,
-		CookieDomain:      cfg.CookieDomain,
-		CookieSecure:      cookieSecure,
-		FrontendURL:       cfg.FrontendURL,
-		Notifier:          authNotifier,
-		EventBus:          eventBus,
-		DB:                db,
-		OrgContextLookup:  orgContextLookup,
+		TrialProvisioner:    authTrialProvisioner,
+		MembershipChecker:   authMembershipChecker,
+		TrialDays:           cfg.TrialDays,
+		AuthService:         authService,
+		TokenService:        jwtService,
+		CookieDomain:        cfg.CookieDomain,
+		CookieSecure:        cookieSecure,
+		FrontendURL:         cfg.FrontendURL,
+		Notifier:            authNotifier,
+		EventBus:            eventBus,
+		DB:                  db,
+		OrgContextLookup:    orgContextLookup,
+		OrgCascade:          orgCascadeAdapter,
+		UserCleanup:         membershipPruner,
 	})
 	authMod := authModule.(*auth.Module)
 	authMiddleware := authMod.AuthMiddleware()
@@ -168,7 +213,7 @@ func registerAllModulesInternal(
 	}{
 		{"Auth", authModule},
 		{"Email", email.NewModule(emailProvider)},
-		{"Organization", organization.NewModule(orgRepo)},
+		{"Organization", organization.NewModuleWithAll(orgRepo, deleteOrgHandler)},
 		{"Workspace", workspace.NewModuleWithDB(db)},
 		{"Page", page.NewModuleWithExtractor(db, pagewiring.NewExtractorPreviewStreamerAdapter(snapshotextractor.NewHTTPClientWithKey(cfg.ExtractorURL, cfg.ExtractorAPIKey)))},
 		{"Alert", buildAlertModule(db, eventBus)},

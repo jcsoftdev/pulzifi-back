@@ -1253,14 +1253,14 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Soft-delete an organization",
+                "description": "Full cascade deletion of an organization by SUPER_ADMIN. Requires SUPER_ADMIN role.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "organizations"
                 ],
-                "summary": "Delete Organization",
+                "summary": "Delete Organization (SUPER_ADMIN)",
                 "parameters": [
                     {
                         "type": "string",
@@ -1274,8 +1274,26 @@ const docTemplate = `{
                     "204": {
                         "description": "No Content"
                     },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {

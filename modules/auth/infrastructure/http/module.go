@@ -108,6 +108,8 @@ type ModuleDeps struct {
 	EventBus            eventbus.MessageBus
 	DB                  *sql.DB
 	OrgContextLookup    services.OrgContextLookup // optional; nil → org omitted from /me
+	OrgCascade          services.OrgCascade       // optional; nil → no org cascade on DELETE /auth/me
+	UserCleanup         services.UserCleanup      // optional; nil → no membership prune on DELETE /auth/me
 }
 
 func NewModule(deps ModuleDeps) router.ModuleRegisterer {
@@ -172,7 +174,7 @@ func NewModule(deps ModuleDeps) router.ModuleRegisterer {
 		resetPasswordHandler:         resetpassword.NewHandler(passwordResetRepo, deps.AuthService),
 		updateCurrentUserHandler:     updatecurrentuser.NewHandler(deps.UserRepo, getCurrentUserHandler),
 		changePasswordHandler:        changepassword.NewHandler(deps.UserRepo, deps.AuthService),
-		deleteCurrentUserHandler:     deletecurrentuser.NewHandler(deps.UserRepo, deps.EventBus),
+		deleteCurrentUserHandler: buildDeleteCurrentUserHandler(deps),
 		provisionOrgHandler:          provisionOrgHandler,
 		saveOnboardingProfileHandler: saveOnboardingHandler,
 		listUsersHandler:             listUsersHandler,
@@ -197,6 +199,19 @@ func NewModule(deps ModuleDeps) router.ModuleRegisterer {
 		frontendURL:              deps.FrontendURL,
 		db:                       deps.DB,
 	}
+}
+
+// buildDeleteCurrentUserHandler constructs the delete_current_user handler with
+// optional org cascade and membership prune ports wired in (PR3, DAO-13).
+func buildDeleteCurrentUserHandler(deps ModuleDeps) *deletecurrentuser.Handler {
+	h := deletecurrentuser.NewHandler(deps.UserRepo, deps.EventBus)
+	if deps.OrgCascade != nil {
+		h = h.WithOrgCascade(deps.OrgCascade)
+	}
+	if deps.UserCleanup != nil {
+		h = h.WithUserCleanup(deps.UserCleanup)
+	}
+	return h
 }
 
 func (m *Module) AuthMiddleware() *authmw.AuthMiddleware {
@@ -448,6 +463,13 @@ func (m *Module) handleDeleteCurrentUser(w http.ResponseWriter, r *http.Request)
 	}
 
 	if err := m.deleteCurrentUserHandler.Handle(r.Context(), &deletecurrentuser.Request{UserID: userID}); err != nil {
+		if errors.Is(err, services.ErrBillingActive) {
+			writeJSON(w, http.StatusConflict, map[string]string{
+				"code":    "billing_active",
+				"message": "account has an active paid subscription that could not be cancelled",
+			})
+			return
+		}
 		logger.Error("Failed to delete user", zap.Error(err))
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to delete account"})
 		return

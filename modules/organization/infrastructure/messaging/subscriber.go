@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/jcsoftdev/pulzifi-back/shared/eventbus"
@@ -73,13 +72,13 @@ type userDeletedPayload struct {
 }
 
 // handleUserDeleted handles user deletion events from other modules.
-// When a user is deleted, we cascade:
-//   - For each organization where the user is a member:
-//     1. If the user is the sole owner, soft-delete the organization.
-//     2. Remove the user from organization_members.
-//     3. Remove the user from user_roles.
-func (s *Subscriber) handleUserDeleted(ctx context.Context, _ string, payload []byte) {
-	// Parse the event payload
+//
+// Design D4: the destructive cascade (org soft-delete, hard-delete, DROP SCHEMA)
+// is now owned entirely by the synchronous delete_organization use case. This
+// subscriber's destructive branch has been neutralized to prevent double-cascade
+// races. The handler is kept subscribed for future non-destructive listeners
+// (analytics, logging, etc.).
+func (s *Subscriber) handleUserDeleted(_ context.Context, _ string, payload []byte) {
 	var event userDeletedPayload
 	if err := json.Unmarshal(payload, &event); err != nil {
 		logger.Error("Failed to parse user.deleted payload", zap.Error(err))
@@ -95,140 +94,13 @@ func (s *Subscriber) handleUserDeleted(ctx context.Context, _ string, payload []
 		return
 	}
 
-	logger.Info("Processing user.deleted event", zap.String("user_id", userID.String()))
-
-	// 1. Find all organizations where the user is a member
-	orgIDs, err := s.findUserOrganizations(ctx, userID)
-	if err != nil {
-		logger.Error("Failed to query user organizations",
-			zap.String("user_id", userID.String()),
-			zap.Error(err),
-		)
-		return
-	}
-
-	if len(orgIDs) == 0 {
-		logger.Info("User has no organization memberships, nothing to cascade",
-			zap.String("user_id", userID.String()),
-		)
-	}
-
-	for _, orgID := range orgIDs {
-		logFields := []zap.Field{
-			zap.String("user_id", userID.String()),
-			zap.String("organization_id", orgID.String()),
-		}
-
-		// 2. Check if the user is the sole owner
-		soleOwner, err := s.isSoleOwner(ctx, orgID, userID)
-		if err != nil {
-			logger.Error("Failed to check sole owner status", append(logFields, zap.Error(err))...)
-			continue
-		}
-
-		// 3. If sole owner, soft-delete the organization
-		if soleOwner {
-			if err := s.softDeleteOrganization(ctx, orgID); err != nil {
-				logger.Error("Failed to soft-delete organization", append(logFields, zap.Error(err))...)
-				continue
-			}
-			logger.Info("Soft-deleted organization (user was sole owner)", logFields...)
-		}
-
-		// 4. Remove user from organization_members
-		if err := s.removeOrganizationMember(ctx, orgID, userID); err != nil {
-			logger.Error("Failed to remove user from organization_members", append(logFields, zap.Error(err))...)
-			continue
-		}
-		logger.Info("Removed user from organization_members", logFields...)
-	}
-
-	// 5. Remove user from user_roles
-	if err := s.removeUserRoles(ctx, userID); err != nil {
-		logger.Error("Failed to remove user from user_roles",
-			zap.String("user_id", userID.String()),
-			zap.Error(err),
-		)
-		return
-	}
-	logger.Info("Removed user from user_roles", zap.String("user_id", userID.String()))
-
-	logger.Info("Finished processing user.deleted cascade",
+	// Org cascade is now handled synchronously by delete_organization use case
+	// (invoked from DELETE /auth/me and DELETE /organizations/{id}). The subscriber
+	// must NOT perform any destructive DB writes to avoid double-cascade races
+	// (DAO-14, design §4).
+	logger.Debug("user.deleted: org cascade handled synchronously, skipping destructive branch",
 		zap.String("user_id", userID.String()),
-		zap.Int("organizations_processed", len(orgIDs)),
 	)
-}
-
-// findUserOrganizations returns all organization IDs where the user is an active member.
-func (s *Subscriber) findUserOrganizations(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error) {
-	query := `
-		SELECT organization_id
-		FROM public.organization_members
-		WHERE user_id = $1 AND deleted_at IS NULL
-	`
-	rows, err := s.db.QueryContext(ctx, query, userID)
-	if err != nil {
-		return nil, fmt.Errorf("query organization_members: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-
-	var orgIDs []uuid.UUID
-	for rows.Next() {
-		var orgID uuid.UUID
-		if err := rows.Scan(&orgID); err != nil {
-			return nil, fmt.Errorf("scan organization_id: %w", err)
-		}
-		orgIDs = append(orgIDs, orgID)
-	}
-	return orgIDs, rows.Err()
-}
-
-// isSoleOwner checks whether the given user is the only active member with role='owner'
-// in the specified organization.
-func (s *Subscriber) isSoleOwner(ctx context.Context, orgID, userID uuid.UUID) (bool, error) {
-	query := `
-		SELECT COUNT(*)
-		FROM public.organization_members
-		WHERE organization_id = $1
-		  AND role = 'owner'
-		  AND deleted_at IS NULL
-		  AND user_id != $2
-	`
-	var otherOwners int
-	if err := s.db.QueryRowContext(ctx, query, orgID, userID).Scan(&otherOwners); err != nil {
-		return false, fmt.Errorf("count other owners: %w", err)
-	}
-	return otherOwners == 0, nil
-}
-
-// softDeleteOrganization sets deleted_at = NOW() on the organization row.
-func (s *Subscriber) softDeleteOrganization(ctx context.Context, orgID uuid.UUID) error {
-	query := `UPDATE public.organizations SET deleted_at = NOW() WHERE id = $1 AND deleted_at IS NULL`
-	_, err := s.db.ExecContext(ctx, query, orgID)
-	if err != nil {
-		return fmt.Errorf("soft-delete organization: %w", err)
-	}
-	return nil
-}
-
-// removeOrganizationMember soft-deletes the user's membership in the given organization.
-func (s *Subscriber) removeOrganizationMember(ctx context.Context, orgID, userID uuid.UUID) error {
-	query := `UPDATE public.organization_members SET deleted_at = NOW() WHERE organization_id = $1 AND user_id = $2 AND deleted_at IS NULL`
-	_, err := s.db.ExecContext(ctx, query, orgID, userID)
-	if err != nil {
-		return fmt.Errorf("remove organization member: %w", err)
-	}
-	return nil
-}
-
-// removeUserRoles deletes all role assignments for the given user.
-func (s *Subscriber) removeUserRoles(ctx context.Context, userID uuid.UUID) error {
-	query := `DELETE FROM public.user_roles WHERE user_id = $1`
-	_, err := s.db.ExecContext(ctx, query, userID)
-	if err != nil {
-		return fmt.Errorf("delete user_roles: %w", err)
-	}
-	return nil
 }
 
 // handleWorkspaceCreated handles workspace creation events from other modules
