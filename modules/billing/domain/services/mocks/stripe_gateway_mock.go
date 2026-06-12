@@ -51,6 +51,12 @@ type MockStripeGateway struct {
 	ResumeSubscriptionErr    error
 	ResumeSubscriptionFn     func(ctx context.Context, subID string) (services.StripeSubscription, error)
 
+	// CancelSubscriptionNow
+	CancelSubscriptionNowResult services.StripeSubscription
+	CancelSubscriptionNowErr    error
+	CancelSubscriptionNowFn     func(ctx context.Context, subID string) (services.StripeSubscription, error)
+	CancelSubscriptionNowCalls  int
+
 	// CreditCustomerBalance
 	CreditCustomerBalanceErr error
 	CreditCustomerBalanceFn  func(ctx context.Context, customerID string, amountCents int64, currency, description string) error
@@ -364,6 +370,14 @@ func (m *MockStripeGateway) CancelSubscriptionAtPeriodEnd(ctx context.Context, s
 		return m.CancelSubscriptionFn(ctx, subID)
 	}
 	return m.CancelSubscriptionResult, m.CancelSubscriptionErr
+}
+
+func (m *MockStripeGateway) CancelSubscriptionNow(ctx context.Context, subID string) (services.StripeSubscription, error) {
+	m.CancelSubscriptionNowCalls++
+	if m.CancelSubscriptionNowFn != nil {
+		return m.CancelSubscriptionNowFn(ctx, subID)
+	}
+	return m.CancelSubscriptionNowResult, m.CancelSubscriptionNowErr
 }
 
 func (m *MockStripeGateway) ResumeSubscription(ctx context.Context, subID string) (services.StripeSubscription, error) {

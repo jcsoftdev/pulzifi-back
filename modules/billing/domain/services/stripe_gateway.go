@@ -175,6 +175,12 @@ type StripeGateway interface {
 
 	// ── Cancellation ──────────────────────────────────────────────────────
 
+	// CancelSubscriptionNow cancels the subscription IMMEDIATELY (not at period end),
+	// ending access now and stopping all future charges. Used by org deletion: an org
+	// being erased must not keep a live subscription. Idempotent on an already-canceled
+	// subscription (Stripe returns the canceled sub or a benign error the caller tolerates).
+	CancelSubscriptionNow(ctx context.Context, subID string) (StripeSubscription, error)
+
 	// CancelSubscriptionAtPeriodEnd schedules the subscription to end when the
 	// current paid period closes (cancel_at_period_end=true). The user keeps
 	// access until then; Stripe emits customer.subscription.deleted at period
