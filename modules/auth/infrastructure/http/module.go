@@ -448,6 +448,13 @@ func (m *Module) handleDeleteCurrentUser(w http.ResponseWriter, r *http.Request)
 	}
 
 	if err := m.deleteCurrentUserHandler.Handle(r.Context(), &deletecurrentuser.Request{UserID: userID}); err != nil {
+		if errors.Is(err, services.ErrBillingActive) {
+			writeJSON(w, http.StatusConflict, map[string]string{
+				"code":    "billing_active",
+				"message": "account has an active paid subscription that could not be cancelled",
+			})
+			return
+		}
 		logger.Error("Failed to delete user", zap.Error(err))
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to delete account"})
 		return
