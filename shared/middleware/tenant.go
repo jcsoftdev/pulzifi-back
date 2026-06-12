@@ -14,7 +14,9 @@ import (
 )
 
 // validSchemaName matches only safe identifier characters (alphanumeric + underscore).
-var validSchemaName = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_-]*$`)
+// Hyphens are rejected: schema names never contain them, so a hyphenated value
+// means a subdomain was passed where a schema name was expected.
+var validSchemaName = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
 
 // TenantContextKey is the key used to store tenant schema in context
 type contextKey string

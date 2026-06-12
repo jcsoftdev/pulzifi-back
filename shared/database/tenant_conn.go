@@ -7,10 +7,12 @@ import (
 	"regexp"
 )
 
-// validTenantSchema matches only safe identifier characters. It mirrors the
-// validation used by middleware.GetSetSearchPathSQL so WithTenant accepts every
-// tenant name that the rest of the system already routes through.
-var validTenantSchema = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_-]*$`)
+// validTenantSchema matches only safe identifier characters. It mirrors
+// ProvisionTenantSchema's rules: schema names never contain hyphens (subdomain
+// hyphens become underscores at provisioning), so a hyphenated value here means
+// a caller passed a subdomain instead of a schema name — reject it loudly
+// rather than letting search_path silently fall back to public.
+var validTenantSchema = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
 
 // WithTenant runs fn inside a single transaction whose search_path is pinned to
 // the tenant schema via SET LOCAL.

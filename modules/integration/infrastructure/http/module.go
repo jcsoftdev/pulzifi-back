@@ -265,7 +265,7 @@ func (m *Module) handleListProviders(w http.ResponseWriter, r *http.Request) {
 
 // DELETE /integrations/{id}
 func (m *Module) handleDisconnect(w http.ResponseWriter, r *http.Request) {
-	tenant := middleware.GetSubdomainFromContext(r.Context())
+	tenant := middleware.GetTenantFromContext(r.Context())
 
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
@@ -404,7 +404,7 @@ func (m *Module) handleListTargets(w http.ResponseWriter, r *http.Request) {
 
 // GET /destinations
 func (m *Module) handleListDestinations(w http.ResponseWriter, r *http.Request) {
-	tenant := middleware.GetSubdomainFromContext(r.Context())
+	tenant := middleware.GetTenantFromContext(r.Context())
 	q := r.URL.Query()
 
 	scopeTypeStr := q.Get("scope_type")
@@ -440,7 +440,7 @@ func (m *Module) handleListDestinations(w http.ResponseWriter, r *http.Request) 
 
 // POST /destinations
 func (m *Module) handleCreateDestination(w http.ResponseWriter, r *http.Request) {
-	tenant := middleware.GetSubdomainFromContext(r.Context())
+	tenant := middleware.GetTenantFromContext(r.Context())
 
 	var req createdestination.Request
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -461,7 +461,7 @@ func (m *Module) handleCreateDestination(w http.ResponseWriter, r *http.Request)
 
 // PATCH /destinations/{id}
 func (m *Module) handleUpdateDestination(w http.ResponseWriter, r *http.Request) {
-	tenant := middleware.GetSubdomainFromContext(r.Context())
+	tenant := middleware.GetTenantFromContext(r.Context())
 
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
@@ -495,7 +495,7 @@ func (m *Module) handleUpdateDestination(w http.ResponseWriter, r *http.Request)
 
 // DELETE /destinations/{id}
 func (m *Module) handleDeleteDestination(w http.ResponseWriter, r *http.Request) {
-	tenant := middleware.GetSubdomainFromContext(r.Context())
+	tenant := middleware.GetTenantFromContext(r.Context())
 
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
@@ -521,7 +521,7 @@ func (m *Module) handleDeleteDestination(w http.ResponseWriter, r *http.Request)
 
 // GET /deliveries
 func (m *Module) handleListDeliveries(w http.ResponseWriter, r *http.Request) {
-	tenant := middleware.GetSubdomainFromContext(r.Context())
+	tenant := middleware.GetTenantFromContext(r.Context())
 	q := r.URL.Query()
 
 	destIDStr := q.Get("destination_id")
@@ -567,7 +567,7 @@ func (m *Module) handleListDeliveries(w http.ResponseWriter, r *http.Request) {
 // POST /deliveries/{id}/retry
 // Phase 2: gate behind RequireRole('OWNER').
 func (m *Module) handleRetryDelivery(w http.ResponseWriter, r *http.Request) {
-	tenant := middleware.GetSubdomainFromContext(r.Context())
+	tenant := middleware.GetTenantFromContext(r.Context())
 
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
@@ -643,7 +643,7 @@ func (m *Module) handleGetDelivery(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid id"})
 		return
 	}
-	tenant := middleware.GetSubdomainFromContext(r.Context())
+	tenant := middleware.GetTenantFromContext(r.Context())
 	repo := persistence.NewDeliveryPostgresRepository(m.deps.DB, tenant)
 
 	h := getdelivery.NewHandler(repo)
@@ -669,7 +669,7 @@ func (m *Module) handleBulkRetry(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid body"})
 		return
 	}
-	tenant := middleware.GetSubdomainFromContext(r.Context())
+	tenant := middleware.GetTenantFromContext(r.Context())
 	repo := persistence.NewDeliveryPostgresRepository(m.deps.DB, tenant)
 
 	h := bulkretrydeliveries.NewHandler(repo)
