@@ -41,15 +41,16 @@ type RepositoryFactory interface {
 // checkEvent is the DTO published via SSE when a check is created or fails at dispatch.
 // It mirrors listchecks.CheckResponse to keep the SSE payload consistent.
 type checkEvent struct {
-	ID              uuid.UUID `json:"id"`
-	PageID          uuid.UUID `json:"page_id"`
-	Status          string    `json:"status"`
-	ScreenshotURL   string    `json:"screenshot_url"`
-	HTMLSnapshotURL string    `json:"html_snapshot_url"`
-	ChangeDetected  bool      `json:"change_detected"`
-	ChangeType      string    `json:"change_type"`
-	ErrorMessage    string    `json:"error_message,omitempty"`
-	CheckedAt       time.Time `json:"checked_at"`
+	ID              uuid.UUID  `json:"id"`
+	PageID          uuid.UUID  `json:"page_id"`
+	SectionID       *uuid.UUID `json:"section_id,omitempty"`
+	Status          string     `json:"status"`
+	ScreenshotURL   string     `json:"screenshot_url"`
+	HTMLSnapshotURL string     `json:"html_snapshot_url"`
+	ChangeDetected  bool       `json:"change_detected"`
+	ChangeType      string     `json:"change_type"`
+	ErrorMessage    string     `json:"error_message,omitempty"`
+	CheckedAt       time.Time  `json:"checked_at"`
 }
 
 type Orchestrator struct {
@@ -150,9 +151,12 @@ func (o *Orchestrator) publishCheckEvent(check *entities.Check) {
 	if o.onCheckCreated == nil {
 		return
 	}
+	// SectionID must travel with the event: the checks-history UI filters
+	// section checks by this field (see notifyCheckDone in the snapshot worker).
 	payload, err := json.Marshal(checkEvent{
 		ID:              check.ID,
 		PageID:          check.PageID,
+		SectionID:       check.SectionID,
 		Status:          check.Status,
 		ScreenshotURL:   check.ScreenshotURL,
 		HTMLSnapshotURL: check.HTMLSnapshotURL,

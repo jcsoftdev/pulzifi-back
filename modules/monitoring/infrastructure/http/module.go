@@ -120,10 +120,12 @@ func NewModuleWithDeps(deps Deps) *Module {
 			logger.Error("failCheck: failed to update check status", zap.Error(updateErr), zap.String("check_id", checkID.String()))
 			return
 		}
-		// Publish the failed check to SSE subscribers.
+		// Publish the failed check to SSE subscribers. SectionID included so the
+		// checks-history UI can filter section checks out of the history list.
 		payload, _ := json.Marshal(listchecks.CheckResponse{
 			ID:              check.ID,
 			PageID:          check.PageID,
+			SectionID:       check.SectionID,
 			Status:          check.Status,
 			ScreenshotURL:   check.ScreenshotURL,
 			HTMLSnapshotURL: check.HTMLSnapshotURL,
