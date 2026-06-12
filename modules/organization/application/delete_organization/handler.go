@@ -13,9 +13,9 @@ import (
 )
 
 const (
-	stripeCancelTimeout  = 15 * time.Second
-	storageSweepTimeout  = 30 * time.Second
-	schemaDropTimeout    = 30 * time.Second
+	stripeCancelTimeout = 15 * time.Second
+	storageSweepTimeout = 30 * time.Second
+	schemaDropTimeout   = 30 * time.Second
 )
 
 // Handler orchestrates the full organization deletion cascade.

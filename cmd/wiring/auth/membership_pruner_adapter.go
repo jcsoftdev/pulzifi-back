@@ -57,5 +57,25 @@ func (a *membershipPrunerAdapter) PruneMemberships(ctx context.Context, userID u
 		return fmt.Errorf("membership_pruner_adapter: delete user_roles: %w", err)
 	}
 
+	// Revoke all sessions and refresh tokens. Same rationale as user_roles:
+	// the user row is soft-deleted, so the ON DELETE CASCADE FKs never fire,
+	// and a deleted account must not keep usable credentials (spec scenarios
+	// 5-8: auth artifacts absent after self-delete).
+	_, err = a.db.ExecContext(ctx, `
+		DELETE FROM public.sessions
+		 WHERE user_id = $1
+	`, userID)
+	if err != nil {
+		return fmt.Errorf("membership_pruner_adapter: delete sessions: %w", err)
+	}
+
+	_, err = a.db.ExecContext(ctx, `
+		DELETE FROM public.refresh_tokens
+		 WHERE user_id = $1
+	`, userID)
+	if err != nil {
+		return fmt.Errorf("membership_pruner_adapter: delete refresh_tokens: %w", err)
+	}
+
 	return nil
 }
