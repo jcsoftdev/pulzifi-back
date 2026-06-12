@@ -271,7 +271,7 @@ func (a *PlanAssigner) lookupPlanLimits(ctx context.Context, tx Tx, planID uuid.
 	var limits planLimits
 	var aiAllowed sql.NullInt64
 	row := tx.QueryRowContext(ctx, `
-		SELECT checks_allowed_monthly,
+		SELECT COALESCE(checks_allowed_monthly, 2147483647),
 		       COALESCE(storage_period_days, 7),
 		       ai_insights_allowed_monthly
 		  FROM public.plans

@@ -116,7 +116,7 @@ func (r *OrganizationPlanPostgresRepository) GetActivePlanForOrg(ctx context.Con
 	var aiAllowed sql.NullInt64
 	var maxPages, maxWorkspaces sql.NullInt64
 	err := r.exec.QueryRowContext(ctx, `
-		SELECT o.schema_name, p.checks_allowed_monthly, COALESCE(p.storage_period_days, 7),
+		SELECT o.schema_name, COALESCE(p.checks_allowed_monthly, 2147483647), COALESCE(p.storage_period_days, 7),
 		       p.ai_insights_allowed_monthly, op.started_at,
 		       p.max_pages, p.max_workspaces
 		FROM public.organizations o
@@ -146,7 +146,7 @@ func (r *OrganizationPlanPostgresRepository) GetActivePlanForTenant(ctx context.
 	var aiAllowed sql.NullInt64
 	var maxPages, maxWorkspaces sql.NullInt64
 	err := r.exec.QueryRowContext(ctx, `
-		SELECT p.checks_allowed_monthly, COALESCE(p.storage_period_days, 7),
+		SELECT COALESCE(p.checks_allowed_monthly, 2147483647), COALESCE(p.storage_period_days, 7),
 		       p.ai_insights_allowed_monthly, op.started_at,
 		       p.max_pages, p.max_workspaces
 		FROM public.organizations o

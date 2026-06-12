@@ -20,10 +20,10 @@ func NewPlanPostgresRepository(db *sql.DB) repositories.PlanRepository {
 
 func (r *PlanPostgresRepository) ListActive(ctx context.Context) ([]*entities.Plan, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT id, code, name, description, checks_allowed_monthly, is_active, storage_period_days
+		SELECT id, code, name, description, COALESCE(checks_allowed_monthly, 2147483647), is_active, storage_period_days
 		FROM public.plans
 		WHERE is_active = TRUE
-		ORDER BY checks_allowed_monthly ASC
+		ORDER BY checks_allowed_monthly ASC NULLS LAST
 	`)
 	if err != nil {
 		return nil, err
@@ -44,7 +44,7 @@ func (r *PlanPostgresRepository) ListActive(ctx context.Context) ([]*entities.Pl
 func (r *PlanPostgresRepository) GetByCode(ctx context.Context, code string) (*entities.Plan, error) {
 	p := &entities.Plan{}
 	err := r.db.QueryRowContext(ctx, `
-		SELECT id, code, name, description, checks_allowed_monthly, is_active, storage_period_days
+		SELECT id, code, name, description, COALESCE(checks_allowed_monthly, 2147483647), is_active, storage_period_days
 		FROM public.plans
 		WHERE code = $1 AND is_active = TRUE
 		LIMIT 1

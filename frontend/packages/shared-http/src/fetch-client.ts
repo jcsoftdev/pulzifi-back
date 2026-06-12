@@ -71,12 +71,12 @@ export class FetchHttpClient implements IHttpClient {
 
     errorMessage = errorMessage.trim()
 
-    this.debugError(`Request failed: ${url}`, {
-      status: response.status,
-      statusText: response.statusText,
-      message: errorMessage,
-      details: errorDetails,
-    })
+    // Inline string, not an object: Next's dev overlay serializes server-side
+    // console.error object args as {} and the status/message would be lost.
+    this.debugError(
+      `Request failed: ${url} → ${response.status} ${response.statusText} — ${errorMessage}`,
+      errorDetails
+    )
 
     throw new HttpError(response.status, response.statusText, url, errorMessage)
   }
