@@ -80,9 +80,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         ? (meta.image as Record<string, unknown>)
         : null
     // Share image prefers the dedicated SEO/OG image (meta.image), falling back
-    // to the article hero so posts without a custom OG image still get one.
+    // to the article hero, then the site-wide OG image. The last fallback must
+    // be explicit: a page-level openGraph object REPLACES the layout's wholesale
+    // (shallow merge per top-level key), so omitting images would share without one.
     const heroImageUrl =
-      ((metaImageObj?.url ?? heroImageObj?.url) as string | undefined)?.trim() || undefined
+      ((metaImageObj?.url ?? heroImageObj?.url) as string | undefined)?.trim() ||
+      `${siteUrl}/opengraph-image`
     const publishedAt = post.publishedAt as string | undefined
     const author = post.author as string | undefined
 

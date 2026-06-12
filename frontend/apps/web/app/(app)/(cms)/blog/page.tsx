@@ -48,11 +48,24 @@ export const metadata: Metadata = {
     title: BLOG_TITLE,
     description: BLOG_DESCRIPTION,
     url: '/blog',
+    // Explicit: page-level openGraph REPLACES the layout's wholesale (shallow
+    // merge per top-level key), so omitting images here would share without one.
+    images: [
+      {
+        url: '/opengraph-image',
+        width: 1200,
+        height: 630,
+        alt: BLOG_TITLE,
+      },
+    ],
   },
   twitter: {
     card: 'summary_large_image',
     title: BLOG_TITLE,
     description: BLOG_DESCRIPTION,
+    images: [
+      '/opengraph-image',
+    ],
   },
   robots: {
     index: true,
@@ -66,7 +79,9 @@ export default async function BlogIndexPage() {
   // Payload is unavailable at build time (getPayloadClient throws). Fall back to
   // an empty list so the static shell prerenders; ISR (revalidate) then fills in
   // real posts on the first runtime revalidation.
-  let posts = { docs: [] as PostDoc[] }
+  let posts = {
+    docs: [] as PostDoc[],
+  }
   let chrome = {
     themeStyle: '',
     navbar: {},
@@ -88,7 +103,9 @@ export default async function BlogIndexPage() {
       }),
       fetchCmsChrome(),
     ])
-    posts = postsResult as unknown as { docs: PostDoc[] }
+    posts = postsResult as unknown as {
+      docs: PostDoc[]
+    }
     chrome = cmsChrome
   } catch {
     // build-time fallback — keep defaults
