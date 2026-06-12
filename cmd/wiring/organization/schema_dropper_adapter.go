@@ -24,8 +24,13 @@ func NewSchemaDropperAdapter(db *sql.DB) orgservices.SchemaDropper {
 }
 
 // DropTenantSchema validates the schema name and executes DROP SCHEMA CASCADE.
-// Context is passed but DeprovisionTenantSchema uses context.Background() internally
-// (OQ-3 design decision); the use case wraps the call with context.WithTimeout.
+//
+// NOTE: the ctx parameter is intentionally ignored (OQ-3). DeprovisionTenantSchema
+// uses context.Background() internally, so the drop is NOT bounded by the 30-second
+// budget the handler establishes via context.WithTimeout. The operation is bounded
+// only by the PostgreSQL statement timeout (lock_timeout / statement_timeout) and the
+// server-level idle-in-transaction timeout. Callers should be aware that a hung DROP
+// will outlive the request context and must be terminated via PostgreSQL tooling.
 func (a *schemaDropperAdapter) DropTenantSchema(_ context.Context, schema string) error {
 	return database.DeprovisionTenantSchema(a.db, schema)
 }

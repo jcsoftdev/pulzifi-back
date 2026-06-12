@@ -13,7 +13,7 @@ import (
 // ── in-memory stubs ──────────────────────────────────────────────────────────
 
 type stubOrgDeletionRepo struct {
-	orgs      map[uuid.UUID]services.OrgForDeletion
+	orgs         map[uuid.UUID]services.OrgForDeletion
 	softDeleted  map[uuid.UUID]bool
 	auditStatus  map[uuid.UUID]string
 	auditStep    map[uuid.UUID]string
@@ -22,11 +22,20 @@ type stubOrgDeletionRepo struct {
 	memberships  map[uuid.UUID][]uuid.UUID // userID → orgIDs they belong to
 	deletedUsers []uuid.UUID
 
-	lookupErr          error
-	softDeleteErr      error
-	markAuditErr       error
-	cleanupErr         error
-	solelyOwnedOrgs    []services.OrgForDeletion
+	// existingAuditID, when non-nil, is returned by SoftDeleteAndOpenAudit
+	// instead of generating a fresh UUID — simulates idempotent re-run.
+	existingAuditID *uuid.UUID
+	auditReused     bool // true if SoftDeleteAndOpenAudit returned the existing ID
+
+	// markAuditCtxErrs records ctx.Err() at the moment each MarkAudit call is
+	// made so tests can verify whether failure paths use a detached (live) context.
+	markAuditCtxErrs []error
+
+	lookupErr       error
+	softDeleteErr   error
+	markAuditErr    error
+	cleanupErr      error
+	solelyOwnedOrgs []services.OrgForDeletion
 
 	callOrder []string
 }
@@ -61,13 +70,20 @@ func (r *stubOrgDeletionRepo) SoftDeleteAndOpenAudit(_ context.Context, in servi
 		return uuid.Nil, r.softDeleteErr
 	}
 	r.softDeleted[in.OrgID] = true
+	if r.existingAuditID != nil {
+		r.auditReused = true
+		return *r.existingAuditID, nil
+	}
 	auditID := uuid.New()
 	r.auditStatus[auditID] = "pending"
 	return auditID, nil
 }
 
-func (r *stubOrgDeletionRepo) MarkAudit(_ context.Context, auditID uuid.UUID, status, failureStep, errMsg string) error {
+func (r *stubOrgDeletionRepo) MarkAudit(ctx context.Context, auditID uuid.UUID, status, failureStep, errMsg string) error {
 	r.callOrder = append(r.callOrder, "mark_audit:"+status)
+	// Capture ctx.Err() at call time so assertions are not affected by later
+	// cancellation of a WithTimeout context created inside the handler.
+	r.markAuditCtxErrs = append(r.markAuditCtxErrs, ctx.Err())
 	if r.markAuditErr != nil {
 		return r.markAuditErr
 	}
@@ -432,5 +448,89 @@ func TestDeleteOrganization_UserPruning(t *testing.T) {
 	}
 	if len(resp.DeletedUserIDs) != 1 || resp.DeletedUserIDs[0] != soleUser {
 		t.Errorf("DeletedUserIDs = %v, want [%v]", resp.DeletedUserIDs, soleUser)
+	}
+}
+
+// TestDeleteOrganization_IdempotentResume_ReusesAuditRow verifies that when
+// SoftDeleteAndOpenAudit returns a pre-existing audit ID (e.g. from a prior
+// partial run), the handler reuses that row and does not treat the cascade as
+// a fresh start. The audit must be marked completed (not a new pending row).
+func TestDeleteOrganization_IdempotentResume_ReusesAuditRow(t *testing.T) {
+	repo := newStubRepo()
+	orgID, org := makeOrg()
+	repo.orgs[orgID] = org
+
+	// Simulate a previous run that opened an audit row.
+	existingAuditID := uuid.New()
+	repo.existingAuditID = &existingAuditID
+	repo.auditStatus[existingAuditID] = "pending"
+
+	h := deleteorganization.NewHandler(repo,
+		&stubBillingCanceller{},
+		&stubStorageSweeper{},
+		&stubSchemaDropper{},
+	)
+	_, err := h.Handle(context.Background(), &deleteorganization.Request{
+		OrgID:     orgID,
+		ActorID:   uuid.New(),
+		ActorType: "super_admin",
+	})
+	if err != nil {
+		t.Fatalf("expected clean resume, got %v", err)
+	}
+
+	// SoftDeleteAndOpenAudit must have returned the existing audit ID.
+	if !repo.auditReused {
+		t.Error("handler must reuse the existing audit row, not create a new one")
+	}
+
+	// The existing audit row must be marked completed.
+	status, ok := repo.auditStatus[existingAuditID]
+	if !ok {
+		t.Fatal("existing audit row not found in status map")
+	}
+	if status != "completed" {
+		t.Errorf("existing audit row status = %q, want completed", status)
+	}
+}
+
+// TestDeleteOrganization_FailurePath_MarkAuditUsesDetachedContext verifies that
+// when a failure occurs after the request context may be cancelled, the handler
+// still marks the audit row using a detached (non-cancelled) context so the
+// database write succeeds.
+func TestDeleteOrganization_FailurePath_MarkAuditUsesDetachedContext(t *testing.T) {
+	repo := newStubRepo()
+	orgID, org := makeOrg()
+	repo.orgs[orgID] = org
+
+	// Use a pre-cancelled context to simulate a timed-out request.
+	cancelledCtx, cancel := context.WithCancel(context.Background())
+	cancel() // immediately cancelled
+
+	billing := &stubBillingCanceller{cancelErr: errors.New("stripe error")}
+	storage := &stubStorageSweeper{}
+	schema := &stubSchemaDropper{}
+
+	h := deleteorganization.NewHandler(repo, billing, storage, schema)
+	_, err := h.Handle(cancelledCtx, &deleteorganization.Request{
+		OrgID:     orgID,
+		ActorID:   uuid.New(),
+		ActorType: "super_admin",
+	})
+
+	// Expect an error from billing step.
+	if err == nil {
+		t.Fatal("expected error from billing cancel")
+	}
+
+	// MarkAudit must have been called at least once, and the context must have
+	// been live (not cancelled) at the moment of the call.
+	if len(repo.markAuditCtxErrs) == 0 {
+		t.Fatal("MarkAudit was not called on failure path")
+	}
+	for i, ctxErr := range repo.markAuditCtxErrs {
+		if ctxErr != nil {
+			t.Errorf("MarkAudit call #%d context was already cancelled (err=%v); want live detached context", i, ctxErr)
+		}
 	}
 }

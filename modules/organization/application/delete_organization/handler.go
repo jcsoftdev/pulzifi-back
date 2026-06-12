@@ -78,30 +78,36 @@ func (h *Handler) Handle(ctx context.Context, req *Request) (*Response, error) {
 		return nil, fmt.Errorf("delete_organization: soft_delete_and_open_audit: %w", err)
 	}
 
+	// markFailed writes the failure state to the audit row using a detached
+	// context so the write succeeds even when the request context is cancelled.
+	markFailed := func(step, msg string) {
+		auditCtx, auditCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		_ = h.repo.MarkAudit(auditCtx, auditID, "failed", step, msg)
+		auditCancel()
+	}
+
 	// ── Step 3: Stripe cancellation ───────────────────────────────────────────
 	log.Info("delete_organization: billing cancellation", zap.String("step", "billing"))
 	stripeCtx, stripeCancel := context.WithTimeout(ctx, stripeCancelTimeout)
-	defer stripeCancel()
-
 	if err := h.billing.CancelForOrg(stripeCtx, req.OrgID); err != nil {
+		stripeCancel()
 		if errors.Is(err, services.ErrBillingActive) {
 			log.Error("delete_organization: billing active, aborting",
 				zap.String("step", "billing"),
 				zap.Error(err),
 			)
-			_ = h.repo.MarkAudit(ctx, auditID, "failed", "billing", err.Error())
+			markFailed("billing", err.Error())
 			return nil, services.ErrBillingActive
 		}
-		// Non-billing errors from the canceller are also fatal
-		_ = h.repo.MarkAudit(ctx, auditID, "failed", "billing", err.Error())
+		// Non-billing errors from the canceller are also fatal.
+		markFailed("billing", err.Error())
 		return nil, fmt.Errorf("delete_organization: billing cancel: %w", err)
 	}
+	stripeCancel()
 
 	// ── Step 4: Storage sweep (best-effort, never aborts) ─────────────────────
 	log.Info("delete_organization: storage sweep", zap.String("step", "storage_sweep"))
 	sweepCtx, sweepCancel := context.WithTimeout(ctx, storageSweepTimeout)
-	defer sweepCancel()
-
 	if err := h.storage.SweepTenant(sweepCtx, req.OrgID, org.SchemaName); err != nil {
 		log.Warn("delete_organization: storage sweep failed (continuing)",
 			zap.String("step", "storage_sweep"),
@@ -111,6 +117,7 @@ func (h *Handler) Handle(ctx context.Context, req *Request) (*Response, error) {
 		)
 		// Do NOT abort — storage sweep is best-effort.
 	}
+	sweepCancel()
 
 	// ── Step 5: TX-B — cleanup + hard-delete ─────────────────────────────────
 	log.Info("delete_organization: hard-delete", zap.String("step", "hard_delete"))
@@ -120,24 +127,24 @@ func (h *Handler) Handle(ctx context.Context, req *Request) (*Response, error) {
 			zap.String("step", "hard_delete"),
 			zap.Error(err),
 		)
-		_ = h.repo.MarkAudit(ctx, auditID, "failed", "hard_delete", err.Error())
+		markFailed("hard_delete", err.Error())
 		return nil, fmt.Errorf("delete_organization: cleanup_and_hard_delete: %w", err)
 	}
 
 	// ── Step 6: DROP SCHEMA ───────────────────────────────────────────────────
 	log.Info("delete_organization: drop schema", zap.String("step", "drop_schema"))
 	dropCtx, dropCancel := context.WithTimeout(ctx, schemaDropTimeout)
-	defer dropCancel()
-
 	if err := h.schema.DropTenantSchema(dropCtx, org.SchemaName); err != nil {
+		dropCancel()
 		log.Error("delete_organization: drop schema failed",
 			zap.String("step", "drop_schema"),
 			zap.String("schema_name", org.SchemaName),
 			zap.Error(err),
 		)
-		_ = h.repo.MarkAudit(ctx, auditID, "failed", "drop_schema", err.Error())
+		markFailed("drop_schema", err.Error())
 		return nil, fmt.Errorf("delete_organization: drop_schema: %w", err)
 	}
+	dropCancel()
 
 	// ── Step 7: Mark audit completed ─────────────────────────────────────────
 	if err := h.repo.MarkAudit(ctx, auditID, "completed", "", ""); err != nil {

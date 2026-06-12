@@ -70,19 +70,34 @@ func (r *orgDeletionPostgres) SoftDeleteAndOpenAudit(ctx context.Context, in ser
 		return uuid.Nil, fmt.Errorf("org_deletion_postgres: soft_delete: %w", err)
 	}
 
-	// Check for an existing pending audit row (idempotent re-run).
+	// Check for an existing pending or failed audit row (idempotent re-run).
+	// A prior run that ended with status='failed' must be resumed, not duplicated.
+	// We reset it to 'pending' and clear failure metadata so the cascade re-runs
+	// from this point forward.
 	var existingAuditID uuid.UUID
 	err = tx.QueryRowContext(ctx, `
 		SELECT id FROM public.organization_deletions
 		 WHERE organization_id = $1
-		   AND status = 'pending'
+		   AND status IN ('pending', 'failed')
+		 ORDER BY requested_at DESC
 		 LIMIT 1
 	`, in.OrgID).Scan(&existingAuditID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return uuid.Nil, fmt.Errorf("org_deletion_postgres: check existing audit: %w", err)
 	}
 	if err == nil {
-		// Reuse existing pending audit row.
+		// Reuse existing audit row: reset status to pending and clear failure fields.
+		_, err = tx.ExecContext(ctx, `
+			UPDATE public.organization_deletions
+			   SET status        = 'pending',
+			       failure_step  = NULL,
+			       error_message = NULL,
+			       completed_at  = NULL
+			 WHERE id = $1
+		`, existingAuditID)
+		if err != nil {
+			return uuid.Nil, fmt.Errorf("org_deletion_postgres: reset existing audit: %w", err)
+		}
 		if commitErr := tx.Commit(); commitErr != nil {
 			return uuid.Nil, fmt.Errorf("org_deletion_postgres: commit tx-a (reuse): %w", commitErr)
 		}
@@ -147,11 +162,12 @@ func (r *orgDeletionPostgres) CleanupAndHardDelete(ctx context.Context, orgID uu
 	if err != nil {
 		return nil, fmt.Errorf("org_deletion_postgres: list members: %w", err)
 	}
+	defer func() { _ = rows.Close() }()
+
 	var memberIDs []uuid.UUID
 	for rows.Next() {
 		var uid uuid.UUID
 		if scanErr := rows.Scan(&uid); scanErr != nil {
-			_ = rows.Close()
 			return nil, fmt.Errorf("org_deletion_postgres: scan member: %w", scanErr)
 		}
 		memberIDs = append(memberIDs, uid)
@@ -188,32 +204,34 @@ func (r *orgDeletionPostgres) CleanupAndHardDelete(ctx context.Context, orgID uu
 	}
 
 	// 3. For each former member, delete user if no remaining memberships.
+	// Non-fatal pruning errors use a loop-local pruneErr to avoid polluting the
+	// named return err that the defer rollback closure reads. Clearing err = nil
+	// inside the loop would cause the deferred rollback to be skipped if the last
+	// iteration errored and err was left as nil before Commit.
 	var deletedUserIDs []uuid.UUID
 	for _, userID := range memberIDs {
 		var remaining int
-		err = tx.QueryRowContext(ctx, `
+		pruneErr := tx.QueryRowContext(ctx, `
 			SELECT COUNT(*) FROM public.organization_members
 			 WHERE user_id    = $1
 			   AND deleted_at IS NULL
 		`, userID).Scan(&remaining)
-		if err != nil {
+		if pruneErr != nil {
 			logger.Warn("org_deletion_postgres: count memberships failed, skipping user prune",
 				zap.String("user_id", userID.String()),
-				zap.Error(err),
+				zap.Error(pruneErr),
 			)
-			err = nil // non-fatal per DAO-7
 			continue
 		}
 		if remaining == 0 {
-			_, err = tx.ExecContext(ctx, `
+			_, pruneErr = tx.ExecContext(ctx, `
 				DELETE FROM public.users WHERE id = $1
 			`, userID)
-			if err != nil {
+			if pruneErr != nil {
 				logger.Warn("org_deletion_postgres: user hard-delete failed, continuing",
 					zap.String("user_id", userID.String()),
-					zap.Error(err),
+					zap.Error(pruneErr),
 				)
-				err = nil // non-fatal per DAO-7
 				continue
 			}
 			deletedUserIDs = append(deletedUserIDs, userID)
