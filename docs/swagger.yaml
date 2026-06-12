@@ -1885,7 +1885,8 @@ paths:
       - organizations
   /organizations/{id}:
     delete:
-      description: Soft-delete an organization
+      description: Full cascade deletion of an organization by SUPER_ADMIN. Requires
+        SUPER_ADMIN role.
       parameters:
       - description: Organization ID
         in: path
@@ -1897,15 +1898,27 @@ paths:
       responses:
         "204":
           description: No Content
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
         "404":
           description: Not Found
           schema:
             additionalProperties:
               type: string
             type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
       security:
       - BearerAuth: []
-      summary: Delete Organization
+      summary: Delete Organization (SUPER_ADMIN)
       tags:
       - organizations
     get:
