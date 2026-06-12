@@ -1,13 +1,10 @@
-import { extractTenantFromHostname } from '@workspace/shared-http'
 import type { Metadata } from 'next'
 import { DM_Sans, DM_Serif_Display, Geist, Geist_Mono, Outfit, Syne } from 'next/font/google'
-import { headers } from 'next/headers'
-import Script from 'next/script'
 
 import '@workspace/ui/globals.css'
+import { AnalyticsScripts } from '@/components/analytics-scripts'
 import { JsonLd } from '@/components/json-ld'
 import { Providers } from '@/components/providers'
-import { env } from '@/lib/env'
 import { NotificationProvider } from '@/lib/notification'
 
 const metadataBase = process.env.NEXT_PUBLIC_APP_BASE_URL
@@ -138,21 +135,11 @@ const websiteJsonLd = {
   },
 }
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  // GA only on the apex (public marketing site, e.g. pulzifi.com), never on
-  // tenant subdomains (the authenticated app surface).
-  const headersList = await headers()
-  const hostname = headersList.get('x-forwarded-host') || headersList.get('host') || ''
-  const isApex = extractTenantFromHostname(hostname) === null
-  const gaId = env.NEXT_PUBLIC_GA_ID
-  const enableGa = isApex && Boolean(gaId)
-  const metaPixelId = env.NEXT_PUBLIC_META_PIXEL_ID
-  const enableMetaPixel = isApex && Boolean(metaPixelId)
-
   return (
     <html lang="en" suppressHydrationWarning>
       <body
@@ -163,48 +150,7 @@ export default async function RootLayout({
         <JsonLd data={websiteJsonLd} />
         <Providers>{children}</Providers>
         <NotificationProvider />
-        {enableGa && (
-          <>
-            <Script
-              src={`https://www.googletagmanager.com/gtag/js?id=${gaId}`}
-              strategy="afterInteractive"
-            />
-            {/* biome-ignore lint/correctness/useUniqueElementIds: next/script inline tag needs a stable, single-use id for GA */}
-            <Script id="ga-gtag" strategy="afterInteractive">
-              {`window.dataLayer = window.dataLayer || [];
-function gtag(){dataLayer.push(arguments);}
-gtag('js', new Date());
-gtag('config', '${gaId}');`}
-            </Script>
-          </>
-        )}
-        {enableMetaPixel && (
-          <>
-            {/* biome-ignore lint/correctness/useUniqueElementIds: next/script inline tag needs a stable, single-use id for the Meta Pixel */}
-            <Script id="meta-pixel" strategy="afterInteractive">
-              {`!function(f,b,e,v,n,t,s)
-{if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-n.queue=[];t=b.createElement(e);t.async=!0;
-t.src=v;s=b.getElementsByTagName(e)[0];
-s.parentNode.insertBefore(t,s)}(window, document,'script',
-'https://connect.facebook.net/en_US/fbevents.js');
-fbq('init', '${metaPixelId}');
-fbq('track', 'PageView');`}
-            </Script>
-            <noscript>
-              {/* biome-ignore lint/performance/noImgElement: Meta Pixel fallback must be a plain <img> inside <noscript> — next/image requires JS and cannot render here */}
-              <img
-                height="1"
-                width="1"
-                style={{ display: 'none' }}
-                alt=""
-                src={`https://www.facebook.com/tr?id=${metaPixelId}&ev=PageView&noscript=1`}
-              />
-            </noscript>
-          </>
-        )}
+        <AnalyticsScripts />
       </body>
     </html>
   )
