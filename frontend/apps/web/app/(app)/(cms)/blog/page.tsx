@@ -26,7 +26,12 @@ function toBlogPostItem(post: PostDoc): BlogPostItem {
   }
 }
 
-export const revalidate = 3600
+// Dynamic on purpose: this route has no params, so ISR would prerender it AT
+// BUILD TIME, where Payload/Postgres is unreachable — the empty "No posts yet"
+// shell would then be cached for the whole revalidate window after every
+// deploy. Detail pages keep ISR because they generate on demand (at runtime,
+// with the DB available). The Payload local query here is a few ms.
+export const dynamic = 'force-dynamic'
 
 const BLOG_TITLE = 'Website Monitoring Blog — Insights & Guides | Pulzifi'
 const BLOG_DESCRIPTION =
