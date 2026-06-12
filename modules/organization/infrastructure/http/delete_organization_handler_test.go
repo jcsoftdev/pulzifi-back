@@ -1,26 +1,28 @@
-package http_test
+package http
 
 import (
 	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	deleteorganization "github.com/jcsoftdev/pulzifi-back/modules/organization/application/delete_organization"
 	orgservices "github.com/jcsoftdev/pulzifi-back/modules/organization/domain/services"
-	orghttp "github.com/jcsoftdev/pulzifi-back/modules/organization/infrastructure/http"
 	"github.com/jcsoftdev/pulzifi-back/shared/contextkeys"
 )
 
 // stubDeleteOrgHandler is a fake deleteorganization.Handler for HTTP tests.
 type stubDeleteOrgHandler struct {
 	returnErr error
+	called    bool
 }
 
 func (s *stubDeleteOrgHandler) Handle(_ context.Context, _ *deleteorganization.Request) (*deleteorganization.Response, error) {
+	s.called = true
 	if s.returnErr != nil {
 		return nil, s.returnErr
 	}
@@ -31,12 +33,12 @@ func TestHandleDeleteOrganization(t *testing.T) {
 	orgID := uuid.New()
 
 	tests := []struct {
-		name         string
-		roles        []string
-		orgIDParam   string
-		handlerErr   error
-		wantStatus   int
-		wantBodySub  string
+		name        string
+		roles       []string
+		orgIDParam  string
+		handlerErr  error
+		wantStatus  int
+		wantBodySub string
 	}{
 		{
 			name:        "403 when caller is not SUPER_ADMIN",
@@ -72,7 +74,8 @@ func TestHandleDeleteOrganization(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			stub := &stubDeleteOrgHandler{returnErr: tt.handlerErr}
-			mod := orghttp.NewModuleWithDeleteHandler(stub)
+			// newModuleWithDeleteHandler is package-internal (unexported).
+			mod := newModuleWithDeleteHandler(stub)
 
 			// Build a Chi router so {id} URL param works.
 			r := chi.NewRouter()
@@ -90,25 +93,15 @@ func TestHandleDeleteOrganization(t *testing.T) {
 			if rr.Code != tt.wantStatus {
 				t.Errorf("status = %d, want %d; body = %s", rr.Code, tt.wantStatus, rr.Body.String())
 			}
-			if tt.wantBodySub != "" && !containsString(rr.Body.String(), tt.wantBodySub) {
+			if tt.wantBodySub != "" && !strings.Contains(rr.Body.String(), tt.wantBodySub) {
 				t.Errorf("body %q does not contain %q", rr.Body.String(), tt.wantBodySub)
+			}
+			// When the caller is not SUPER_ADMIN the use case must never be invoked.
+			if tt.wantStatus == http.StatusForbidden && stub.called {
+				t.Error("use case must NOT be invoked when the request is forbidden")
 			}
 		})
 	}
-}
-
-func containsString(s, sub string) bool {
-	return len(s) >= len(sub) && (s == sub || len(sub) == 0 ||
-		findSubstring(s, sub))
-}
-
-func findSubstring(s, sub string) bool {
-	for i := 0; i+len(sub) <= len(s); i++ {
-		if s[i:i+len(sub)] == sub {
-			return true
-		}
-	}
-	return false
 }
 
 // Verify ErrOrgNotFound and ErrBillingActive are tested.
