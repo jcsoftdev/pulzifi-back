@@ -4,7 +4,9 @@ package stripe
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	stripe "github.com/stripe/stripe-go/v79"
@@ -599,6 +601,32 @@ func (g *Gateway) FindPromotionCodeByCode(_ context.Context, code string) (billi
 }
 
 // ── Cancellation ────────────────────────────────────────────────────────────
+
+// CancelSubscriptionNow cancels the subscription immediately (not at period end).
+// Idempotent: if the subscription is already canceled, Stripe returns it unchanged
+// and no error is returned. Used by org deletion to end access without waiting for
+// the billing period to close.
+func (g *Gateway) CancelSubscriptionNow(_ context.Context, subID string) (billingservices.StripeSubscription, error) {
+	canceled, err := subscription.Cancel(subID, nil)
+	if err != nil {
+		// Already-inactive subscriptions surface as either a 404/resource_missing
+		// (purged/unknown id) or an invalid_request_error mentioning the canceled
+		// state, depending on API version. Both mean the goal (subscription
+		// inactive) is already achieved — treat as a benign no-op.
+		var stripeErr *stripe.Error
+		if errors.As(err, &stripeErr) {
+			alreadyInactive := stripeErr.Code == stripe.ErrorCodeResourceMissing ||
+				stripeErr.HTTPStatusCode == 404 ||
+				(stripeErr.Type == stripe.ErrorTypeInvalidRequest &&
+					strings.Contains(strings.ToLower(stripeErr.Msg), "cancel"))
+			if alreadyInactive {
+				return billingservices.StripeSubscription{ID: subID, Status: "canceled"}, nil
+			}
+		}
+		return billingservices.StripeSubscription{}, fmt.Errorf("billing: stripe cancel subscription now: %w", err)
+	}
+	return toDomainSubscription(canceled), nil
+}
 
 // CancelSubscriptionAtPeriodEnd flags the subscription to end at period close.
 func (g *Gateway) CancelSubscriptionAtPeriodEnd(_ context.Context, subID string) (billingservices.StripeSubscription, error) {

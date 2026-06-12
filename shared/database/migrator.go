@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"regexp"
@@ -18,6 +19,10 @@ import (
 const migrationsBaseDir = "shared/database/migrations"
 
 var validSchemaName = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
+
+// ErrInvalidSchemaName is returned by DeprovisionTenantSchema when the supplied
+// schema name does not match the allowed pattern ^[a-zA-Z_][a-zA-Z0-9_]*$.
+var ErrInvalidSchemaName = errors.New("invalid schema name")
 
 // ProvisionTenantSchema ensures the tenant schema exists and runs all pending tenant migrations.
 // It is safe to call multiple times (idempotent).
@@ -89,5 +94,47 @@ func ProvisionTenantSchema(db *sql.DB, schemaName string) error {
 	}
 
 	logger.Info("Tenant schema provisioned", zap.String("schema", schemaName))
+	return nil
+}
+
+// DeprovisionTenantSchema validates the schema name, terminates any lingering
+// backends associated with that schema (best-effort, non-fatal per OQ-2), then
+// executes DROP SCHEMA IF EXISTS … CASCADE. Idempotent: dropping an absent schema
+// is a no-op due to IF EXISTS. This is the terminal, irreversible step of org
+// deletion — callers must have soft-deleted the org (releasing workers) and
+// hard-deleted public rows before calling this function.
+//
+// Signature mirrors ProvisionTenantSchema: no ctx param (OQ-3); uses
+// context.Background() internally. Timeout belongs in the SchemaDropper adapter.
+func DeprovisionTenantSchema(db *sql.DB, schemaName string) error {
+	if !validSchemaName.MatchString(schemaName) {
+		return fmt.Errorf("%w: %q", ErrInvalidSchemaName, schemaName)
+	}
+
+	ctx := context.Background()
+
+	// Terminate backends whose last statement pinned search_path to this schema
+	// (the pattern every tenant-scoped repo emits via WithTenant/GetSetSearchPathSQL).
+	// Heuristic: pg_stat_activity cannot tell which schema a backend is "in", so this
+	// narrows on the SET statement instead of any query mentioning the name, avoiding
+	// killing unrelated backends. Best-effort: ignore errors (OQ-2); the soft-delete +
+	// worker-release window is the primary protection.
+	_, _ = db.ExecContext(ctx, `
+		SELECT pg_terminate_backend(pid)
+		FROM pg_stat_activity
+		WHERE pid <> pg_backend_pid()
+		  AND datname = current_database()
+		  AND query ILIKE 'SET%search_path%' || $1 || '%'`, schemaName)
+
+	// Drop the schema and all objects inside it. The regex gate above is the
+	// authoritative injection guard; pq.QuoteIdentifier is defense-in-depth in
+	// case the validation is ever loosened.
+	if _, err := db.ExecContext(ctx,
+		fmt.Sprintf("DROP SCHEMA IF EXISTS %s CASCADE", pq.QuoteIdentifier(schemaName)),
+	); err != nil {
+		return fmt.Errorf("failed to drop schema %q: %w", schemaName, err)
+	}
+
+	logger.Info("Tenant schema deprovisioned", zap.String("schema", schemaName))
 	return nil
 }
