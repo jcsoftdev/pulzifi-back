@@ -18,6 +18,7 @@ import (
 	createdestination "github.com/jcsoftdev/pulzifi-back/modules/integration/application/create_destination"
 	deletedestination "github.com/jcsoftdev/pulzifi-back/modules/integration/application/delete_destination"
 	disconnectintegration "github.com/jcsoftdev/pulzifi-back/modules/integration/application/disconnect_integration"
+	ensuredefaultemaildestination "github.com/jcsoftdev/pulzifi-back/modules/integration/application/ensure_default_email_destination"
 	getdelivery "github.com/jcsoftdev/pulzifi-back/modules/integration/application/get_delivery"
 	handleoauthcallback "github.com/jcsoftdev/pulzifi-back/modules/integration/application/handle_oauth_callback"
 	listdeliveries "github.com/jcsoftdev/pulzifi-back/modules/integration/application/list_deliveries"
@@ -176,6 +177,22 @@ func (m *Module) orgIDFromTenant(ctx context.Context, tenant string) (uuid.UUID,
 		tenant,
 	).Scan(&orgID)
 	return orgID, err
+}
+
+// ownerEmailByOrgID returns the org owner's email, or "" when unknown.
+// Best effort: callers seed defaults opportunistically and tolerate empties.
+func (m *Module) ownerEmailByOrgID(ctx context.Context, orgID uuid.UUID) string {
+	var email sql.NullString
+	err := m.deps.DB.QueryRowContext(ctx,
+		`SELECT u.email FROM public.organizations o
+		 JOIN public.users u ON u.id = o.owner_user_id
+		 WHERE o.id = $1 AND o.deleted_at IS NULL`,
+		orgID,
+	).Scan(&email)
+	if err != nil {
+		return ""
+	}
+	return email.String
 }
 
 // flagReader returns m.deps.Flags as a services.FlagReader, normalizing a nil
@@ -424,6 +441,18 @@ func (m *Module) handleListDestinations(w http.ResponseWriter, r *http.Request) 
 	}
 
 	destRepo := persistence.NewDestinationPostgresRepository(m.deps.DB, tenant)
+
+	// Seed the org's default email destination (owner's email) on first read.
+	if entities.ScopeType(scopeTypeStr) == entities.ScopeOrg {
+		ensureHandler := ensuredefaultemaildestination.NewHandler(destRepo)
+		if _, err := ensureHandler.Handle(r.Context(), ensuredefaultemaildestination.Request{
+			OrgID:      scopeID,
+			OwnerEmail: m.ownerEmailByOrgID(r.Context(), scopeID),
+		}); err != nil {
+			logger.Error("Failed to seed default email destination", zap.Error(err))
+		}
+	}
+
 	handler := listdestinations.NewHandler(destRepo)
 	resp, err := handler.Handle(r.Context(), listdestinations.Request{
 		ScopeType: entities.ScopeType(scopeTypeStr),
