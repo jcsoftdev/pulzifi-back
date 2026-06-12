@@ -31,6 +31,15 @@ export function proxy(req: NextRequest): NextResponse {
     return NextResponse.redirect(buildApexUrl(host, req.nextUrl.protocol, `${pathname}${search}`))
   }
 
+  // Legacy blog slug (pre 2026-06-09 normalization) may still be indexed.
+  // Lives here instead of next.config redirects(): those match the source
+  // case-INSENSITIVELY, so a case-only redirect loops on its own destination.
+  if (pathname === '/blog/What-is-competitive-intelligence') {
+    const url = req.nextUrl.clone()
+    url.pathname = '/blog/what-is-competitive-intelligence'
+    return NextResponse.redirect(url, 308)
+  }
+
   // Apex (no tenant) — public site renders normally.
   if (!tenant) {
     return NextResponse.next()
