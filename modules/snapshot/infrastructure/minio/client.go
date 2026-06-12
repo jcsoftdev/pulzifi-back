@@ -203,3 +203,38 @@ func (c *Client) extractObjectName(objectURL string) string {
 func (c *Client) ObjectNameFromURL(storedURL string) string {
 	return c.extractObjectName(storedURL)
 }
+
+// DeleteByPrefix removes all objects whose key starts with prefix from the bucket.
+// It lists objects under the prefix and removes them in batches.
+// An empty prefix is a no-op. Best-effort: errors on individual removes are
+// returned but do not stop the remaining iterations.
+func (c *Client) DeleteByPrefix(ctx context.Context, prefix string) error {
+	if prefix == "" {
+		return nil
+	}
+
+	objectCh := c.minioClient.ListObjects(ctx, c.bucketName, minio.ListObjectsOptions{
+		Prefix:    prefix,
+		Recursive: true,
+	})
+
+	var firstErr error
+	for object := range objectCh {
+		if object.Err != nil {
+			if firstErr == nil {
+				firstErr = fmt.Errorf("minio ListObjects: %w", object.Err)
+			}
+			continue
+		}
+		if err := c.minioClient.RemoveObject(ctx, c.bucketName, object.Key, minio.RemoveObjectOptions{}); err != nil {
+			resp := minio.ToErrorResponse(err)
+			if resp.StatusCode == 404 || resp.Code == "NoSuchKey" {
+				continue // already gone — idempotent
+			}
+			if firstErr == nil {
+				firstErr = fmt.Errorf("minio RemoveObject %q: %w", object.Key, err)
+			}
+		}
+	}
+	return firstErr
+}

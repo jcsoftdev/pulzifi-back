@@ -54,3 +54,21 @@ func (a *storageSweepAdapter) SweepTenant(ctx context.Context, orgID uuid.UUID, 
 	}
 	return nil
 }
+
+// ── nopStorageSweeper ─────────────────────────────────────────────────────────
+
+// nopStorageSweeper is injected when object storage is not configured.
+// Returns nil immediately without any storage calls.
+type nopStorageSweeper struct{}
+
+var _ orgservices.StorageSweeper = (*nopStorageSweeper)(nil)
+
+// NopStorageSweeper returns a no-op StorageSweeper for use when MinIO is
+// unavailable or the provider is Cloudinary (not prefix-sweepable at MVP).
+func NopStorageSweeper() orgservices.StorageSweeper {
+	return &nopStorageSweeper{}
+}
+
+func (n *nopStorageSweeper) SweepTenant(_ context.Context, _ uuid.UUID, _ string) error {
+	return nil
+}
