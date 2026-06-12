@@ -68,19 +68,24 @@ func (s *SnapshotWorker) notifyCheckDone(check *snapEntities.Check) {
 		return
 	}
 	type checkResponse struct {
-		ID              uuid.UUID `json:"id"`
-		PageID          uuid.UUID `json:"page_id"`
-		Status          string    `json:"status"`
-		ScreenshotURL   string    `json:"screenshot_url"`
-		HTMLSnapshotURL string    `json:"html_snapshot_url"`
-		ChangeDetected  bool      `json:"change_detected"`
-		ChangeType      string    `json:"change_type"`
-		ErrorMessage    string    `json:"error_message,omitempty"`
-		CheckedAt       string    `json:"checked_at"`
+		ID              uuid.UUID  `json:"id"`
+		PageID          uuid.UUID  `json:"page_id"`
+		SectionID       *uuid.UUID `json:"section_id,omitempty"`
+		Status          string     `json:"status"`
+		ScreenshotURL   string     `json:"screenshot_url"`
+		HTMLSnapshotURL string     `json:"html_snapshot_url"`
+		ChangeDetected  bool       `json:"change_detected"`
+		ChangeType      string     `json:"change_type"`
+		ErrorMessage    string     `json:"error_message,omitempty"`
+		CheckedAt       string     `json:"checked_at"`
 	}
+	// SectionID must travel with the event: the checks-history UI keeps only
+	// full-page checks and filters section checks by this field — without it a
+	// section completion renders as a duplicate history entry.
 	payload, err := json.Marshal(checkResponse{
 		ID:              check.ID,
 		PageID:          check.PageID,
+		SectionID:       check.SectionID,
 		Status:          check.Status,
 		ScreenshotURL:   check.ScreenshotURL,
 		HTMLSnapshotURL: check.HTMLSnapshotURL,
