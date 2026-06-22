@@ -817,63 +817,11 @@ func (s *SnapshotWorker) createAlert(ctx context.Context, schemaName string, che
 		logger.Info("Alert created", zap.String("check_id", check.ID.String()))
 	}
 
-	// Send email notifications asynchronously
-	go s.sendAlertEmails(schemaName, check, pageURL, changeSummary)
-
+	// Change-alert emails are delivered through the integration dispatch path
+	// (publishChangeDetected → integration dispatch_event → email/Slack/… destinations),
+	// which also covers settings-configured recipients, retry, and delivery history.
 	// Publish change.detected domain event so the integration dispatcher can fan-out.
 	go s.publishChangeDetected(ctx, schemaName, check, pageURL, changeSummary)
-}
-
-// sendAlertEmails queries notification preferences for the page and sends email alerts.
-func (s *SnapshotWorker) sendAlertEmails(schemaName string, check *snapEntities.Check, pageURL string, changeSummary string) {
-	if s.notificationEmailer == nil {
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	prefs, err := s.monitoringReader.GetEmailEnabledByPage(ctx, schemaName, check.PageID)
-	if err != nil {
-		logger.Error("Failed to get email-enabled preferences", zap.Error(err))
-		return
-	}
-
-	if len(prefs) == 0 {
-		return
-	}
-
-	// Filter preferences by change_types: empty means all types, otherwise must include "page_change"
-	var filteredPrefs []*snapEntities.NotificationPreference
-	for _, pref := range prefs {
-		if len(pref.ChangeTypes) == 0 || sliceContains(pref.ChangeTypes, "page_change") {
-			filteredPrefs = append(filteredPrefs, pref)
-		}
-	}
-	if len(filteredPrefs) == 0 {
-		return
-	}
-
-	dashboardURL := fmt.Sprintf("%s/workspaces", s.frontendURL)
-	changeType := check.ChangeType
-	if changeType == "" {
-		changeType = "content"
-	}
-	// Use change summary as the change type description if available
-	if changeSummary != "" {
-		changeType = changeSummary
-	}
-
-	for _, pref := range filteredPrefs {
-		email, err := s.monitoringReader.GetUserEmail(ctx, pref.UserID)
-		if err != nil {
-			logger.Error("Failed to get user email for alert notification", zap.Error(err), zap.String("user_id", pref.UserID.String()))
-			continue
-		}
-		if err := s.notificationEmailer.SendAlertEmail(ctx, email, pageURL, changeType, dashboardURL); err != nil {
-			logger.Error("Failed to send alert email", zap.Error(err), zap.String("email", email))
-		}
-	}
 }
 
 // publishChangeDetected publishes a change.detected DomainEvent to the EventBus so that

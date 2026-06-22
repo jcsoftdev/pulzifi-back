@@ -15,6 +15,7 @@ import (
 	workerjobs "github.com/jcsoftdev/pulzifi-back/cmd/worker/jobs"
 	emailservices "github.com/jcsoftdev/pulzifi-back/modules/email/domain/services"
 	emailproviders "github.com/jcsoftdev/pulzifi-back/modules/email/infrastructure/providers"
+	dispatchevent "github.com/jcsoftdev/pulzifi-back/modules/integration/application/dispatch_event"
 	"github.com/jcsoftdev/pulzifi-back/modules/integration/domain/services"
 	intpersistence "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/persistence"
 	intproviders "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers"
@@ -28,6 +29,7 @@ import (
 	twilioprovider "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers/twilio"
 	deliveryworker "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/worker"
 	monitoring "github.com/jcsoftdev/pulzifi-back/modules/monitoring/infrastructure/http"
+	orgpersistence "github.com/jcsoftdev/pulzifi-back/modules/organization/infrastructure/persistence"
 	socialscheduler "github.com/jcsoftdev/pulzifi-back/modules/social/infrastructure/scheduler"
 	"github.com/jcsoftdev/pulzifi-back/shared/cache"
 	"github.com/jcsoftdev/pulzifi-back/shared/config"
@@ -76,6 +78,12 @@ func main() {
 	defer bus.Close()
 
 	emailProvider := emailproviders.NewResendProvider(cfg.ResendAPIKey, cfg.EmailFromAddress, cfg.EmailFromName)
+
+	// Wire the integration dispatcher onto the worker's bus BEFORE detection starts.
+	// Change detection runs in THIS process and publishes change.detected / alert.created
+	// events; without a subscriber here, the in-memory bus drops them and no integration
+	// delivery (email destinations, Slack, etc.) is ever created. Mirrors cmd/server.
+	subscribeIntegrationEvents(db, cfg, bus)
 
 	// Monitoring background processes
 	startMonitoringWithBus(db, cfg, emailProvider, bus)
@@ -155,6 +163,34 @@ func startMonitoringWithBus(db *sql.DB, cfg *config.Config, emailProvider *email
 		SchedulerMode:    cfg.SchedulerMode,
 	})
 	monitoringMod.StartBackgroundProcesses()
+}
+
+// subscribeIntegrationEvents builds the integration dispatch handler and subscribes
+// it to change-detected and alert-created domain events on the worker's bus. Detection
+// runs in the worker process, so the subscriber must live here too — otherwise events
+// published in this process reach no consumer and every delivery is dropped. Mirrors
+// cmd/server/modules.go's subscribeIntegrationEvents.
+func subscribeIntegrationEvents(db *sql.DB, cfg *config.Config, bus eventbus.MessageBus) {
+	orgRepo := orgpersistence.NewOrganizationPostgresRepository(db)
+	intRepoFactory := intwiring.NewTenantRepoFactory(db)
+	intOrgGuard := intwiring.NewOrgGuard(orgRepo)
+	twilioPlanLookup := intwiring.NewOrgPlanLookup(db)
+	intChannelEntitlement := intwiring.NewChannelEntitlementAdapter(twilioPlanLookup, cfg.IntegrationPaidPlans)
+	intDispatcher := dispatchevent.NewHandlerWithEntitlement(intRepoFactory, intOrgGuard, intChannelEntitlement)
+	intDispatcher.SetFallbackResolver(intwiring.NewMemberEmailResolver(db))
+
+	handle := func(ev eventbus.DomainEvent) {
+		if err := intDispatcher.Handle(context.Background(), ev); err != nil {
+			logger.Error("integration dispatch failed", zap.Error(err), zap.String("event_type", ev.Type))
+		}
+	}
+	if err := eventbus.SubscribeDomainEvent(bus, eventbus.TopicChangeDetected, handle); err != nil {
+		logger.Error("subscribe TopicChangeDetected", zap.Error(err))
+	}
+	if err := eventbus.SubscribeDomainEvent(bus, eventbus.TopicAlertCreated, handle); err != nil {
+		logger.Error("subscribe TopicAlertCreated", zap.Error(err))
+	}
+	logger.Info("Worker: integration event dispatcher subscribed (change.detected, alert.created)")
 }
 
 // buildIntegrationKey resolves and validates the integration token key,

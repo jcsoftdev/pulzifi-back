@@ -67,6 +67,18 @@ func TestEmailClient(t *testing.T) {
 			wantCode:   200,
 		},
 		{
+			name:       "deduplicates exact duplicate recipients",
+			target:     map[string]any{"emails": []any{"a@b.com", "a@b.com", "c@d.com"}},
+			wantSendTo: []string{"a@b.com", "c@d.com"},
+			wantCode:   200,
+		},
+		{
+			name:       "deduplicates case-insensitively and trims, keeps first-seen",
+			target:     map[string]any{"emails": []any{"  Member@X.com ", "member@x.com", "manual@x.com"}},
+			wantSendTo: []string{"Member@X.com", "manual@x.com"},
+			wantCode:   200,
+		},
+		{
 			name:       "empty list",
 			target:     map[string]any{"emails": []any{}},
 			wantErr:    "email: no recipients",
