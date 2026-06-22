@@ -207,6 +207,18 @@ func (s *stubEntitlement) IsPaid(_ context.Context, _ uuid.UUID) (bool, error) {
 // Helpers
 // ---------------------------------------------------------------------------
 
+// stubFallback is an in-memory FallbackRecipientResolver.
+type stubFallback struct {
+	emails []string
+	err    error
+	calls  int
+}
+
+func (s *stubFallback) WorkspaceMemberEmails(_ context.Context, _ string, _ uuid.UUID) ([]string, error) {
+	s.calls++
+	return s.emails, s.err
+}
+
 func newDest(serviceType string, scope entities.ScopeType, scopeID uuid.UUID, events []string) *entities.Destination {
 	return &entities.Destination{
 		ID:          uuid.New(),
@@ -233,6 +245,88 @@ func makeEvent(orgID uuid.UUID, wsID, pageID *uuid.UUID) eventbus.DomainEvent {
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
+
+// When no email destination resolves for the event, the handler seeds a
+// workspace-scoped email destination from the workspace's members and delivers to it.
+func TestDispatch_NoEmailDestination_SeedsWorkspaceMembersFallback(t *testing.T) {
+	orgID := uuid.New()
+	wsID := uuid.New()
+
+	destRepo := &inMemDestRepo{} // nothing configured
+	delRepo := &inMemDelRepo{}
+	h := NewHandlerWithEntitlement(&stubFactory{destRepo, delRepo}, &stubOrgGuard{isActive: true}, &stubEntitlement{emailOnly: true})
+	h.SetFallbackResolver(&stubFallback{emails: []string{"a@x.com", "b@x.com"}})
+
+	ev := makeEvent(orgID, &wsID, nil)
+	if err := h.Handle(context.Background(), ev); err != nil {
+		t.Fatalf("Handle: %v", err)
+	}
+
+	if len(destRepo.dests) != 1 {
+		t.Fatalf("seeded destinations = %d, want 1", len(destRepo.dests))
+	}
+	d := destRepo.dests[0]
+	if d.ServiceType != "email" || d.ScopeType != entities.ScopeWorkspace || d.ScopeID != wsID || !d.Enabled {
+		t.Errorf("seeded destination wrong: %+v", d)
+	}
+	if !slices.Contains(d.Events, "change.detected") {
+		t.Errorf("seeded destination events = %v, want change.detected", d.Events)
+	}
+	if len(delRepo.created) != 1 {
+		t.Fatalf("deliveries = %d, want 1", len(delRepo.created))
+	}
+	if delRepo.created[0].DestinationID != d.ID {
+		t.Errorf("delivery destination = %v, want seeded %v", delRepo.created[0].DestinationID, d.ID)
+	}
+}
+
+// When an email destination already exists, the fallback must NOT fire (no seeding,
+// no duplicate) — the configured destination decides recipients.
+func TestDispatch_EmailDestinationExists_NoFallbackSeed(t *testing.T) {
+	orgID := uuid.New()
+	wsID := uuid.New()
+
+	existing := newDest("email", entities.ScopeOrg, orgID, []string{"change.detected"})
+	destRepo := &inMemDestRepo{dests: []*entities.Destination{existing}}
+	delRepo := &inMemDelRepo{}
+	fb := &stubFallback{emails: []string{"a@x.com"}}
+	h := NewHandlerWithEntitlement(&stubFactory{destRepo, delRepo}, &stubOrgGuard{isActive: true}, &stubEntitlement{emailOnly: true})
+	h.SetFallbackResolver(fb)
+
+	ev := makeEvent(orgID, &wsID, nil)
+	if err := h.Handle(context.Background(), ev); err != nil {
+		t.Fatalf("Handle: %v", err)
+	}
+
+	if fb.calls != 0 {
+		t.Errorf("fallback invoked %d times, want 0 (email destination exists)", fb.calls)
+	}
+	if len(destRepo.dests) != 1 {
+		t.Errorf("destinations = %d, want 1 (no seeding)", len(destRepo.dests))
+	}
+	if len(delRepo.created) != 1 || delRepo.created[0].DestinationID != existing.ID {
+		t.Errorf("expected 1 delivery to the existing destination")
+	}
+}
+
+// No members to fall back to → no seed, no delivery.
+func TestDispatch_NoEmailDest_NoMembers_NoSeed(t *testing.T) {
+	orgID := uuid.New()
+	wsID := uuid.New()
+
+	destRepo := &inMemDestRepo{}
+	delRepo := &inMemDelRepo{}
+	h := NewHandlerWithEntitlement(&stubFactory{destRepo, delRepo}, &stubOrgGuard{isActive: true}, &stubEntitlement{emailOnly: true})
+	h.SetFallbackResolver(&stubFallback{emails: nil})
+
+	ev := makeEvent(orgID, &wsID, nil)
+	if err := h.Handle(context.Background(), ev); err != nil {
+		t.Fatalf("Handle: %v", err)
+	}
+	if len(destRepo.dests) != 0 || len(delRepo.created) != 0 {
+		t.Errorf("expected no seed/delivery; dests=%d deliveries=%d", len(destRepo.dests), len(delRepo.created))
+	}
+}
 
 func TestDispatch_OrgOnly_OneDelivery(t *testing.T) {
 	orgID := uuid.New()

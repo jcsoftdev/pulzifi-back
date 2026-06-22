@@ -381,6 +381,7 @@ func buildIntegrationModule(
 	intOrgGuard := intwiring.NewOrgGuard(orgRepo)
 	intChannelEntitlement := intwiring.NewChannelEntitlementAdapter(twilioPlanLookup, cfg.IntegrationPaidPlans)
 	intDispatcher := dispatchevent.NewHandlerWithEntitlement(intRepoFactory, intOrgGuard, intChannelEntitlement)
+	intDispatcher.SetFallbackResolver(intwiring.NewMemberEmailResolver(db))
 
 	subscribeIntegrationEvents(eventBus, intDispatcher)
 

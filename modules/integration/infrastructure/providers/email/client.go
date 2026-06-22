@@ -46,11 +46,26 @@ func (c *Client) ListTargets(context.Context, *entities.Integration) ([]entities
 
 func (c *Client) Send(ctx context.Context, _ *entities.Integration, dest *entities.Destination, p *entities.NotificationPayload) (*entities.DeliveryResult, error) {
 	raw, _ := dest.Target["emails"].([]any)
+	// Collect recipients, trimming whitespace and removing case-insensitive
+	// duplicates so an address that appears both as a workspace member (seeded
+	// default) and as a manually-added recipient is emailed only once.
+	seen := make(map[string]struct{})
 	var emails []string
 	for _, v := range raw {
-		if s, ok := v.(string); ok && strings.Contains(s, "@") {
-			emails = append(emails, s)
+		s, ok := v.(string)
+		if !ok {
+			continue
 		}
+		s = strings.TrimSpace(s)
+		if !strings.Contains(s, "@") {
+			continue
+		}
+		key := strings.ToLower(s)
+		if _, dup := seen[key]; dup {
+			continue
+		}
+		seen[key] = struct{}{}
+		emails = append(emails, s)
 	}
 	if len(emails) == 0 {
 		return nil, errors.New("email: no recipients")
