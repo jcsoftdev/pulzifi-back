@@ -45,7 +45,7 @@ func (h *UpdateMonitoringConfigHandler) Handle(ctx context.Context, pageID uuid.
 
 	// If config doesn't exist, create a new one with default values
 	if config == nil {
-		config, err = h.createConfig(ctx, pageID, req)
+		config, quotaExceeded, err = h.createConfig(ctx, pageID, req)
 		if err != nil {
 			return nil, err
 		}
@@ -91,7 +91,7 @@ func (h *UpdateMonitoringConfigHandler) Handle(ctx context.Context, pageID uuid.
 // createConfig builds and persists a brand-new monitoring config, applying the
 // provided request fields over the defaults, then wakes the scheduler when the
 // new config is active.
-func (h *UpdateMonitoringConfigHandler) createConfig(ctx context.Context, pageID uuid.UUID, req *UpdateMonitoringConfigRequest) (*entities.MonitoringConfig, error) {
+func (h *UpdateMonitoringConfigHandler) createConfig(ctx context.Context, pageID uuid.UUID, req *UpdateMonitoringConfigRequest) (*entities.MonitoringConfig, bool, error) {
 	logger.Info("UpdateMonitoringConfigHandler: Config not found, creating new one")
 	// Set defaults for new config
 	checkFrequency := "Off"
@@ -168,21 +168,19 @@ func (h *UpdateMonitoringConfigHandler) createConfig(ctx context.Context, pageID
 		UpdatedAt:              time.Now(),
 	}
 
-	// Create in database — the scheduler will pick up the page on its
-	// next tick (last_checked_at is NULL, so it is immediately "due").
 	if err := h.repo.Create(ctx, config); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
+	// First-time setup: enabling monitoring on a page that had none should run
+	// a check immediately so the user gets instant feedback, instead of waiting
+	// for the scheduler's next tick.
+	quotaExceeded := false
 	if config.CheckFrequency != "Off" {
-		// Wake the scheduler so it re-evaluates next run time and picks
-		// up this newly created config promptly.
-		if h.scheduler != nil {
-			h.scheduler.WakeUp()
-		}
+		quotaExceeded = h.dispatchImmediate(ctx, pageID)
 	}
 
-	return config, nil
+	return config, quotaExceeded, nil
 }
 
 // mergeConfigFields copies the provided (non-nil) request fields onto the
@@ -260,7 +258,18 @@ func (h *UpdateMonitoringConfigHandler) applyUpdates(ctx context.Context, pageID
 	// Config exists, update only provided fields
 	logger.Info("UpdateMonitoringConfigHandler: Config found, updating", zap.Any("current_config", config))
 
+	// Capture the pre-merge frequency so we can detect a transition out of an
+	// inactive state (Off / unset) into an active one.
+	wasInactive := isInactiveFrequency(config.CheckFrequency)
+
 	shouldDispatch := h.mergeConfigFields(ctx, pageID, config, req)
+
+	// Re-enabling monitoring (Off -> active) should run a check immediately,
+	// regardless of when the page was last checked. mergeConfigFields only
+	// dispatches when the page is overdue, which never fires for a fresh enable.
+	if req.CheckFrequency != nil && wasInactive && config.CheckFrequency != "Off" {
+		shouldDispatch = true
+	}
 
 	config.UpdatedAt = time.Now()
 
@@ -299,6 +308,33 @@ func (h *UpdateMonitoringConfigHandler) applyUpdates(ctx context.Context, pageID
 	}
 
 	return quotaExceeded, nil
+}
+
+// isInactiveFrequency reports whether a frequency means the page is not
+// scheduled for checks (unset or explicitly "Off").
+func isInactiveFrequency(freq string) bool {
+	return freq == "" || freq == "Off"
+}
+
+// dispatchImmediate triggers an immediate check for the page, falling back to
+// marking the page due when no scheduler is wired. Returns whether the check
+// hit the quota cap. TriggerPageCheck claims the page atomically, so this is
+// safe to call without a separate pre-claim.
+func (h *UpdateMonitoringConfigHandler) dispatchImmediate(ctx context.Context, pageID uuid.UUID) bool {
+	if h.scheduler == nil {
+		if err := h.repo.MarkPageDueNow(ctx, pageID); err != nil {
+			logger.Error("UpdateMonitoringConfigHandler: Failed to mark page due now", zap.String("page_id", pageID.String()), zap.Error(err))
+		}
+		return false
+	}
+	if err := h.scheduler.TriggerPageCheck(ctx, h.tenant, pageID); err != nil {
+		if errors.Is(err, orchestrator.ErrQuotaExceeded) {
+			logger.Warn("UpdateMonitoringConfigHandler: Quota exceeded", zap.String("page_id", pageID.String()))
+			return true
+		}
+		logger.Error("UpdateMonitoringConfigHandler: Failed to trigger immediate check", zap.String("page_id", pageID.String()), zap.Error(err))
+	}
+	return false
 }
 
 // isPageDueForCheck returns true only if the page has been checked before AND
