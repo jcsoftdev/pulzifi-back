@@ -91,8 +91,13 @@ import (
 	"go.uber.org/zap"
 )
 
-// createEmailProvider creates the Resend email provider.
+// createEmailProvider selects the email provider from EMAIL_PROVIDER.
+// "log" is used for local/E2E testing so the pipeline never hits the real
+// Resend API; anything else (including unset) falls back to Resend.
 func createEmailProvider(cfg *config.Config) emailservices.EmailProvider {
+	if cfg.EmailProvider == "log" {
+		return emailproviders.NewLogProvider()
+	}
 	return emailproviders.NewResendProvider(cfg.ResendAPIKey, cfg.EmailFromAddress, cfg.EmailFromName)
 }
 
