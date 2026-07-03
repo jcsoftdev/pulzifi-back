@@ -82,7 +82,9 @@ export function CouponManagement() {
 
   useEffect(() => {
     load()
-  }, [load])
+  }, [
+    load,
+  ])
 
   const handleCreate = async () => {
     setCreating(true)
@@ -120,7 +122,8 @@ export function CouponManagement() {
         <CardHeader>
           <CardTitle>Discount coupons</CardTitle>
           <CardDescription>
-            Create a "first month $1" promo for a plan. Customers redeem the code at checkout or via the apply link.
+            Create a "first month $1" promo for a plan. Customers redeem the code at checkout or via
+            the apply link.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-6">

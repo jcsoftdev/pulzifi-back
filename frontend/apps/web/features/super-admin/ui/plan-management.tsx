@@ -18,6 +18,7 @@ import {
 import { Gift, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { useCallback, useEffect, useState, useTransition } from 'react'
+import { describeLoadError } from '@/features/super-admin/application/describe-load-error'
 import { notification } from '@/lib/notification'
 
 export function PlanManagement() {
@@ -36,8 +37,8 @@ export function PlanManagement() {
       ])
       setPlans(plansData)
       setOrganizations(orgsData)
-    } catch {
-      setLoadError('You need SUPER_ADMIN role to manage organization plans.')
+    } catch (err) {
+      setLoadError(describeLoadError(err, 'organization plans'))
     }
   }, [])
 
@@ -90,7 +91,7 @@ export function PlanManagement() {
     })
   }
 
-if (loadError) {
+  if (loadError) {
     return (
       <div className="w-full">
         <Card>
