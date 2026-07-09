@@ -27,6 +27,7 @@ import (
 	teamsprovider "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/providers/teams"
 	deliveryworker "github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/worker"
 	"github.com/jcsoftdev/pulzifi-back/shared/crypto"
+	"github.com/jcsoftdev/pulzifi-back/shared/testguard"
 )
 
 // ---------------------------------------------------------------------------
@@ -48,6 +49,7 @@ func openWorkerTestDB(t *testing.T) *sql.DB {
 		dsn = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
 			os.Getenv("DB_USER"), os.Getenv("DB_PASSWORD"), host, port, os.Getenv("DB_NAME"))
 	}
+	testguard.RequireLocalDB(t, dsn)
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
 		t.Fatalf("sql.Open: %v", err)

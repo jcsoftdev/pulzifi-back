@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"net/url"
 	"os"
 	"testing"
 	"time"
@@ -14,18 +15,43 @@ import (
 
 	"github.com/jcsoftdev/pulzifi-back/modules/billing/domain/entities"
 	"github.com/jcsoftdev/pulzifi-back/modules/billing/infrastructure/persistence/postgres"
+	"github.com/jcsoftdev/pulzifi-back/shared/testguard"
 )
 
 // TestMain cleans up any leftover test rows from interrupted runs.
+//
+// testguard.RequireLocalDB is not called here because TestMain has no
+// *testing.T to call t.Skip on — it can only os.Exit. Instead this mirrors
+// testguard's local-DSN policy inline before running the sweep. Every actual
+// test in this file also calls testguard.RequireLocalDB via
+// openBillingTestDB before touching the database, so this is belt-and-braces
+// for the pre-test cleanup sweep only.
 func TestMain(m *testing.M) {
 	dsn := billingTestDSN()
-	if dsn != "" {
+	if dsn != "" && isLocalOrAllowedRemoteDSN(dsn) {
 		if db, err := sql.Open("postgres", dsn); err == nil {
 			_, _ = db.Exec(`DELETE FROM public.stripe_webhook_events WHERE event_id LIKE 'evt_test_%'`)
 			db.Close()
 		}
 	}
 	os.Exit(m.Run())
+}
+
+// isLocalOrAllowedRemoteDSN mirrors testguard's local-DSN policy for use
+// outside of a *testing.T context.
+func isLocalOrAllowedRemoteDSN(dsn string) bool {
+	if os.Getenv("INTEGRATION_DB_ALLOW_REMOTE") == "1" {
+		return true
+	}
+	u, err := url.Parse(dsn)
+	if err != nil {
+		return false
+	}
+	switch u.Hostname() {
+	case "localhost", "127.0.0.1", "::1", "postgres", "host.docker.internal":
+		return true
+	}
+	return false
 }
 
 // openBillingTestDB returns a connected *sql.DB or calls t.Skip when
@@ -38,6 +64,7 @@ func openBillingTestDB(t *testing.T) *sql.DB {
 	if dsn == "" {
 		t.Skip("DATABASE_URL (or DB_HOST) not set; skipping billing integration test")
 	}
+	testguard.RequireLocalDB(t, dsn)
 
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {

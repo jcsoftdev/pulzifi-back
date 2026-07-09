@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	authwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/auth"
+	"github.com/jcsoftdev/pulzifi-back/shared/testguard"
 	_ "github.com/lib/pq"
 )
 
@@ -34,12 +35,18 @@ func membershipTestDSN() string {
 	)
 }
 
+// openMembershipTestDB opens a connection for the membership checker
+// integration test. The test seeds and deletes real rows in public.users and
+// public.organizations, so it must never run against a shared/production
+// database picked up from ambient env vars (this has happened: leftover
+// membershiptest-* rows in prod broke the admin users page).
 func openMembershipTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 	dsn := membershipTestDSN()
 	if dsn == "" {
 		t.Skip("DATABASE_URL (or DB_HOST) not set; skipping membership checker integration test")
 	}
+	testguard.RequireLocalDB(t, dsn)
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
 		t.Fatalf("sql.Open: %v", err)

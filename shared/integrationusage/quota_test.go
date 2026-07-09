@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"net/url"
 	"os"
 	"sync"
 	"sync/atomic"
@@ -14,6 +15,7 @@ import (
 	_ "github.com/lib/pq"
 
 	"github.com/jcsoftdev/pulzifi-back/shared/integrationusage"
+	"github.com/jcsoftdev/pulzifi-back/shared/testguard"
 )
 
 func openTestDB(t *testing.T) *sql.DB {
@@ -22,6 +24,7 @@ func openTestDB(t *testing.T) *sql.DB {
 	if dsn == "" {
 		t.Skip("DATABASE_URL not set")
 	}
+	testguard.RequireLocalDB(t, dsn)
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
 		t.Fatal(err)
@@ -32,9 +35,15 @@ func openTestDB(t *testing.T) *sql.DB {
 // TestMain sweeps leftover orgs/users from prior interrupted runs before any
 // test executes. Belt-and-suspenders: each test also registers t.Cleanup, but
 // that doesn't run when the suite is killed mid-run.
+//
+// testguard.RequireLocalDB is not called here because TestMain has no
+// *testing.T to call t.Skip on — it can only os.Exit. Instead this mirrors
+// testguard's local-DSN policy inline before running the sweep. Every actual
+// test in this file also calls testguard.RequireLocalDB via openTestDB before
+// touching the database.
 func TestMain(m *testing.M) {
 	dsn := os.Getenv("DATABASE_URL")
-	if dsn != "" {
+	if dsn != "" && isLocalOrAllowedRemoteDSN(dsn) {
 		if db, err := sql.Open("postgres", dsn); err == nil {
 			_, _ = db.Exec(`DELETE FROM organizations WHERE subdomain LIKE 'iq-test-%'`)
 			_, _ = db.Exec(`DELETE FROM users WHERE email LIKE 'iq-test-%@example.com'`)
@@ -42,6 +51,23 @@ func TestMain(m *testing.M) {
 		}
 	}
 	os.Exit(m.Run())
+}
+
+// isLocalOrAllowedRemoteDSN mirrors testguard's local-DSN policy for use
+// outside of a *testing.T context.
+func isLocalOrAllowedRemoteDSN(dsn string) bool {
+	if os.Getenv("INTEGRATION_DB_ALLOW_REMOTE") == "1" {
+		return true
+	}
+	u, err := url.Parse(dsn)
+	if err != nil {
+		return false
+	}
+	switch u.Hostname() {
+	case "localhost", "127.0.0.1", "::1", "postgres", "host.docker.internal":
+		return true
+	}
+	return false
 }
 
 // seedOrg inserts a fresh user + org and registers cleanup.

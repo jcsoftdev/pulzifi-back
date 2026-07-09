@@ -16,6 +16,7 @@ import (
 	billingwiring "github.com/jcsoftdev/pulzifi-back/cmd/wiring/billing"
 	"github.com/jcsoftdev/pulzifi-back/modules/billing/domain/entities"
 	"github.com/jcsoftdev/pulzifi-back/modules/billing/domain/services"
+	"github.com/jcsoftdev/pulzifi-back/shared/testguard"
 )
 
 // openPlanAssignerTestDB returns a connected *sql.DB or calls t.Skip when
@@ -27,6 +28,7 @@ func openPlanAssignerTestDB(t *testing.T) *sql.DB {
 	if dsn == "" {
 		t.Skip("DATABASE_URL (or DB_HOST) not set; skipping billing wiring integration test")
 	}
+	testguard.RequireLocalDB(t, dsn)
 
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
