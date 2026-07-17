@@ -24,7 +24,10 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD:-pulzifi_password}
       POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=en_US.UTF-8 --lc-ctype=en_US.UTF-8"
     ports:
-      - "${DB_PORT:-5434}:5432"
+      # Host-exposed port is non-standard to avoid clashing with any other
+      # project's Postgres (registry: pulzifi-back/postgresql=5436). Container
+      # still listens on the standard 5432 internally (network is isolated).
+      - "${DB_PORT:-5436}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql
       - ./database_setup.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
@@ -42,7 +45,8 @@ services:
     container_name: pulzifi-redis
     restart: unless-stopped
     ports:
-      - "${DEV_REDIS_PORT:-6381}:6379"
+      # Non-standard host port (registry: pulzifi-back/redis=6382).
+      - "${DEV_REDIS_PORT:-6382}:6379"
     volumes:
       - redis-data:/data
     networks:
@@ -57,7 +61,8 @@ services:
     image: localstack/localstack:3.0
     container_name: pulzifi-localstack
     ports:
-      - "${LOCALSTACK_PORT:-4566}:4566"
+      # Non-standard host port (registry: pulzifi-back/localstack=4567).
+      - "${LOCALSTACK_PORT:-4567}:4566"
     environment:
       - SERVICES=s3
       - DEBUG=1
@@ -131,13 +136,17 @@ services:
       MINIO_SECRET_KEY: test
       MINIO_BUCKET: ${MINIO_BUCKET:-pulzifi-snapshots}
       MINIO_USE_SSL: "false"
-      MINIO_PUBLIC_URL: http://localhost:${LOCALSTACK_PORT:-4566}
+      MINIO_PUBLIC_URL: http://localhost:${LOCALSTACK_PORT:-4567}
       EXTRACTOR_URL: http://scraper:3000
     env_file:
       - .env
     ports:
-      - "${HTTP_PORT:-3000}:3000"
-      - "${GRPC_PORT:-9000}:9000"
+      # Host-exposed ports are non-standard to avoid cross-project clashes
+      # (registry: go-chi=3002, grpc=9002). The app still listens on the
+      # standard 3000/9000 inside the isolated compose network (see the
+      # HTTP_PORT/GRPC_PORT under environment).
+      - "${HTTP_PORT:-3002}:3000"
+      - "${GRPC_HOST_PORT:-9002}:9000"
     volumes:
       - .:/workspace
     networks:
@@ -156,7 +165,8 @@ services:
     container_name: pulzifi-ollama
     restart: unless-stopped
     ports:
-      - "${OLLAMA_PORT:-11434}:11434"
+      # Non-standard host port (registry: pulzifi-back/ollama=11435).
+      - "${OLLAMA_PORT:-11435}:11434"
     volumes:
       - ollama-models:/root/.ollama
     networks:
