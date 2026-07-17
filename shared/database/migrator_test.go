@@ -12,6 +12,7 @@ import (
 	_ "github.com/lib/pq"
 
 	"github.com/jcsoftdev/pulzifi-back/shared/database"
+	"github.com/jcsoftdev/pulzifi-back/shared/testguard"
 )
 
 func openTestDB(t *testing.T) *sql.DB {
@@ -20,6 +21,7 @@ func openTestDB(t *testing.T) *sql.DB {
 	if dsn == "" {
 		t.Skip("DATABASE_URL not set — integration test requires a real PostgreSQL instance")
 	}
+	testguard.RequireLocalDB(t, dsn)
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
 		t.Fatalf("sql.Open: %v", err)

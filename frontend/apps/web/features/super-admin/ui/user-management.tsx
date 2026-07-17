@@ -19,6 +19,7 @@ import {
 import { ChevronLeft, ChevronRight, Loader2, ShieldCheck } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { describeLoadError } from '@/features/super-admin/application/describe-load-error'
 import { UserDetailSheet } from './user-detail-sheet'
 
 const PAGE_SIZE = 10
@@ -45,7 +46,9 @@ export function UserManagement({ initialOrgId = '' }: UserManagementProps) {
   useEffect(() => {
     setOrgId(initialOrgId)
     setPage(1)
-  }, [initialOrgId])
+  }, [
+    initialOrgId,
+  ])
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
@@ -62,8 +65,8 @@ export function UserManagement({ initialOrgId = '' }: UserManagementProps) {
       })
       setUsers(data.users ?? [])
       setTotal(data.total ?? 0)
-    } catch {
-      setLoadError('You need SUPER_ADMIN role to manage users.')
+    } catch (err) {
+      setLoadError(describeLoadError(err, 'users'))
     } finally {
       setLoading(false)
     }
@@ -71,7 +74,13 @@ export function UserManagement({ initialOrgId = '' }: UserManagementProps) {
 
   useEffect(() => {
     loadUsers(search, page, orgId, status)
-  }, [loadUsers, search, page, orgId, status])
+  }, [
+    loadUsers,
+    search,
+    page,
+    orgId,
+    status,
+  ])
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value
@@ -184,11 +193,7 @@ export function UserManagement({ initialOrgId = '' }: UserManagementProps) {
                         )}
                       </td>
                       <td className="py-3 px-4 text-right">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setSelectedId(user.id)}
-                        >
+                        <Button variant="outline" size="sm" onClick={() => setSelectedId(user.id)}>
                           Manage
                         </Button>
                       </td>

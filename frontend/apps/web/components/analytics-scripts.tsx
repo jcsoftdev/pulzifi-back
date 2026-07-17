@@ -26,6 +26,7 @@ export function AnalyticsScripts() {
 
   const gaId = env.NEXT_PUBLIC_GA_ID
   const metaPixelId = env.NEXT_PUBLIC_META_PIXEL_ID
+  const clarityId = env.NEXT_PUBLIC_CLARITY_ID
 
   if (!isApex) return null
 
@@ -62,6 +63,16 @@ fbq('init', '${metaPixelId}');
 fbq('track', 'PageView');`}
           </Script>
         </>
+      )}
+      {clarityId && (
+        // biome-ignore lint/correctness/useUniqueElementIds: next/script inline tag needs a stable, single-use id for Clarity
+        <Script id="ms-clarity" strategy="afterInteractive">
+          {`(function(c,l,a,r,i,t,y){
+c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+})(window, document, "clarity", "script", "${clarityId}");`}
+        </Script>
       )}
     </>
   )

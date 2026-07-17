@@ -116,7 +116,7 @@ func (a *monitoringReaderAdapter) GetWorkspaceIDForPage(ctx context.Context, sch
 func (a *monitoringReaderAdapter) GetPageTitle(ctx context.Context, schemaName string, pageID uuid.UUID) (string, error) {
 	var title string
 	err := database.WithTenant(ctx, a.db, schemaName, func(tx *sql.Tx) error {
-		if err := tx.QueryRowContext(ctx, `SELECT COALESCE(title,'') FROM pages WHERE id = $1`, pageID).Scan(&title); err != nil {
+		if err := tx.QueryRowContext(ctx, `SELECT COALESCE(name,'') FROM pages WHERE id = $1`, pageID).Scan(&title); err != nil {
 			return fmt.Errorf("get page title for page %s: %w", pageID, err)
 		}
 		return nil

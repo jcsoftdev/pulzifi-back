@@ -45,7 +45,7 @@ func (r *AdminUserPostgresRepository) ListUsers(ctx context.Context, filter list
 	}
 
 	listQuery := `
-		SELECT u.id, u.email, u.first_name, u.last_name, u.status, u.email_verified,
+		SELECT u.id, u.email, COALESCE(u.first_name, ''), COALESCE(u.last_name, ''), u.status, COALESCE(u.email_verified, FALSE),
 		       EXISTS(
 		         SELECT 1 FROM public.user_roles ur
 		         JOIN public.roles ro ON ro.id = ur.role_id
@@ -84,7 +84,7 @@ func (r *AdminUserPostgresRepository) ListUsers(ctx context.Context, filter list
 // Implements getuserdetail.Reader.
 func (r *AdminUserPostgresRepository) GetUserDetail(ctx context.Context, id uuid.UUID) (*getuserdetail.UserDetail, error) {
 	const userQuery = `
-		SELECT u.id, u.email, u.first_name, u.last_name, u.status, u.email_verified,
+		SELECT u.id, u.email, COALESCE(u.first_name, ''), COALESCE(u.last_name, ''), u.status, COALESCE(u.email_verified, FALSE),
 		       EXISTS(SELECT 1 FROM public.user_roles ur
 		              JOIN public.roles ro ON ro.id = ur.role_id
 		              WHERE ur.user_id = u.id AND ro.name = 'SUPER_ADMIN') AS is_super_admin

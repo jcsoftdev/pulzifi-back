@@ -2,7 +2,7 @@
 # Makefile for Pulzifi Backend
 # ============================================================
 
-.PHONY: help dev dev-web down logs build swagger clean migrate cms-migrate test test-integration test-billing-integration test-db-reset check-arch backup
+.PHONY: help dev dev-web down logs build swagger clean migrate cms-migrate test test-integration test-billing-integration test-db-reset e2e-notifications check-arch backup
 
 .DEFAULT_GOAL := help
 
@@ -33,6 +33,7 @@ help: ## Show this help message
 	@echo "  $(YELLOW)make test-integration$(NC)          - Run ALL integration tests against an isolated pulzifi_test DB"
 	@echo "  $(YELLOW)make test-billing-integration$(NC)  - Run billing-only integration tests (stripe webhook + plan assigner)"
 	@echo "  $(YELLOW)make test-db-reset$(NC)             - Drop and recreate the pulzifi_test DB from scratch"
+	@echo "  $(YELLOW)make e2e-notifications$(NC)         - Run the notification pipeline E2E smoke test (requires make dev + make dev-web)"
 	@echo ""
 	@echo "$(GREEN)BUILD:$(NC)"
 	@echo "  $(YELLOW)make build$(NC)    - Build API binary locally"
@@ -173,6 +174,11 @@ test-db-reset: check-env ## Drop and recreate pulzifi_test from scratch
 		go run ./cmd/migrate -db "$$TEST_DB_URL" -scope public -cmd up && \
 		go run ./cmd/migrate -db "$$TEST_DB_URL" -scope tenant -tenant $(TEST_TENANT) -cmd up && \
 		echo "$(GREEN)✓ $(TEST_DB_NAME) recreated and migrated$(NC)"
+
+# Notification pipeline E2E smoke test. Requires `make dev` + `make dev-web`
+# running. See tests/e2e/notification_pipeline_test.go for prerequisites.
+e2e-notifications: ## Run the notification pipeline E2E smoke test
+	go test -tags e2e -v -run TestNotificationPipeline ./tests/e2e/ -timeout 10m
 
 # ============================================================
 # BUILD

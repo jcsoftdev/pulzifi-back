@@ -19,17 +19,17 @@ import (
 // the email module's EmailProvider. Recipients = active workspace members with
 // email_notifications_enabled = true.
 type emailerAdapter struct {
-	db          *sql.DB
-	provider    emailservices.EmailProvider
-	tenant      string
-	frontendURL string
+	db        *sql.DB
+	provider  emailservices.EmailProvider
+	tenant    string
+	appDomain string
 }
 
 var _ socialservices.SocialNotificationEmailer = (*emailerAdapter)(nil)
 
 // NewEmailer constructs a tenant-scoped SocialNotificationEmailer.
-func NewEmailer(db *sql.DB, provider emailservices.EmailProvider, tenant, frontendURL string) socialservices.SocialNotificationEmailer {
-	return &emailerAdapter{db: db, provider: provider, tenant: tenant, frontendURL: frontendURL}
+func NewEmailer(db *sql.DB, provider emailservices.EmailProvider, tenant, appDomain string) socialservices.SocialNotificationEmailer {
+	return &emailerAdapter{db: db, provider: provider, tenant: tenant, appDomain: appDomain}
 }
 
 // SendChangeEmail resolves recipients and emails each one. Best-effort per recipient.
@@ -38,7 +38,7 @@ func (a *emailerAdapter) SendChangeEmail(ctx context.Context, workspaceID uuid.U
 		return nil
 	}
 	if dashboardURL == "" {
-		dashboardURL = fmt.Sprintf("%s/workspaces", a.frontendURL)
+		dashboardURL = fmt.Sprintf("https://%s.%s/workspaces", a.tenant, a.appDomain)
 	}
 
 	emails, err := a.recipientEmails(ctx, workspaceID)

@@ -46,15 +46,22 @@ export function UserDetailSheet({ userId, open, onClose, onChanged }: Props) {
     try {
       setDetail(await SuperAdminApi.getUser(userId))
     } catch {
-      notification.error({ title: 'Failed to load user' })
+      notification.error({
+        title: 'Failed to load user',
+      })
     } finally {
       setLoading(false)
     }
-  }, [userId])
+  }, [
+    userId,
+  ])
 
   useEffect(() => {
     if (open) load()
-  }, [open, load])
+  }, [
+    open,
+    load,
+  ])
 
   const toggleStatus = async () => {
     if (!detail) return
@@ -62,7 +69,9 @@ export function UserDetailSheet({ userId, open, onClose, onChanged }: Props) {
     setBusy(true)
     try {
       await SuperAdminApi.setUserStatus(userId, next)
-      notification.success({ title: next === 'suspended' ? 'User suspended' : 'User activated' })
+      notification.success({
+        title: next === 'suspended' ? 'User suspended' : 'User activated',
+      })
       await load()
       onChanged()
     } catch (err) {
@@ -80,7 +89,9 @@ export function UserDetailSheet({ userId, open, onClose, onChanged }: Props) {
     setBusy(true)
     try {
       await SuperAdminApi.promoteUser(userId)
-      notification.success({ title: 'Promoted to Super Admin' })
+      notification.success({
+        title: 'Promoted to Super Admin',
+      })
       await load()
       onChanged()
     } catch (err) {
@@ -97,7 +108,9 @@ export function UserDetailSheet({ userId, open, onClose, onChanged }: Props) {
     setBusy(true)
     try {
       await SuperAdminApi.setMembershipRole(userId, orgId, role as 'OWNER' | 'ADMIN' | 'MEMBER')
-      notification.success({ title: 'Role updated' })
+      notification.success({
+        title: 'Role updated',
+      })
       await load()
       onChanged()
     } catch (err) {
@@ -114,7 +127,9 @@ export function UserDetailSheet({ userId, open, onClose, onChanged }: Props) {
     setBusy(true)
     try {
       await SuperAdminApi.removeMembership(userId, orgId)
-      notification.success({ title: 'Removed from organization' })
+      notification.success({
+        title: 'Removed from organization',
+      })
       await load()
       onChanged()
     } catch (err) {
@@ -178,9 +193,7 @@ export function UserDetailSheet({ userId, open, onClose, onChanged }: Props) {
 
             {/* Memberships */}
             <div className="space-y-3">
-              <p className="text-sm font-medium">
-                Organizations ({detail.memberships.length})
-              </p>
+              <p className="text-sm font-medium">Organizations ({detail.memberships.length})</p>
               {detail.memberships.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No organization memberships.</p>
               ) : (
@@ -247,10 +260,7 @@ export function UserDetailSheet({ userId, open, onClose, onChanged }: Props) {
       </AlertDialog>
 
       {/* Confirm remove membership */}
-      <AlertDialog
-        open={!!confirmRemove}
-        onOpenChange={(o) => !o && setConfirmRemove(null)}
-      >
+      <AlertDialog open={!!confirmRemove} onOpenChange={(o) => !o && setConfirmRemove(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Remove from organization?</AlertDialogTitle>
@@ -260,9 +270,7 @@ export function UserDetailSheet({ userId, open, onClose, onChanged }: Props) {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => confirmRemove && removeMembership(confirmRemove)}
-            >
+            <AlertDialogAction onClick={() => confirmRemove && removeMembership(confirmRemove)}>
               Remove
             </AlertDialogAction>
           </AlertDialogFooter>

@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"net/url"
 	"os"
 	"testing"
 	"time"
@@ -16,11 +17,18 @@ import (
 	"github.com/jcsoftdev/pulzifi-back/modules/integration/domain/entities"
 	"github.com/jcsoftdev/pulzifi-back/modules/integration/infrastructure/persistence"
 	"github.com/jcsoftdev/pulzifi-back/shared/crypto"
+	"github.com/jcsoftdev/pulzifi-back/shared/testguard"
 )
 
 // TestMain sweeps leftover test orgs/users from prior interrupted runs.
 // Belt-and-suspenders: each test also registers t.Cleanup, but that doesn't
 // run when the process is killed mid-run (panic, Ctrl+C, timeout).
+//
+// testguard.RequireLocalDB is not called here because TestMain has no
+// *testing.T to call t.Skip on — it can only os.Exit. Instead this mirrors
+// testguard's local-DSN policy inline before running the sweep. Every actual
+// test in this file also calls testguard.RequireLocalDB via openTestDB before
+// touching the database.
 func TestMain(m *testing.M) {
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {
@@ -33,7 +41,7 @@ func TestMain(m *testing.M) {
 				os.Getenv("DB_USER"), os.Getenv("DB_PASSWORD"), host, port, os.Getenv("DB_NAME"))
 		}
 	}
-	if dsn != "" {
+	if dsn != "" && isLocalOrAllowedRemoteDSN(dsn) {
 		if db, err := sql.Open("postgres", dsn); err == nil {
 			_, _ = db.Exec(`DELETE FROM public.organizations WHERE subdomain LIKE 'test-%' AND name LIKE 'Test Org %'`)
 			_, _ = db.Exec(`DELETE FROM public.users WHERE email LIKE 'testuser-%@example.com'`)
@@ -41,6 +49,23 @@ func TestMain(m *testing.M) {
 		}
 	}
 	os.Exit(m.Run())
+}
+
+// isLocalOrAllowedRemoteDSN mirrors testguard's local-DSN policy for use
+// outside of a *testing.T context.
+func isLocalOrAllowedRemoteDSN(dsn string) bool {
+	if os.Getenv("INTEGRATION_DB_ALLOW_REMOTE") == "1" {
+		return true
+	}
+	u, err := url.Parse(dsn)
+	if err != nil {
+		return false
+	}
+	switch u.Hostname() {
+	case "localhost", "127.0.0.1", "::1", "postgres", "host.docker.internal":
+		return true
+	}
+	return false
 }
 
 func openTestDB(t *testing.T) *sql.DB {
@@ -61,6 +86,7 @@ func openTestDB(t *testing.T) *sql.DB {
 		password := os.Getenv("DB_PASSWORD")
 		dsn = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", user, password, host, port, name)
 	}
+	testguard.RequireLocalDB(t, dsn)
 
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {

@@ -41,6 +41,17 @@ import (
 	"go.uber.org/zap"
 )
 
+// createEmailProvider selects the email provider from EMAIL_PROVIDER.
+// "log" is used for local/E2E testing so the pipeline never hits the real
+// Resend API; anything else (including unset) falls back to Resend. Mirrors
+// cmd/server/modules.go's createEmailProvider.
+func createEmailProvider(cfg *config.Config) emailservices.EmailProvider {
+	if cfg.EmailProvider == "log" {
+		return emailproviders.NewLogProvider()
+	}
+	return emailproviders.NewResendProvider(cfg.ResendAPIKey, cfg.EmailFromAddress, cfg.EmailFromName)
+}
+
 func main() {
 	cfg := config.Load()
 	logger.Info("Starting Pulzifi Worker Service", zap.String("environment", cfg.Environment))
@@ -77,7 +88,7 @@ func main() {
 	}
 	defer bus.Close()
 
-	emailProvider := emailproviders.NewResendProvider(cfg.ResendAPIKey, cfg.EmailFromAddress, cfg.EmailFromName)
+	emailProvider := createEmailProvider(cfg)
 
 	// Wire the integration dispatcher onto the worker's bus BEFORE detection starts.
 	// Change detection runs in THIS process and publishes change.detected / alert.created
@@ -145,7 +156,7 @@ func main() {
 
 // startMonitoringWithBus builds the snapshot worker and starts the monitoring
 // module's background processes using the provided event bus.
-func startMonitoringWithBus(db *sql.DB, cfg *config.Config, emailProvider *emailproviders.ResendProvider, bus eventbus.MessageBus) {
+func startMonitoringWithBus(db *sql.DB, cfg *config.Config, emailProvider emailservices.EmailProvider, bus eventbus.MessageBus) {
 	snapshotWorker, err := monitoringwiring.NewSnapshotWorker(monitoringwiring.SnapshotWorkerDeps{
 		DB:            db,
 		EventBus:      bus,
@@ -212,7 +223,7 @@ func buildIntegrationKey(cfg *config.Config) []byte {
 }
 
 // buildProviderRegistry assembles the provider clients enabled by config.
-func buildProviderRegistry(db *sql.DB, cfg *config.Config, emailProvider *emailproviders.ResendProvider) services.ProviderRegistry {
+func buildProviderRegistry(db *sql.DB, cfg *config.Config, emailProvider emailservices.EmailProvider) services.ProviderRegistry {
 	slackClient := slackprovider.New(cfg.SlackClientID, cfg.SlackClientSecret)
 	intEmailClient := emailprovider.New(intwiring.NewEmailAdapter(emailProvider))
 	discordClient := discordprovider.New(cfg.DiscordClientID, cfg.DiscordClientSecret)
@@ -253,7 +264,7 @@ func startSocialScheduler(db *sql.DB, cfg *config.Config, bus eventbus.MessageBu
 }
 
 // buildDeliveryWorker wires the integration delivery worker from config.
-func buildDeliveryWorker(db *sql.DB, cfg *config.Config, emailProvider *emailproviders.ResendProvider) *deliveryworker.Worker {
+func buildDeliveryWorker(db *sql.DB, cfg *config.Config, emailProvider emailservices.EmailProvider) *deliveryworker.Worker {
 	intKey := buildIntegrationKey(cfg)
 	intEnc, err := crypto.NewAESGCM(intKey)
 	if err != nil {

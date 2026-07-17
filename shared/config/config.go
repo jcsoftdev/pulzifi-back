@@ -95,6 +95,7 @@ type Config struct {
 	ResendAPIKey     string
 	EmailFromAddress string
 	EmailFromName    string
+	EmailProvider    string // EMAIL_PROVIDER — resend|log (default: resend). "log" logs/captures emails locally instead of calling Resend (E2E/local testing).
 
 	// OAuth
 	GoogleClientID       string
@@ -294,6 +295,7 @@ func Load() *Config {
 		ResendAPIKey:          getEnv("RESEND_API_KEY", ""),
 		EmailFromAddress:      getEnv("EMAIL_FROM_ADDRESS", "noreply@pulzifi.com"),
 		EmailFromName:         getEnv("EMAIL_FROM_NAME", "Pulzifi"),
+		EmailProvider:         getEnv("EMAIL_PROVIDER", "resend"),
 		GoogleClientID:        getEnv("GOOGLE_CLIENT_ID", ""),
 		GoogleClientSecret:    getEnv("GOOGLE_CLIENT_SECRET", ""),
 		GitHubClientID:        getEnv("GITHUB_CLIENT_ID", ""),
