@@ -1,2 +1,7 @@
 [test]
+# NOTE: bun's pathIgnorePatterns is unreliable here (it does not consistently
+# exclude apps/web/e2e/*.spec.ts across runs). The authoritative guard is the
+# `.test.` path filter passed to `bun test` in tools/scripts/validate-build.sh
+# and .github/workflows/ci.yml — unit tests are `.test.ts`, Playwright specs are
+# `.spec.ts`, so that filter runs unit tests only, deterministically.
 pathIgnorePatterns = ["**/e2e/**"]

@@ -185,4 +185,7 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run lint
       - run: bun run type-check
-      - run: bun test
+      # `.test.` runs unit tests only. Playwright specs (apps/web/e2e/*.spec.ts)
+      # are `.spec.ts` and crash under `bun test`; bunfig pathIgnorePatterns is
+      # unreliable across bun versions, so this CLI filter is the real guard.
+      - run: bun test .test.
