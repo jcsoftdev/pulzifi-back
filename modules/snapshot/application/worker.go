@@ -859,6 +859,15 @@ func (s *SnapshotWorker) publishChangeDetected(parentCtx context.Context, tenant
 		return
 	}
 
+	// The dashboard deep link is built from the tenant SUBDOMAIN, which differs
+	// from the schema name (hyphens vs underscores). Best-effort: an empty
+	// subdomain just drops the deep link (email falls back to the page URL).
+	subdomain, err := s.monitoringReader.GetSubdomainBySchemaName(ctx, tenant)
+	if err != nil {
+		logger.Warn("publishChangeDetected: subdomain lookup failed — deep link will fall back to page URL",
+			zap.Error(err), zap.String("tenant", tenant))
+	}
+
 	changeType := check.ChangeType
 	if changeType == "" {
 		changeType = "content"
@@ -873,6 +882,7 @@ func (s *SnapshotWorker) publishChangeDetected(parentCtx context.Context, tenant
 		"page_id":        check.PageID.String(),
 		"workspace_id":   workspaceID.String(),
 		"tenant":         tenant,
+		"subdomain":      subdomain,
 		"diff_image_url": check.DiffImageURL,
 		"changed_at":     check.CheckedAt.Format(time.RFC3339),
 	}

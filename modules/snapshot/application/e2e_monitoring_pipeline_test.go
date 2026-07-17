@@ -341,6 +341,10 @@ func (fakeMonitoringReader) GetOrgIDBySchemaName(context.Context, string) (uuid.
 	return uuid.New(), nil
 }
 
+func (fakeMonitoringReader) GetSubdomainBySchemaName(context.Context, string) (string, error) {
+	return "e2e", nil
+}
+
 func (fakeMonitoringReader) UpdatePageSnapshotMetadata(context.Context, string, uuid.UUID, string, bool) error {
 	return nil
 }

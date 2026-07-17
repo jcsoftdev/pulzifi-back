@@ -34,7 +34,7 @@ func TestPayloadBuilder_Build(t *testing.T) {
 			wantBody:     "A change was detected on https://example.com",
 		},
 		{
-			name: "change detected enriches title, summary and dashboard deep link",
+			name: "change detected deep link uses subdomain, not schema name",
 			event: eventbus.DomainEvent{
 				Type: eventbus.TopicChangeDetected,
 				Data: mustMarshal(t, map[string]any{
@@ -42,7 +42,8 @@ func TestPayloadBuilder_Build(t *testing.T) {
 					"page_title":   "Pricing Page",
 					"change_type":  "content",
 					"diff_summary": "Pro plan price rose from $29 to $39",
-					"tenant":       "acme",
+					"tenant":       "acme_inc", // schema name (underscore) — must NOT be used
+					"subdomain":    "acme-inc", // real subdomain (hyphen) — must be used
 					"workspace_id": "ws-1",
 					"page_id":      "pg-1",
 				}),
@@ -51,6 +52,23 @@ func TestPayloadBuilder_Build(t *testing.T) {
 			wantTitle:        "Change detected on Pricing Page",
 			wantPageURL:      "https://example.com/pricing",
 			wantBody:         "Pro plan price rose from $29 to $39",
+			wantDashboardURL: "https://acme-inc.pulzifi.com/workspaces/ws-1/pages/pg-1/changes",
+		},
+		{
+			name: "change detected falls back to schema tenant when subdomain absent",
+			event: eventbus.DomainEvent{
+				Type: eventbus.TopicChangeDetected,
+				Data: mustMarshal(t, map[string]any{
+					"page_url":     "https://example.com/p",
+					"page_title":   "P",
+					"tenant":       "acme",
+					"workspace_id": "ws-1",
+					"page_id":      "pg-1",
+				}),
+			},
+			wantSeverity:     "warning",
+			wantTitle:        "Change detected on P",
+			wantPageURL:      "https://example.com/p",
 			wantDashboardURL: "https://acme.pulzifi.com/workspaces/ws-1/pages/pg-1/changes",
 		},
 		{
