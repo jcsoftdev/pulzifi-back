@@ -865,11 +865,16 @@ func (s *SnapshotWorker) publishChangeDetected(parentCtx context.Context, tenant
 	}
 
 	payload := map[string]any{
-		"page_url":     pageURL,
-		"page_title":   pageTitle,
-		"change_type":  changeType,
-		"diff_summary": changeSummary,
-		"check_id":     check.ID.String(),
+		"page_url":       pageURL,
+		"page_title":     pageTitle,
+		"change_type":    changeType,
+		"diff_summary":   changeSummary,
+		"check_id":       check.ID.String(),
+		"page_id":        check.PageID.String(),
+		"workspace_id":   workspaceID.String(),
+		"tenant":         tenant,
+		"diff_image_url": check.DiffImageURL,
+		"changed_at":     check.CheckedAt.Format(time.RFC3339),
 	}
 	data, err := json.Marshal(payload)
 	if err != nil {

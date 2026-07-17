@@ -100,8 +100,8 @@ func getenvDefault(key, fallback string) string {
 // pipeline against a live dev stack. See the package doc comment for
 // prerequisites and configuration.
 func TestNotificationPipeline(t *testing.T) {
-	dbDSN := getenvDefault("E2E_DB_DSN", "postgres://pulzifi_user:pulzifi_password@localhost:5434/pulzifi?sslmode=disable")
-	apiURL := getenvDefault("E2E_API_URL", "http://localhost:3000")
+	dbDSN := getenvDefault("E2E_DB_DSN", "postgres://pulzifi_user:pulzifi_password@localhost:5436/pulzifi?sslmode=disable")
+	apiURL := getenvDefault("E2E_API_URL", "http://localhost:3002")
 	pageURL := getenvDefault("E2E_PAGE_URL", "http://monolith:3000/lecture-ai")
 
 	root := repoRoot(t)
