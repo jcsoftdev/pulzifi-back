@@ -14,10 +14,12 @@
 //
 // Prerequisites
 //
-//   - `make dev` running (postgres, scraper/extractor, monolith API on :3000).
-//   - `make dev-web` running (Next.js on :3001; the Go monolith on :3000
-//     proxies unmatched routes to it, including the `/lecture-ai` demo page
-//     and its `/api/demo/lecture-ai` toggle endpoint).
+//   - `make dev` running (postgres, scraper/extractor, monolith API exposed on
+//     the host at :3002 — non-standard to avoid cross-project clashes; the
+//     container still listens on :3000 internally).
+//   - `make dev-web` running (Next.js on :3001; the Go monolith proxies
+//     unmatched routes to it, including the `/lecture-ai` demo page and its
+//     `/api/demo/lecture-ai` toggle endpoint).
 //   - The worker needs a way to actually send the email. Either:
 //     (a) EMAIL_PROVIDER=log set on the worker container, so it logs instead
 //     of calling a real provider, or
@@ -31,11 +33,12 @@
 //
 // Configuration (env vars, all optional — defaults match `make dev`):
 //
-//	E2E_DB_DSN   - postgres DSN reachable from the HOST (default matches
-//	               docker-compose's postgres port mapping + docker-compose.yml
-//	               DB_USER/DB_PASSWORD/DB_NAME defaults)
+//	E2E_DB_DSN   - postgres DSN reachable from the HOST (default targets the
+//	               non-standard exposed port :5436 — set DB_PORT=5436 in .env so
+//	               docker-compose publishes it there; the container listens on
+//	               5432 internally)
 //	E2E_API_URL  - Go monolith URL reachable from the HOST (default
-//	               http://localhost:3000)
+//	               http://localhost:3002)
 //	E2E_PAGE_URL - URL the WORKER container will fetch to render the demo
 //	               page. The worker runs inside the docker-compose network,
 //	               where the Go monolith is reachable at the `monolith`
