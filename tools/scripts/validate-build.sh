@@ -11,7 +11,10 @@ output=$(go vet ./... 2>&1) || ERRORS="${ERRORS}[vet] ${output}\n"
 # (biome lint, not format) — the gap that let a noDangerouslySetInnerHtml error ship.
 output=$(cd "$PROJECT_DIR/frontend" && bun run lint 2>&1) || ERRORS="${ERRORS}[fe-lint] ${output}\n"
 output=$(cd "$PROJECT_DIR/frontend" && bun run type-check 2>&1) || ERRORS="${ERRORS}[fe-types] ${output}\n"
-output=$(cd "$PROJECT_DIR/frontend" && bun test 2>&1) || ERRORS="${ERRORS}[fe-test] ${output}\n"
+# `.test.` filters to unit tests only — Playwright specs are `.spec.ts` and must
+# not be collected by bun test (they crash on test() setup). bun's bunfig
+# pathIgnorePatterns is unreliable, so the CLI filter is the authoritative guard.
+output=$(cd "$PROJECT_DIR/frontend" && bun test .test. 2>&1) || ERRORS="${ERRORS}[fe-test] ${output}\n"
 output=$(cd "$PROJECT_DIR" && make check-arch 2>&1) || ERRORS="${ERRORS}[arch] ${output}\n"
 
 if [ -n "$ERRORS" ]; then
