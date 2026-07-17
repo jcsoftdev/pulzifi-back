@@ -29,10 +29,14 @@ describe('extractTenantFromHostname', () => {
     { name: 'empty hostname', hostname: '', want: null },
     { name: 'two-label non-localhost base domain', hostname: 'example.com', want: null },
 
-    // Reserved subdomains are never tenants (label-based path)
+    // Reserved subdomains are never tenants — filtered on BOTH the label-based
+    // path (lvh.me) and the configured-app-domain path (pulzifi.com), so the
+    // result is deterministic regardless of env import timing.
     { name: 'www prefix on lvh.me', hostname: 'www.lvh.me', want: null },
     { name: 'api prefix on lvh.me', hostname: 'api.lvh.me', want: null },
     { name: 'admin prefix on lvh.me', hostname: 'admin.lvh.me', want: null },
+    { name: 'www prefix on app domain', hostname: 'www.pulzifi.com', want: null },
+    { name: 'api prefix on app domain', hostname: 'api.pulzifi.com', want: null },
   ]
 
   for (const c of cases) {
@@ -40,11 +44,4 @@ describe('extractTenantFromHostname', () => {
       expect(extractTenantFromHostname(c.hostname)).toBe(c.want)
     })
   }
-
-  // Characterization: the configured-app-domain branch does NOT filter reserved
-  // prefixes, so "www.<appDomain>" resolves to the literal "www". Documented so a
-  // future change to this behavior is a conscious decision, not an accident.
-  test('reserved prefix on the configured app domain is NOT filtered', () => {
-    expect(extractTenantFromHostname('www.pulzifi.com')).toBe('www')
-  })
 })

@@ -4,6 +4,12 @@
  */
 import { env } from './env'
 
+// Subdomain labels that are infrastructure, never a tenant. Filtered on BOTH
+// the configured-app-domain path and the label-based fallback so a hostname
+// like "www.<appDomain>" resolves identically regardless of which branch runs
+// (the two branches otherwise diverge by env import timing).
+const RESERVED_SUBDOMAINS = new Set(['www', 'api', 'admin', 'app'])
+
 /**
  * Extracts tenant from hostname
  * @param hostname - The hostname (e.g., "tenant1.localhost", "tenant1.app.com", "www.app.com")
@@ -29,7 +35,10 @@ export function extractTenantFromHostname(hostname: string): string | null {
 
     if (normalizedHostname.endsWith(`.${appDomain}`)) {
       const tenantPart = normalizedHostname.slice(0, -(appDomain.length + 1))
-      return tenantPart || null
+      if (!tenantPart || RESERVED_SUBDOMAINS.has(tenantPart)) {
+        return null
+      }
+      return tenantPart
     }
   }
 
@@ -48,14 +57,8 @@ export function extractTenantFromHostname(hostname: string): string | null {
 
   const subdomain = parts[0] ?? ''
 
-  // Ignore common prefixes that aren't tenants
-  const ignoredSubdomains = [
-    'www',
-    'api',
-    'admin',
-    'app',
-  ]
-  if (ignoredSubdomains.includes(subdomain.toLowerCase())) {
+  // Ignore common prefixes that aren't tenants.
+  if (RESERVED_SUBDOMAINS.has(subdomain.toLowerCase())) {
     return null
   }
 
