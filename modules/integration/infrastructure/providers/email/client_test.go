@@ -177,3 +177,127 @@ func TestEmailClient(t *testing.T) {
 		})
 	}
 }
+
+func TestEmailClient_RichChangeBody(t *testing.T) {
+	stub := &stubSender{}
+	client := emailprovider.New(stub)
+
+	p := &entities.NotificationPayload{
+		Title:        "Change detected on Pricing Page",
+		Body:         "Pro plan price rose from $29 to $39",
+		PageURL:      "https://example.com/pricing",
+		PageTitle:    "Pricing Page",
+		ChangeType:   "content",
+		DiffImageURL: "https://storage.pulzifi.com/diffs/abc.png",
+		DashboardURL: "https://acme.pulzifi.com/workspaces/ws-1/pages/pg-1/changes",
+		ChangedAt:    "2026-07-17T19:18:00Z",
+	}
+	dest := makeDest(map[string]any{"emails": []any{"x@y.com"}})
+
+	if _, err := client.Send(context.Background(), makeIntegration(), dest, p); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(stub.calls) == 0 {
+		t.Fatal("expected Send to be called")
+	}
+	body := stub.calls[0].body
+
+	wantSubstrings := map[string]string{
+		"summary":       p.Body,
+		"page name":     p.PageTitle,
+		"diff image":    p.DiffImageURL,
+		"dashboard CTA": p.DashboardURL,
+		"CTA label":     "View changes",
+		"badge":         "content",
+	}
+	for label, want := range wantSubstrings {
+		if !strings.Contains(body, want) {
+			t.Errorf("body missing %s (%q)", label, want)
+		}
+	}
+	// When a dashboard link exists, the CTA must NOT use the raw-page label.
+	if strings.Contains(body, "View page") {
+		t.Errorf("expected dashboard CTA, but body used raw-page label")
+	}
+}
+
+func TestEmailClient_SanitizesControlCharsAndSubject(t *testing.T) {
+	stub := &stubSender{}
+	client := emailprovider.New(stub)
+
+	// Title carries a CRLF (header-injection vector) + a control char; summary
+	// carries a NUL. Accented text must be preserved.
+	p := &entities.NotificationPayload{
+		Title:     "Change detected on Página\r\nBcc: evil@x.com",
+		Body:      "Precio\x00 subió de $29 a $39",
+		PageURL:   "https://example.com",
+		PageTitle: "Página\x07",
+	}
+	dest := makeDest(map[string]any{"emails": []any{"x@y.com"}})
+
+	if _, err := client.Send(context.Background(), makeIntegration(), dest, p); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	call := stub.calls[0]
+
+	if strings.ContainsAny(call.subject, "\r\n") {
+		t.Errorf("subject still contains CR/LF (header injection): %q", call.subject)
+	}
+	if strings.ContainsRune(call.body, '\x00') || strings.ContainsRune(call.body, '\x07') {
+		t.Errorf("body still contains control characters")
+	}
+	// Legitimate accented text survives.
+	if !strings.Contains(call.body, "Precio") || !strings.Contains(call.subject, "Página") {
+		t.Errorf("expected accented text preserved; subject=%q", call.subject)
+	}
+}
+
+func TestEmailClient_NoDeadLinkWhenNoURLs(t *testing.T) {
+	// alert.created payloads carry only Title+Body (no page/dashboard URL). The
+	// CTA must be omitted entirely rather than render a dead <a href="">.
+	stub := &stubSender{}
+	client := emailprovider.New(stub)
+
+	p := &entities.NotificationPayload{
+		Title: "Quota threshold reached",
+		Body:  "You have used 90% of your monthly checks.",
+	}
+	dest := makeDest(map[string]any{"emails": []any{"x@y.com"}})
+
+	if _, err := client.Send(context.Background(), makeIntegration(), dest, p); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	body := stub.calls[0].body
+	if strings.Contains(body, `href=""`) {
+		t.Errorf("rendered a dead empty-href link:\n%s", body)
+	}
+	if strings.Contains(body, "View page") || strings.Contains(body, "View changes") {
+		t.Errorf("expected no CTA button when no URL is present")
+	}
+	if !strings.Contains(body, p.Title) || !strings.Contains(body, p.Body) {
+		t.Errorf("expected title and body still rendered")
+	}
+}
+
+func TestEmailClient_FallsBackToPageURLWithoutDashboard(t *testing.T) {
+	stub := &stubSender{}
+	client := emailprovider.New(stub)
+
+	p := &entities.NotificationPayload{
+		Title:   "Change detected on https://example.com",
+		Body:    "A change was detected on https://example.com",
+		PageURL: "https://example.com",
+	}
+	dest := makeDest(map[string]any{"emails": []any{"x@y.com"}})
+
+	if _, err := client.Send(context.Background(), makeIntegration(), dest, p); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	body := stub.calls[0].body
+	if !strings.Contains(body, "View page") {
+		t.Errorf("expected 'View page' CTA fallback, body: %s", body)
+	}
+	if !strings.Contains(body, p.PageURL) {
+		t.Errorf("expected page URL in CTA fallback")
+	}
+}

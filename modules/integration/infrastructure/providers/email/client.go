@@ -3,7 +3,6 @@ package emailprovider
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/jcsoftdev/pulzifi-back/modules/integration/domain/entities"
@@ -70,8 +69,9 @@ func (c *Client) Send(ctx context.Context, _ *entities.Integration, dest *entiti
 	if len(emails) == 0 {
 		return nil, errors.New("email: no recipients")
 	}
-	body := fmt.Sprintf(`<h2>%s</h2><p>%s</p><p><a href="%s">View page</a></p>`, p.Title, p.Body, p.PageURL)
-	if err := c.sender.Send(ctx, emails, p.Title, body); err != nil {
+	body := renderEmailHTML(p)
+	subject := sanitizeText(p.Title)
+	if err := c.sender.Send(ctx, emails, subject, body); err != nil {
 		return nil, err
 	}
 	return &entities.DeliveryResult{Code: 200}, nil

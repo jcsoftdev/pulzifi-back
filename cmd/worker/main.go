@@ -280,7 +280,7 @@ func buildDeliveryWorker(db *sql.DB, cfg *config.Config, emailProvider emailserv
 		intRepoFactory,
 		intRepo,
 		intRegistry,
-		services.NewPayloadBuilder(),
+		services.NewPayloadBuilder(cfg.AppDomain),
 		deliveryworker.Config{
 			PollInterval: cfg.DeliveryPollInterval,
 			PoolSize:     cfg.DeliveryWorkerPoolSize,

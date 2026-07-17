@@ -8,18 +8,20 @@ import (
 )
 
 func TestPayloadBuilder_Build(t *testing.T) {
-	builder := NewPayloadBuilder()
+	builder := NewPayloadBuilder("pulzifi.com")
 
 	tests := []struct {
-		name          string
-		event         eventbus.DomainEvent
-		wantSeverity  string
-		wantTitle     string
-		wantPageURL   string
-		wantErr       bool
+		name             string
+		event            eventbus.DomainEvent
+		wantSeverity     string
+		wantTitle        string
+		wantPageURL      string
+		wantBody         string
+		wantDashboardURL string
+		wantErr          bool
 	}{
 		{
-			name: "change detected event maps to warning severity",
+			name: "change detected falls back to page url when only url present",
 			event: eventbus.DomainEvent{
 				Type: eventbus.TopicChangeDetected,
 				Data: mustMarshal(t, map[string]any{
@@ -27,8 +29,46 @@ func TestPayloadBuilder_Build(t *testing.T) {
 				}),
 			},
 			wantSeverity: "warning",
-			wantTitle:    "Page change detected",
+			wantTitle:    "Change detected on https://example.com",
 			wantPageURL:  "https://example.com",
+			wantBody:     "A change was detected on https://example.com",
+		},
+		{
+			name: "change detected enriches title, summary and dashboard deep link",
+			event: eventbus.DomainEvent{
+				Type: eventbus.TopicChangeDetected,
+				Data: mustMarshal(t, map[string]any{
+					"page_url":     "https://example.com/pricing",
+					"page_title":   "Pricing Page",
+					"change_type":  "content",
+					"diff_summary": "Pro plan price rose from $29 to $39",
+					"tenant":       "acme",
+					"workspace_id": "ws-1",
+					"page_id":      "pg-1",
+				}),
+			},
+			wantSeverity:     "warning",
+			wantTitle:        "Change detected on Pricing Page",
+			wantPageURL:      "https://example.com/pricing",
+			wantBody:         "Pro plan price rose from $29 to $39",
+			wantDashboardURL: "https://acme.pulzifi.com/workspaces/ws-1/pages/pg-1/changes",
+		},
+		{
+			name: "change detected omits deep link when identifiers missing",
+			event: eventbus.DomainEvent{
+				Type: eventbus.TopicChangeDetected,
+				Data: mustMarshal(t, map[string]any{
+					"page_url":     "https://example.com",
+					"page_title":   "Home",
+					"diff_summary": "Header changed",
+					// no tenant/workspace_id/page_id
+				}),
+			},
+			wantSeverity:     "warning",
+			wantTitle:        "Change detected on Home",
+			wantPageURL:      "https://example.com",
+			wantBody:         "Header changed",
+			wantDashboardURL: "",
 		},
 		{
 			name: "alert created event maps to critical severity",
@@ -95,6 +135,12 @@ func TestPayloadBuilder_Build(t *testing.T) {
 			}
 			if tt.wantPageURL != "" && payload.PageURL != tt.wantPageURL {
 				t.Errorf("PageURL: want %q, got %q", tt.wantPageURL, payload.PageURL)
+			}
+			if tt.wantBody != "" && payload.Body != tt.wantBody {
+				t.Errorf("Body: want %q, got %q", tt.wantBody, payload.Body)
+			}
+			if payload.DashboardURL != tt.wantDashboardURL {
+				t.Errorf("DashboardURL: want %q, got %q", tt.wantDashboardURL, payload.DashboardURL)
 			}
 		})
 	}
