@@ -138,7 +138,7 @@ func (f *TenantHandlerFactory) NewHandler(tenant string) *runcheck.Handler {
 	h.SetAlertRepo(socialpostgres.NewAlertPostgresRepository(f.db, tenant))
 	h.SetSSEPublisher(sseBrokerAdapter{b: f.broker})
 	if f.emailProvider != nil {
-		h.SetEmailer(NewEmailer(f.db, f.emailProvider, tenant, f.cfg.FrontendURL))
+		h.SetEmailer(NewEmailer(f.db, f.emailProvider, tenant, f.cfg.AppDomain))
 	}
 	if f.aiClient != nil {
 		h.SetInsightGenerator(NewInsightGenerator(f.aiClient, f.db, tenant))
