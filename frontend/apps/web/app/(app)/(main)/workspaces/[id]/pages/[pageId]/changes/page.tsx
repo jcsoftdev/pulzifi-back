@@ -494,6 +494,8 @@ export default function ChangesPage() {
               previousScreenshotUrl={previousCheck?.screenshotUrl}
               diffImageUrl={activeCheck?.diffImageUrl}
               sectionName={activeSectionName}
+              snapshotExpired={!!activeCheck && !activeCheck.screenshotUrl}
+              storagePeriodDays={storagePeriodDays}
             />
           ))}
         {activeTab === 'text' && <TextChanges sections={textChangeSections} />}
