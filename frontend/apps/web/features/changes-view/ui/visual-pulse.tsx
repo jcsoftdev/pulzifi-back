@@ -17,6 +17,13 @@ interface VisualPulseProps {
   sectionOverlay?: SectionOverlay
   /** @deprecated Use sectionOverlay instead */
   sectionName?: string
+  /**
+   * True when a change IS selected but its snapshot images were purged by the
+   * retention job. Distinguishes "snapshot expired" from "nothing selected".
+   */
+  snapshotExpired?: boolean
+  /** Retention window in days, shown in the expired-snapshot message. */
+  storagePeriodDays?: number
 }
 
 export function VisualPulse({
@@ -25,6 +32,8 @@ export function VisualPulse({
   diffImageUrl,
   sectionOverlay,
   sectionName,
+  snapshotExpired,
+  storagePeriodDays,
 }: Readonly<VisualPulseProps>) {
   const [viewMode, setViewMode] = useState<'slider' | 'diff'>('slider')
   const [sliderPosition, setSliderPosition] = useState(50)
@@ -175,11 +184,23 @@ export function VisualPulse({
             <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
           </svg>
         </div>
-        <div className="text-center">
-          <p className="text-sm font-medium text-foreground">No snapshot yet</p>
-          <p className="text-xs text-muted-foreground mt-1">
-            Select a detected change from the dropdown above
-          </p>
+        <div className="text-center max-w-sm px-4">
+          {snapshotExpired ? (
+            <>
+              <p className="text-sm font-medium text-foreground">Snapshot no longer available</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                This change was detected earlier, and Pulzifi keeps visual snapshots for{' '}
+                {storagePeriodDays ?? 7} days — so its images are no longer stored.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-sm font-medium text-foreground">No snapshot yet</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Select a detected change from the dropdown above
+              </p>
+            </>
+          )}
         </div>
       </div>
     )

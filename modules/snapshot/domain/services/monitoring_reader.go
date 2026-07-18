@@ -25,6 +25,11 @@ type MonitoringReader interface {
 	GetPageTitle(ctx context.Context, schemaName string, pageID uuid.UUID) (string, error)
 	// GetOrgIDBySchemaName returns the org ID for a given tenant schema name.
 	GetOrgIDBySchemaName(ctx context.Context, schemaName string) (uuid.UUID, error)
+	// GetSubdomainBySchemaName returns the tenant's subdomain label for a schema
+	// name. The subdomain (e.g. "acme-inc") differs from the schema name (e.g.
+	// "acme_inc") — Postgres schema names cannot contain hyphens — so dashboard
+	// deep links must use the subdomain, not the schema.
+	GetSubdomainBySchemaName(ctx context.Context, schemaName string) (string, error)
 	// UpdatePageSnapshotMetadata updates the thumbnail_url and last_change_detected_at for a page.
 	UpdatePageSnapshotMetadata(ctx context.Context, schemaName string, pageID uuid.UUID, thumbnailURL string, changeDetected bool) error
 }

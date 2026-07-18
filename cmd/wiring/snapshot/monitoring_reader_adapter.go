@@ -138,6 +138,17 @@ func (a *monitoringReaderAdapter) GetOrgIDBySchemaName(ctx context.Context, sche
 	return orgID, nil
 }
 
+func (a *monitoringReaderAdapter) GetSubdomainBySchemaName(ctx context.Context, schemaName string) (string, error) {
+	var subdomain string
+	if err := a.db.QueryRowContext(ctx,
+		`SELECT COALESCE(subdomain,'') FROM public.organizations WHERE schema_name = $1 AND deleted_at IS NULL`,
+		schemaName,
+	).Scan(&subdomain); err != nil {
+		return "", fmt.Errorf("get subdomain for schema %s: %w", schemaName, err)
+	}
+	return subdomain, nil
+}
+
 func (a *monitoringReaderAdapter) UpdatePageSnapshotMetadata(ctx context.Context, schemaName string, pageID uuid.UUID, thumbnailURL string, changeDetected bool) error {
 	q := `UPDATE pages
 		SET thumbnail_url = $1,

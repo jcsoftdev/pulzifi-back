@@ -77,12 +77,17 @@ func (b *PayloadBuilder) buildChangeDetected(p *entities.NotificationPayload, ra
 // Returns "" when appDomain is unset or any identifier is missing, so callers
 // can fall back to the raw page URL.
 func (b *PayloadBuilder) changesLink(raw map[string]any) string {
-	tenant, _ := raw["tenant"].(string)
+	// Prefer the real subdomain; the schema-name "tenant" is only a legacy
+	// fallback and is wrong whenever the subdomain contains a hyphen.
+	subdomain, _ := raw["subdomain"].(string)
+	if subdomain == "" {
+		subdomain, _ = raw["tenant"].(string)
+	}
 	workspaceID, _ := raw["workspace_id"].(string)
 	pageID, _ := raw["page_id"].(string)
-	if b.appDomain == "" || tenant == "" || workspaceID == "" || pageID == "" {
+	if b.appDomain == "" || subdomain == "" || workspaceID == "" || pageID == "" {
 		return ""
 	}
 	return fmt.Sprintf("https://%s.%s/workspaces/%s/pages/%s/changes",
-		tenant, b.appDomain, workspaceID, pageID)
+		subdomain, b.appDomain, workspaceID, pageID)
 }
