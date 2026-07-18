@@ -85,4 +85,9 @@ export const ReportApi = {
     })
     return transformReport(response)
   },
+
+  async deleteReport(id: string): Promise<void> {
+    const http = await getHttpClient()
+    await http.delete(`/api/v1/reports/${id}`)
+  },
 }

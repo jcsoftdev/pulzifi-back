@@ -77,6 +77,7 @@ func (m *Module) RegisterHTTPRoutes(r chi.Router) {
 		r.Post("/", m.handleCreateReport)
 		r.Get("/", m.handleListReports)
 		r.Get("/{id}", m.handleGetReport)
+		r.Delete("/{id}", m.handleDeleteReport)
 	})
 }
 
@@ -230,4 +231,25 @@ func (m *Module) handleGetReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, resp.Report)
+}
+
+func (m *Module) handleDeleteReport(w http.ResponseWriter, r *http.Request) {
+	if m.deps.DB == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "database not initialized"})
+		return
+	}
+
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid report id"})
+		return
+	}
+
+	tenant := middleware.GetTenantFromContext(r.Context())
+	repo := persistence.NewReportPostgresRepository(m.deps.DB, tenant)
+	if err := repo.Delete(r.Context(), id); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to delete report"})
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
