@@ -118,7 +118,9 @@ func (r *AlertPostgresRepository) ListByWorkspace(ctx context.Context, workspace
 func (r *AlertPostgresRepository) CountUnread(ctx context.Context) (int, error) {
 	var count int
 	err := database.WithTenant(ctx, r.db, r.tenant, func(tx *sql.Tx) error {
-		return tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM alerts WHERE read_at IS NULL`).Scan(&count)
+		return tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM alerts a
+			JOIN pages p ON p.id = a.page_id AND p.deleted_at IS NULL
+			WHERE a.read_at IS NULL`).Scan(&count)
 	})
 	return count, err
 }
@@ -126,15 +128,18 @@ func (r *AlertPostgresRepository) CountUnread(ctx context.Context) (int, error) 
 func (r *AlertPostgresRepository) CountAll(ctx context.Context) (int, error) {
 	var count int
 	err := database.WithTenant(ctx, r.db, r.tenant, func(tx *sql.Tx) error {
-		return tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM alerts`).Scan(&count)
+		return tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM alerts a
+			JOIN pages p ON p.id = a.page_id AND p.deleted_at IS NULL`).Scan(&count)
 	})
 	return count, err
 }
 
 func (r *AlertPostgresRepository) ListAll(ctx context.Context, limit int) ([]*entities.AlertWithPage, error) {
+	// INNER JOIN + deleted_at IS NULL hides notifications whose page was deleted:
+	// clicking them 404s (the page/checks are gone), so they must not appear.
 	q := `SELECT a.id, a.workspace_id, a.page_id, a.check_id, a.type, a.title, a.description, a.metadata, a.read_at, a.created_at,
 	       COALESCE(p.name, '') AS page_name, COALESCE(p.url, '') AS page_url
-	       FROM alerts a LEFT JOIN pages p ON p.id = a.page_id
+	       FROM alerts a JOIN pages p ON p.id = a.page_id AND p.deleted_at IS NULL
 	       ORDER BY a.created_at DESC LIMIT $1`
 
 	var alerts []*entities.AlertWithPage
