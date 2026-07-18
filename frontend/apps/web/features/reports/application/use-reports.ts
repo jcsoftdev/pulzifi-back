@@ -51,11 +51,17 @@ export function useReports(pageIds?: string[]) {
     return report
   }, [])
 
+  const deleteReport = useCallback(async (id: string) => {
+    await ReportApi.deleteReport(id)
+    setReports((prev) => prev.filter((r) => r.id !== id))
+  }, [])
+
   return {
     reports,
     loading,
     error,
     createReport,
+    deleteReport,
     refresh: fetchReports,
   }
 }

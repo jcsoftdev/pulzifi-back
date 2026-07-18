@@ -12,4 +12,5 @@ type ReportRepository interface {
 	GetByID(ctx context.Context, id uuid.UUID) (*entities.Report, error)
 	ListByPage(ctx context.Context, pageID uuid.UUID) ([]*entities.Report, error)
 	List(ctx context.Context) ([]*entities.Report, error)
+	Delete(ctx context.Context, id uuid.UUID) error
 }

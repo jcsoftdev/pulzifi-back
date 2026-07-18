@@ -56,6 +56,13 @@ func (r *ReportPostgresRepository) Create(ctx context.Context, report *entities.
 	})
 }
 
+func (r *ReportPostgresRepository) Delete(ctx context.Context, id uuid.UUID) error {
+	return database.WithTenant(ctx, r.db, r.tenant, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, `DELETE FROM reports WHERE id = $1`, id)
+		return err
+	})
+}
+
 func (r *ReportPostgresRepository) GetByID(ctx context.Context, id uuid.UUID) (*entities.Report, error) {
 	var report entities.Report
 	var pdfURL sql.NullString

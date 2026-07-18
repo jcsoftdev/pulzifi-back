@@ -16,6 +16,7 @@ type MockReportRepository struct {
 	ListByPageErr    error
 	ListResult       []*entities.Report
 	ListErr          error
+	DeleteErr        error
 }
 
 func (m *MockReportRepository) Create(_ context.Context, _ *entities.Report) error {
@@ -32,4 +33,8 @@ func (m *MockReportRepository) ListByPage(_ context.Context, _ uuid.UUID) ([]*en
 
 func (m *MockReportRepository) List(_ context.Context) ([]*entities.Report, error) {
 	return m.ListResult, m.ListErr
+}
+
+func (m *MockReportRepository) Delete(_ context.Context, _ uuid.UUID) error {
+	return m.DeleteErr
 }

@@ -2,8 +2,9 @@
 
 import type { Report } from '@workspace/services'
 import { Badge } from '@workspace/ui/components/atoms/badge'
+import { Button } from '@workspace/ui/components/atoms/button'
 import { Card, CardContent } from '@workspace/ui/components/atoms/card'
-import { ExternalLink, FileText } from 'lucide-react'
+import { ExternalLink, FileText, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import { formatReportDate } from '../domain/types'
 
@@ -11,9 +12,15 @@ interface ReportsTableProps {
   reports: Report[]
   loading: boolean
   workspaceId: string
+  onDelete?: (report: Report) => void
 }
 
-export function ReportsTable({ reports, loading, workspaceId }: Readonly<ReportsTableProps>) {
+export function ReportsTable({
+  reports,
+  loading,
+  workspaceId,
+  onDelete,
+}: Readonly<ReportsTableProps>) {
   if (loading) {
     return (
       <div className="grid gap-4">
@@ -71,6 +78,22 @@ export function ReportsTable({ reports, loading, workspaceId }: Readonly<Reports
                       <ExternalLink className="w-3 h-3" />
                       PDF
                     </Badge>
+                  )}
+                  {onDelete && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                      aria-label={`Delete report ${report.title}`}
+                      // Row is a <Link>; don't navigate when deleting.
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        onDelete(report)
+                      }}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
                   )}
                 </div>
               </div>

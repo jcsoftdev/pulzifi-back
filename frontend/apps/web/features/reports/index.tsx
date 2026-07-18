@@ -1,8 +1,19 @@
 'use client'
 
-import type { Page } from '@workspace/services'
+import type { Page, Report } from '@workspace/services'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@workspace/ui/components/atoms/alert-dialog'
 import { Button } from '@workspace/ui/components/atoms/button'
 import { Plus } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { useCallback, useState } from 'react'
 import { notification } from '@/lib/notification'
 import { useReports } from './application/use-reports'
@@ -15,32 +26,37 @@ interface ReportsFeatureProps {
 }
 
 export function ReportsFeature({ workspaceId, pages }: Readonly<ReportsFeatureProps>) {
+  const router = useRouter()
   const pageIds = pages.map((p) => p.id)
-  const { reports, loading, createReport } = useReports(pageIds)
+  const { reports, loading, createReport, deleteReport } = useReports(pageIds)
 
   const [createOpen, setCreateOpen] = useState(false)
   const [actionError, setActionError] = useState<Error | null>(null)
   const [actionLoading, setActionLoading] = useState(false)
+  const [reportToDelete, setReportToDelete] = useState<Report | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   const handleCreate = useCallback(
     async (data: { pageId: string; title: string; reportDate: string }) => {
       setActionError(null)
       setActionLoading(true)
       try {
-        await createReport({
+        const report = await createReport({
           pageId: data.pageId,
           title: data.title,
           reportDate: data.reportDate,
         })
         setCreateOpen(false)
         notification.success({
-          title: 'Report created',
-          description: `"${data.title}" has been created.`,
+          title: 'Report generated',
+          description: `"${data.title}" is ready.`,
         })
+        // Open the freshly generated report instead of leaving the user on the list.
+        router.push(`/workspaces/${workspaceId}/reports/${report.id}`)
       } catch (err) {
         setActionError(err instanceof Error ? err : new Error('Failed to create report'))
         notification.error({
-          title: 'Failed to create report',
+          title: 'Failed to generate report',
           description: err instanceof Error ? err.message : 'Please try again.',
         })
       } finally {
@@ -49,8 +65,33 @@ export function ReportsFeature({ workspaceId, pages }: Readonly<ReportsFeaturePr
     },
     [
       createReport,
+      router,
+      workspaceId,
     ]
   )
+
+  const handleConfirmDelete = useCallback(async () => {
+    if (!reportToDelete) return
+    setIsDeleting(true)
+    try {
+      await deleteReport(reportToDelete.id)
+      notification.success({
+        title: 'Report deleted',
+        description: `"${reportToDelete.title}" was removed.`,
+      })
+      setReportToDelete(null)
+    } catch (err) {
+      notification.error({
+        title: 'Failed to delete report',
+        description: err instanceof Error ? err.message : 'Please try again.',
+      })
+    } finally {
+      setIsDeleting(false)
+    }
+  }, [
+    deleteReport,
+    reportToDelete,
+  ])
 
   return (
     <div className="px-4 md:px-8 lg:px-24 py-8">
@@ -73,7 +114,12 @@ export function ReportsFeature({ workspaceId, pages }: Readonly<ReportsFeaturePr
       </div>
 
       {/* Reports list */}
-      <ReportsTable reports={reports} loading={loading} workspaceId={workspaceId} />
+      <ReportsTable
+        reports={reports}
+        loading={loading}
+        workspaceId={workspaceId}
+        onDelete={setReportToDelete}
+      />
 
       {/* Dialogs */}
       <CreateReportDialog
@@ -84,6 +130,35 @@ export function ReportsFeature({ workspaceId, pages }: Readonly<ReportsFeaturePr
         isLoading={actionLoading}
         error={actionError}
       />
+
+      <AlertDialog
+        open={reportToDelete !== null}
+        onOpenChange={(open) => !open && setReportToDelete(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete report</AlertDialogTitle>
+            <AlertDialogDescription>
+              {reportToDelete
+                ? `Are you sure you want to delete "${reportToDelete.title}"? This action cannot be undone.`
+                : ''}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault()
+                handleConfirmDelete()
+              }}
+              disabled={isDeleting}
+              className="bg-destructive text-white hover:bg-destructive/90"
+            >
+              {isDeleting ? 'Deleting…' : 'Delete report'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
