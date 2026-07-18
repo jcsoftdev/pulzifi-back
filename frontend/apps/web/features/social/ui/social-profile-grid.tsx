@@ -5,11 +5,13 @@ import { SocialProfileCard } from './social-profile-card'
 interface SocialProfileGridProps {
   profiles: SocialProfile[]
   workspaceId: string
+  onDelete?: (profile: SocialProfile) => void
 }
 
 export function SocialProfileGrid({
   profiles,
   workspaceId,
+  onDelete,
 }: Readonly<SocialProfileGridProps>) {
   if (profiles.length === 0) {
     return (
@@ -28,7 +30,7 @@ export function SocialProfileGrid({
           href={`/workspaces/${workspaceId}/social/${profile.id}`}
           className="block"
         >
-          <SocialProfileCard profile={profile} />
+          <SocialProfileCard profile={profile} onDelete={onDelete} />
         </Link>
       ))}
     </div>
